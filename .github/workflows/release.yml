@@ -1,0 +1,45 @@
+name: Release
+
+# 태그를 밀면 릴리스가 만들어진다. 태그 이름은 manifest.json 의 version 과 같아야 한다.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write # 릴리스를 만들고 파일을 붙인다
+  id-token: write # 증명서에 서명한다
+  attestations: write # 증명서를 남긴다
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 태그와 manifest 가 어긋나면 옵시디언이 이 릴리스를 못 찾는다. 여기서 막는다.
+      - name: Tag must match the manifest version
+        run: |
+          version=$(jq -r .version manifest.json)
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "manifest.json says $version but the tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      # 내려받은 파일이 정말 이 저장소의 이 커밋에서 나왔는지 확인할 수 있게 한다
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            main.js manifest.json styles.css
