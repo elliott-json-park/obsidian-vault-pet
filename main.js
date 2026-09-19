@@ -18,7 +18,7 @@
 
 const obsidian = require('obsidian');
 const {
-  Plugin, ItemView, Modal, Setting, PluginSettingTab, Notice, Menu, TFile, TFolder,
+  ItemView, Modal, Setting, PluginSettingTab, Notice, Menu, TFile, TFolder,
   MarkdownRenderChild, normalizePath, addIcon,
 } = obsidian;
 
@@ -302,7 +302,6 @@ function detectLang(pref) {
   let sys = '';
   try {
     if (typeof obsidian.getLanguage === 'function') sys = obsidian.getLanguage();
-    if (!sys) sys = window.localStorage.getItem('language') || '';
     if (!sys && typeof document !== 'undefined') sys = document.documentElement.lang || '';
     if (!sys && typeof navigator !== 'undefined') sys = navigator.language || '';
   } catch {
@@ -595,7 +594,6 @@ class Emitter {
   }
 }
 
-const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 function minutesOfDay(hhmm) {
@@ -2349,12 +2347,10 @@ class HouseView extends ItemView {
   }
 
   async onOpen() {
-    this.plugin.views.add(this);
     this.build();
   }
 
   async onClose() {
-    this.plugin.views.delete(this);
     if (this.hero) this.plugin.anim.remove(this.hero);
     this.clearMinis();
   }
@@ -3133,7 +3129,7 @@ class PetSettingTab extends PluginSettingTab {
     formula.setText(t('xpFormula', { c: CHARS_PER_XP, l: XP_PER_LINK, n: XP_PER_NOTE, cap: fmt(LIVE_CHAR_CAP) }));
 
     new Setting(el).setName(t('sExclude')).setDesc(t('sExcludeDesc')).addTextArea((ta) => {
-      ta.setPlaceholder('Templates\nAttachments');
+      ta.setPlaceholder('Templates');
       ta.setValue((s.excludedFolders || []).join('\n'));
       ta.inputEl.rows = 4;
       ta.onChange((v) => {
@@ -3164,7 +3160,7 @@ class PetSettingTab extends PluginSettingTab {
 
 /* ────────────────────────────── 플러그인 ────────────────────────────── */
 
-class VaultPetPlugin extends Plugin {
+class VaultPetPlugin extends obsidian.Plugin {
   async onload() {
     const raw = (await this.loadData()) || {};
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw.settings || {});
@@ -3176,7 +3172,6 @@ class VaultPetPlugin extends Plugin {
     this.growth = null;
     this.loading = null;
     this.pending = new Set();
-    this.views = new Set();
     this.cards = new Set();
     this.modal = null;
     this.fonts = [];
@@ -3279,6 +3274,11 @@ class VaultPetPlugin extends Plugin {
     this.minuteTick();
   }
 
+  // 열려 있는 펫 하우스들. 참조를 들고 있지 않고 그때그때 찾는다
+  views() {
+    return this.app.workspace.getLeavesOfType(VIEW_TYPE).map((l) => l.view).filter((v) => v instanceof HouseView && v.body);
+  }
+
   isExcluded(path) {
     return (this.settings.excludedFolders || []).some((f) => path === f || path.startsWith(f + '/'));
   }
@@ -3327,7 +3327,7 @@ class VaultPetPlugin extends Plugin {
     this.loading = p;
     this.widget.setLoading(p);
     if (this.modal) this.modal.updateInfo();
-    for (const v of this.views) v.update(false);
+    for (const v of this.views()) v.update(false);
   }
 
   queue(f) {
@@ -3443,7 +3443,7 @@ class VaultPetPlugin extends Plugin {
   updateUI() {
     this.widget.update();
     this.updateStatus();
-    for (const v of this.views) v.update(false);
+    for (const v of this.views()) v.update(false);
     for (const c of this.cards) c.update();
   }
 
@@ -3466,7 +3466,7 @@ class VaultPetPlugin extends Plugin {
   relabel() {
     LANG = detectLang(this.settings.language);
     if (this.ribbon) this.ribbon.setAttr('aria-label', t('openHouse'));
-    for (const v of this.views) v.build();
+    for (const v of this.views()) v.build();
     this.updateUI();
   }
 
@@ -3476,7 +3476,7 @@ class VaultPetPlugin extends Plugin {
     this.brain.on('mood', () => {
       this.widget.update();
       this.updateStatus();
-      for (const v of this.views) v.update(false);
+      for (const v of this.views()) v.update(false);
       for (const c of this.cards) c.update();
     });
     this.brain.on('action', (a) => this.widget.action(a));
