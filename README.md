@@ -144,6 +144,7 @@ Manual install: copy `main.js`, `manifest.json` and `styles.css` from the [lates
 ## Privacy
 
 - Notes are only ever **read**. Their contents are never stored or sent anywhere.
+- Why it lists every Markdown file: on first run it reads your notes once to count what you've already written, and at startup it checks which notes changed while Obsidian was closed (by modification time, so unchanged notes aren't read again). Folders you exclude in the settings are skipped.
 - All the plugin keeps is, per file path, the highest character and link counts, plus daily and hourly totals. Everything lives in `.obsidian/plugins/vault-pet/data.json`.
 - No network access.
 

@@ -386,7 +386,6 @@ body.vault-pet-pixel .vault-pet-status {
   margin-top: 10px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
 }
 .vp-tabs::-webkit-scrollbar {
   display: none;
@@ -856,7 +855,7 @@ body.vault-pet-pixel .vault-pet-status {
   border-radius: 4px;
   cursor: pointer;
 }
-.vp-radio:has(input:checked) {
+.vp-radio.is-checked {
   border-color: var(--vp-accent);
   background: color-mix(in srgb, var(--vp-accent) 10%, transparent);
 }

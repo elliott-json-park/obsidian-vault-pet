@@ -2895,6 +2895,11 @@ class WelcomeModal extends Modal {
         const lab = el.createEl('label', { cls: 'vp-radio' });
         const r = lab.createEl('input', { attr: { type: 'radio', name: 'vp-wmode', value } });
         r.checked = this.choice.mode === value;
+        lab.toggleClass('is-checked', r.checked);
+        // 고른 항목 강조. CSS :has() 는 느려서 클래스로 한다
+        r.addEventListener('change', () => {
+          el.querySelectorAll('.vp-radio').forEach((x) => x.toggleClass('is-checked', x.contains(r)));
+        });
         lab.appendText(' ' + title + ' ');
         if (extra) extra(lab);
         lab.createEl('small', { text: sub });

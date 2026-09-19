@@ -1,7 +1,7 @@
 {
   "id": "vault-pet",
   "name": "Vault Pet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
   "description": "A pixel pet that grows as you write. Characters, links and new notes become XP, with daily quests, badges, streaks and accessories to unlock.",
   "author": "Elliott Park",
