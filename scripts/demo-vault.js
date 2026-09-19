@@ -2,11 +2,12 @@
 
 /*
  * 데모 볼트를 만든다.
- *   node scripts/demo-vault.js [출력 폴더] [--seeded] [--plugin-only]
+ *   node scripts/demo-vault.js [출력 폴더] [--seeded] [--partner=inky] [--plugin-only]
  *
  * - 노트 몇 개와 .obsidian 설정, 플러그인 파일(main.js·manifest.json·styles.css·fonts/)을 넣는다.
- * - --seeded: 3주쯤 키운 펫의 data.json 을 함께 넣는다 (스크린샷용).
- *   없으면 플러그인을 처음 켠 상태라 첫 실행 안내부터 나온다.
+ * - --seeded: 3주쯤 키운 펫의 data.json 을 함께 넣는다 (스크린샷용). 도감에는 친구 셋이 있다.
+ *   --partner 로 지금 파트너를 고른다 (inky·purrl·sprig·ember·dewey).
+ *   없으면 플러그인을 처음 켠 상태라 첫 실행 안내(파트너 고르기)부터 나온다.
  * - --plugin-only: 노트는 그대로 두고 플러그인 파일만 새로 복사한다.
  */
 
@@ -18,6 +19,7 @@ const args = process.argv.slice(2);
 const out = path.resolve(args.find((a) => !a.startsWith('--')) || path.join(root, '..', '데모_볼트'));
 const seeded = args.includes('--seeded');
 const pluginOnly = args.includes('--plugin-only');
+const partner = (args.find((a) => a.startsWith('--partner=')) || '--partner=inky').split('=')[1];
 
 const write = (rel, text) => {
   const p = path.join(out, rel);
@@ -183,7 +185,7 @@ const files = {};
 for (const [rel, text] of Object.entries(notes)) files[rel] = [text.replace(/\s/g, '').length, (text.match(/\[\[/g) || []).length, Date.now() + 60_000, 1];
 
 const at = (n) => ago(n, 20).getTime();
-const achievements = { first_note: at(21), chars_10k: at(16), streak_3: at(18), streak_7: at(13), links_100: at(5), night_owl: at(12), early_bird: at(19), focus_day: at(10), pet_50: at(4), quest_10: at(3), lv_10: at(7), stage_child: at(8), marathon: at(6), chars_100k: at(50), links_1000: at(50), notes_50: at(95), lv_30: at(2) };
+const achievements = { friends_3: at(6), first_note: at(21), chars_10k: at(16), streak_3: at(18), streak_7: at(13), links_100: at(5), night_owl: at(12), early_bird: at(19), focus_day: at(10), pet_50: at(4), quest_10: at(3), lv_10: at(7), stage_child: at(8), marathon: at(6), chars_100k: at(50), links_1000: at(50), notes_50: at(95), lv_30: at(2) };
 const bonus = [
   { at: at(3), xp: 60, why: ['quest', 'chars', 800] },
   { at: at(3), xp: 100, why: ['allclear'] },
@@ -194,24 +196,30 @@ const bonus = [
   { at: at(0), xp: 30, why: ['quest', 'poke', 5] },
 ];
 // 업적 보너스도 넣는다
-const ACH_XP = { first_note: 50, chars_10k: 100, streak_3: 100, streak_7: 250, links_100: 100, night_owl: 100, early_bird: 100, focus_day: 200, pet_50: 100, quest_10: 200, lv_10: 100, stage_child: 150, marathon: 150, chars_100k: 300, links_1000: 400, notes_50: 150, lv_30: 300 };
+const ACH_XP = { friends_3: 150, first_note: 50, chars_10k: 100, streak_3: 100, streak_7: 250, links_100: 100, night_owl: 100, early_bird: 100, focus_day: 200, pet_50: 100, quest_10: 200, lv_10: 100, stage_child: 150, marathon: 150, chars_100k: 300, links_1000: 400, notes_50: 150, lv_30: 300 };
 for (const [id, t] of Object.entries(achievements)) bonus.unshift({ at: t, xp: ACH_XP[id], why: ['badge', id] });
 // 매일 출석·퀘스트 보너스를 조금씩
 for (let i = 21; i >= 4; i--) if (days[dayOf(ago(i))]) bonus.unshift({ at: at(i), xp: 110, why: ['attend', 21 - i] });
 
+// 도감: 지금 파트너는 볼트 전체로 자랐고, 나머지 둘은 쉬는 중
+const NAMES = { inky: '잉키', purrl: '냥타래', sprig: '새록이', ember: '모닥이', dewey: '듀이' };
+const pet = (o) => ({ mode: 'fresh', startStage: 0, base: null, since: 0, startXp: 0, frozen: 0, color: 'natural', accessory: 'none', metAt: at(21), best: 0, ...o });
+const party = { [partner]: pet({ name: NAMES[partner], mode: 'all', accessory: 'glasses', best: 3 }) };
+for (const [k, o] of [['purrl', { frozen: 9200, accessory: 'scarf', best: 2, metAt: at(9) }], ['ember', { frozen: 320, best: 0, metAt: at(3) }], ['inky', { frozen: 2600, best: 1, metAt: at(12) }]]) {
+  if (Object.keys(party).length < 3 && !party[k]) party[k] = pet({ name: NAMES[k], ...o });
+}
+
 const data = {
-  settings: {
-    petName: '잉키', language: 'ko', showWidget: true, scale: 2, accessory: 'glasses', color: 'violet',
-    startMode: 'all', excludedFolders: ['Templates'],
-  },
+  settings: { language: 'ko', showWidget: true, roam: true, scale: 2, excludedFolders: ['Templates'] },
   state: {
+    partner, party, picked: true,
     pokes: 64, pokesDay: dayOf(now), pokesToday: 5, mealsTaken: 3, restsTaken: 6, maxStreakMin: 150,
     bonus: bonus.sort((a, b) => a.at - b.at), achievements,
-    items: ['none', 'sprout', 'ribbon', 'glasses', 'headphones', 'beanie', 'scarf', 'quill', 'nightcap', 'party'], colors: ['violet', 'clay', 'mint', 'peach', 'midnight'],
+    items: ['none', 'sprout', 'ribbon', 'glasses', 'headphones', 'beanie', 'scarf', 'quill', 'nightcap', 'party'], colors: ['natural', 'clay', 'mint', 'peach', 'snow', 'midnight'],
     questsDone: 17, attendDay: dayOf(now), initialized: true, onboarded: true, scanned: true,
-    lastLevel: null, lastStage: null, seen: ['i:sprout', 'i:ribbon', 'i:glasses', 'i:headphones', 'i:beanie', 'i:scarf', 'i:nightcap', 'i:party', 'c:clay', 'c:mint', 'c:peach'],
+    lastLevel: null, lastStage: null, seen: ['i:sprout', 'i:ribbon', 'i:glasses', 'i:headphones', 'i:beanie', 'i:scarf', 'i:nightcap', 'i:party', 'c:clay', 'c:mint', 'c:peach', 'c:snow', 'c:midnight'],
   },
   ledger: { files, days, hours, tot },
 };
 fs.writeFileSync(dataFile, JSON.stringify(data));
-console.log(`demo vault (seeded: ${Object.keys(days).length} days, ${tot.c} chars) at ${out}`);
+console.log(`demo vault (seeded: ${Object.keys(days).length} days, ${tot.c} chars, partner ${partner}) at ${out}`);

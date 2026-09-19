@@ -191,29 +191,106 @@ test('xpOf·levelOf', () => {
 
 test('computeGrowth: 모드별', () => {
   const tot = { c: 200_000, l: 1000, n: 300 }; // 10,000 + 5,000 + 4,500 = 19,500
-  const all = I.computeGrowth(settings({ startMode: 'all' }), tot, () => 500);
+  const all = I.computeGrowth(I.newPet('inky', { mode: 'all' }), null, tot, () => 500);
   assert.strictEqual(all.xp, 20_000);
   assert.strictEqual(all.stageKey, 'child');
   assert.strictEqual(all.nextStageKey, 'teen');
   assert.ok(all.progress > 0 && all.progress < 1);
 
   const base = { c: 180_000, l: 1000, n: 300 };
-  const fresh = I.computeGrowth(settings({ startMode: 'fresh', baseline: base, baselineAt: 1000 }), tot, (since) => (since === 1000 ? 7 : 999));
+  const fresh = I.computeGrowth(I.newPet('inky', { base, since: 1000 }), null, tot, (since) => (since === 1000 ? 7 : 999));
   assert.strictEqual(fresh.usageXp, 1000);
   assert.strictEqual(fresh.xp, 1007);
   assert.strictEqual(fresh.stageKey, 'baby');
 
-  const stage = I.computeGrowth(settings({ startMode: 'stage', startStage: 3, baseline: tot, baselineAt: 1 }), tot, () => 0);
+  const stage = I.computeGrowth(I.newPet('inky', { mode: 'stage', base: tot, since: 1, startXp: 30_000 }), null, tot, () => 0);
   assert.strictEqual(stage.xp, 30_000);
   assert.strictEqual(stage.stageKey, 'teen');
   assert.strictEqual(stage.startXp, 30_000);
 
-  const adult = I.computeGrowth(settings(), { c: 4e6, l: 0, n: 0 }, () => 0);
+  const adult = I.computeGrowth(I.newPet('inky', { mode: 'all' }), null, { c: 4e6, l: 0, n: 0 }, () => 0);
   assert.strictEqual(adult.stageKey, 'adult');
   assert.strictEqual(adult.nextStageKey, null);
   assert.strictEqual(adult.progress, 1);
+
+  // 쉬기 전에 모은 경험치(frozen)에 이어서 자란다
+  const back = I.computeGrowth(I.newPet('inky', { frozen: 5000, base: base, since: 1 }), null, tot, () => 0);
+  assert.strictEqual(back.frozenXp, 5000);
+  assert.strictEqual(back.xp, 6000);
 });
 
+test('xpOf: 친구마다 특기 경험치가 붙는다', () => {
+  const tot = { c: 20_000, l: 100, n: 10 }; // 1,000 + 500 + 150
+  assert.strictEqual(I.xpOf(tot), 1650);
+  assert.strictEqual(I.xpOf(tot, 'inky'), 1200 + 500 + 150); // 글자 +20%
+  assert.strictEqual(I.xpOf(tot, 'purrl'), 1000 + 650 + 150); // 링크 +30%
+  assert.strictEqual(I.xpOf(tot, 'ember'), 1000 + 500 + 225); // 새 노트 +50%
+  assert.strictEqual(I.xpOf(tot, 'sprig'), 1650); // 출석은 보너스 쪽
+  assert.strictEqual(I.xpOf(tot, 'dewey'), 1650); // 퀘스트도 보너스 쪽
+});
+
+test('swapPartner: 쉬는 친구는 자란 만큼 기억하고, 새 친구는 알부터', () => {
+  const st = JSON.parse(JSON.stringify(I.DEFAULT_STATE));
+  I.migrateParty(st, {});
+  assert.strictEqual(st.partner, 'inky');
+  const L = new I.Ledger();
+  const bonus = () => 0;
+  const grow = () => I.computeGrowth(st.party[st.partner], st.partner, L.totals(), bonus);
+  L.observe('a.md', { chars: 40_000, links: 0 }, when); // 잉키: 2,000 × 1.2 + 새 노트 15
+  assert.strictEqual(grow().xp, 2415);
+
+  // 모닥이 알을 받는다
+  let known = I.swapPartner(st, 'ember', grow(), L.totals(), 5000);
+  assert.strictEqual(known, false);
+  assert.strictEqual(st.partner, 'ember');
+  assert.strictEqual(st.party.inky.frozen, 2415);
+  assert.strictEqual(st.party.inky.best, 1);
+  assert.strictEqual(grow().xp, 0);
+  assert.strictEqual(grow().stageKey, 'egg');
+  L.observe('b.md', { chars: 2000, links: 0 }, when); // 100XP + 새 노트 15 × 1.5
+  assert.strictEqual(grow().xp, 100 + 23);
+
+  // 잉키에게 돌아가면 2,415 에서 이어서 자란다
+  known = I.swapPartner(st, 'inky', grow(), L.totals(), 6000);
+  assert.strictEqual(known, true);
+  assert.strictEqual(st.party.ember.frozen, 123);
+  assert.strictEqual(grow().xp, 2415);
+  L.observe('b.md', { chars: 4000, links: 0 }, when);
+  assert.strictEqual(grow().xp, 2415 + 120);
+  // 보너스는 다시 파트너가 된 뒤의 것만
+  const g2 = I.computeGrowth(st.party.inky, 'inky', L.totals(), (since) => (since === 6000 ? 30 : 999));
+  assert.strictEqual(g2.xp, 2415 + 120 + 30);
+});
+
+test('migrateParty: 0.1.x 데이터를 첫 친구로 옮긴다', () => {
+  const st = JSON.parse(JSON.stringify(I.DEFAULT_STATE));
+  st.colors = ['violet', 'clay', 'mint'];
+  I.migrateParty(st, { petName: '몽글', color: 'violet', accessory: 'glasses', startMode: 'fresh', baseline: { c: 10, l: 1, n: 1 }, baselineAt: 1234 });
+  assert.strictEqual(st.partner, 'inky');
+  const p = st.party.inky;
+  assert.strictEqual(p.name, '몽글');
+  assert.strictEqual(p.color, 'natural');
+  assert.strictEqual(p.accessory, 'glasses');
+  assert.strictEqual(p.mode, 'fresh');
+  assert.deepStrictEqual(p.base, { c: 10, l: 1, n: 1 });
+  assert.strictEqual(p.since, 1234);
+  assert.deepStrictEqual(st.colors, ['natural', 'clay', 'mint']);
+  assert.strictEqual(st.picked, false);
+
+  const st2 = JSON.parse(JSON.stringify(I.DEFAULT_STATE));
+  I.migrateParty(st2, { startMode: 'stage', startStage: 3 });
+  assert.strictEqual(st2.party.inky.startXp, 30_000);
+  assert.strictEqual(st2.party.inky.name, '잉키');
+
+  // 망가진 기록도 받아준다
+  const st3 = { ...JSON.parse(JSON.stringify(I.DEFAULT_STATE)), partner: 'dragon', party: { ghost: {}, dewey: { name: '부' } }, colors: 'x' };
+  I.migrateParty(st3, {});
+  assert.strictEqual(st3.partner, 'dewey');
+  assert.ok(!st3.party.ghost);
+  assert.strictEqual(st3.party.dewey.color, 'natural');
+  assert.strictEqual(st3.party.dewey.frozen, 0);
+  assert.deepStrictEqual(st3.colors, ['natural']);
+});
 /* ── 게임 ── */
 
 function newGame(over = {}) {
@@ -451,7 +528,7 @@ test('formatDuration', () => {
 /* ── 언어 ── */
 
 const vars = (s) => new Set((s.match(/\{(\w+)\}/g) || []).sort());
-const KO_ONLY = new Set(['{i}', '{ro}', '{ieyo}']); // 한국어 조사
+const KO_ONLY = new Set(['{i}', '{ro}', '{ieyo}', '{wa}', '{neun}', '{eul}']); // 한국어 조사
 
 test('i18n: 모든 문구가 두 언어로 있고 자리표시자가 맞다', () => {
   for (const [k, v] of Object.entries(I.S)) {
@@ -459,9 +536,9 @@ test('i18n: 모든 문구가 두 언어로 있고 자리표시자가 맞다', ()
     const ko = [...vars(v[0])].filter((x) => !KO_ONLY.has(x));
     assert.deepStrictEqual(ko, [...vars(v[1])], k);
   }
+  const all = (arr) => new Set(arr.flatMap((s) => [...vars(s)]));
   for (const [k, v] of Object.entries(I.LINES)) {
     assert.ok(v[0].length && v[1].length, k);
-    const all = (arr) => new Set(arr.flatMap((s) => [...vars(s)]));
     assert.deepStrictEqual([...all(v[0])].sort(), [...all(v[1])].sort(), k);
   }
   for (const list of [I.ACHIEVEMENTS, I.ITEMS, I.COLORS]) {
@@ -473,11 +550,151 @@ test('i18n: 모든 문구가 두 언어로 있고 자리표시자가 맞다', ()
   for (const q of I.QUEST_POOL) assert.ok(q.text[0] && q.text[1], q.type);
 });
 
+test('i18n: 친구마다 대사가 두 언어로 있고, 기본 대사와 같은 자리표시자만 쓴다', () => {
+  const all = (arr) => new Set(arr.flatMap((s) => [...vars(s)]));
+  for (const [sp, lines] of Object.entries(I.SPECIES_LINES)) {
+    assert.ok(I.SPECIES_BY[sp], sp);
+    for (const [k, v] of Object.entries(lines)) {
+      const id = `${sp}.${k}`;
+      assert.ok(I.LINES[k], `${id}: 기본 대사가 없는 키`);
+      assert.ok(v[0].length && v[1].length && v[0].every(Boolean) && v[1].every(Boolean), id);
+      assert.deepStrictEqual([...all(v[0])].sort(), [...all(v[1])].sort(), id);
+      const base = all([...I.LINES[k][0], ...I.LINES[k][1]]);
+      for (const x of all(v[0])) assert.ok(base.has(x), `${id}: ${x}`);
+    }
+    // 성격이 드러나는 대사는 친구마다 꼭 있다
+    for (const k of ['hello', 'poke', 'link', 'note', 'chatter', 'egg']) assert.ok(lines[k], `${sp}.${k}`);
+  }
+  // 파트너 대사를 고른다
+  I.setCur('purrl');
+  const said = new Set(Array.from({ length: 40 }, () => I.tl('poke')));
+  assert.ok([...said].every((x) => I.SPECIES_LINES.purrl.poke[0].includes(x)));
+  assert.ok(I.LINES.lunch[0].includes(I.tl('lunch', {}, 'inky')));
+  I.setCur('inky');
+});
+
 test('i18n: 업적·아이템 참조가 모두 있다', () => {
   const ids = new Set(I.ACHIEVEMENTS.map((a) => a.id));
   assert.strictEqual(ids.size, I.ACHIEVEMENTS.length);
   for (const it of [...I.ITEMS, ...I.COLORS]) if (it.achievement) assert.ok(ids.has(it.achievement), it.key);
-  for (const c of I.COLORS) assert.ok(I.PAL[c.key], c.key);
+  for (const c of I.COLORS) assert.ok(I.VARIANTS[c.key], c.key);
+  assert.strictEqual(I.COLORS[0].key, 'natural');
+});
+
+/* ── 친구들 ── */
+
+test('SPECIES: 다섯 친구, 이름·설명·특기·그림이 다 있다', () => {
+  assert.strictEqual(I.SPECIES.length, 5);
+  assert.strictEqual(new Set(I.SPECIES.map((s) => s.key)).size, 5);
+  const perks = new Set();
+  for (const s of I.SPECIES) {
+    for (const f of ['name', 'kind', 'type', 'trait', 'likes', 'dex']) assert.ok(s[f][0] && s[f][1], `${s.key}.${f}`);
+    assert.ok(['chars', 'links', 'notes', 'attend', 'quest'].includes(s.perk.kind), s.key);
+    assert.ok(s.perk.mult > 1 && s.perk.mult <= 1.5, s.key);
+    perks.add(s.perk.kind);
+    assert.ok(/^#[0-9a-f]{6}$/i.test(s.typeColor), s.key);
+    assert.ok(I.ART[s.key] && I.EGG[s.key], s.key);
+    assert.ok(I.S['perk_' + s.perk.kind], s.key);
+    for (const c of I.COLORS) assert.ok(I.paletteOf(s.key, c.key).body, `${s.key}:${c.key}`);
+  }
+  assert.strictEqual(perks.size, 5, '특기가 서로 겹치지 않는다');
+  assert.strictEqual(I.perkMult('dewey', 'quest'), 1.3);
+  assert.strictEqual(I.perkMult('dewey', 'chars'), 1);
+  assert.strictEqual(I.perkMult(null, 'chars'), 1);
+});
+
+test('Gamify: 부엉이는 퀘스트 보상, 새싹은 출석 보너스가 늘어난다', () => {
+  const d = new Date(2026, 8, 19, 12);
+  const base = newGame().g.quests(d).map((q) => q.xp);
+  const owl = newGame();
+  owl.st.partner = 'dewey';
+  owl.st.party = { dewey: I.newPet('dewey') };
+  assert.deepStrictEqual(owl.g.quests(d).map((q) => q.xp), base.map((x) => Math.round(x * 1.3)));
+  assert.ok(owl.g.quests(d)[0].text);
+
+  const sprout = newGame();
+  sprout.st.initialized = true;
+  sprout.st.partner = 'sprig';
+  sprout.st.party = { sprig: I.newPet('sprig') };
+  const got = [];
+  sprout.g.on('attend', (a) => got.push(a.xp));
+  const now = Date.now();
+  sprout.g.tick(now - 1000, 0, now);
+  assert.deepStrictEqual(got, [30]); // 20 × 1.5
+});
+
+test('achievements: 도감 친구 수와 키운 친구 수', () => {
+  const { g, st } = newGame();
+  st.party = { inky: I.newPet('inky', { best: 3 }), purrl: I.newPet('purrl', { best: 2 }), ember: I.newPet('ember') };
+  g.evaluate({ level: 1, stageIndex: 0 }, true);
+  assert.ok(st.achievements.friends_3);
+  assert.ok(st.achievements.raise_2);
+  assert.ok(!st.achievements.friends_5);
+});
+
+/* ── 그림 ── */
+
+// 옵시디언 없이 캔버스 흉내만 내서 모든 조합을 한 번씩 그려 본다
+function fakeCanvas() {
+  const drawn = new Map();
+  const ctx = {
+    fillStyle: '',
+    globalAlpha: 1,
+    clearRect: () => drawn.clear(),
+    fillRect: (x, y, w, h) => {
+      assert.ok(Number.isInteger(x) && Number.isInteger(y), `정수 좌표가 아니다: ${x},${y}`);
+      assert.ok(typeof ctx.fillStyle === 'string' && ctx.fillStyle, '색이 비었다');
+      assert.ok(!/undefined|NaN/.test(ctx.fillStyle), `잘못된 색: ${ctx.fillStyle}`);
+      drawn.set(`${x},${y}`, ctx.fillStyle);
+    },
+    getImageData: (x, y) => ({ data: [0, 0, 0, drawn.has(`${x},${y}`) ? 255 : 0] }),
+  };
+  return { width: 0, height: 0, getContext: () => ctx, drawn };
+}
+
+test('PetRenderer: 친구 × 단계 × 기분 × 동작 × 장식을 모두 그릴 수 있다', () => {
+  const stages = ['egg', 'baby', 'child', 'teen', 'adult'];
+  const moods = ['idle', 'active', 'writing', 'sleepy', 'sleeping'];
+  const actions = [null, 'happy', 'link', 'levelup', 'evolve', 'wave', 'eat', 'stretch', 'yawn', 'achieve', 'fidget'];
+  let frames = 0;
+  for (const sp of I.SPECIES) {
+    for (const stage of stages) {
+      for (const mood of moods) {
+        for (const action of actions) {
+          const cv = fakeCanvas();
+          const r = new I.PetRenderer(cv);
+          r.setSpecies(sp.key);
+          r.setStage(stage);
+          r.setMood(mood);
+          r.setProgress(0.95);
+          r.setWalking(action === null && mood === 'active');
+          if (action) r.play(action);
+          r.frame();
+          frames++;
+          assert.ok(cv.drawn.size > 40, `${sp.key}/${stage}/${mood}/${action}: 거의 안 그려졌다`);
+          assert.ok(r.headTop() >= 0 && r.headTop() < 43, `${sp.key}/${stage}: 머리 위치 ${r.headTop()}`);
+        }
+      }
+      for (const it of I.ITEMS) {
+        for (const c of I.COLORS) {
+          const r = new I.PetRenderer(fakeCanvas());
+          r.setSpecies(sp.key);
+          r.setStage(stage);
+          r.setAccessory(it.key);
+          r.setColor(c.key);
+          r.frame();
+          frames++;
+        }
+      }
+    }
+  }
+  assert.ok(frames > 2000);
+  // 모르는 값은 기본으로
+  const r = new I.PetRenderer(fakeCanvas());
+  r.setSpecies('dragon');
+  r.setColor('violet');
+  assert.strictEqual(r.species, 'inky');
+  assert.strictEqual(r.color, 'natural');
 });
 
 test('josa', () => {
