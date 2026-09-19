@@ -96,10 +96,13 @@ const S = {
   adopted: ['🥚 {kind} 알을 받았어요!', '🥚 You got a {kind} egg!'],
 
   // 화면 펫에 마우스를 올리면 뜨는 상태 창
-  hudHint: ['클릭 쓰다듬기 · 끌어서 옮기기 · 더블클릭 하우스 · 우클릭 메뉴', 'Click to pet · drag to move · double-click for the house · right-click for more'],
+  // 조작법: "키|하는 일" 을 ; 로 잇는다
+  hudKeys: ['클릭|쓰다듬기;더블클릭|하우스;끌기|옮기기;우클릭|메뉴', 'Click|pet;Double-click|house;Drag|move;Right-click|menu'],
+  hudExpOf: ['{a} / {b}', '{a} / {b}'],
+  hudToday: ['오늘', 'Today'],
 
   // 상단
-  loadingMemory: ['기억을 떠올리는 중… {p}%', 'Remembering your notes… {p}%'],
+  loadingMemory: ['볼트를 둘러보는 중… {p}%', 'Getting to know your vault… {p}%'],
   readingVault: ['볼트를 읽는 중…', 'Reading your vault…'],
   xpOf: ['{a} / {b} XP', '{a} / {b} XP'],
   streakDays: ['일 연속', 'day streak'],
@@ -160,6 +163,8 @@ const S = {
   totLinks: ['건 링크', 'Links made'],
   totNotes: ['만든 노트', 'Notes created'],
   totPokes: ['쓰다듬은 횟수', 'Times petted'],
+  totDays: ['함께한 날', 'Days together'],
+  totDaysV: ['{n}일째', 'day {n}'],
   xpTitle: ['경험치 내역', 'Where XP comes from'],
   xpWriting: ['글쓰기 경험치', 'Writing XP'],
   xpBonus: ['보너스 (업적·퀘스트·출석)', 'Bonus (badges, quests, streak)'],
@@ -236,7 +241,7 @@ const S = {
   wBack: ['이전', 'Back'],
   wStart: ['시작하기 ✨', 'Let’s go ✨'],
   w0Title: ['노트 세계에 온 걸 환영해요!', 'Welcome to the world of notes!'],
-  w0Body: ['여기 다섯 친구가 <b>노트를 먹고 자라요</b>. 글자를 쓰고, 링크를 걸고, 새 노트를 만들 때마다 경험치가 들어와요.', 'Five little friends here <b>grow by eating your notes</b>. Every character you type, link you make and note you create earns XP.'],
+  w0Body: ['여기 다섯 친구가 <b>노트를 먹고 자라요</b>. <b>오늘부터</b> 쓰는 글자, 거는 링크, 만드는 새 노트가 모두 경험치가 돼요.', 'Five little friends here <b>grow by eating your notes</b>. Every character you type, link you make and note you create <b>from today on</b> earns XP.'],
   w0b1: ['편집 화면 아래를 산책하다가, 글을 쓰면 옆에 앉아 <b>같이 써요</b>. 점심·휴식·잠잘 시간도 챙겨줘요', 'It strolls along the bottom of the editor and sits down to <b>write with you</b> when you type. It reminds you about lunch, breaks and bedtime too'],
   w0b2: ['<b>일일 퀘스트·업적·출석</b>으로 보너스 경험치를 받아요', '<b>Daily quests, badges and streaks</b> give bonus XP'],
   w0b3: ['알에서 어른까지 자라고, 레벨이 오르면 <b>꾸미기 아이템과 색깔</b>이 열려요', 'Watch it grow from an egg to an adult, and unlock <b>accessories and colors</b> as it levels up'],
@@ -246,18 +251,9 @@ const S = {
   wEvolution: ['자라는 모습', 'How it grows'],
   wMigrateTitle: ['새 친구들이 왔어요!', 'New friends have arrived!'],
   wMigrateBody: ['이제 다섯 친구 중에서 파트너를 고를 수 있어요. 지금까지 키운 성장은 고른 친구가 그대로 이어받아요.', 'You can now pick your partner from five friends. Everything you’ve grown so far carries over to the one you choose.'],
-  w1Title: ['이름과 시작 방식', 'Name and starting point'],
   w1TitleName: ['이름을 지어 주세요', 'Give it a name'],
+  w1Fresh: ['알에서부터 시작해요. 이미 써 둔 노트는 세지 않고, 지금부터 쓰는 만큼 자라요.', 'It starts as an egg. Notes you already have don’t count; it grows with what you write from now on.'],
   w1Name: ['이름', 'Name'],
-  w1Reading: ['⏳ 지금까지 쓴 노트를 읽는 중이에요… {p}%', '⏳ Reading the notes you already have… {p}%'],
-  w1Result: ['지금까지 쓴 노트로 계산하면 <b>Lv.{lv} {stage}</b>{ieyo}.', 'Counting the notes you already have, that’s <b>Lv.{lv} {stage}</b>.'],
-  modeAll: ['지금까지 쓴 노트를 전부 반영', 'Count everything I’ve written'],
-  modeAllSub: ['써 온 만큼 이미 자란 모습으로 시작해요', 'Start as big as your vault already is'],
-  modeFresh: ['알부터 새로 키우기', 'Start from an egg'],
-  modeFreshSub: ['지금부터 쓰는 만큼만 자라요', 'Only what you write from now on counts'],
-  modeStage: ['원하는 단계에서 시작', 'Start at a stage I pick'],
-  modeStageSub: ['고른 단계에서 시작해서, 지금부터 쓰는 만큼 자라요', 'Start at that stage, then grow with what you write'],
-  w1Later: ['나중에 설정에서 언제든 바꿀 수 있어요.', 'You can change this later in the settings.'],
   w2Title: ['준비 끝!', 'All set!'],
   w2b1: ['펫을 <b>클릭</b>하면 쓰다듬고, <b>끌어서</b> 옮기고, <b>더블클릭</b>하면 하우스가 열려요', '<b>Click</b> the pet to pet it, <b>drag</b> it around, <b>double-click</b> to open the house'],
   w2b2: ['<b>우클릭</b>하면 방해 금지·산책 끄기·숨기기 메뉴가 나와요', '<b>Right-click</b> for quiet mode, staying put and hiding'],
@@ -277,13 +273,19 @@ const S = {
   sAuto: ['자동', 'Auto'],
   sShow: ['화면에 펫 띄우기', 'Show the pet on screen'],
   sShowDesc: ['끄면 펫 하우스와 노트 카드에서만 보여요', 'When off, the pet only appears in the house and in note cards'],
+  sTheme: ['테마', 'Theme'],
+  sThemeDesc: ['펫 화면(말풍선·상태 창·하우스·카드)의 밝기. 기본은 컴퓨터 설정을 따라가요', 'Light or dark for the pet’s bubbles, status window, house and cards. By default it follows your system'],
+  themeSystem: ['시스템 설정 따라가기', 'Follow system'],
+  themeObsidian: ['옵시디언 테마 따라가기', 'Follow Obsidian'],
+  themeLight: ['라이트', 'Light'],
+  themeDark: ['다크', 'Dark'],
   sRoam: ['돌아다니기', 'Walk around'],
   sRoamDesc: ['편집 화면 아래쪽을 산책해요. 글을 쓰는 동안에는 제자리에서 같이 써요.', 'Strolls along the bottom of the editor. While you write it stays put and writes with you.'],
   sScale: ['크기', 'Size'],
   sScaleDesc: ['화면에서 보이는 배율', 'How big the pet is drawn'],
   sStatus: ['상태 표시줄에 레벨 보이기', 'Show level in the status bar'],
   sFont: ['도트 글꼴', 'Pixel font'],
-  sFontDesc: ['펫 화면을 갈무리 도트 글꼴로 보여줘요', 'Use the Galmuri pixel font in the pet’s UI'],
+  sFontDesc: ['이름·레벨·숫자 같은 제목을 갈무리 도트 글꼴로 보여줘요. 문장은 읽기 쉬운 기본 글꼴 그대로예요', 'Show names, levels and numbers in the Galmuri pixel font. Sentences stay in your regular font so they’re easy to read'],
   sBubbles: ['말풍선', 'Speech bubbles'],
   sBubblesDesc: ['꺼도 보상 말풍선은 보여요', 'Reward bubbles still show when off'],
   sChatter: ['가끔 수다 떨기', 'Small talk'],
@@ -301,15 +303,7 @@ const S = {
   sLate: ['새벽 잔소리', 'Late-night nagging'],
   sLateDesc: ['새벽 1~5시에 쓰고 있으면 자러 가자고 해요', 'Tells you to go to bed if you write between 1 and 5 AM'],
   sGrowth: ['성장', 'Growth'],
-  sMode: ['성장 시작 방식', 'Starting point'],
-  sModeDesc: ['지금 파트너에게 적용돼요. 바꾼 뒤 “다시 시작”을 누르면 반영돼요. 업적과 아이템은 그대로 남아요.', 'Applies to your current partner. Press “Restart” to apply. Badges and items are kept.'],
-  sStartStage: ['시작 단계', 'Starting stage'],
-  sRestart: ['다시 시작', 'Restart'],
-  sRestartConfirm: ['{name}{eul} {label} 다시 키울까요? 업적과 꾸미기 아이템은 그대로 남아요.', 'Restart {name} {label}? Badges and items are kept.'],
-  sRestartAll: ['지금까지 쓴 노트를 전부 반영해서', 'counting everything written so far'],
-  sRestartFresh: ['알부터 새로', 'from an egg'],
-  sRestartStage: ['{stage} 단계부터', 'from the {stage} stage'],
-  sRestarted: ['✨ 새로 시작했어요', '✨ Restarted'],
+  sGrowthDesc: ['설치한 날부터 쓰는 글자·링크·새 노트만 세요. 플러그인을 업데이트해도 기록은 그대로 남아요.', 'Only characters, links and new notes written since you installed the plugin count. Updating the plugin never resets anything.'],
   sExclude: ['세지 않을 폴더', 'Folders to ignore'],
   sExcludeDesc: ['한 줄에 하나씩. 이 폴더 안에서 생기는 변화는 경험치에 넣지 않아요 (템플릿·첨부 폴더 등). 이미 센 기록은 그대로 남아요.', 'One per line. Changes inside these folders earn no XP (templates, attachments…). What was already counted stays.'],
   sOther: ['기타', 'Other'],
@@ -317,12 +311,8 @@ const S = {
   sOpen: ['열기', 'Open'],
   sPosition: ['펫 위치 초기화', 'Reset pet position'],
   sReset: ['초기화', 'Reset'],
-  sRecount: ['처음부터 다시 세기', 'Recount from scratch'],
-  sRecountDesc: ['날짜별 기록을 지우고 볼트를 다시 읽어요. 노트 만든 날짜로 기록을 다시 채워요. 업적·아이템·보너스는 그대로 남아요.', 'Clears the daily history and reads the vault again, filing notes under the day they were created. Badges, items and bonus XP are kept.'],
-  sRecountConfirm: ['날짜별 기록을 지우고 볼트를 다시 읽을까요?', 'Clear the daily history and read the vault again?'],
-  sRecountDone: ['다시 셌어요', 'Recounted'],
   sWipe: ['모든 기록 지우기', 'Erase everything'],
-  sWipeDesc: ['친구들, 업적, 아이템, 기록을 모두 지우고 처음부터 시작해요.', 'Deletes every friend, badge, item and all history, and starts over.'],
+  sWipeDesc: ['친구들, 업적, 아이템, 기록을 모두 지우고 방금 설치한 것처럼 처음부터 시작해요.', 'Deletes every friend, badge, item and all history, and starts over as if you had just installed it.'],
   sWipeConfirm: ['정말 모든 기록을 지우고 처음부터 다시 시작할까요? 되돌릴 수 없어요.', 'Really erase everything and start over? This can’t be undone.'],
   sWipeDone: ['모두 지웠어요. 새 친구들이 기다리고 있어요 🥚', 'Everything erased. New friends are waiting 🥚'],
   sFormula: ['경험치 계산', 'How XP works'],
@@ -545,6 +535,11 @@ class Ledger {
     const prevC = f ? f[0] : 0;
     const prevL = f ? f[1] : 0;
     const counted = f ? f[3] : 0;
+    // baseline: 설치할 때 이미 있던 노트. 지금 크기만 기억하고 경험치로는 세지 않는다
+    if (opts.baseline) {
+      this.d.files[path] = [Math.max(prevC, m.chars), Math.max(prevL, m.links), opts.mtime || (f ? f[2] : 0), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
+      return { dc: 0, dl: 0, dn: 0 };
+    }
     let dc = Math.max(0, m.chars - prevC);
     let dl = Math.max(0, m.links - prevL);
     if (opts.cap != null) dc = Math.min(dc, opts.cap);
@@ -989,6 +984,7 @@ const DEFAULT_STATE = {
   questsDone: 0,
   attendDay: null,
   initialized: false,
+  installedAt: null, // 설치한 때. 성장은 이때부터 센다
   // 플러그인
   onboarded: false,
   scanned: false,
@@ -2769,8 +2765,11 @@ const PetSound = (() => {
 /* ────────────────────────────── 설정값 ────────────────────────────── */
 // 이름·색깔·장식·성장 시작점은 친구마다 따로라서 state.party 에 있다
 
+const THEMES = ['system', 'obsidian', 'light', 'dark'];
+
 const DEFAULT_SETTINGS = {
   language: 'auto',
+  theme: 'system', // 펫 화면의 밝기. system 은 컴퓨터 설정(prefers-color-scheme)을 따라간다
   showWidget: true,
   roam: true, // 편집 화면 아래쪽을 산책한다
   scale: 2,
@@ -2943,6 +2942,7 @@ class PetWidget {
   mount() {
     if (this.el) return;
     const el = (this.el = document.body.createDiv({ cls: 'vault-pet-widget' }));
+    this.P.paint(el);
     this.canvas = el.createEl('canvas', { cls: 'vault-pet-canvas' });
     this.bubbleEl = el.createDiv({ cls: 'vault-pet-bubble' });
     this.bubbleName = this.bubbleEl.createSpan({ cls: 'vp-bubble-name' });
@@ -3047,8 +3047,18 @@ class PetWidget {
       this.P.petMenu(e);
     });
     this.bubbleEl.addEventListener('click', () => {
+      if (this.typing) return this.finishTyping();
       if (this.current && this.current.link) this.P.openHouse(this.current.link);
       this.nextBubble();
+    });
+    // 읽는 동안에는 사라지지 않는다
+    this.bubbleEl.addEventListener('mouseenter', () => {
+      this.reading = true;
+      window.clearTimeout(this.hideTimer);
+    });
+    this.bubbleEl.addEventListener('mouseleave', () => {
+      this.reading = false;
+      if (this.current) this.hideLater(1800);
     });
   }
 
@@ -3248,6 +3258,7 @@ class PetWidget {
     s.setMood(P.brain.mood);
     s.setAccessory(pet.accessory);
     s.setColor(pet.color);
+    P.paint(this.el);
     paintAccent(this.el, P.species, pet.color);
     if (this.speciesKey !== P.species) {
       this.speciesKey = P.species;
@@ -3282,7 +3293,7 @@ class PetWidget {
     if (this.el) this.sprite.play(a);
   }
 
-  // 마우스를 올리면 뜨는 상태 창. 게임 속 상태 창처럼 이름·레벨·EXP 막대
+  // 마우스를 올리면 뜨는 상태 창. 게임 속 상태 창처럼 이름·레벨·EXP 막대, 오늘 쓴 양, 조작법
   renderCard() {
     const P = this.P;
     const g = P.growth;
@@ -3290,15 +3301,19 @@ class PetWidget {
     const c = this.cardEl;
     c.empty();
     const head = c.createDiv({ cls: 'vp-hud-head' });
-    head.createSpan({ cls: 'vp-hud-name', text: P.pet.name + (P.isQuiet() ? ' 🔕' : '') });
+    head.createSpan({ cls: 'vp-hud-name', text: P.pet.name });
+    if (P.isQuiet()) head.createSpan({ cls: 'vp-hud-quiet', text: '🔕', attr: { 'aria-label': t('quietOn') } });
     if (g) head.createSpan({ cls: 'vp-hud-lv', text: `Lv.${g.level}` });
     const sub = c.createDiv({ cls: 'vp-hud-sub' });
     typeChip(sub, sp);
     sub.createSpan({ text: g ? `${STAGE_EMOJI[g.stageKey]} ${stageName(g.stageKey)}` : t('cardEggLoading') });
     if (!g) return;
+    const into = g.xp - g.levelFloor;
+    const need = g.levelCeil - g.levelFloor;
     const exp = c.createDiv({ cls: 'vp-hud-exp' });
     exp.createSpan({ cls: 'vp-hud-label', text: 'EXP' });
-    bar(exp, (g.xp - g.levelFloor) / (g.levelCeil - g.levelFloor), 'exp');
+    bar(exp, into / need, 'exp');
+    exp.createSpan({ cls: 'vp-hud-num', text: t('hudExpOf', { a: fmt(into), b: fmt(need) }) });
     c.createDiv({
       cls: 'vp-hud-line',
       text: g.nextStageKey
@@ -3307,9 +3322,20 @@ class PetWidget {
     });
     c.createDiv({ cls: 'vp-hud-line', text: t('mood_' + P.brain.mood) });
     const td = P.ledger.today();
-    const streak = P.game.streaks().current;
-    c.createDiv({ cls: 'vp-hud-today', text: t('cardToday', { c: compact(td.c), l: td.l, n: td.n }) + (streak ? ` · 🔥${streak}` : '') });
-    c.createDiv({ cls: 'vp-hud-hint', text: t('hudHint') });
+    const today = c.createDiv({ cls: 'vp-hud-today' });
+    today.createSpan({ cls: 'vp-hud-today-k', text: t('hudToday') });
+    for (const [icon, v, label] of [['✍️', compact(td.c), t('todayChars')], ['🔗', fmt(td.l), t('todayLinks')], ['📄', fmt(td.n), t('todayNotes')], ['🔥', fmt(P.game.streaks().current), t('attendance')]]) {
+      const it = today.createSpan({ cls: 'vp-hud-stat', attr: { 'aria-label': label } });
+      it.createSpan({ text: icon });
+      it.createSpan({ cls: 'vp-hud-num', text: v });
+    }
+    const keys = c.createDiv({ cls: 'vp-hud-keys' });
+    for (const pair of t('hudKeys').split(';')) {
+      const [k, v] = pair.split('|');
+      const row = keys.createDiv();
+      row.createEl('kbd', { text: k });
+      row.createSpan({ text: v });
+    }
   }
 
   // ---------- 말풍선 ----------
@@ -3332,6 +3358,7 @@ class PetWidget {
   nextBubble() {
     window.clearTimeout(this.hideTimer);
     window.clearInterval(this.typeTimer);
+    this.typing = false;
     this.current = this.queue.shift() || null;
     const el = this.bubbleEl;
     if (!this.current) {
@@ -3350,22 +3377,34 @@ class PetWidget {
     // requestAnimationFrame 은 창이 가려져 있으면 멈춰서 타이머로 연다
     window.setTimeout(() => this.current === cur && el.addClass('is-shown'), 20);
 
-    // 한 글자씩 타이핑. 다 쓰면 ▼ 가 깜빡인다
+    // 한 글자씩 타이핑. 다 쓰면 ▼ 가 깜빡인다. 누르면 바로 끝까지
     const chars = [...cur.text];
     let i = 0;
+    this.typing = true;
     this.bubbleText.setText('');
     this.typeTimer = window.setInterval(() => {
       this.bubbleText.setText(chars.slice(0, ++i).join(''));
-      if (i >= chars.length) {
-        window.clearInterval(this.typeTimer);
-        el.addClass('is-done');
-      }
+      if (i >= chars.length) this.finishTyping();
     }, 28);
     if (!REWARD_KINDS.has(cur.kind) && cur.kind !== 'poke') this.P.sound('pop', 0.015);
 
-    const ms = Math.max(3500, Math.min(9000, 2200 + chars.length * 110)) + (cur.link ? 2500 : 0);
+    // 읽을 시간: 글자 수에 맞춰 넉넉히
+    this.hideLater(Math.max(4000, Math.min(11000, 2600 + chars.length * 130)) + (cur.link ? 2500 : 0));
+  }
+
+  finishTyping() {
+    window.clearInterval(this.typeTimer);
+    this.typing = false;
+    if (!this.current) return;
+    this.bubbleText.setText(this.current.text);
+    this.bubbleEl.addClass('is-done');
+  }
+
+  hideLater(ms) {
+    window.clearTimeout(this.hideTimer);
+    if (this.reading) return;
     this.hideTimer = window.setTimeout(() => {
-      el.removeClass('is-shown');
+      this.bubbleEl.removeClass('is-shown');
       this.hideTimer = window.setTimeout(() => this.nextBubble(), 220);
     }, ms);
   }
@@ -3439,6 +3478,7 @@ class HouseView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass('vault-pet-house');
+    this.plugin.paint(root);
     this.plugin.addFontsTo(root.ownerDocument);
     const top = root.createDiv({ cls: 'vp-top' });
     const hero = top.createDiv({ cls: 'vp-hero' });
@@ -3490,6 +3530,7 @@ class HouseView extends ItemView {
     const g = P.growth;
     const pet = P.pet;
     const sp = speciesOf(P.species);
+    P.paint(this.contentEl);
     paintAccent(this.contentEl, P.species, pet.color);
     this.heroStage.setAttr('data-species', P.species);
     this.hero.setSpecies(P.species);
@@ -3877,6 +3918,7 @@ class HouseView extends ItemView {
       [t('totLinks'), fmt(all.l)],
       [t('totNotes'), fmt(all.n)],
       [t('totPokes'), fmt(P.st.pokes)],
+      [t('totDays'), t('totDaysV', { n: fmt(Math.floor((Date.now() - (P.st.installedAt || Date.now())) / 86_400_000) + 1) })],
     ]);
 
     b.createEl('h3', { text: t('xpTitle') });
@@ -3921,6 +3963,7 @@ class PetCard extends MarkdownRenderChild {
     const P = this.plugin;
     P.cards.add(this);
     const root = (this.root = this.containerEl.createDiv({ cls: 'vault-pet-card-block' }));
+    P.paint(root);
     P.addFontsTo(root.ownerDocument);
     this.stage = habitat(root, P.species, 'vp-card-stage');
     const cv = this.stage.createEl('canvas', { cls: 'vp-pixel' });
@@ -3956,6 +3999,7 @@ class PetCard extends MarkdownRenderChild {
     const P = this.plugin;
     const g = P.growth;
     const pet = P.pet;
+    P.paint(this.root);
     paintAccent(this.root, P.species, pet.color);
     this.stage.setAttr('data-species', P.species);
     this.r.setSpecies(P.species);
@@ -3980,18 +4024,20 @@ class PetCard extends MarkdownRenderChild {
 }
 
 /* ────────────────────────────── 첫 실행 안내 ────────────────────────────── */
-// 처음: 인사 → 파트너 고르기 → 이름·시작 방식 → 준비 끝.
+// 처음: 인사 → 파트너 고르기 → 이름 → 준비 끝. 첫 파트너는 알부터, 설치한 순간부터 자란다.
 // 0.1.x 에서 올라온 사람(migrate): 파트너 고르기 → 이름 → 준비 끝. 지금까지의 성장은 고른 친구가 이어받는다.
+// 설정에서 다시 보는 안내(tour): 인사 → 준비 끝. 아무것도 바꾸지 않는다.
 
 class WelcomeModal extends Modal {
   constructor(plugin, opts = {}) {
     super(plugin.app);
     this.plugin = plugin;
     this.migrate = !!opts.migrate;
-    this.steps = this.migrate ? ['pick', 'name', 'ready'] : ['intro', 'pick', 'name', 'ready'];
+    this.tour = !!opts.tour;
+    this.steps = this.tour ? ['intro', 'ready'] : this.migrate ? ['pick', 'name', 'ready'] : ['intro', 'pick', 'name', 'ready'];
     this.step = 0;
     const pet = plugin.pet;
-    this.choice = { species: plugin.species, name: pet.name, mode: pet.mode, stage: pet.startStage | 0 };
+    this.choice = { species: plugin.species, name: pet.name };
     // 이름을 직접 고친 적이 없으면 친구를 바꿀 때 이름도 따라 바뀐다
     this.nameTouched = !SPECIES.some((sp) => sp.name.includes(pet.name));
     this.minis = [];
@@ -4000,6 +4046,7 @@ class WelcomeModal extends Modal {
   onOpen() {
     this.plugin.modal = this;
     this.modalEl.addClass('vault-pet-modal');
+    this.plugin.paint(this.modalEl);
     this.plugin.addFontsTo(this.containerEl.ownerDocument);
     this.render();
   }
@@ -4030,10 +4077,6 @@ class WelcomeModal extends Modal {
   save() {
     const n = this.contentEl.querySelector('.vp-w-name');
     if (n && n.value.trim()) this.choice.name = n.value.trim().slice(0, 16);
-    const m = this.contentEl.querySelector('input[name="vp-wmode"]:checked');
-    if (m) this.choice.mode = m.value;
-    const s = this.contentEl.querySelector('.vp-w-stage');
-    if (s) this.choice.stage = Number(s.value);
   }
 
   pick(key) {
@@ -4050,10 +4093,10 @@ class WelcomeModal extends Modal {
     for (const m of this.minis) this.plugin.anim.remove(m);
     this.minis = [];
     this.cards = {};
-    this.infoEl = null;
     const el = this.contentEl;
     el.empty();
     el.addClass('vault-pet-house');
+    this.plugin.paint(el);
     paintAccent(el, this.choice.species, 'natural');
     const dots = el.createDiv({ cls: 'vp-steps' });
     for (let i = 0; i < this.steps.length; i++) dots.createEl('i', { cls: i <= this.step ? 'is-on' : '' });
@@ -4118,7 +4161,7 @@ class WelcomeModal extends Modal {
         step.createDiv({ text: i < 2 ? stageName(s.key) : '???' });
       });
     } else if (kind === 'name') {
-      el.createEl('h2', { text: this.migrate ? t('w1TitleName') : t('w1Title') });
+      el.createEl('h2', { text: t('w1TitleName') });
       const f = el.createDiv({ cls: 'vp-field' });
       const who = f.createDiv({ cls: 'vp-field-who' });
       this.mini(who, { stage: 'baby', mood: 'active', cls: 'vp-field-canvas' });
@@ -4126,34 +4169,11 @@ class WelcomeModal extends Modal {
       const input = f.createEl('input', { cls: 'vp-w-name', attr: { type: 'text', maxlength: '16' } });
       input.value = this.choice.name;
       input.addEventListener('input', () => (this.nameTouched = true));
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.contentEl.querySelector('.vp-nav .mod-cta').click();
+      });
       window.setTimeout(() => input.isConnected && input.focus(), 0);
-      if (!this.migrate) {
-        this.infoEl = el.createDiv({ cls: 'vp-muted vp-small vp-gapb' });
-        this.updateInfo();
-        const radio = (value, title, sub, extra) => {
-          const lab = el.createEl('label', { cls: 'vp-radio' });
-          const r = lab.createEl('input', { attr: { type: 'radio', name: 'vp-wmode', value } });
-          r.checked = this.choice.mode === value;
-          lab.toggleClass('is-checked', r.checked);
-          // 고른 항목 강조. CSS :has() 는 느려서 클래스로 한다
-          r.addEventListener('change', () => {
-            el.querySelectorAll('.vp-radio').forEach((x) => x.toggleClass('is-checked', x.contains(r)));
-          });
-          lab.appendText(' ' + title + ' ');
-          if (extra) extra(lab);
-          lab.createEl('small', { text: sub });
-        };
-        radio('all', t('modeAll'), t('modeAllSub'));
-        radio('fresh', t('modeFresh'), t('modeFreshSub'));
-        radio('stage', t('modeStage'), t('modeStageSub'), (lab) => {
-          const sel = lab.createEl('select', { cls: 'vp-w-stage dropdown' });
-          STAGES.forEach((s, i) => {
-            const o = sel.createEl('option', { text: stageName(s.key), attr: { value: String(i) } });
-            if (i === this.choice.stage) o.selected = true;
-          });
-        });
-        el.createDiv({ cls: 'vp-muted vp-tiny', text: t('w1Later') });
-      }
+      if (!this.migrate) el.createDiv({ cls: 'vp-muted vp-small vp-gap', text: t('w1Fresh') });
     } else {
       const g = this.plugin.growth;
       const stage = habitat(el, this.choice.species, 'vp-w-ready');
@@ -4186,30 +4206,16 @@ class WelcomeModal extends Modal {
     }, 'mod-cta');
   }
 
-  // 이름 단계에서 지금까지의 노트로 계산한 레벨을 보여준다
-  updateInfo() {
-    if (!this.infoEl) return;
-    const P = this.plugin;
-    this.infoEl.empty();
-    if (P.loading != null || !P.st.scanned) {
-      this.infoEl.setText(t('w1Reading', { p: Math.round((P.loading || 0) * 100) }));
-      return;
-    }
-    const g = computeGrowth({ base: null, since: 0 }, this.choice.species, P.ledger.totals(), (s) => P.game.bonusXp(s));
-    const stage = stageName(g.stageKey);
-    rich(this.infoEl, t('w1Result', { lv: g.level, stage, ieyo: josa(stage, '이에요', '예요') }));
-  }
-
   async finish() {
     this.finished = true;
     const P = this.plugin;
     const c = this.choice;
+    if (this.tour) return;
     if (c.species !== P.species) P.choosePartner(c.species);
     const pet = P.pet;
     if (c.name) pet.name = c.name;
     P.st.onboarded = true;
     P.st.picked = true;
-    if (!this.migrate && (c.mode !== pet.mode || (c.mode === 'stage' && c.stage !== pet.startStage))) await P.restartGrowth(c.mode, c.stage, true);
     await P.saveNow();
     P.updateUI();
     window.setTimeout(() => {
@@ -4230,7 +4236,9 @@ class RenameModal extends Modal {
   onOpen() {
     const P = this.plugin;
     this.modalEl.addClass('vault-pet-modal');
+    P.paint(this.modalEl);
     this.contentEl.addClass('vault-pet-house');
+    P.paint(this.contentEl);
     this.contentEl.createEl('h2', { text: t('w1TitleName') });
     const input = this.contentEl.createEl('input', { cls: 'vp-w-name vp-rename', attr: { type: 'text', maxlength: '16' } });
     input.value = P.pet.name;
@@ -4352,6 +4360,17 @@ class PetSettingTab extends PluginSettingTab {
         P.relabel();
         this.display();
       }));
+    new Setting(el).setName(t('sTheme')).setDesc(t('sThemeDesc')).addDropdown((d) => d
+      .addOption('system', t('themeSystem'))
+      .addOption('obsidian', t('themeObsidian'))
+      .addOption('light', t('themeLight'))
+      .addOption('dark', t('themeDark'))
+      .setValue(s.theme)
+      .onChange((v) => {
+        s.theme = v;
+        save();
+        P.applyTheme();
+      }));
     new Setting(el).setName(t('sShow')).setDesc(t('sShowDesc')).addToggle((tg) => tg.setValue(s.showWidget).onChange((v) => P.setWidgetVisible(v)));
     new Setting(el).setName(t('sRoam')).setDesc(t('sRoamDesc')).addToggle((tg) => tg.setValue(s.roam).onChange((v) => P.toggleRoam(v, true)));
     new Setting(el).setName(t('sScale')).setDesc(t('sScaleDesc')).addSlider((sl) => sl
@@ -4397,32 +4416,7 @@ class PetSettingTab extends PluginSettingTab {
       save();
     }));
 
-    new Setting(el).setName(t('sGrowth')).setHeading();
-    let mode = P.pet.mode;
-    let stage = P.pet.startStage | 0;
-    const modeSetting = new Setting(el).setName(t('sMode')).setDesc(t('sModeDesc'));
-    modeSetting.addDropdown((d) => d
-      .addOption('all', t('modeAll'))
-      .addOption('fresh', t('modeFresh'))
-      .addOption('stage', t('modeStage'))
-      .setValue(mode)
-      .onChange((v) => {
-        mode = v;
-        stageSetting.settingEl.toggle(v === 'stage');
-      }));
-    const stageSetting = new Setting(el).setName(t('sStartStage')).addDropdown((d) => {
-      STAGES.forEach((st, i) => d.addOption(String(i), stageName(st.key)));
-      d.setValue(String(stage)).onChange((v) => (stage = Number(v)));
-    });
-    stageSetting.settingEl.toggle(mode === 'stage');
-    modeSetting.addButton((b) => b.setButtonText(t('sRestart')).setCta().onClick(() => {
-      const label = mode === 'all' ? t('sRestartAll') : mode === 'fresh' ? t('sRestartFresh') : t('sRestartStage', { stage: stageName(STAGES[stage].key) });
-      const name = P.pet.name;
-      new ConfirmModal(this.app, t('sRestartConfirm', { name, eul: josa(name, '을', '를'), label }), async () => {
-        await P.restartGrowth(mode, stage);
-        new Notice(t('sRestarted'));
-      }).open();
-    }));
+    new Setting(el).setName(t('sGrowth')).setDesc(t('sGrowthDesc')).setHeading();
     const formula = el.createDiv({ cls: 'setting-item-description vp-setting-note' });
     formula.setText(t('xpFormula', { c: CHARS_PER_XP, l: XP_PER_LINK, n: XP_PER_NOTE, cap: fmt(LIVE_CHAR_CAP) }));
 
@@ -4437,14 +4431,8 @@ class PetSettingTab extends PluginSettingTab {
     });
 
     new Setting(el).setName(t('sOther')).setHeading();
-    new Setting(el).setName(t('sWelcome')).addButton((b) => b.setButtonText(t('sOpen')).onClick(() => new WelcomeModal(P).open()));
+    new Setting(el).setName(t('sWelcome')).addButton((b) => b.setButtonText(t('sOpen')).onClick(() => new WelcomeModal(P, { tour: true }).open()));
     new Setting(el).setName(t('sPosition')).addButton((b) => b.setButtonText(t('sReset')).onClick(() => P.resetPosition()));
-    new Setting(el).setName(t('sRecount')).setDesc(t('sRecountDesc')).addButton((b) => b.setButtonText(t('sRecount')).onClick(() => {
-      new ConfirmModal(this.app, t('sRecountConfirm'), async () => {
-        await P.recount();
-        new Notice(t('sRecountDone'));
-      }).open();
-    }));
     new Setting(el).setName(t('sWipe')).setDesc(t('sWipeDesc')).addButton((b) => b.setButtonText(t('sWipe')).setWarning().onClick(() => {
       new ConfirmModal(this.app, t('sWipeConfirm'), async () => {
         await P.wipe();
@@ -4471,21 +4459,25 @@ function swapPartner(st, key, g, totals, now = Date.now()) {
   return known;
 }
 
-// 친구 기록을 정리한다. 0.1.x 데이터(펫 하나, 설정에 이름·색깔·시작점)는 첫 친구 기록으로 옮긴다
-function migrateParty(st, legacy = {}) {
+// 친구 기록을 정리한다. 0.1.x 데이터(펫 하나, 설정에 이름·색깔·시작점)는 첫 친구 기록으로 옮긴다.
+// fresh(방금 설치)면 첫 친구는 알부터, 지금 이 순간부터 자란다
+function migrateParty(st, legacy = {}, opts = {}) {
+  const now = opts.now || Date.now();
   if (!st.party || typeof st.party !== 'object' || Array.isArray(st.party)) st.party = {};
   for (const [k, v] of Object.entries(st.party)) if (!SPECIES_BY[k] || !v || typeof v !== 'object') delete st.party[k];
   if (!st.partner || !st.party[st.partner]) {
     const key = SPECIES_BY[st.partner] ? st.partner : Object.keys(st.party)[0] || 'inky';
     if (!st.party[key]) {
-      const mode = ['all', 'fresh', 'stage'].includes(legacy.startMode) ? legacy.startMode : 'all';
+      // 예전 데이터는 그때 고른 시작 방식을 그대로 이어 간다 (0.1 기본은 'all')
+      const mode = opts.fresh ? 'fresh' : ['all', 'fresh', 'stage'].includes(legacy.startMode) ? legacy.startMode : 'all';
       const si = clampN(legacy.startStage | 0, 0, STAGES.length - 1);
       st.party[key] = newPet(key, {
         name: legacy.petName || tr(speciesOf(key).name),
         mode,
         startStage: si,
-        base: mode === 'all' ? null : legacy.baseline || null,
-        since: mode === 'all' ? 0 : legacy.baselineAt || 0,
+        base: mode === 'all' || opts.fresh ? null : legacy.baseline || null,
+        since: opts.fresh ? now : mode === 'all' ? 0 : legacy.baselineAt || 0,
+        metAt: now,
         startXp: mode === 'stage' ? STAGES[si].min : 0,
         color: legacy.color && legacy.color !== 'violet' ? legacy.color : 'natural',
         accessory: legacy.accessory || 'none',
@@ -4504,17 +4496,41 @@ function migrateParty(st, legacy = {}) {
   st.colors = [...new Set(['natural', ...colors])];
 }
 
+// 저장 형식 번호. 0.1·0.2 에는 없었다
+const DATA_SCHEMA = 3;
+
+// data.json 을 지금 형식으로 읽는다. 무엇도 지우거나 되돌리지 않는다: 업데이트해도 성장이 그대로 이어진다.
+// raw 가 없으면 방금 설치한 것이다. 그때는 첫 파트너가 이 순간부터 자란다
+function loadSaved(raw, now = Date.now()) {
+  const fresh = !raw || !raw.state;
+  const legacy = (raw && raw.settings) || {};
+  const settings = Object.assign({}, DEFAULT_SETTINGS, legacy);
+  for (const k of LEGACY_PET_KEYS) delete settings[k];
+  if (!THEMES.includes(settings.theme)) settings.theme = 'system';
+  const st = Object.assign(clone(DEFAULT_STATE), (raw && raw.state) || {});
+  migrateParty(st, legacy, { fresh, now });
+  if (!st.installedAt) st.installedAt = fresh ? now : firstSeen(st, now);
+  const ledger = new Ledger(raw && raw.ledger);
+  return { settings, st, ledger, fresh };
+}
+
+// 예전 데이터에는 설치한 날이 없다. 처음 받은 보너스·업적 가운데 가장 이른 때로 짐작한다 (보여 주기용)
+function firstSeen(st, now) {
+  let first = now;
+  for (const b of st.bonus || []) if (b && b.at > 0 && b.at < first) first = b.at;
+  for (const at of Object.values(st.achievements || {})) if (at > 0 && at < first) first = at;
+  return first;
+}
+
 class VaultPetPlugin extends obsidian.Plugin {
   async onload() {
-    const raw = (await this.loadData()) || {};
-    const legacy = raw.settings || {};
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, legacy);
-    for (const k of LEGACY_PET_KEYS) delete this.settings[k];
-    LANG = detectLang(this.settings.language);
-    this.st = Object.assign(clone(DEFAULT_STATE), raw.state || {});
-    migrateParty(this.st, legacy);
+    const raw = await this.loadData();
+    LANG = detectLang(((raw && raw.settings) || {}).language || 'auto');
+    const saved = loadSaved(raw);
+    this.settings = saved.settings;
+    this.st = saved.st;
+    this.ledger = saved.ledger;
     CUR = this.st.partner;
-    this.ledger = new Ledger(raw.ledger);
     this.growth = null;
     this.loading = null;
     this.pending = new Set();
@@ -4546,6 +4562,14 @@ class VaultPetPlugin extends obsidian.Plugin {
     this.statusEl.addEventListener('click', () => this.openHouse());
 
     this.loadFonts();
+    // 컴퓨터나 옵시디언의 밝기 설정이 바뀌면 따라 바꾼다
+    const onScheme = () => this.applyTheme();
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', onScheme);
+      this.register(() => mq.removeEventListener('change', onScheme));
+    }
+    this.registerEvent(this.app.workspace.on('css-change', onScheme));
     this.app.workspace.onLayoutReady(() => this.start());
   }
 
@@ -4645,7 +4669,8 @@ class VaultPetPlugin extends obsidian.Plugin {
     return (this.settings.excludedFolders || []).some((f) => path === f || path.startsWith(f + '/'));
   }
 
-  // 처음 켰을 때는 볼트 전체를 읽어 노트 만든 날짜로 기록을 채운다.
+  // 처음 설치했을 때(또는 모두 지운 뒤)는 볼트 전체를 한 번 읽어, 이미 있던 노트의 크기만 기억한다.
+  // 이미 써 둔 글은 경험치로 세지 않는다. 성장은 설치한 순간부터다.
   // 그다음부터는 옵시디언이 꺼져 있던 동안 바뀐 파일만 다시 읽는다.
   async scan() {
     const { vault } = this.app;
@@ -4657,7 +4682,7 @@ class VaultPetPlugin extends obsidian.Plugin {
         const f = files[i];
         try {
           const m = measure(await vault.cachedRead(f));
-          L.observe(f.path, m, new Date(f.stat.ctime || f.stat.mtime || Date.now()), { mtime: f.stat.mtime });
+          L.observe(f.path, m, new Date(), { mtime: f.stat.mtime, baseline: true });
         } catch {
           // 못 읽는 파일은 건너뛴다
         }
@@ -4688,7 +4713,6 @@ class VaultPetPlugin extends obsidian.Plugin {
   setLoading(p) {
     this.loading = p;
     this.widget.setLoading(p);
-    if (this.modal) this.modal.updateInfo();
     for (const v of this.views()) v.update(false);
   }
 
@@ -4826,6 +4850,35 @@ class VaultPetPlugin extends obsidian.Plugin {
     el.setText(`${icon} Lv.${g.level} · ${pct}%`);
     el.setAttr('aria-label', t('statusTip', { name: this.pet.name, lv: g.level, stage: stageName(g.stageKey) }));
     el.setAttr('data-tooltip-position', 'top');
+  }
+
+  // ---------- 테마 ----------
+
+  // 펫 화면을 어둡게 그릴지. system 은 컴퓨터 설정, obsidian 은 옵시디언 테마를 따른다
+  isDark() {
+    const m = this.settings.theme;
+    if (m === 'dark') return true;
+    if (m === 'light') return false;
+    if (m === 'obsidian' || !window.matchMedia) return document.body.hasClass('theme-dark');
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  // 펫 화면의 뿌리 요소(떠 있는 펫·하우스·카드·안내 창)에 vp-dark / vp-light 를 단다
+  paint(el) {
+    if (!el) return;
+    const dark = this.isDark();
+    el.toggleClass('vp-dark', dark);
+    el.toggleClass('vp-light', !dark);
+  }
+
+  applyTheme() {
+    if (this.widget.el) this.paint(this.widget.el);
+    for (const v of this.views()) this.paint(v.contentEl);
+    for (const c of this.cards) this.paint(c.root);
+    if (this.modal) {
+      this.paint(this.modal.modalEl);
+      this.paint(this.modal.contentEl);
+    }
   }
 
   // 언어를 바꾸면 보이는 글자를 다시 쓴다
@@ -4994,7 +5047,7 @@ class VaultPetPlugin extends obsidian.Plugin {
   // 처음 고를 때(첫 실행·업데이트): 지금까지의 기록을 고른 친구가 그대로 이어받는다
   choosePartner(key) {
     const st = this.st;
-    if (!SPECIES_BY[key] || key === st.partner) return;
+    if (!SPECIES_BY[key] || key === st.partner || st.party[key]) return;
     const pet = st.party[st.partner];
     delete st.party[st.partner];
     if (SPECIES.some((sp) => sp.name.includes(pet.name))) pet.name = tr(speciesOf(key).name);
@@ -5022,41 +5075,6 @@ class VaultPetPlugin extends obsidian.Plugin {
     await this.saveNow();
   }
 
-  // mode: all | fresh | stage. fresh·stage 는 지금까지의 누적을 기준점으로 삼는다
-  async restartGrowth(mode, stage, quiet) {
-    if (this.scanPromise) await this.scanPromise;
-    const pet = this.pet;
-    const si = clampN(stage | 0, 0, STAGES.length - 1);
-    Object.assign(pet, {
-      mode,
-      startStage: si,
-      frozen: 0,
-      base: mode === 'all' ? null : this.ledger.totals(),
-      since: mode === 'all' ? 0 : Date.now(),
-      startXp: mode === 'stage' ? STAGES[si].min : 0,
-    });
-    const before = this.growth;
-    this.st.lastLevel = null;
-    this.refresh();
-    if (!quiet && before && this.growth && this.growth.stageKey !== before.stageKey) {
-      this.widget.action('evolve');
-      this.sound('evolve');
-    }
-    await this.saveNow();
-  }
-
-  // 날짜별 기록을 지우고 볼트를 다시 읽는다. 업적·아이템·보너스는 남는다
-  async recount() {
-    if (this.scanPromise) await this.scanPromise;
-    this.ledger.d = emptyLedger();
-    this.st.scanned = false;
-    this.scanPromise = this.scan();
-    await this.scanPromise;
-    if (this.pet.base) this.pet.base = this.ledger.totals();
-    this.refresh();
-    await this.saveNow();
-  }
-
   // 모든 것을 지우고 새 알부터
   async wipe() {
     if (this.scanPromise) await this.scanPromise;
@@ -5065,7 +5083,8 @@ class VaultPetPlugin extends obsidian.Plugin {
     this.game.retroEvents = [];
     this.brain.daily = {};
     this.ledger.d = emptyLedger();
-    migrateParty(this.st, {});
+    migrateParty(this.st, {}, { fresh: true });
+    this.st.installedAt = Date.now();
     CUR = this.st.partner;
     this.growth = null;
     this.widget.stageKey = null;
@@ -5143,7 +5162,7 @@ class VaultPetPlugin extends obsidian.Plugin {
     window.clearTimeout(this.saveTimer);
     this.dirty = false;
     this.st.brainDaily = this.brain.daily;
-    await this.saveData({ settings: this.settings, state: this.st, ledger: this.ledger.d });
+    await this.saveData({ schema: DATA_SCHEMA, settings: this.settings, state: this.st, ledger: this.ledger.d });
   }
 }
 
@@ -5152,7 +5171,7 @@ module.exports.__internals = {
   measure, stripFrontmatter, Ledger, emptyLedger, computeGrowth, xpOf, levelOf, STAGES,
   Brain, Gamify, ACHIEVEMENTS, QUEST_POOL, ITEMS, COLORS, DEFAULT_STATE, DEFAULT_SETTINGS,
   S, LINES, SPECIES_LINES, t, tl, josa, josaRo, bonusText, unlockHint, dayOf, formatDuration,
-  SPECIES, SPECIES_BY, VARIANTS, paletteOf, perkMult, newPet, growthOf, migrateParty, swapPartner, PetRenderer, ART, EGG, STAGE_SHAPE,
+  SPECIES, SPECIES_BY, VARIANTS, paletteOf, perkMult, newPet, growthOf, migrateParty, swapPartner, loadSaved, firstSeen, DATA_SCHEMA, THEMES, PetRenderer, ART, EGG, STAGE_SHAPE,
   setLang: (l) => { LANG = l; },
   setCur: (k) => { CUR = k; },
   CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, LIVE_CHAR_CAP, FLUSH_BUDGET,

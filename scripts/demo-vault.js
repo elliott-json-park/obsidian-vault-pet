@@ -5,7 +5,8 @@
  *   node scripts/demo-vault.js [출력 폴더] [--seeded] [--partner=inky] [--plugin-only]
  *
  * - 노트 몇 개와 .obsidian 설정, 플러그인 파일(main.js·manifest.json·styles.css·fonts/)을 넣는다.
- * - --seeded: 3주쯤 키운 펫의 data.json 을 함께 넣는다 (스크린샷용). 도감에는 친구 셋이 있다.
+ * - --seeded: 설치한 지 3주쯤 된 data.json 을 함께 넣는다 (스크린샷용). 도감에는 친구 셋이 있다.
+ *   성장은 설치한 순간부터라서, 기록도 설치한 뒤 3주치만 있다.
  *   --partner 로 지금 파트너를 고른다 (inky·purrl·sprig·ember·dewey).
  *   없으면 플러그인을 처음 켠 상태라 첫 실행 안내(파트너 고르기)부터 나온다.
  * - --plugin-only: 노트는 그대로 두고 플러그인 파일만 새로 복사한다.
@@ -42,7 +43,8 @@ if (pluginOnly) {
 /* ── 설정 ── */
 
 write('.obsidian/app.json', JSON.stringify({ promptDelete: false, alwaysUpdateLinks: true }, null, 2));
-write('.obsidian/appearance.json', JSON.stringify({ theme: 'obsidian', baseFontSize: 16 }, null, 2));
+// 옵시디언도 컴퓨터 밝기 설정을 따라가게 (플러그인 기본 테마와 같게)
+write('.obsidian/appearance.json', JSON.stringify({ theme: 'system', baseFontSize: 16 }, null, 2));
 write('.obsidian/community-plugins.json', JSON.stringify(['vault-pet'], null, 2));
 write('.obsidian/core-plugins.json', JSON.stringify({ 'file-explorer': true, 'global-search': true, backlink: true, 'page-preview': true, 'daily-notes': true, 'command-palette': true }, null, 2));
 
@@ -146,7 +148,7 @@ const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 const now = new Date();
 const ago = (n, h = 12) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - n, h);
 
-// 22일치 기록. 주말엔 조금, 평일엔 많이
+// 설치한 지 21일. 주말엔 조금, 평일엔 많이
 let seed = 7;
 const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const days = {};
@@ -156,8 +158,8 @@ for (let i = 21; i >= 1; i--) {
   if (i === 9 || i === 15) continue; // 쉰 날
   const d = ago(i);
   const weekend = d.getDay() === 0 || d.getDay() === 6;
-  const c = Math.round((weekend ? 600 : 1500) + rnd() * 2200);
-  const l = Math.round(3 + rnd() * 12);
+  const c = Math.round((weekend ? 1400 : 3000) + rnd() * 3000);
+  const l = Math.round(6 + rnd() * 14);
   const n = Math.round(rnd() * 3);
   days[dayOf(d)] = { c, l, n, o: Math.round(4 + rnd() * 10) };
   for (const h of [9, 10, 14, 15, 21, 22]) hours[h] += Math.round((c + l + n) / 6);
@@ -166,14 +168,6 @@ for (let i = 21; i >= 1; i--) {
   tot.n += n;
 }
 hours[1] += 80; // 올빼미 한 번
-// 플러그인을 깔기 전부터 써 온 노트들 (첫 실행 때 만든 날짜로 채워진 몫)
-for (const [n, c, l, k] of [[140, 180_000, 420, 60], [95, 150_000, 380, 45], [50, 120_000, 300, 30]]) {
-  days[dayOf(ago(n))] = { c, l, n: k, o: 0 };
-  hours[11] += c + l + k;
-  tot.c += c;
-  tot.l += l;
-  tot.n += k;
-}
 // 오늘
 days[dayOf(now)] = { c: 820, l: 5, n: 1, o: 6 };
 tot.c += 820;
@@ -185,7 +179,8 @@ const files = {};
 for (const [rel, text] of Object.entries(notes)) files[rel] = [text.replace(/\s/g, '').length, (text.match(/\[\[/g) || []).length, Date.now() + 60_000, 1];
 
 const at = (n) => ago(n, 20).getTime();
-const achievements = { friends_3: at(6), first_note: at(21), chars_10k: at(16), streak_3: at(18), streak_7: at(13), links_100: at(5), night_owl: at(12), early_bird: at(19), focus_day: at(10), pet_50: at(4), quest_10: at(3), lv_10: at(7), stage_child: at(8), marathon: at(6), chars_100k: at(50), links_1000: at(50), notes_50: at(95), lv_30: at(2) };
+const installedAt = ago(21, 9).getTime();
+const achievements = { friends_3: at(6), first_note: at(21), chars_10k: at(18), streak_3: at(18), streak_7: at(14), links_100: at(9), night_owl: at(12), early_bird: at(19), focus_day: at(17), pet_50: at(4), quest_10: at(3), lv_10: at(10), stage_child: at(5), marathon: at(6) };
 const bonus = [
   { at: at(3), xp: 60, why: ['quest', 'chars', 800] },
   { at: at(3), xp: 100, why: ['allclear'] },
@@ -196,28 +191,29 @@ const bonus = [
   { at: at(0), xp: 30, why: ['quest', 'poke', 5] },
 ];
 // 업적 보너스도 넣는다
-const ACH_XP = { friends_3: 150, first_note: 50, chars_10k: 100, streak_3: 100, streak_7: 250, links_100: 100, night_owl: 100, early_bird: 100, focus_day: 200, pet_50: 100, quest_10: 200, lv_10: 100, stage_child: 150, marathon: 150, chars_100k: 300, links_1000: 400, notes_50: 150, lv_30: 300 };
+const ACH_XP = { friends_3: 150, first_note: 50, chars_10k: 100, streak_3: 100, streak_7: 250, links_100: 100, night_owl: 100, early_bird: 100, focus_day: 200, pet_50: 100, quest_10: 200, lv_10: 100, stage_child: 150, marathon: 150 };
 for (const [id, t] of Object.entries(achievements)) bonus.unshift({ at: t, xp: ACH_XP[id], why: ['badge', id] });
 // 매일 출석·퀘스트 보너스를 조금씩
 for (let i = 21; i >= 4; i--) if (days[dayOf(ago(i))]) bonus.unshift({ at: at(i), xp: 110, why: ['attend', 21 - i] });
 
-// 도감: 지금 파트너는 볼트 전체로 자랐고, 나머지 둘은 쉬는 중
+// 도감: 지금 파트너는 설치한 날부터 자랐고, 나머지 둘은 쉬는 중
 const NAMES = { inky: '잉키', purrl: '냥타래', sprig: '새록이', ember: '모닥이', dewey: '듀이' };
 const pet = (o) => ({ mode: 'fresh', startStage: 0, base: null, since: 0, startXp: 0, frozen: 0, color: 'natural', accessory: 'none', metAt: at(21), best: 0, ...o });
-const party = { [partner]: pet({ name: NAMES[partner], mode: 'all', accessory: 'glasses', best: 3 }) };
-for (const [k, o] of [['purrl', { frozen: 9200, accessory: 'scarf', best: 2, metAt: at(9) }], ['ember', { frozen: 320, best: 0, metAt: at(3) }], ['inky', { frozen: 2600, best: 1, metAt: at(12) }]]) {
+const party = { [partner]: pet({ name: NAMES[partner], since: installedAt, metAt: installedAt, accessory: 'glasses', best: 2 }) };
+for (const [k, o] of [['purrl', { frozen: 2400, accessory: 'scarf', best: 1, metAt: at(9) }], ['ember', { frozen: 320, best: 0, metAt: at(3) }], ['inky', { frozen: 1100, best: 1, metAt: at(12) }]]) {
   if (Object.keys(party).length < 3 && !party[k]) party[k] = pet({ name: NAMES[k], ...o });
 }
 
 const data = {
-  settings: { language: 'ko', showWidget: true, roam: true, scale: 2, excludedFolders: ['Templates'] },
+  schema: 3,
+  settings: { language: 'ko', theme: 'system', showWidget: true, roam: true, scale: 2, excludedFolders: ['Templates'] },
   state: {
-    partner, party, picked: true,
+    partner, party, picked: true, installedAt,
     pokes: 64, pokesDay: dayOf(now), pokesToday: 5, mealsTaken: 3, restsTaken: 6, maxStreakMin: 150,
     bonus: bonus.sort((a, b) => a.at - b.at), achievements,
-    items: ['none', 'sprout', 'ribbon', 'glasses', 'headphones', 'beanie', 'scarf', 'quill', 'nightcap', 'party'], colors: ['natural', 'clay', 'mint', 'peach', 'snow', 'midnight'],
+    items: ['none', 'sprout', 'ribbon', 'glasses', 'headphones', 'quill', 'nightcap', 'party'], colors: ['natural', 'clay', 'mint'],
     questsDone: 17, attendDay: dayOf(now), initialized: true, onboarded: true, scanned: true,
-    lastLevel: null, lastStage: null, seen: ['i:sprout', 'i:ribbon', 'i:glasses', 'i:headphones', 'i:beanie', 'i:scarf', 'i:nightcap', 'i:party', 'c:clay', 'c:mint', 'c:peach', 'c:snow', 'c:midnight'],
+    lastLevel: null, lastStage: null, seen: ['i:sprout', 'i:ribbon', 'i:glasses', 'i:headphones', 'i:nightcap', 'i:party', 'c:clay', 'c:mint'],
   },
   ledger: { files, days, hours, tot },
 };

@@ -291,6 +291,127 @@ test('migrateParty: 0.1.x 데이터를 첫 친구로 옮긴다', () => {
   assert.strictEqual(st3.party.dewey.frozen, 0);
   assert.deepStrictEqual(st3.colors, ['natural']);
 });
+/* ── 저장 데이터 읽기: 설치한 순간부터 성장, 업데이트해도 그대로 ── */
+
+// 저장 → 다시 읽기 (옵시디언이 data.json 을 쓰고 읽는 것과 같게 JSON 으로)
+const roundTrip = (r) => I.loadSaved(JSON.parse(JSON.stringify({ schema: I.DATA_SCHEMA, settings: r.settings, state: r.st, ledger: r.ledger.d })));
+const growthOfLoaded = (r) => I.computeGrowth(r.st.party[r.st.partner], r.st.partner, r.ledger.totals(), (since) => r.st.bonus.filter((b) => b.at >= since).reduce((a, b) => a + b.xp, 0));
+
+test('loadSaved: 새로 설치하면 알부터, 설치한 순간부터 센다', () => {
+  const r = I.loadSaved(null, 5000);
+  assert.strictEqual(r.fresh, true);
+  assert.strictEqual(r.st.installedAt, 5000);
+  assert.strictEqual(r.settings.theme, 'system');
+  const pet = r.st.party[r.st.partner];
+  assert.strictEqual(r.st.partner, 'inky');
+  assert.strictEqual(pet.mode, 'fresh');
+  assert.strictEqual(pet.since, 5000);
+  assert.strictEqual(pet.name, '잉키');
+  assert.strictEqual(r.st.picked, false);
+  assert.strictEqual(r.st.onboarded, false);
+
+  // 설치할 때 이미 있던 노트: 크기만 기억하고 세지 않는다
+  const L = r.ledger;
+  assert.deepStrictEqual(L.observe('old.md', { chars: 50_000, links: 120 }, when, { baseline: true }), { dc: 0, dl: 0, dn: 0 });
+  assert.deepStrictEqual(L.observe('short.md', { chars: 5, links: 0 }, when, { baseline: true }), { dc: 0, dl: 0, dn: 0 });
+  assert.deepStrictEqual(L.totals(), { c: 0, l: 0, n: 0 });
+  assert.strictEqual(Object.keys(L.d.days).length, 0);
+  const g0 = growthOfLoaded(r);
+  assert.strictEqual(g0.xp, 0);
+  assert.strictEqual(g0.stageKey, 'egg');
+  // 그 노트에 이어 쓰면 늘어난 만큼만 센다. 이미 있던 노트는 새 노트가 아니다
+  assert.deepStrictEqual(L.observe('old.md', { chars: 50_200, links: 121 }, when), { dc: 200, dl: 1, dn: 0 });
+  // 짧던 노트가 10자를 넘으면 그때 새 노트로 센다
+  assert.deepStrictEqual(L.observe('short.md', { chars: 30, links: 0 }, when), { dc: 25, dl: 0, dn: 1 });
+  assert.strictEqual(growthOfLoaded(r).xp, Math.floor((225 / 20) * 1.2) + 5 + 15);
+});
+
+test('loadSaved: 0.1 데이터를 읽어도 성장·업적·아이템·기록이 하나도 줄지 않는다', () => {
+  const days = { '2026-09-01': { c: 3000, l: 5, n: 1, o: 3 }, '2026-09-18': { c: 1200, l: 2, n: 0, o: 1 } };
+  const v01 = {
+    settings: {
+      petName: '몽글', language: 'ko', showWidget: true, scale: 3, widgetPos: { right: 375, bottom: 557 }, accessory: 'quill', color: 'midnight',
+      startMode: 'all', startStage: 0, baselineAt: 0, baseline: null, excludedFolders: ['Templates'], lunchTime: '12:10',
+    },
+    state: {
+      pokes: 64, questsDone: 17, maxStreakMin: 150, onboarded: true, initialized: true, scanned: true, lastLevel: 40, lastStage: 3,
+      achievements: { first_note: 3000, chars_100k: 9000 }, bonus: [{ at: 2000, xp: 50, why: ['badge', 'first_note'] }, { at: 8000, xp: 300, why: ['badge', 'chars_100k'] }],
+      items: ['none', 'sprout', 'quill'], colors: ['violet', 'clay', 'midnight'], seen: ['i:quill'],
+    },
+    ledger: { files: { 'a.md': [494442, 1266, 1, 1] }, days, hours: new Array(24).fill(1), tot: { c: 494_442, l: 1266, n: 166 } },
+  };
+  const before = JSON.parse(JSON.stringify(v01));
+  const oldXp = I.xpOf(v01.ledger.tot) + 350; // 0.1 이 보여 주던 경험치
+  const r = I.loadSaved(JSON.parse(JSON.stringify(v01)), 99_000);
+  assert.strictEqual(r.fresh, false);
+  // 설정: 펫 정보만 친구 기록으로 옮기고 나머지는 그대로
+  assert.deepStrictEqual(r.settings.widgetPos, { right: 375, bottom: 557 });
+  assert.strictEqual(r.settings.scale, 3);
+  assert.strictEqual(r.settings.lunchTime, '12:10');
+  assert.deepStrictEqual(r.settings.excludedFolders, ['Templates']);
+  for (const k of ['petName', 'color', 'accessory', 'startMode', 'baseline']) assert.ok(!(k in r.settings), k);
+  // 펫
+  const pet = r.st.party.inky;
+  assert.strictEqual(pet.name, '몽글');
+  assert.strictEqual(pet.color, 'midnight');
+  assert.strictEqual(pet.accessory, 'quill');
+  assert.strictEqual(pet.mode, 'all');
+  assert.strictEqual(pet.base, null);
+  // 기록·업적·아이템
+  assert.deepStrictEqual(r.ledger.totals(), before.ledger.tot);
+  assert.deepStrictEqual(r.ledger.d.days, before.ledger.days);
+  assert.deepStrictEqual(r.ledger.d.files, before.ledger.files);
+  assert.deepStrictEqual(r.st.achievements, before.state.achievements);
+  assert.deepStrictEqual(r.st.bonus, before.state.bonus);
+  assert.deepStrictEqual(r.st.items, before.state.items);
+  assert.deepStrictEqual(r.st.colors, ['natural', 'clay', 'midnight']);
+  assert.strictEqual(r.st.pokes, 64);
+  assert.strictEqual(r.st.questsDone, 17);
+  assert.strictEqual(r.st.scanned, true);
+  assert.strictEqual(r.st.onboarded, true);
+  assert.strictEqual(r.st.installedAt, 2000); // 처음 받은 보너스 때로 짐작
+  // 성장: 줄지 않는다 (잉키 특기로 오히려 조금 늘어난다)
+  const g = growthOfLoaded(r);
+  assert.ok(g.xp >= oldXp, `${g.xp} < ${oldXp}`);
+  // 한 번 더 저장하고 읽어도 똑같다
+  const r2 = roundTrip(r);
+  assert.deepStrictEqual(r2.st, r.st);
+  assert.deepStrictEqual(r2.settings, r.settings);
+  assert.strictEqual(growthOfLoaded(r2).xp, g.xp);
+});
+
+test('loadSaved: 0.2 데이터는 친구들과 성장이 그대로 이어진다', () => {
+  const st = JSON.parse(JSON.stringify(I.DEFAULT_STATE));
+  I.migrateParty(st, {});
+  const L = new I.Ledger();
+  L.observe('a.md', { chars: 40_000, links: 20 }, when);
+  const grow = () => I.computeGrowth(st.party[st.partner], st.partner, L.totals(), () => 0);
+  I.swapPartner(st, 'purrl', grow(), L.totals(), 5000);
+  L.observe('b.md', { chars: 8000, links: 30 }, when);
+  st.party.purrl.accessory = 'scarf';
+  st.onboarded = st.picked = st.scanned = st.initialized = true;
+  delete st.installedAt;
+  const v02 = JSON.parse(JSON.stringify({ settings: { language: 'ko', roam: false, scale: 2 }, state: st, ledger: L.d }));
+  const xpBefore = grow().xp;
+  const r = I.loadSaved(v02, 99_000);
+  assert.strictEqual(r.st.partner, 'purrl');
+  assert.deepStrictEqual(r.st.party, v02.state.party);
+  assert.strictEqual(r.settings.roam, false);
+  assert.strictEqual(r.settings.theme, 'system');
+  assert.strictEqual(growthOfLoaded(r).xp, xpBefore);
+  assert.strictEqual(r.st.party.inky.frozen, v02.state.party.inky.frozen);
+  assert.strictEqual(roundTrip(r).st.party.purrl.accessory, 'scarf');
+});
+
+test('loadSaved: 이상한 값도 받아준다', () => {
+  const r = I.loadSaved({ settings: { theme: 'neon' }, state: { party: 'x', colors: null }, ledger: { hours: 'x' } }, 7);
+  assert.strictEqual(r.settings.theme, 'system');
+  assert.strictEqual(r.st.partner, 'inky');
+  assert.deepStrictEqual(r.st.colors, ['natural']);
+  assert.strictEqual(r.ledger.hours().length, 24);
+  assert.ok(I.THEMES.includes(I.DEFAULT_SETTINGS.theme));
+});
+
 /* ── 게임 ── */
 
 function newGame(over = {}) {
