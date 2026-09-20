@@ -666,7 +666,7 @@ body.vault-pet-pixel .vault-pet-status {
 }
 .vp-name-btn:hover {
   background: none;
-  text-decoration: underline dotted;
+  box-shadow: 0 1px 0 var(--vp-text-faint);
 }
 .vp-name-btn::after {
   content: ' ✎';
@@ -835,9 +835,6 @@ body.vault-pet-pixel .vault-pet-status {
   gap: 3px 12px;
   margin-top: 8px;
   font-size: 12.5px;
-}
-.vp-facts > div {
-  display: contents;
 }
 .vp-perk-note {
   margin: -2px 0 10px;

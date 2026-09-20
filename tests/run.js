@@ -145,12 +145,41 @@ test('Ledger: 이름을 바꿔도 기록이 따라간다 (폴더 포함)', () =>
   L.observe('old/a.md', { chars: 40, links: 2 }, when);
   L.observe('old/sub/b.md', { chars: 40, links: 0 }, when);
   L.rename('old', 'new');
-  assert.ok(L.d.files['new/a.md'] && L.d.files['new/sub/b.md']);
-  assert.ok(!L.d.files['old/a.md']);
+  assert.ok(L.has('new/a.md') && L.has('new/sub/b.md'));
+  assert.ok(!L.has('old/a.md'));
   const r = L.observe('new/a.md', { chars: 40, links: 2 }, when);
   assert.deepStrictEqual(r, { dc: 0, dl: 0, dn: 0 });
   L.rename('new/a.md', 'c.md');
-  assert.ok(L.d.files['c.md']);
+  assert.ok(L.has('c.md'));
+});
+
+test('Ledger: 폴더를 지우면 그 아래 기록만 지운다', () => {
+  const L = new I.Ledger();
+  for (const p of ['보관/a.md', '보관/깊이/b.md', '보관함.md', '일기.md']) L.observe(p, { chars: 40, links: 0 }, when);
+  L.removeUnder('보관');
+  assert.ok(!L.has('보관/a.md') && !L.has('보관/깊이/b.md'));
+  assert.ok(L.has('보관함.md') && L.has('일기.md'));
+});
+
+test('Ledger: 남은 파일만 남기고 지워진 파일 기록을 치운다', () => {
+  const L = new I.Ledger();
+  for (const p of ['a.md', 'b.md', 'c/d.md']) L.observe(p, { chars: 40, links: 0 }, when);
+  L.keepOnly(['a.md', 'c/d.md']);
+  assert.ok(L.has('a.md') && L.has('c/d.md') && !L.has('b.md'));
+});
+
+test('Ledger: 저장한 데이터에는 볼트 경로가 남지 않는다', () => {
+  const L = new I.Ledger();
+  L.observe('비밀 폴더/올해 연봉 협상.md', { chars: 400, links: 2 }, when);
+  const saved = JSON.stringify(L.d);
+  assert.ok(!saved.includes('비밀 폴더'), saved);
+  assert.ok(!saved.includes('올해 연봉 협상'), saved);
+  assert.ok(!saved.includes('.md'), saved);
+  // 같은 경로는 언제나 같은 열쇠로, 다른 경로는 다른 열쇠로
+  assert.strictEqual(I.pathKey('a/b.md'), I.pathKey('a/b.md'));
+  assert.notStrictEqual(I.pathKey('a/b.md'), I.pathKey('a/c.md'));
+  // 해시한 뒤에도 경로 구조(깊이)만큼은 이어져 이름 바꾸기가 된다
+  assert.strictEqual(I.pathKey('a/b/c.md').split('/').length, 3);
 });
 
 test('Ledger: 날짜·시간대·출석일', () => {
@@ -360,7 +389,9 @@ test('loadSaved: 0.1 데이터를 읽어도 성장·업적·아이템·기록이
   // 기록·업적·아이템
   assert.deepStrictEqual(r.ledger.totals(), before.ledger.tot);
   assert.deepStrictEqual(r.ledger.d.days, before.ledger.days);
-  assert.deepStrictEqual(r.ledger.d.files, before.ledger.files);
+  assert.deepStrictEqual(r.ledger.d.files, { [I.pathKey('a.md')]: before.ledger.files['a.md'] });
+  assert.ok(!('a.md' in r.ledger.d.files)); // 예전 데이터의 경로도 해시로 옮긴다
+  assert.strictEqual(r.ledger.mtimeOf('a.md'), 1);
   assert.deepStrictEqual(r.st.achievements, before.state.achievements);
   assert.deepStrictEqual(r.st.bonus, before.state.bonus);
   assert.deepStrictEqual(r.st.items, before.state.items);
@@ -557,6 +588,11 @@ test('poke·noteOpen 은 오늘 기록으로 쌓인다', () => {
   g.noteOpen('a.md');
   g.noteOpen('b.md');
   assert.strictEqual(st.readPaths.length, 2);
+  // 몇 개를 열었는지만 세고, 어떤 노트였는지는 남기지 않는다
+  g.noteOpen('비밀 폴더/올해 연봉 협상.md');
+  assert.strictEqual(st.readPaths.length, 3);
+  assert.ok(!JSON.stringify(st.readPaths).includes('연봉'), JSON.stringify(st.readPaths));
+  assert.ok(!JSON.stringify(st.readPaths).includes('a.md'));
 });
 
 test('bonusText: 언어에 맞게 보여준다', () => {

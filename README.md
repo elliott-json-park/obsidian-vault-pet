@@ -49,13 +49,23 @@ XP    = characters written ÷ 20 + links × 5 + new notes × 15 + bonus   (times
 Level = √(XP / 25) + 1
 ```
 
-| Stage | XP needed |
-|---|---|
-| 🥚 Egg | 0 |
-| 🐣 Baby | 1,000 |
-| 🌿 Kid | 8,000 |
-| ✨ Teen | 30,000 |
-| 👑 Adult | 100,000 |
+| Stage | XP needed | What changes |
+|---|---|---|
+| 🥚 Egg | 0 | A patterned shell that cracks as it gets close |
+| 🐣 Baby | 1,000 | A small round blob. Eyes take up half the face, no arms or legs |
+| 🌿 Kid | 8,000 | Bigger and still round, now with stubby arms and feet, and its first markings |
+| ✨ Teen | 30,000 | Head and body separate, so it stands upright. Ears, horns, wings and tails come in |
+| 👑 Adult | 100,000 | Tallest and broadest, with a narrow determined gaze and a crest of its own |
+
+Every friend grows into a different shape, not just a bigger one:
+
+| | Kid | Teen | Adult |
+|---|---|---|---|
+| ✒️ Inky | Curled tip, ink puddle | Gold nib, ink running off the shoulders | Bigger nib, ink pooling wide with drops floating beside it |
+| 🧶 Purrl | Pointy ears, striped forehead | Long ears, curled tail, bell collar | Tufted ears, fangs, a fur ruff and **two** tails |
+| 🌱 Sprig | Two leaves | Four leaves, a flower bud, vines up the body | A flower in full bloom and a collar of leaves |
+| 🔥 Ember | Horn buds, small wings | Real horns, wings, spines over the shoulders | Forked horns, wings as wide as its body, a mane of flame |
+| 📚 Dewey | Small ear tufts | Long tufts, wings that work as arms | Tall white-tipped tufts and feathered wings |
 
 What counts:
 
@@ -184,8 +194,9 @@ Manual install: copy `main.js`, `manifest.json` and `styles.css` from the [lates
 
 - Notes are only ever **read**. Their contents are never stored or sent anywhere.
 - Why it lists every Markdown file: on first run it reads your notes once to remember how big each one already is (so old writing isn't counted as new), and at startup it checks which notes changed while Obsidian was closed (by modification time, so unchanged notes aren't read again). Folders you exclude in the settings are skipped.
-- All the plugin keeps is, per file path, the highest character and link counts, plus daily and hourly totals, and your friends' names and progress. Everything lives in `.obsidian/plugins/vault-pet/data.json`.
-- No network access.
+- **File paths are never stored.** Each path is split on `/` and every part is replaced with a short hash before it is saved, so `data.json` can't tell anyone which folders or notes your vault has. Hashing each part separately is what still lets a rename or a moved folder carry its record along.
+- All the plugin keeps is, under that hashed key, the highest character and link counts and a modification time, plus daily and hourly totals and your friends' names and progress. Everything lives in `.obsidian/plugins/vault-pet/data.json`.
+- No network access. Nothing is ever uploaded, and the plugin makes no requests at all.
 
 ## Development
 
@@ -242,7 +253,9 @@ The pet started as Claude Pet, a desktop companion that grows with Claude Code u
 - 파일마다 가장 많았던 글자·링크 수보다 늘어난 만큼만 세서, 지웠다 다시 쓰기로는 오르지 않아요. 붙여넣기와 한꺼번에 들어온 변경에도 상한이 있어요.
 - 0.1 에서 업데이트하면 파트너 고르기 창이 한 번 떠요. 고른 친구가 지금까지 키운 성장을 그대로 이어받아요. 0.3 전에 볼트 전체로 자라던 펫은 그대로 이어서 자라요.
 - 노트에 `vault-pet` 코드 블록을 넣으면 그 자리에 파트너 카드가 떠요.
-- 노트 내용은 저장하지도 보내지도 않아요. 경로별 숫자와 날짜별 합계, 친구들 기록만 `data.json` 에 남아요.
+- 노트 내용은 저장하지도 보내지도 않아요. 파일마다의 숫자와 날짜별 합계, 친구들 기록만 `data.json` 에 남아요.
+- **파일 경로는 저장하지 않아요.** 경로를 `/` 로 끊어 토막마다 짧은 해시로 바꿔 넣기 때문에, `data.json` 만 봐서는 볼트에 어떤 폴더와 노트가 있는지 알 수 없어요. 토막마다 따로 해시해서 이름을 바꾸거나 폴더를 옮겨도 기록은 그대로 따라가요.
+- 단계마다 생김새가 확 달라져요. 아기는 눈이 얼굴의 절반인 동글한 덩어리, 어린이는 팔다리가 생기고, 청소년부터는 머리와 몸이 나뉘어 키가 크고 귀·뿔·날개·꼬리가 돋아요. 어른은 눈매가 또렷해지고 친구마다 다른 상징(냥타래의 두 갈래 꼬리와 갈기, 새록이의 활짝 핀 꽃, 모닥이의 갈라진 뿔과 불꽃 갈기, 듀이의 흰 귀깃, 잉키의 큰 펜촉)이 나타나요.
 - 도트 글꼴(갈무리)을 쓰려면 이 저장소의 `fonts/` 폴더를 플러그인 폴더에 복사하세요. 없으면 테마 글꼴로 보여요.
 
 ## License

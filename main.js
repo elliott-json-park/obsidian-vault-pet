@@ -510,6 +510,36 @@ function measure(text) {
   return { chars, links: wiki.length + md.length };
 }
 
+// 파일 경로는 그대로 저장하지 않는다. 경로를 '/' 로 끊어 토막마다 짧은 해시로 바꿔 넣는다.
+// data.json 만 봐서는 볼트에 어떤 폴더와 노트가 있는지 알 수 없다.
+// 토막마다 따로 해시하니 폴더 이름을 바꾸거나 폴더째 지워도 기록은 그대로 따라간다.
+const SEG_CACHE = new Map();
+function hashSeg(s) {
+  let h = SEG_CACHE.get(s);
+  if (h !== undefined) return h;
+  let a = 0x811c9dc5;
+  let b = 0x7ee3a2f1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    a = Math.imul(a ^ c, 16777619) >>> 0;
+    b = Math.imul(b + c + i, 2246822519) >>> 0;
+    b = ((b << 13) | (b >>> 19)) >>> 0;
+  }
+  h = a.toString(36) + b.toString(36);
+  if (SEG_CACHE.size > 40000) SEG_CACHE.clear();
+  SEG_CACHE.set(s, h);
+  return h;
+}
+const PATH_CACHE = new Map();
+function pathKey(path) {
+  let k = PATH_CACHE.get(path);
+  if (k !== undefined) return k;
+  k = path.split('/').map(hashSeg).join('/');
+  if (PATH_CACHE.size > 20000) PATH_CACHE.clear();
+  PATH_CACHE.set(path, k);
+  return k;
+}
+
 const pad = (n) => String(n).padStart(2, '0');
 const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -518,7 +548,7 @@ function emptyLedger() {
 }
 
 // 파일별 최고 기록과 날짜별 합계.
-// files[path] = [최고 글자 수, 최고 링크 수, 마지막으로 읽은 mtime, 새 노트로 셌는지(0/1)]
+// files[해시한 경로] = [최고 글자 수, 최고 링크 수, 마지막으로 읽은 mtime, 새 노트로 셌는지(0/1)]
 // days[YYYY-MM-DD] = { c: 글자, l: 링크, n: 새 노트, o: 노트 연 횟수 }
 class Ledger {
   constructor(d) {
@@ -531,13 +561,14 @@ class Ledger {
   }
 
   observe(path, m, when = new Date(), opts = {}) {
-    const f = this.d.files[path];
+    const key = pathKey(path);
+    const f = this.d.files[key];
     const prevC = f ? f[0] : 0;
     const prevL = f ? f[1] : 0;
     const counted = f ? f[3] : 0;
     // baseline: 설치할 때 이미 있던 노트. 지금 크기만 기억하고 경험치로는 세지 않는다
     if (opts.baseline) {
-      this.d.files[path] = [Math.max(prevC, m.chars), Math.max(prevL, m.links), opts.mtime || (f ? f[2] : 0), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
+      this.d.files[key] = [Math.max(prevC, m.chars), Math.max(prevL, m.links), opts.mtime || (f ? f[2] : 0), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
       return { dc: 0, dl: 0, dn: 0 };
     }
     let dc = Math.max(0, m.chars - prevC);
@@ -555,7 +586,7 @@ class Ledger {
       b.l -= dl;
       b.n -= dn;
     }
-    this.d.files[path] = [Math.max(prevC, m.chars), Math.max(prevL, m.links), opts.mtime || (f ? f[2] : 0), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
+    this.d.files[key] = [Math.max(prevC, m.chars), Math.max(prevL, m.links), opts.mtime || (f ? f[2] : 0), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
     if (dc || dl || dn) this.add(when, dc, dl, dn);
     return { dc, dl, dn };
   }
@@ -577,24 +608,43 @@ class Ledger {
   }
 
   mtimeOf(path) {
-    const f = this.d.files[path];
+    const f = this.d.files[pathKey(path)];
     return f ? f[2] : null;
   }
 
+  has(path) {
+    return Object.prototype.hasOwnProperty.call(this.d.files, pathKey(path));
+  }
+
   remove(path) {
-    delete this.d.files[path];
+    delete this.d.files[pathKey(path)];
+  }
+
+  // 폴더를 지웠을 때. 그 아래 있던 기록을 모두 지운다
+  removeUnder(folder) {
+    const prefix = pathKey(folder) + '/';
+    for (const k of Object.keys(this.d.files)) if (k.startsWith(prefix)) delete this.d.files[k];
+  }
+
+  // 살아 있는 파일 목록에 없는 기록을 지운다 (옵시디언이 꺼져 있는 동안 지워진 파일)
+  keepOnly(paths) {
+    const live = new Set();
+    for (const p of paths) live.add(pathKey(p));
+    for (const k of Object.keys(this.d.files)) if (!live.has(k)) delete this.d.files[k];
   }
 
   rename(from, to) {
-    if (this.d.files[from]) {
-      this.d.files[to] = this.d.files[from];
-      delete this.d.files[from];
+    const a = pathKey(from);
+    const b = pathKey(to);
+    if (this.d.files[a]) {
+      this.d.files[b] = this.d.files[a];
+      delete this.d.files[a];
     }
-    const prefix = from + '/';
-    for (const p of Object.keys(this.d.files)) {
-      if (p.startsWith(prefix)) {
-        this.d.files[to + '/' + p.slice(prefix.length)] = this.d.files[p];
-        delete this.d.files[p];
+    const prefix = a + '/';
+    for (const k of Object.keys(this.d.files)) {
+      if (k.startsWith(prefix)) {
+        this.d.files[b + '/' + k.slice(prefix.length)] = this.d.files[k];
+        delete this.d.files[k];
       }
     }
   }
@@ -968,7 +1018,7 @@ const DEFAULT_STATE = {
   restDay: null,
   earlyDay: null,
   readDay: null,
-  readPaths: [],
+  readPaths: [], // 오늘 연 노트를 세기만 한다. 경로가 아니라 해시한 열쇠를 담는다
   maxStreakMin: 0,
   pending: null, // { kind: 'meal' | 'rest', at }
   bonus: [], // { at, xp, why }
@@ -1061,14 +1111,16 @@ class Gamify extends Emitter {
     this.evaluate();
   }
 
+  // 오늘 몇 개의 노트를 열었는지만 센다. 어떤 노트였는지는 남기지 않는다
   noteOpen(path) {
     const today = dayOf(new Date());
     if (this.st.readDay !== today) {
       this.st.readDay = today;
       this.st.readPaths = [];
     }
-    if (!this.st.readPaths.includes(path)) {
-      this.st.readPaths.push(path);
+    const key = pathKey(path);
+    if (!this.st.readPaths.includes(key)) {
+      this.st.readPaths.push(key);
       this.save();
     }
   }
@@ -1380,12 +1432,24 @@ function paletteOf(species, color) {
 }
 let C = paletteOf('inky', 'natural');
 
+// 단계마다 실루엣이 달라진다. 크기만 커지는 게 아니라 몸꼴이 바뀐다.
+//  아기·어린이: 머리와 몸이 한 덩어리인 동글한 블롭. 눈이 얼굴의 절반이다.
+//  청소년·어른: 머리와 몸이 나뉘고(head·body) 키가 커진다. 눈은 작고 또렷해진다.
+// head·body 는 rx·ry 에 대한 비율. cy 는 몸 중심에서 위(head)·아래(body)로 떨어진 거리.
 const STAGE_SHAPE = {
   egg: { rx: 8, ry: 10, si: 0 },
-  baby: { rx: 8.5, ry: 7.5, si: 1 },
-  child: { rx: 10.5, ry: 9, arms: true, feet: true, si: 2 },
-  teen: { rx: 12.5, ry: 10.5, arms: true, feet: true, si: 3 },
-  adult: { rx: 14, ry: 11.5, arms: true, feet: true, si: 4 },
+  baby: { rx: 7.4, ry: 6.6, si: 1 },
+  child: { rx: 9.8, ry: 8.8, arms: true, feet: true, si: 2 },
+  teen: {
+    rx: 11.4, ry: 11.8, arms: true, feet: true, si: 3,
+    head: { cy: 0.46, rx: 0.72, ry: 0.44 },
+    body: { cy: 0.34, rx: 0.94, ry: 0.64 },
+  },
+  adult: {
+    rx: 13.2, ry: 13.6, arms: true, feet: true, si: 4,
+    head: { cy: 0.52, rx: 0.64, ry: 0.4 },
+    body: { cy: 0.32, rx: 1, ry: 0.66 },
+  },
 };
 
 const HATS = new Set(['beanie', 'nightcap', 'chef', 'party', 'crown']);
@@ -1420,8 +1484,22 @@ const GLYPHS = [
 const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 
-// 기본 몸: 타원. widen(ny) 로 위아래 폭을 조금씩 바꾼다
+// 기본 몸. 어린 단계는 타원 하나, 다 자란 단계는 머리와 몸통 두 덩어리를 겹친다.
+// widen(ny) 로 위아래 폭을 조금씩 바꾼다
 function inEllipse(g, widen) {
+  if (g.split) {
+    const { bcx, bcy, brx, bry } = g.torso;
+    return (x, y) => {
+      const X = x + 0.5 - g.cx - g.sh(y);
+      const Y = y + 0.5;
+      const hy = (Y - g.hcy) / g.hry;
+      const hx = X / g.hrx;
+      if (hx * hx + hy * hy <= 1) return true;
+      const by = (Y - bcy) / bry;
+      const bx = (X + g.cx - bcx) / (brx * (widen ? widen(by) : 1));
+      return bx * bx + by * by <= 1;
+    };
+  }
   return (x, y) => {
     const ny = (y + 0.5 - g.cy) / g.ry;
     const nx = (x + 0.5 - g.cx - g.sh(y)) / (g.rx * (widen ? widen(ny) : 1));
@@ -1437,7 +1515,11 @@ function tone(g, x, y, extra) {
   const c = extra && extra(nx, ny, x, y);
   if (c) return c;
   if (nx * 0.5 + ny * 0.8 > 0.6) return C.shade;
-  if ((nx + 0.42) ** 2 + (ny + 0.52) ** 2 < 0.045) return C.light;
+  // 머리와 몸이 나뉘면 각각 왼쪽 위에 반짝이 하나씩
+  const hx = (x + 0.5 - g.cx - g.sh(y)) / g.hrx;
+  const hy = (y + 0.5 - g.hcy) / g.hry;
+  if ((hx + 0.42) ** 2 + (hy + 0.52) ** 2 < 0.045) return C.light;
+  if (g.split && (nx + 0.5) ** 2 + (ny - 0.42) ** 2 < 0.04) return C.light;
   return C.body;
 }
 
@@ -1468,9 +1550,11 @@ function spike(r, ax, ay, bx, by, w, fill, inner) {
 // mouth: 입 · arm: 팔 · top/hatY: 머리 끝과 모자 자리
 const ART = {
   inky: {
-    size: (s) => ({ rx: s.rx - 0.4, ry: s.ry - 0.5 }),
+    // 방울 한 덩어리. 머리와 몸을 나누지 않는다
+    oneBody: true,
+    size: (s) => ({ rx: s.rx - 0.4, ry: s.ry - (s.si >= 3 ? 2.6 : 0.5) }),
     inside(g) {
-      const H = g.ry * 1.45;
+      const H = g.ry * (g.si >= 3 ? 1.62 : 1.45);
       return (x, y) => {
         const Y = y + 0.5 - g.cy;
         const X = x + 0.5 - g.cx - g.sh(y);
@@ -1481,13 +1565,39 @@ const ART = {
         return Math.abs(X - k * k * 1.8) <= hw;
       };
     },
-    top: (g) => g.cy - g.ry * 1.45,
-    hatY: (g) => g.cy - g.ry * 1.02,
+    top: (g) => g.cy - g.ry * (g.si >= 3 ? 1.62 : 1.45),
+    hatY: (g) => g.cy - g.ry * (g.si >= 3 ? 1.12 : 1.02),
     fill: (g) => (x, y) => tone(g, x, y, (nx, ny) => ((nx + 0.12) ** 2 + (ny + 1.05) ** 2 < 0.02 ? C.light : null)),
     // 발 대신 잉크 웅덩이
     feet(r, g) {
       if (-g.p.dy > 2.5) return;
       r.ellipse(g.cx, GROUND + 0.6, g.rx * 0.95, 1.3, g.skin(C.shade), C.outline);
+    },
+    // 어른은 잉크가 발밑으로 넓게 퍼지고, 방울이 둥둥 떠다닌다
+    back(r, g) {
+      if (g.si < 4 || g.flash) return;
+      r.ellipse(g.cx, GROUND - 0.5, g.rx * 1.3, 2.6, C.shade, C.outline);
+      for (const side of [-1, 1]) {
+        const bx = g.cx + side * g.rx * 1.12;
+        r.ellipse(bx, GROUND - 4 - Math.abs(Math.sin(g.tm * 1.3 + side)) * 1.5, 1.7, 2, C.body, C.outline);
+        r.px(Math.round(bx) - 1, Math.round(GROUND - 6.5), C.light);
+      }
+    },
+    // 청소년부터 어깨에서 잉크가 흘러내린다
+    front(r, g) {
+      if (g.si < 3 || g.flash) return;
+      const n = g.si >= 4 ? 3 : 2;
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < n; i++) {
+          const y0 = Math.round(g.cy - g.ry * 0.35 + i * 3);
+          const span = r.spanAt(g, y0);
+          if (!span) continue;
+          const x = side < 0 ? span[0] + 1 + i : span[1] - 1 - i;
+          const len = 2 + ((i + g.si) % 2);
+          for (let k = 0; k < len; k++) r.px(x, y0 + k, C.shade);
+          r.px(x, y0 + len, C.outline);
+        }
+      }
     },
     crown(r, g) {
       const tx = Math.round(g.cx + g.sh(g.top) + 1.8);
@@ -1511,59 +1621,104 @@ const ART = {
   purrl: {
     size: (s) => ({ rx: s.rx + 0.6, ry: s.ry - 0.4 }),
     inside: (g) => inEllipse(g),
-    fill: (g) => (x, y) => tone(g, x, y, (nx, ny, px) => {
-      // 이마 줄무늬
+    fill: (g) => (x, y) => tone(g, x, y, (nx, ny, px, py) => {
+      const [hx, hy] = g.hn(px, py);
+      // 이마 줄무늬. 자랄수록 한 줄씩 늘어난다
       if (g.si >= 2) {
         const dx = Math.round(px - g.cx - g.sh(y));
-        if (dx === 0 && ny < -0.58) return C.shade;
-        if ((dx === -2 || dx === 2) && ny < -0.7) return C.shade;
+        if (dx === 0 && hy < -0.5) return C.shade;
+        if ((dx === -2 || dx === 2) && hy < -0.62) return C.shade;
+        if (g.si >= 4 && (dx === -4 || dx === 4) && hy < -0.5) return C.shade;
       }
       // 입가 흰 털
-      if ((nx / 0.4) ** 2 + ((ny - 0.36) / 0.28) ** 2 < 1) return C.light;
+      if ((hx / 0.42) ** 2 + ((hy - 0.4) / 0.32) ** 2 < 1) return C.light;
+      // 어른은 가슴 털이 하얗다
+      if (g.si >= 4 && (nx / 0.46) ** 2 + ((ny - 0.6) / 0.4) ** 2 < 1) return C.light;
       return null;
     }),
+    // 귀. 아기는 동그란 혹, 자랄수록 길고 뾰족해지고 어른은 끝에 붓털이 난다
     behind(r, g) {
-      const h = [0, 3.5, 4.5, 5.5, 6.5][g.si];
-      const w = [0, 2.6, 3.1, 3.6, 4.1][g.si];
+      const si = g.si;
+      const h = [0, 2.2, 4.4, 6.4, 8][si];
+      const w = [0, 2.4, 2.8, 3.2, 3.6][si];
+      const lean = [0, 1.6, 1.6, 2.2, 2.8][si];
       const twitch = g.tm % 6.1 < 0.14 ? 1 : 0;
       for (const side of [-1, 1]) {
-        const bx = g.cx + g.sh(g.top) + side * g.rx * 0.52;
-        const by = g.top + g.ry * 0.4;
-        spike(r, bx + side * 1.4, g.top - h + 1 + (side > 0 ? twitch : 0), bx, by, w, g.skin(C.body), g.flash ? null : C.earIn);
+        const bx = g.cx + g.sh(g.top) + side * g.hrx * 0.54;
+        const by = g.top + g.hry * 0.5;
+        const tx = bx + side * lean;
+        const ty = g.top - h + 1 + (side > 0 ? twitch : 0);
+        spike(r, tx, ty, bx, by, w, g.skin(C.body), g.flash ? null : C.earIn);
+        if (si >= 4 && !g.flash) {
+          // 귀 끝 붓털
+          const ex = Math.round(tx);
+          const ey = Math.round(ty);
+          r.px(ex + side, ey, C.light);
+          r.px(ex + side * 2, ey - 1, C.light);
+          r.px(ex + side * 2, ey - 2, C.light);
+        }
       }
     },
+    // 꼬리. 아기는 짧고 뭉툭하다가, 어른이 되면 두 갈래로 갈라진다
     back(r, g) {
-      // 꼬리. 걸을 때와 신날 때 빨리 흔든다
-      const len = [0, 5, 8, 10, 12][g.si];
-      const bx = g.cx + g.rx * 0.72;
-      const by = g.cy + g.ry * 0.5;
+      const si = g.si;
+      const len = [0, 3.5, 8, 12, 14][si];
       const speed = g.p.wag ? 11 : g.p.walk ? 7 : 2.4;
-      const thick = g.si >= 3 ? 1.9 : 1.5;
-      const pts = [];
-      for (let i = 0; i <= 6; i++) {
-        const u = i / 6;
-        pts.push([bx + u * 3.5 + Math.sin(g.tm * speed + u * 2.4) * u * 2.2, by - u * len, thick * (1 - u * 0.2)]);
+      const thick = si >= 4 ? 2.1 : si >= 3 ? 1.9 : 1.5;
+      const by = g.cy + g.ry * 0.5;
+      for (const t of si >= 4 ? [0, 1] : [0]) {
+        const bx = g.cx + g.rx * (0.9 - t * 0.12);
+        const tl = len - t * 4;
+        const pts = [];
+        for (let i = 0; i <= 6; i++) {
+          const u = i / 6;
+          const sway = Math.sin(g.tm * speed + u * 2.4 + t * 2.1) * u * 1.4;
+          // 뿌리에서 위로 솟았다가 끝에서 안쪽으로 말린다
+          pts.push([bx + Math.sin(u * Math.PI * 0.85) * tl * 0.45 + sway, by - u * tl, (thick - t * 0.3) * (1 - u * 0.2)]);
+        }
+        r.tube(pts, (k) => {
+          if (g.flash) return C.white;
+          if (si >= 2 && k > 0.8) return C.light;
+          return si >= 2 && Math.floor(k * 9) % 3 === 2 ? C.shade : C.body;
+        }, C.outline);
       }
-      r.tube(pts, (k) => {
-        if (g.flash) return C.white;
-        if (g.si >= 2 && k > 0.8) return C.light;
-        return g.si >= 2 && Math.floor(k * 9) % 3 === 2 ? C.shade : C.body;
-      }, C.outline);
     },
     front(r, g) {
-      // 방울 목걸이
-      if (g.si < 3 || r.accessory === 'scarf' || g.flash) return;
-      const y0 = Math.round(g.cy + g.ry * 0.52);
+      if (g.flash) return;
+      // 어른은 목을 감싸는 털깃(갈기)이 돋는다. 몸 밖으로 삐죽 나와 실루엣이 달라진다
+      if (g.si >= 4) {
+        const ry0 = g.hcy + g.hry * 1.5;
+        const rrx = g.hrx * 1.02;
+        const rry = g.hry * 0.56;
+        r.shape(
+          (x, y) => {
+            const t = (y + 0.5 - ry0) / rry;
+            const u = (x + 0.5 - g.cx - g.sh(y)) / rrx;
+            // 아래쪽 가장자리는 털이 삐죽삐죽
+            const jag = t > 0.3 && (x + y) % 2 ? 0.82 : 1;
+            return u * u + t * t <= jag;
+          },
+          [g.cx - rrx - 2, ry0 - rry - 1, g.cx + rrx + 2, ry0 + rry + 1],
+          () => C.light,
+          C.outline,
+        );
+      }
+      // 방울 목걸이. 턱 바로 아래
+      if (g.si < 3 || r.accessory === 'scarf') return;
+      if (g.si >= 4) return; // 어른은 갈기가 목걸이를 대신한다
+      const y0 = Math.round(g.hcy + g.hry * 0.82);
       for (let y = y0; y < y0 + 2; y++) {
-        const ny = (y + 0.5 - g.cy) / g.ry;
-        const half = g.rx * Math.sqrt(Math.max(0, 1 - ny * ny)) - 0.6;
-        for (let x = Math.round(g.cx - half); x <= Math.round(g.cx + half); x++) r.px(x + g.sh(y), y, C.collar);
+        const t = (y + 0.5 - g.hcy) / g.hry;
+        const half = g.hrx * Math.sqrt(Math.max(0, 1 - t * t)) + 1.5;
+        for (let x = Math.round(g.cx + g.sh(y) - half); x <= Math.round(g.cx + g.sh(y) + half); x++) {
+          if (g.inside(x, y)) r.px(x, y, C.collar);
+        }
       }
       r.pattern(['.B.', 'BBB', 'BDB'], Math.round(g.cx + g.sh(y0)) - 1, y0 + 1, { B: C.bell, D: C.bellDark });
     },
     whiskers(r, g, ey) {
       for (const side of [-1, 1]) {
-        const x0 = Math.round(g.cx + g.sh(ey) + side * (g.rx - 1.5));
+        const x0 = Math.round(g.cx + g.sh(ey) + side * (g.hrx - 1.5));
         for (let i = 0; i < 3; i++) {
           r.px(x0 + side * i, ey + 2 - (i === 2 ? 1 : 0), C.outline);
           r.px(x0 + side * i, ey + 4 + (i === 2 ? 1 : 0), C.outline);
@@ -1581,11 +1736,17 @@ const ART = {
       } else if (m === 'flat') r.rect(mx - 1, my, 3, 1, C.mouth);
       else if (m === 'chew') r.rect(mx - 1, my + 1, 3, 1, C.mouth);
       else w();
+      // 어른은 송곳니가 보인다
+      if (g.si >= 4 && m !== 'chew') {
+        const fy = my + (m === 'open' || m === 'o' ? 2 : 1);
+        r.px(mx - 2, fy, C.white);
+        r.px(mx + 2, fy, C.white);
+      }
     },
   },
 
   sprig: {
-    size: (s) => ({ rx: s.rx + 0.2, ry: s.ry - 0.2 }),
+    size: (s) => ({ rx: s.rx + 0.2, ry: s.ry - (s.si >= 3 ? 1.8 : 0.2) }),
     inside: (g) => inEllipse(g, (ny) => 1 + 0.1 * ny),
     fill: (g) => (x, y) => tone(g, x, y),
     // 뿌리 발
@@ -1600,11 +1761,12 @@ const ART = {
       const ty = Math.round(g.top);
       const droop = r.mood === 'sleeping' ? 0.55 : r.mood === 'sleepy' ? 0.3 : 0;
       const sway = Math.sin(g.tm * 1.6) * 0.16 + (g.p.wag ? Math.sin(g.tm * 12) * 0.3 : 0);
-      const stem = g.si >= 3 ? 3 : 2;
+      const si = g.si;
+      const stem = [0, 1, 2, 4, 4][si];
       const lx = hx + 0.5;
       const ly = ty - stem + 1.5;
-      const leaf = (side, len, wid) => {
-        const a = 0.55 - droop + side * sway;
+      const leaf = (side, len, wid, lift = 0) => {
+        const a = 0.55 - droop + side * sway + lift;
         const cxL = lx + side * Math.cos(a) * len * 0.85;
         const cyL = ly - Math.sin(a) * len * 0.85;
         r.blob(cxL, cyL, len, wid, -side * a, (x, y) => {
@@ -1614,28 +1776,55 @@ const ART = {
           return v > 0.4 ? C.leafDark : C.leaf;
         }, C.outline);
       };
-      const sizes = [null, [[1, 2.8, 1.4]], [[-1, 3.2, 1.6], [1, 3.2, 1.6]], [[-1, 4, 1.9], [1, 4, 1.9]], [[-1, 4.5, 2.1], [1, 4.5, 2.1]]][g.si];
-      for (const [side, len, wid] of sizes) leaf(side, len, wid);
+      // 잎: 하나 → 두 장 → 넓은 두 장 → 아래로 한 쌍 더
+      const sizes = [
+        null,
+        [[1, 2.6, 1.3]],
+        [[-1, 3.2, 1.6], [1, 3.2, 1.6]],
+        [[-1, 4.2, 2], [1, 4.2, 2]],
+        [[-1, 4.6, 2.2], [1, 4.6, 2.2], [-1, 3.2, 1.5, -0.8], [1, 3.2, 1.5, -0.8]],
+      ][si];
+      for (const [side, len, wid, lift] of sizes) leaf(side, len, wid, lift);
       r.rect(hx, ty - stem + 1, 1, stem, g.skin(C.leafDark));
-      if (g.si === 3) {
+      if (si === 3) {
         // 꽃봉오리. 잎 위로 쏙 올라온다
         r.rect(hx, ty - stem - 1, 1, 2, g.skin(C.leafDark));
         r.pattern(['.OO.', 'OPPO', 'OPPO', '.OO.'], hx - 1, ty - stem - 5, { O: C.outline, P: g.skin(C.petal) });
-      } else if (g.si >= 4) {
-        // 활짝 핀 꽃
+      } else if (si >= 4) {
+        // 활짝 핀 꽃. 꽃잎이 천천히 돈다
+        r.rect(hx, ty - stem - 1, 1, 2, g.skin(C.leafDark));
         const fx = hx + 0.5;
-        const fy = ty - stem - 1.5;
-        for (let i = 0; i < 5; i++) {
-          const a = (i / 5) * Math.PI * 2 + g.tm * 0.4;
-          r.ellipse(fx + Math.cos(a) * 2.3 - 0.5, fy + Math.sin(a) * 2.3 - 0.5, 1.5, 1.5, g.skin(C.petal), C.outline);
+        const fy = ty - stem - 3.2;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + g.tm * 0.35;
+          r.ellipse(fx + Math.cos(a) * 2.5 - 0.5, fy + Math.sin(a) * 2.5 - 0.5, 1.6, 1.5, g.skin(C.petal), C.outline);
         }
-        r.rect(Math.round(fx) - 1, Math.round(fy) - 1, 2, 2, C.petalCore);
+        r.ellipse(fx - 0.5, fy - 0.5, 1.5, 1.4, g.skin(C.petalCore), C.outline);
+      }
+    },
+    // 청소년부터 몸에 덩굴이 오르고, 어른은 목에 잎깃이 둘린다
+    front(r, g) {
+      if (g.si < 3 || g.flash) return;
+      const t = g.torso;
+      for (let i = 0; i < (g.si >= 4 ? 5 : 3); i++) {
+        const u = i / 5;
+        const x = Math.round(g.cx - t.brx * 0.55 + Math.sin(u * 6) * 2);
+        const y = Math.round(t.bcy - t.bry * 0.35 + i * 2.2);
+        if (g.inside(x, y)) r.px(x, y, C.leafDark);
+        if (g.inside(x + 1, y)) r.px(x + 1, y, C.leaf);
+      }
+      if (g.si < 4) return;
+      for (const side of [-1, 1]) {
+        const span = r.spanAt(g, g.neck + 1);
+        if (!span) continue;
+        const ex = side < 0 ? span[0] : span[1];
+        r.blob(ex + side * 1.5, g.neck + 1, 2.6, 1.5, side * 0.6, g.skin(C.leaf), C.outline);
       }
     },
   },
 
   ember: {
-    size: (s) => ({ rx: s.rx, ry: s.ry - 0.3 }),
+    size: (s) => ({ rx: s.rx, ry: s.ry - (s.si >= 3 ? 1.4 : 0.3) }),
     inside: (g) => inEllipse(g),
     fill: (g) => (x, y) => tone(g, x, y, (nx, ny) => {
       // 배 비늘 (입 아래부터)
@@ -1644,22 +1833,40 @@ const ART = {
       return (y - Math.round(g.cy)) % 3 === 1 ? C.bellyShade : C.belly;
     }),
     behind(r, g) {
-      if (g.si < 2) return;
-      const h = [0, 0, 2.4, 3.4, 4.4][g.si];
+      const si = g.si;
+      // 등가시. 청소년부터 어깨 너머로 삐죽 솟는다
+      if (si >= 3) {
+        const t = g.torso;
+        for (const u of [-1, 1]) {
+          const sxp = g.cx + u * t.brx * 0.6;
+          const syp = t.bcy - t.bry * 0.95;
+          spike(r, sxp + u * 1.4, syp - (si >= 4 ? 4.2 : 3.2), sxp, syp + 2, si >= 4 ? 1.8 : 1.4, g.skin(C.horn));
+        }
+      }
+      if (si < 2) return;
+      // 뿔. 어린이는 작은 혹, 청소년은 휜 뿔, 어른은 두 갈래
+      const h = [0, 0, 2.6, 4.4, 5.8][si];
       for (const side of [-1, 1]) {
-        const bx = g.cx + g.sh(g.top) + side * g.rx * 0.42;
+        const bx = g.cx + g.sh(g.top) + side * g.hrx * 0.46;
         const by = g.top + 1.6;
-        r.tube([[bx, by, 1.4], [bx + side * 0.9, by - h * 0.6, 1.05], [bx + side * 2, by - h, 0.6]], () => g.skin(C.horn), C.outline);
+        r.tube([[bx, by, 1.5], [bx + side * 1.4, by - h * 0.6, 1.05], [bx + side * 3.4, by - h, 0.6]], () => g.skin(C.horn), C.outline);
+        if (si >= 4) {
+          // 어른 뿔은 두 갈래로 갈라진다
+          const mx = bx + side * 1.4;
+          const my = by - h * 0.55;
+          r.tube([[mx, my, 1], [mx + side * 1.4, my - 2.6, 0.55]], () => g.skin(C.horn), C.outline);
+        }
       }
     },
     back(r, g) {
       // 박쥐 날개: 뾰족한 끝과 물결 모양 아랫단
       const flap = g.p.wag || g.p.flapFast ? Math.sin(g.tm * 16) * 0.3 : Math.sin(g.tm * 3) * 0.08;
-      const L = [0, 3.2, 4.6, 5.6, 6.6][g.si];
+      // 아기는 아직 날개가 없다. 어린이부터 돋아 어른이 되면 몸만큼 커진다
+      const L = [0, 0, 4.4, 6.4, 8][g.si];
       const shape = [[0, 0], [1.0, -0.95], [1.45, -0.15], [1.12, -0.02], [1.18, 0.38], [0.8, 0.24], [0.6, 0.6], [0, 0.45]];
-      for (const side of [-1, 1]) {
-        const sx = g.cx + side * g.rx * 0.7;
-        const sy = g.cy - g.ry * 0.3;
+      for (const side of L ? [-1, 1] : []) {
+        const sx = g.cx + side * g.torso.brx * 0.66;
+        const sy = g.torso.bcy - g.torso.bry * 0.86;
         const c = Math.cos(flap);
         const s = Math.sin(flap);
         const pts = shape.map(([dx, dy]) => [sx + side * (dx * c + dy * s) * L, sy + (-dx * s + dy * c) * L]);
@@ -1667,7 +1874,7 @@ const ART = {
       }
       // 끝에 불꽃이 달린 꼬리
       const n = 5;
-      const tl = 3 + g.si * 1.6;
+      const tl = 3 + g.si * 1.9;
       const bx = g.cx - g.rx * 0.7;
       const by = GROUND - 2.5;
       const pts = [];
@@ -1691,10 +1898,21 @@ const ART = {
       if (m === 'smile' || m === 'flat') r.px(mx + 1, my + 1, C.white);
       else if (m === 'open') r.px(mx + 1, my, C.white);
     },
+    // 어른은 목덜미에서 불꽃 갈기가 인다
+    front(r, g) {
+      if (g.si < 4 || g.flash) return;
+      const y0 = g.neck + 3;
+      for (const i of [-1, 0, 1]) {
+        const x = Math.round(g.cx + i * 4.2);
+        const h = 3 - Math.abs(i);
+        const f = Math.floor(g.tm * 6 + i) % 2;
+        r.pattern(f ? ['.Y.', 'YOY', 'ROR'] : ['Y..', 'YOY', 'ROR'], x - 1, y0 - h, { Y: C.flameY, O: C.flameO, R: C.flameR }, false);
+      }
+    },
   },
 
   dewey: {
-    size: (s) => ({ rx: s.rx - 0.4, ry: s.ry + 0.6 }),
+    size: (s) => ({ rx: s.rx - 0.4, ry: s.ry + (s.si >= 3 ? -1 : 0.6) }),
     inside: (g) => inEllipse(g, (ny) => 1 + 0.08 * ny),
     eyeGap: 0.4,
     bigEyes: true,
@@ -1717,11 +1935,19 @@ const ART = {
         r.pattern(['X.', '.X', 'X.'], Math.round(g.cx + g.sh(g.top)), Math.round(g.top) - 3, { X: C.outline });
         return;
       }
-      const h = [0, 0, 3.2, 4.2, 5.2][g.si];
-      const w = [0, 0, 1.6, 2, 2.3][g.si];
+      const si = g.si;
+      const h = [0, 0, 3.4, 5.6, 7.4][si];
+      const w = [0, 0, 1.7, 2.1, 2.5][si];
       for (const side of [-1, 1]) {
-        const bx = g.cx + g.sh(g.top) + side * g.rx * 0.55;
-        spike(r, bx + side * 2.2, g.top - h + 1.5, bx, g.top + g.ry * 0.35, w, g.skin(C.shade));
+        const bx = g.cx + g.sh(g.top) + side * g.hrx * 0.56;
+        const tx = bx + side * (si >= 4 ? 3 : 2.2);
+        const ty = g.top - h + 1.5;
+        spike(r, tx, ty, bx, g.top + g.hry * 0.35, w, g.skin(C.shade));
+        // 어른은 귀깃 끝이 하얗다
+        if (si >= 4 && !g.flash) {
+          r.px(Math.round(tx), Math.round(ty), C.feather);
+          r.px(Math.round(tx) + side, Math.round(ty) + 1, C.feather);
+        }
       }
     },
     feet(r, g) {
@@ -1734,17 +1960,19 @@ const ART = {
     },
     // 날개가 팔 노릇을 한다
     arm(r, g, side, mode) {
-      const sx = g.cx + side * (g.rx - 0.8);
-      const sy = g.cy - g.ry * 0.12;
+      const sx = g.cx + side * (g.split ? g.torso.brx * 0.86 : g.rx - 0.8);
+      const sy = g.split ? g.torso.bcy - g.torso.bry * 0.35 : g.cy - g.ry * 0.12;
       let phi = 0.3;
       if (mode === 'up') phi = 2.3;
       else if (mode === 'high') phi = 2.9;
       else if (mode === 'wave') phi = 2.1 + Math.sin(g.tm * 16) * 0.45;
       else if (mode === 'swing') phi = 0.3 + (g.p.step || 0) * side * 0.3;
       else if (mode !== 'rest') phi = -0.55;
-      const len = [0, 2.6, 3.2, 3.8, 4.4][g.si];
-      const wid = [0, 1.5, 1.8, 2.1, 2.4][g.si];
-      r.blob(sx + side * Math.sin(phi) * len, sy + Math.cos(phi) * len, wid, len, -side * phi, g.skin(C.shade), C.outline);
+      const len = [0, 2.4, 3.2, 4.3, 5.1][g.si];
+      const wid = [0, 1.5, 1.8, 2.2, 2.7][g.si];
+      // 어른 날개에는 깃털 결이 보인다
+      const fill = g.flash || g.si < 4 ? g.skin(C.shade) : (x, y) => ((x + y) % 3 === 0 ? C.faceShade : C.shade);
+      r.blob(sx + side * Math.sin(phi) * len, sy + Math.cos(phi) * len, wid, len, -side * phi, fill, C.outline);
     },
     mouth(r, g, mx, my, m) {
       // 부리
@@ -2009,6 +2237,8 @@ class PetRenderer {
         }
       }
     }
+    // 몸이 클수록 덜 뛴다. 머리 끝이 48도트 밖으로 나가지 않게
+    p.dy *= [1, 1, 0.95, 0.84, 0.72][STAGE_SHAPE[this.stage].si];
     return p;
   }
 
@@ -2215,6 +2445,19 @@ class PetRenderer {
     );
   }
 
+  // 그 줄에서 몸이 어디부터 어디까지 차 있는지. 목도리·목걸이처럼 몸을 두르는 것에 쓴다
+  spanAt(g, y) {
+    let l = null;
+    let r = null;
+    for (let x = Math.round(g.cx - g.rx - 3); x <= Math.round(g.cx + g.rx + 3); x++) {
+      if (g.inside(x, y)) {
+        if (l === null) l = x;
+        r = x;
+      }
+    }
+    return l === null ? null : [l, r];
+  }
+
   drawShadow(cx, rx, height) {
     const w = Math.max(3, rx * (0.95 - Math.min(height, 8) * 0.05));
     for (let x = Math.round(cx - w); x <= Math.round(cx + w); x++) {
@@ -2254,18 +2497,39 @@ class PetRenderer {
 
   drawCreature(g, A) {
     const { cx, cy, rx, ry, p } = g;
-    g.top = A.top ? A.top(g) : cy - ry;
+    // 머리 자리. 어린 단계는 몸 전체가 곧 머리고, 다 자라면 머리가 따로 얹힌다
+    const H = A.oneBody ? null : g.s.head;
+    g.split = !!H;
+    if (H) {
+      const B = g.s.body;
+      g.hcy = cy - ry * H.cy;
+      g.hrx = rx * H.rx;
+      g.hry = ry * H.ry;
+      g.torso = { bcx: cx, bcy: cy + ry * B.cy, brx: rx * B.rx, bry: ry * B.ry };
+    } else {
+      g.hcy = cy;
+      g.hrx = rx;
+      g.hry = ry;
+      g.torso = { bcx: cx, bcy: cy, brx: rx, bry: ry };
+    }
+    // 머리 기준 정규 좌표. 얼굴 무늬는 몸이 아니라 머리를 따라간다
+    g.hn = (x, y) => [(x + 0.5 - cx - g.sh(y)) / g.hrx, (y + 0.5 - g.hcy) / g.hry];
+    g.inside = A.inside(g);
+    g.top = A.top ? A.top(g) : g.hcy - g.hry;
     g.hatY = A.hatY ? A.hatY(g) : g.top;
-    g.ex = Math.max(3, Math.round(rx * (A.eyeGap || 0.42)));
-    g.ey0 = Math.round(cy - ry * 0.08);
+    g.ex = Math.max(3, Math.round(g.hrx * (A.eyeGap || 0.42)));
+    g.ey0 = Math.round(g.hcy - g.hry * (H ? 0.04 : 0.08));
+    g.my0 = Math.round(g.hcy + g.hry * (H ? 0.52 : 0.3));
     g.faceR = g.ex * 0.78 + 0.8;
+    // 목 언저리. 목도리·목걸이·갈기가 앉는 줄
+    g.neck = H ? Math.round(g.hcy + g.hry * 0.92) : Math.round(cy + ry * 0.5);
 
     if (A.back) A.back(this, g);
     if (A.feet) A.feet(this, g);
     else this.drawFeet(g);
     if (A.behind) A.behind(this, g);
 
-    this.shape(A.inside(g), [cx - rx - 3, g.top - 1, cx + rx + 3, cy + ry], A.fill(g), C.outline);
+    this.shape(g.inside, [cx - rx - 3, g.top - 1, cx + rx + 3, cy + ry], A.fill(g), C.outline);
 
     if (A.front) A.front(this, g);
     if (this.accessory === 'scarf') this.drawScarf(g);
@@ -2287,9 +2551,10 @@ class PetRenderer {
   drawFeet(g) {
     const { cx, rx, p } = g;
     if (g.s.feet) {
+      const w = g.si >= 4 ? 3.1 : g.si >= 3 ? 2.9 : 2.6;
       for (const side of [-1, 1]) {
         const lift = p.walk && side * p.step > 0 ? 1 : 0;
-        this.ellipse(cx + side * rx * 0.5, GROUND - 1 + Math.min(0, p.dy * 0.3) - lift, 2.6, 1.6, g.skin(C.shade), C.outline);
+        this.ellipse(cx + side * (g.split ? g.torso.brx : rx) * 0.5, GROUND - 1 + Math.min(0, p.dy * 0.3) - lift, w, g.si >= 3 ? 1.8 : 1.6, g.skin(C.shade), C.outline);
       }
     } else {
       for (const side of [-1, 1]) {
@@ -2300,12 +2565,16 @@ class PetRenderer {
   }
 
   drawFace(g, A) {
-    const { cy, ry, p, sh } = g;
+    const { p, sh } = g;
     const ex = g.ex;
     const ey = g.ey0 + p.lookY;
     const mx = Math.round(g.cx + sh(ey) + p.lookX);
-    const baby = this.stage === 'baby';
+    const si = g.si;
     const big = !!A.bigEyes;
+    // 단계마다 눈매가 다르다. 아기는 얼굴의 절반이 눈이고, 자랄수록 작고 또렷해진다
+    const eh = si <= 1 ? 4 : si <= 3 ? 3 : big ? 3 : 2;
+    const ew = big ? 3 : 2;
+    const eoff = si <= 1 ? -1 : si === 4 ? 1 : 0;
 
     for (const side of [-1, 1]) {
       const x = mx + side * ex - (side < 0 ? 1 : 0);
@@ -2323,23 +2592,29 @@ class PetRenderer {
         case 'happy':
           this.px(x - 1, ey + 2, C.eye); this.px(x, ey + 1, C.eye); this.px(x + 1, ey + 1, C.eye); this.px(x + 2, ey + 2, C.eye);
           break;
-        default:
-          if (big) {
-            const bx = side < 0 ? x - 1 : x;
-            this.rect(bx, ey - 1, 3, baby ? 4 : 3, C.eye);
-            this.px(bx, ey - 1, C.white);
-            if (!baby) this.px(bx + 2, ey + 1, C.white);
-          } else {
-            this.rect(x, ey - (baby ? 1 : 0), 2, baby ? 4 : 3, C.eye);
-            this.px(x, ey - (baby ? 1 : 0), C.white);
+        default: {
+          const bx = big && side < 0 ? x - 1 : x;
+          const ty = ey + eoff;
+          this.rect(bx, ty, ew, eh, C.eye);
+          this.px(bx, ty, C.white);
+          if (big && si >= 2) this.px(bx + ew - 1, ty + 1, C.white);
+          // 어른은 눈두덩이 생긴다. 바깥쪽이 올라가 눈매가 또렷해진다
+          if (si >= 4) {
+            for (let i = -1; i <= ew; i++) {
+              const outer = side < 0 ? i === -1 : i === ew;
+              this.px(bx + i, ty - 2 - (outer ? 1 : 0), C.outline);
+            }
           }
+        }
       }
-      // 볼터치
-      this.rect(mx + side * (ex + 2) - (side < 0 ? 1 : 0), ey + 3, 2, 1, C.cheek);
+      // 볼터치. 머리 밖으로 삐져나가면 그리지 않는다
+      const chx = mx + side * (ex + 2) - (side < 0 ? 1 : 0);
+      const chy = ey + 3;
+      if (g.inside(chx, chy) && g.inside(chx + 1, chy)) this.rect(chx, chy, 2, 1, C.cheek);
     }
     if (A.whiskers) A.whiskers(this, g, ey);
 
-    const my = Math.round(cy + ry * 0.3 + p.lookY * 0.5);
+    const my = Math.round(g.my0 + p.lookY * 0.5);
     const def = () => this.drawMouth(mx, my, p.mouth);
     if (A.mouth) A.mouth(this, g, mx, my, p.mouth, def);
     else def();
@@ -2365,9 +2640,11 @@ class PetRenderer {
   }
 
   drawArm(g, side, mode) {
-    const { cx, cy, rx, ry, tm } = g;
-    let x = cx + side * (rx + 0.3);
-    let y = cy + ry * 0.25;
+    const { cx, cy, ry, tm } = g;
+    // 팔은 몸통 옆에 붙는다. 머리와 몸이 나뉘면 몸통 기준으로
+    const rx = g.split ? g.torso.brx : g.rx;
+    let x = cx + side * (g.split ? rx * 0.92 : rx + 0.3);
+    let y = g.split ? g.torso.bcy + g.torso.bry * 0.12 : cy + ry * 0.25;
     const propY = g.propY != null ? g.propY : cy + ry * 0.32;
     switch (mode) {
       case 'swing':
@@ -2395,15 +2672,15 @@ class PetRenderer {
         break;
       case 'up':
         x = cx + side * (rx + 1.2);
-        y = cy - ry * 0.55;
+        y = (g.split ? g.torso.bcy - g.torso.bry * 0.8 : cy - ry * 0.55);
         break;
       case 'high':
         x = cx + side * rx * 0.45;
-        y = cy - ry - 2;
+        y = g.top - 2;
         break;
       case 'wave':
         x = cx + side * (rx + 1.5) + Math.round(Math.sin(tm * 16));
-        y = cy - ry * 0.6;
+        y = (g.split ? g.torso.bcy - g.torso.bry * 0.85 : cy - ry * 0.6);
         break;
       case 'hold':
         x = cx + side * rx * 0.42;
@@ -2422,7 +2699,7 @@ class PetRenderer {
       }
       this.px(hx, hy - 1, C.pencilTip);
     }
-    this.ellipse(x, y, big ? 2.5 : 2.1, big ? 1.9 : 1.6, g.skin(C.body), C.outline);
+    this.ellipse(x, y, g.si >= 4 ? 2.7 : big ? 2.4 : 2.1, g.si >= 4 ? 2.1 : big ? 1.9 : 1.6, g.skin(C.body), C.outline);
   }
 
   // ---------- 소품 ----------
@@ -2526,15 +2803,18 @@ class PetRenderer {
 
   // ---------- 꾸미기 ----------
 
-  drawScarf({ cx, cy, rx, ry, sh }) {
-    const y0 = Math.round(cy + ry * 0.5);
+  drawScarf(g) {
+    const y0 = g.neck;
     for (let y = y0; y < y0 + 3; y++) {
-      const ny = (y + 0.5 - cy) / ry;
-      const half = rx * Math.sqrt(Math.max(0, 1 - ny * ny));
-      for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) this.px(x + sh(y), y, y === y0 + 2 ? C.scarfDark : C.scarf);
+      const span = this.spanAt(g, y);
+      if (!span) continue;
+      for (let x = span[0]; x <= span[1]; x++) this.px(x, y, y === y0 + 2 ? C.scarfDark : C.scarf);
     }
-    this.rect(Math.round(cx + rx * 0.45), y0 + 3, 2, 4, C.scarf);
-    this.rect(Math.round(cx + rx * 0.45), y0 + 6, 2, 1, C.scarfDark);
+    const span = this.spanAt(g, y0);
+    const tx = Math.round(g.cx + (span ? (span[1] - g.cx) * 0.5 : g.rx * 0.45));
+    const len = clampN(GROUND - y0 - 3, 2, 4);
+    this.rect(tx, y0 + 3, 2, len, C.scarf);
+    this.rect(tx, y0 + 2 + len, 2, 1, C.scarfDark);
   }
 
   drawAccessory(g) {
@@ -2579,20 +2859,22 @@ class PetRenderer {
         break;
       }
       case 'headphones': {
+        const hr = g.hrx;
+        const hv = g.hry;
         for (let a = Math.PI * 1.08; a <= Math.PI * 1.92; a += 0.04) {
-          this.px(cx + Math.cos(a) * (rx + 1), cy + Math.sin(a) * (ry + 1.5), C.phone);
+          this.px(cx + Math.cos(a) * (hr + 1), g.hcy + Math.sin(a) * (hv + 1.5), C.phone);
         }
         for (const side of [-1, 1]) {
-          const x = Math.round(cx + side * (rx + 0.5)) - 1;
-          this.rect(x, Math.round(cy - ry * 0.35), 3, 5, C.phone);
-          this.rect(x + (side < 0 ? 2 : 0), Math.round(cy - ry * 0.35) + 1, 1, 3, C.phonePad);
+          const x = Math.round(cx + side * (hr + 0.5)) - 1;
+          this.rect(x, Math.round(g.hcy - hv * 0.35), 3, 5, C.phone);
+          this.rect(x + (side < 0 ? 2 : 0), Math.round(g.hcy - hv * 0.35) + 1, 1, 3, C.phonePad);
         }
         break;
       }
       case 'beanie': {
         // 머리에 얹는 둥근 털모자. 몸 모양과 상관없이 같은 모양이다
-        const rw = Math.min(rx * 0.82 + 1, 11);
-        const rh = 5 + (g.si >= 3 ? 1 : 0);
+        const rw = Math.min(g.hrx * 0.92 + 1, 11);
+        const rh = clampN(g.hry * 0.72, 3.6, 6);
         const band = top + rh - 2;
         this.shape(
           (x, y) => { const nx = (x + 0.5 - hx - 0.5) / rw; const ny = (y + 0.5 - band) / rh; return y <= band + 1 && nx * nx + ny * ny <= 1; },
@@ -3623,10 +3905,10 @@ class HouseView extends ItemView {
     typeChip(aboutHead, sp);
     about.createDiv({ cls: 'vp-muted vp-small', text: tr(sp.dex) });
     const facts = about.createDiv({ cls: 'vp-facts' });
+    // 라벨과 값을 그리드 칸에 바로 넣는다 (감싸는 div + display:contents 없이)
     const fact = (k, v) => {
-      const f = facts.createDiv();
-      f.createSpan({ cls: 'vp-muted', text: k });
-      f.createSpan({ text: v });
+      facts.createSpan({ cls: 'vp-muted', text: k });
+      facts.createSpan({ text: v });
     };
     fact(t('traitLabel'), tr(sp.trait));
     fact(t('likesLabel'), tr(sp.likes));
@@ -4149,9 +4431,8 @@ class WelcomeModal extends Modal {
       d.createDiv({ cls: 'vp-muted vp-small', text: tr(sp.dex) });
       const facts = d.createDiv({ cls: 'vp-facts' });
       for (const [k, v] of [[t('traitLabel'), tr(sp.trait)], [t('likesLabel'), tr(sp.likes)], [t('perkLabel'), perkText(sp)]]) {
-        const f = facts.createDiv();
-        f.createSpan({ cls: 'vp-muted', text: k });
-        f.createSpan({ text: v });
+        facts.createSpan({ cls: 'vp-muted', text: k });
+        facts.createSpan({ text: v });
       }
       d.createDiv({ cls: 'vp-muted vp-tiny vp-gap', text: t('wEvolution') });
       const road = d.createDiv({ cls: 'vp-road vp-w-road' });
@@ -4497,7 +4778,7 @@ function migrateParty(st, legacy = {}, opts = {}) {
 }
 
 // 저장 형식 번호. 0.1·0.2 에는 없었다
-const DATA_SCHEMA = 3;
+const DATA_SCHEMA = 4;
 
 // data.json 을 지금 형식으로 읽는다. 무엇도 지우거나 되돌리지 않는다: 업데이트해도 성장이 그대로 이어진다.
 // raw 가 없으면 방금 설치한 것이다. 그때는 첫 파트너가 이 순간부터 자란다
@@ -4511,6 +4792,13 @@ function loadSaved(raw, now = Date.now()) {
   migrateParty(st, legacy, { fresh, now });
   if (!st.installedAt) st.installedAt = fresh ? now : firstSeen(st, now);
   const ledger = new Ledger(raw && raw.ledger);
+  // 3 이하에는 파일 경로가 그대로 들어 있었다. 해시로 옮긴다
+  if (!fresh && (!raw.schema || raw.schema < 4)) {
+    const moved = {};
+    for (const [p, v] of Object.entries(ledger.d.files)) moved[pathKey(p)] = v;
+    ledger.d.files = moved;
+    if (Array.isArray(st.readPaths)) st.readPaths = [...new Set(st.readPaths.map(pathKey))];
+  }
   return { settings, st, ledger, fresh };
 }
 
@@ -4610,10 +4898,8 @@ class VaultPetPlugin extends obsidian.Plugin {
     this.registerEvent(vault.on('modify', (f) => this.queue(f)));
     this.registerEvent(vault.on('create', (f) => this.queue(f)));
     this.registerEvent(vault.on('delete', (f) => {
-      if (f instanceof TFolder) {
-        const pre = f.path + '/';
-        for (const p of Object.keys(this.ledger.d.files)) if (p.startsWith(pre)) this.ledger.remove(p);
-      } else this.ledger.remove(f.path);
+      if (f instanceof TFolder) this.ledger.removeUnder(f.path);
+      else this.ledger.remove(f.path);
       this.saveSoon();
     }));
     this.registerEvent(vault.on('rename', (f, old) => {
@@ -4675,7 +4961,8 @@ class VaultPetPlugin extends obsidian.Plugin {
   async scan() {
     const { vault } = this.app;
     const L = this.ledger;
-    const files = vault.getMarkdownFiles().filter((f) => !this.isExcluded(f.path));
+    const all = vault.getMarkdownFiles();
+    const files = all.filter((f) => !this.isExcluded(f.path));
     if (!this.st.scanned) {
       this.setLoading(0);
       for (let i = 0; i < files.length; i++) {
@@ -4694,7 +4981,7 @@ class VaultPetPlugin extends obsidian.Plugin {
       this.st.scanned = true;
     } else {
       const budget = { ...OFFLINE_BUDGET };
-      for (const p of Object.keys(L.d.files)) if (!vault.getAbstractFileByPath(p)) L.remove(p);
+      L.keepOnly(all.map((f) => f.path));
       for (const f of files) {
         const seen = L.mtimeOf(f.path);
         if (seen !== null && seen >= f.stat.mtime) continue;
@@ -5168,7 +5455,7 @@ class VaultPetPlugin extends obsidian.Plugin {
 
 module.exports = VaultPetPlugin;
 module.exports.__internals = {
-  measure, stripFrontmatter, Ledger, emptyLedger, computeGrowth, xpOf, levelOf, STAGES,
+  measure, stripFrontmatter, Ledger, emptyLedger, pathKey, computeGrowth, xpOf, levelOf, STAGES,
   Brain, Gamify, ACHIEVEMENTS, QUEST_POOL, ITEMS, COLORS, DEFAULT_STATE, DEFAULT_SETTINGS,
   S, LINES, SPECIES_LINES, t, tl, josa, josaRo, bonusText, unlockHint, dayOf, formatDuration,
   SPECIES, SPECIES_BY, VARIANTS, paletteOf, perkMult, newPet, growthOf, migrateParty, swapPartner, loadSaved, firstSeen, DATA_SCHEMA, THEMES, PetRenderer, ART, EGG, STAGE_SHAPE,
