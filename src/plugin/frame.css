@@ -1,0 +1,20 @@
+/* iframe 안에만 더하는 스타일 (옵시디언판). 데스크톱판 pet.css · house.css 뒤에 붙는다 */
+
+/* 하우스는 옵시디언 탭 하나를 꽉 채운다. 데스크톱판은 창 크기(560×780)였다 */
+html.kc-house,
+html.kc-house body {
+  height: 100%;
+}
+
+/* 옵시디언판에서 뺀 것: Claude Code 연결·자동 실행 */
+html.kc-house [data-act='hooks'],
+html.kc-house [data-act='unhooks'],
+html.kc-house [data-act='reveal'] {
+  display: none !important;
+}
+
+/* 펫 무대는 투명하다 */
+html.kc-pet,
+html.kc-pet body {
+  background: transparent !important;
+}

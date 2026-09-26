@@ -1,0 +1,52 @@
+/* Kit Commit — 옵시디언 쪽 스타일. 고양이·하우스 화면은 iframe 안에 따로 스타일이 있다 (src/kit/*.css) */
+
+/* 펫 무대: 작업 영역 위에 덮는 투명한 판. 고양이 위에서만 마우스를 받는다 (plugin/stage.js) */
+.kitcommit-stage {
+  position: fixed;
+  z-index: 29; /* 작업 영역·상태 표시줄 위, 미리보기 팝오버(30)·모달·메뉴 아래 */
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+
+.kitcommit-stage .kitcommit-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
+}
+
+/* 하우스 탭 */
+.workspace-leaf-content[data-type='kitcommit-house'] .view-content.kitcommit-house-view {
+  padding: 0;
+  overflow: hidden;
+}
+
+.kitcommit-house-view .kitcommit-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* 상태 표시줄 (데스크톱판의 트레이 아이콘 자리) */
+.kitcommit-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kitcommit-status-icon {
+  display: inline-flex;
+}
+
+.kitcommit-status-icon svg {
+  image-rendering: pixelated;
+}
+
+.kitcommit-disclaimer {
+  margin-top: 18px;
+  font-size: var(--font-ui-smaller);
+}

@@ -1,0 +1,6 @@
+# 볼트에서 플러그인이 만드는 파일. 저장소에 들어가면 안 된다.
+data.json
+
+.DS_Store
+Thumbs.db
+node_modules/
