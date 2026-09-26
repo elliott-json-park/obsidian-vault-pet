@@ -415,6 +415,21 @@
       '....KNNK....',
       '.....KK.....',
     ],
+    // 리본 아이콘: 치즈 고양이 얼굴
+    catface: [
+      '............',
+      '.K........K.',
+      'KPK......KPK',
+      'KOOKKKKKKOOK',
+      'KOOOOOOOOOOK',
+      'KOOKOOOOKOOK',
+      'KOOKOOOOKOOK',
+      'KPOOOKKOOOPK',
+      'KOOOOOOOOOOK',
+      '.KOOOOOOOOK.',
+      '..KKKKKKKK..',
+      '............',
+    ],
     paw: [
       'KKK.KKK.KKK.',
       'KSK.KSK.KSK.',

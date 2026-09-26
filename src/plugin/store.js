@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
 
   excludedProjects: [], // 경험치에서 뺄 폴더 (폴더 이름의 해시)
   showPet: true, // 화면에 고양이를 띄운다 (끄면 하우스에서만 본다)
+  houseInSidebar: false, // 리본·상태 표시줄로 여는 하우스를 오른쪽 사이드바에 띄운다
   position: null, // { x, v: 3 } 고양이 발밑의 가로 자리 (펫 무대 안 좌표)
 
   tugLevel: 'mid',

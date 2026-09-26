@@ -128,6 +128,15 @@ class KitSettingTab extends PluginSettingTab {
       .setDesc(t('obs.showPetDesc'))
       .addToggle((tg) => tg.setValue(!!p.settings.get('showPet')).onChange((v) => p.host.setSettings({ showPet: v })));
     new Setting(el)
+      .setName(t('obs.houseSide'))
+      .setDesc(t('obs.houseSideDesc'))
+      .addToggle((tg) =>
+        tg.setValue(!!p.settings.get('houseInSidebar')).onChange((v) => {
+          p.settings.set({ houseInSidebar: v });
+          p.openHouse(null, v ? 'side' : 'tab');
+        }),
+      );
+    new Setting(el)
       .setName(t('set.mute'))
       .setDesc(t('set.muteSub'))
       .addToggle((tg) => tg.setValue(!p.settings.get('soundEnabled')).onChange((v) => p.host.setSettings({ soundEnabled: !v })));
@@ -244,7 +253,7 @@ class KitCommitPlugin extends Plugin {
     }
 
     this.registerView(VIEW_TYPE, (leaf) => new HouseView(leaf, this));
-    this.ribbon = this.addRibbonIcon(this.pixelIcon('paw') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
+    this.ribbon = this.addRibbonIcon(this.pixelIcon('catface') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass('kitcommit-status', 'mod-clickable');
     this.registerDomEvent(this.statusEl, 'click', (e) => this.host.trayMenu(e));
@@ -278,6 +287,7 @@ class KitCommitPlugin extends Plugin {
     const T = () => this.host.T;
     const cmd = (id, key, callback) => this.addCommand({ id, name: T().t(key), callback });
     cmd('open-house', 'obs.cmd.house', () => this.openHouse());
+    cmd('open-house-sidebar', 'obs.cmd.houseSide', () => this.openHouse(null, 'side'));
     cmd('open-quests', 'obs.cmd.quests', () => this.openHouse('quests'));
     cmd('open-shop', 'obs.cmd.shop', () => this.openHouse('shop'));
     cmd('open-wardrobe', 'obs.cmd.wardrobe', () => this.openHouse('wardrobe'));
@@ -359,9 +369,16 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 하우스 ── */
 
-  async openHouse(tab) {
+  // where: 'side' = 오른쪽 사이드바, 'tab' = 가운데 탭. 안 주면 설정(houseInSidebar)을 따른다.
+  // 이미 열린 하우스가 있으면 그 자리를 그대로 쓴다 (다른 자리로 열어 달라고 했으면 옮긴다)
+  async openHouse(tab, where) {
     const { workspace } = this.app;
+    const side = (where || (this.settings.get('houseInSidebar') ? 'side' : 'tab')) === 'side';
     let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
+    if (leaf && where && (leaf.getRoot() === workspace.rightSplit) !== side) {
+      leaf.detach();
+      leaf = null;
+    }
     if (leaf) {
       if (tab) {
         const v = leaf.view;
@@ -371,7 +388,7 @@ class KitCommitPlugin extends Plugin {
         } else await leaf.setViewState({ type: VIEW_TYPE, active: true, state: { tab } });
       }
     } else {
-      leaf = workspace.getLeaf('tab');
+      leaf = side ? workspace.getRightLeaf(false) : workspace.getLeaf('tab');
       await leaf.setViewState({ type: VIEW_TYPE, active: true, state: { tab: tab || 'home' } });
     }
     workspace.revealLeaf(leaf);

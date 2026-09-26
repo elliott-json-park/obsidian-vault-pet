@@ -966,7 +966,11 @@ function renderTop() {
 
   const q = D.game.quests;
   const done = q.filter((x) => x.done).length;
-  for (const b of $$('#tabs button')) $('.tx', b).textContent = t('tab.' + b.dataset.tab);
+  // [옵시디언] 사이드바처럼 좁을 때는 탭 이름을 숨기므로, 마우스를 올리면 이름이 보이게
+  for (const b of $$('#tabs button')) {
+    $('.tx', b).textContent = t('tab.' + b.dataset.tab);
+    b.title = t('tab.' + b.dataset.tab);
+  }
   $('#dot-wardrobe').hidden = !D.game.items.some((it) => it.unlocked && !seenItems.has(it.key));
   $('#dot-shop').hidden = !newUnlocks().length;
   $$('#tabs button').forEach((b) => {
