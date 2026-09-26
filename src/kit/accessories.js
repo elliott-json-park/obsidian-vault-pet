@@ -30,6 +30,14 @@
         this.px(a.hx, a.top - 1, c.n);
       },
     },
+    vpEggshell: {
+      // Vault Pet 기념: 다섯 친구가 태어난 알의 껍데기를 모자처럼 쓴다. 톱니처럼 깨진 윗단, 민트 반점, 가끔 톡 기울어진다
+      front(g, a, c, t) {
+        const m = { K: c.K || '#2b1a10', E: '#fff6e0', e: '#ecd9b0', S: '#8fd3c1' };
+        const tilt = t % 4 < 0.35 ? 1 : 0;
+        this.pattern(['.K...K...K.', 'KEK.KEK.KEK', 'KEEKESEKEEK', 'KSEEEEEEeSK', 'KEEeEEEeEEK'], a.hx - 5 + tilt, a.top - 4, m);
+      },
+    },
     bowtie: {
       // 입 아래 매듭이 있는 나비넥타이. 하이라이트로 광택
       front(g, a, c) {

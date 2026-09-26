@@ -50,3 +50,32 @@
   margin-top: 18px;
   font-size: var(--font-ui-smaller);
 }
+
+/* Vault Pet 0.x 사용자에게 한 번 뜨는 안내 */
+.vaultpet-legacy-gifts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin: var(--size-4-3) 0;
+  padding: var(--size-4-3);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.vaultpet-legacy-gift {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  font-weight: var(--font-semibold);
+}
+
+.vaultpet-legacy-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}
+
+.vaultpet-legacy-icon svg {
+  width: 20px;
+  height: 20px;
+}

@@ -37,6 +37,8 @@ function coinsSince(usage, sinceMs = 0) {
 const ACCESSORIES = [
   { key: 'none', price: 0 },
   { key: 'sprout', price: 100, slot: 'head' },
+  // Vault Pet(0.x) 때부터 함께한 사용자에게만 주는 기념 코스튬. 상점에서는 안 판다 (가진 사람만 옷장·상점에 보인다)
+  { key: 'vpEggshell', price: 500, slot: 'head', exclusive: true },
   { key: 'mustache', price: 200, slot: 'face' },
   { key: 'mask', price: 250, level: 5, slot: 'face' },
   { key: 'bellcollar', price: 350, level: 10, slot: 'neck' },
@@ -773,6 +775,7 @@ class Shop {
     if (!it) return 'missing';
     if (it.workshop) return 'workshop'; // 공방에서만 만든다
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
+    if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
     if (this.dev()) return null;
     if (it.level) {
       const g = this.getGrowth();
@@ -933,7 +936,7 @@ class Shop {
       wallet: this.wallet(),
       dev: this.dev(),
       // 보물 공방 코스튬(workshop)은 상점에 안 나온다. 공방에서 보물로 만든다 (main/workshop.js)
-      acc: ACCESSORIES.filter((x) => !x.workshop).map((x) => row({ ...x, kind: 'acc' })),
+      acc: ACCESSORIES.filter((x) => !x.workshop && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
       motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })),

@@ -259,7 +259,7 @@ function drawCard() {
   g.fillRect(16, Hh - 12, W - 24, 4);
   g.fillRect(W - 12, 16, 4, Hh - 24);
 
-  text('KIT COMMIT', 36, 48, font(700, 14), accent, 'left');
+  text('VAULT PET', 36, 48, font(700, 14), accent, 'left');
   text(new Date().toLocaleDateString(locale()), W - 36, 48, font(400, 12), muted, 'right');
 
   // 고양이 (지금 입은 꾸미기 그대로)

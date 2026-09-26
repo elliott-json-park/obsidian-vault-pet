@@ -12,11 +12,12 @@
  *  - src/plugin: 데스크톱판 main.js·preload.js 자리 (host.js·frame.js·stage.js) 와 옵시디언 연결(이 파일)
  */
 const obsidian = require('obsidian');
-const { Plugin, ItemView, PluginSettingTab, Setting, Notice, TFile, TFolder, addIcon, setIcon } = obsidian;
+const { Plugin, ItemView, Modal, PluginSettingTab, Setting, Notice, TFile, TFolder, addIcon, setIcon } = obsidian;
 const { Store, DEFAULT_SETTINGS } = require('./store');
 const { KitHost, STATE_DEFAULTS } = require('./host');
 const { KitFrame } = require('./frame');
 const { PetStage } = require('./stage');
+const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 
@@ -54,7 +55,7 @@ class HouseView extends ItemView {
 
   getDisplayText() {
     const p = this.plugin;
-    return p.host ? p.host.T.t('obs.houseTitle', { name: p.settings.get('petName') }) : 'Kit Commit';
+    return p.host ? p.host.T.t('obs.houseTitle', { name: p.settings.get('petName') }) : 'Vault Pet';
   }
 
   getIcon() {
@@ -149,12 +150,68 @@ class KitSettingTab extends PluginSettingTab {
   }
 }
 
+/* ────────────────────────────── Vault Pet 0.x 사용자 안내 (한 번만) ────────────────────────────── */
+
+class LegacyModal extends Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+
+  onOpen() {
+    const p = this.plugin;
+    const t = (k, v) => p.host.T.t(k, v);
+    const L = p.meta.legacy;
+    const fmt = (n) => Number(n).toLocaleString(p.settings.get('language') === 'ko' ? 'ko-KR' : 'en-US');
+    this.modalEl.addClass('vaultpet-legacy');
+    this.titleEl.setText(t('legacy.title'));
+    const el = this.contentEl;
+    el.empty();
+    el.createEl('p', { text: t('legacy.thanks', { days: fmt(L.days), lv: L.level }) });
+    el.createEl('p', { text: t('legacy.body') });
+    const gifts = el.createDiv({ cls: 'vaultpet-legacy-gifts' });
+    const row = (icon, text) => {
+      const r = gifts.createDiv({ cls: 'vaultpet-legacy-gift' });
+      const id = p.pixelIcon(icon);
+      if (id) setIcon(r.createSpan({ cls: 'vaultpet-legacy-icon' }), id);
+      r.createSpan({ text });
+    };
+    row('coin', t('legacy.coins', { coins: fmt(L.coins) }));
+    row(LEGACY_COSTUME, t('legacy.costume'));
+    el.createEl('p', { text: t('legacy.note'), cls: 'setting-item-description' });
+    new Setting(el)
+      .addButton((b) => b.setButtonText(t('legacy.ok')).onClick(() => this.close()))
+      .addButton((b) =>
+        b
+          .setButtonText(t('legacy.wear'))
+          .setCta()
+          .onClick(() => {
+            p.host.setSettings({ outfit: { head: LEGACY_COSTUME } });
+            this.close();
+            p.openHouse('wardrobe');
+          }),
+      );
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    const L = this.plugin.meta.legacy;
+    if (L && !L.shown) {
+      L.shown = true;
+      this.plugin.saveSoon();
+    }
+  }
+}
+
 /* ────────────────────────────── 플러그인 ────────────────────────────── */
 
 class KitCommitPlugin extends Plugin {
   async onload() {
-    const raw = (await this.loadData()) || {};
-    const firstInstall = !raw.settings;
+    let raw = (await this.loadData()) || {};
+    // Vault Pet 0.x 에서 업데이트했다: 예전 기록은 선물로 바꾸고, 새 고양이는 처음부터 (설정 몇 가지·이름만 옮긴다)
+    const legacy = isLegacy(raw) ? legacySummary(raw) : null;
+    if (legacy) raw = { settings: legacySettings(raw) };
+    const firstInstall = !raw.settings || !!legacy;
     const saveHook = (now) => (now ? this.saveNow() : this.saveSoon());
     this.settings = new Store(raw.settings, DEFAULT_SETTINGS, saveHook);
     this.state = new Store(raw.state, STATE_DEFAULTS, saveHook);
@@ -163,9 +220,12 @@ class KitCommitPlugin extends Plugin {
     this.usage.on('session', ({ at }) => this.onSession(at));
     // 처음 설치하면 옵시디언 언어를 따른다
     if (firstInstall) {
-      const lang = obsidianLanguage();
-      this.settings.data.language = lang.startsWith('ko') ? 'ko' : 'en';
-      if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
+      if (!(raw.settings || {}).language) {
+        const lang = obsidianLanguage();
+        this.settings.data.language = lang.startsWith('ko') ? 'ko' : 'en';
+      }
+      if (legacy && legacy.petName) this.settings.data.petName = legacy.petName;
+      else if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
     }
     this.pending = new Set();
     this.icons = new Set();
@@ -175,6 +235,13 @@ class KitCommitPlugin extends Plugin {
     this.host = new KitHost(this, { settings: this.settings, state: this.state, usage: this.usage });
     this.host.init();
     this.stage = null;
+    if (legacy) {
+      // 선물: 코인은 지갑 보너스로, 기념 코스튬은 옷장에. 새 형식으로 바로 저장해서 두 번 받지 않게 한다
+      this.state.set({ walletBonus: (this.state.get('walletBonus') || 0) + legacy.coins });
+      this.host.shop.give({ item: LEGACY_COSTUME });
+      this.meta.legacy = { ...legacy, at: Date.now(), shown: false };
+      await this.saveNow();
+    }
 
     this.registerView(VIEW_TYPE, (leaf) => new HouseView(leaf, this));
     this.ribbon = this.addRibbonIcon(this.pixelIcon('paw') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
@@ -267,6 +334,7 @@ class KitCommitPlugin extends Plugin {
     this.updateStatus();
     // 처음이면 하우스에서 안내부터 (데스크톱판처럼)
     if (!this.state.get('onboarded')) this.openHouse('home');
+    if (this.meta.legacy && !this.meta.legacy.shown) new LegacyModal(this.app, this).open();
     await this.scan();
     this.host.ready();
     this.updateStatus();
@@ -553,7 +621,7 @@ class KitCommitPlugin extends Plugin {
       new Notice(this.host.T.t('obs.cardSaved', { path }));
       return true;
     } catch (e) {
-      console.error('[Kit Commit] card', e);
+      console.error('[Vault Pet] card', e);
       new Notice(String(e && e.message ? e.message : e));
       return false;
     }
@@ -565,7 +633,7 @@ class KitCommitPlugin extends Plugin {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       return true;
     } catch (e) {
-      console.error('[Kit Commit] copy', e);
+      console.error('[Vault Pet] copy', e);
       return false;
     }
   }
@@ -677,7 +745,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.saveTimer);
     if (!this.settings) return;
     this.dirty = false;
-    return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Kit Commit] save', e));
+    return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Vault Pet] save', e));
   }
 }
 

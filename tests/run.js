@@ -289,6 +289,69 @@ test('host: 뺀 폴더는 성장에서 빠진다', async () => {
   assert.ok(host.growth.xp < xp);
 });
 
+/* ── Vault Pet 0.x 에서 넘어오기 ── */
+
+const legacyMod = require(path.join(src, 'plugin/legacy'));
+const DAY_MS = 86_400_000;
+function oldData(now) {
+  // 0.4.0 의 data.json 모양 (schema 4, 파트너 잉키 + 쉬는 친구 하나)
+  return {
+    schema: 4,
+    settings: { language: 'en', soundEnabled: false, chatter: false, lunchTime: '12:10', excludedFolders: ['Templates', 'Journal/Private'], theme: 'system', showWidget: true },
+    state: {
+      partner: 'inky',
+      party: { inky: { name: 'Mochi', frozen: 0, startXp: 0, base: { c: 1000, l: 10, n: 2 }, since: now - 5 * DAY_MS }, pip: { name: 'Pip', frozen: 1200, startXp: 0, base: null, since: 0 } },
+      bonus: [{ at: now - 20 * DAY_MS, xp: 999, why: ['attend', 0] }, { at: now - 2 * DAY_MS, xp: 100, why: ['badge', 'x'] }],
+      achievements: { first_note: now - 30 * DAY_MS },
+    },
+    ledger: { tot: { c: 21000, l: 110, n: 12 }, files: {}, days: {} },
+  };
+}
+
+test('legacy: 0.x data.json 만 알아보고, 경험치·레벨·함께한 날·이름을 뽑는다', () => {
+  const now = Date.UTC(2026, 8, 26);
+  assert.ok(legacyMod.isLegacy(oldData(now)));
+  assert.ok(legacyMod.isLegacy({ settings: {}, state: { pokes: 3 } })); // 0.1.x (schema 없음)
+  assert.ok(!legacyMod.isLegacy({}));
+  assert.ok(!legacyMod.isLegacy({ version: 1, settings: {}, state: {}, usage: {}, meta: {} }));
+  const L = legacyMod.legacySummary(oldData(now), now);
+  // 잉키: (20000/20) + 100×5 + 10×15 + 최근 보너스 100 = 1750, 쉬는 핍 1200
+  assert.strictEqual(L.xp, 2950);
+  assert.strictEqual(L.level, Math.floor(Math.sqrt(1750 / 25)) + 1);
+  assert.strictEqual(L.days, 30);
+  assert.strictEqual(L.petName, 'Mochi');
+  assert.strictEqual(L.coins, 1980);
+  assert.strictEqual(legacyMod.coinsFor(1e9), 30000);
+  assert.strictEqual(legacyMod.coinsFor(0), 500);
+});
+
+test('legacy: 뜻이 같은 설정만 옮기고, 뺀 폴더는 맨 윗단 해시로', () => {
+  const s = legacyMod.legacySettings(oldData(Date.now()));
+  assert.strictEqual(s.language, 'en');
+  assert.strictEqual(s.soundEnabled, false);
+  assert.strictEqual(s.lunchTime, '12:10');
+  assert.ok(!('theme' in s) && !('showWidget' in s));
+  const u = new UsageTracker();
+  const ids = u.projects(['Templates', 'Journal']).map((p) => p.id);
+  assert.deepStrictEqual([...s.excludedProjects].sort(), [...ids].sort());
+  assert.ok(!('language' in legacyMod.legacySettings({ settings: { language: 'auto' }, state: {} })));
+});
+
+test('legacy: 기념 코스튬은 상점에서 못 사고, 받은 사람에게만 보인다', () => {
+  const { host } = makeHost();
+  const has = () => host.shop.summary().acc.some((x) => x.key === legacyMod.LEGACY_COSTUME);
+  assert.ok(!has());
+  assert.strictEqual(host.shop.blocker(legacyMod.LEGACY_COSTUME), 'exclusive');
+  assert.ok(!host.shop.buy(legacyMod.LEGACY_COSTUME).ok);
+  host.shop.give({ item: legacyMod.LEGACY_COSTUME });
+  assert.ok(has());
+  assert.strictEqual(host.shop.blocker(legacyMod.LEGACY_COSTUME), 'owned');
+  for (const lang of ['ko', 'en']) {
+    assert.ok(I18N.UI[lang]['item.' + legacyMod.LEGACY_COSTUME], lang + ' item name');
+    for (const k of ['title', 'thanks', 'body', 'coins', 'costume', 'note', 'ok', 'wear']) assert.ok(I18N.UI[lang]['legacy.' + k], `${lang} legacy.${k}`);
+  }
+});
+
 (async () => {
   let fail = 0;
   for (const t of tests) {

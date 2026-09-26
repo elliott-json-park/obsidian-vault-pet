@@ -89,7 +89,7 @@ class KitFrame {
     const doc = parent.ownerDocument;
     const iframe = doc.createElement('iframe');
     iframe.className = `kitcommit-frame kitcommit-frame-${this.kind}`;
-    iframe.setAttribute('title', 'Kit Commit');
+    iframe.setAttribute('title', 'Vault Pet');
     iframe.setAttribute('allowtransparency', 'true');
     iframe.setAttribute('scrolling', 'no');
     parent.appendChild(iframe);
@@ -100,7 +100,7 @@ class KitFrame {
     const css = (this.kind === 'pet' ? ASSETS.petCss : ASSETS.houseCss) + '\n' + (opts.fontCss || '') + '\n' + ASSETS.frameCss;
     const body = this.kind === 'pet' ? ASSETS.petBody : ASSETS.houseBody;
     // 빈 iframe(about:blank) 문서에 화면 뼈대를 넣는다. 글은 전부 이 플러그인이 가진 고정 HTML 이다
-    const parsed = new win.DOMParser().parseFromString(`<!doctype html><html><head><meta charset="utf-8"><title>Kit Commit</title></head><body>${body}</body></html>`, 'text/html');
+    const parsed = new win.DOMParser().parseFromString(`<!doctype html><html><head><meta charset="utf-8"><title>Vault Pet</title></head><body>${body}</body></html>`, 'text/html');
     d.replaceChild(d.importNode(parsed.documentElement, true), d.documentElement);
     d.documentElement.lang = 'ko';
     d.documentElement.className = `${opts.dark ? 'theme-dark' : 'theme-light'} kc-${this.kind}`;
@@ -125,7 +125,7 @@ class KitFrame {
       ASSETS.run(win, win.document, win.pet, this.kind);
       win.__kcLoaded = true;
     } catch (e) {
-      console.error('[Kit Commit] screen', e);
+      console.error('[Vault Pet] screen', e);
     }
   }
 
@@ -167,7 +167,7 @@ class KitFrame {
                 const r = await this.host.onInvoke(ch, this, ...a);
                 resolve(this.clone(r));
               } catch (e) {
-                console.error('[Kit Commit]', ch, e);
+                console.error('[Vault Pet]', ch, e);
                 reject(e);
               }
             }, 0);
@@ -188,7 +188,7 @@ class KitFrame {
       try {
         fn(p);
       } catch (e) {
-        console.error('[Kit Commit]', ch, e);
+        console.error('[Vault Pet]', ch, e);
       }
     }
   }

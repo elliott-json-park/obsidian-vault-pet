@@ -172,7 +172,7 @@ module.exports.run = ${RUN};`);
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 let out = `/*
- * Kit Commit ${manifest.version} — Obsidian plugin (built ${new Date().toISOString().slice(0, 10)})
+ * Vault Pet ${manifest.version} — Obsidian plugin (built ${new Date().toISOString().slice(0, 10)})
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */

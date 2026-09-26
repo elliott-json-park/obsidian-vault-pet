@@ -30,7 +30,7 @@ class EventEmitter {
       try {
         fn(...args);
       } catch (e) {
-        console.error('[Kit Commit]', name, e);
+        console.error('[Vault Pet]', name, e);
       }
     }
     return true;

@@ -1,8 +1,8 @@
-# Kit Commit
+# Vault Pet
 
 **A pixel cat that lives at the bottom of your vault and grows every time you write.**
 
-Kit Commit turns writing into a cozy little game. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from the words you put into your notes. Every character you write becomes XP and coins. Spend them on costumes, toys and snacks, clear daily quests, collect badges, and watch your cat grow alongside your notes.
+Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from the words you put into your notes. Every character you write becomes XP and coins. Spend them on costumes, toys and snacks, clear daily quests, collect badges, and watch your cat grow alongside your notes.
 
 ![Mochi the cat types along on its laptop while you write a novel draft. The cat's house is open on the right with today's writing, its fullness and energy, and daily quests.](docs/kitcommit-hero.png)
 
@@ -59,7 +59,7 @@ Level = √(XP / 25) + 1
 - **Writing sessions**: starting to write again after a break of 30+ minutes.
 - **Bonuses**: daily quests, badges and your daily check-in streak.
 
-Growth starts on the day you install. Kit Commit takes one quick look at your vault to remember how long each note already is, so writing you did before doesn't count (the welcome screen shows, just for fun, what level you'd be if it did).
+Growth starts on the day you install. Vault Pet takes one quick look at your vault to remember how long each note already is, so writing you did before doesn't count (the welcome screen shows, just for fun, what level you'd be if it did).
 
 ## Coins and the shop
 
@@ -117,29 +117,29 @@ Open house · Show today's quests · Open shop · Open wardrobe · Feed · Pet t
 
 ## Installation
 
-**Community plugins:** in Obsidian, open **Settings → Community plugins → Browse**, search for **Kit Commit** and install it.
+**Community plugins:** in Obsidian, open **Settings → Community plugins → Browse**, search for **Vault Pet** and install it.
 
-**Manual:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](../../releases/latest) into `<your vault>/.obsidian/plugins/kit-commit/`, then enable **Kit Commit** under Community plugins.
+**Manual:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](../../releases/latest) into `<your vault>/.obsidian/plugins/vault-pet/`, then enable **Vault Pet** under Community plugins.
 
-**Optional font:** for the exact look, also copy the `fonts/` folder (Pretendard, SIL Open Font License) into the same plugin folder. Without it, Kit Commit uses the fonts on your system.
+**Optional font:** for the exact look, also copy the `fonts/` folder (Pretendard, SIL Open Font License) into the same plugin folder. Without it, Vault Pet uses the fonts on your system.
 
-Kit Commit is desktop only, since petting, dragging and right-clicking your cat are a big part of the fun.
+Vault Pet is desktop only, since petting, dragging and right-clicking your cat are a big part of the fun.
 
 ## Privacy
 
 - Notes are only **read**. Their contents are never stored, shown elsewhere or sent anywhere. The plugin makes no network requests.
 - File and folder paths are never stored as-is. Each part of a path is replaced by a short hash, so your data file can't reveal what's in your vault.
-- What is saved: for each note, its longest-ever character and link counts and a few feature counts; hourly writing totals per top-level folder; and your cat. All of it lives in `.obsidian/plugins/kit-commit/data.json`.
+- What is saved: for each note, its longest-ever character and link counts and a few feature counts; hourly writing totals per top-level folder; and your cat. All of it lives in `.obsidian/plugins/vault-pet/data.json`.
 - A PNG is only created in your vault when you press **Save image** on the show-off card.
 
-### What Kit Commit accesses, and why
+### What Vault Pet accesses, and why
 
 | Access | Why | When |
 |---|---|---|
 | **List of notes in your vault** | To remember how long each note already is, so writing you did before installing never counts, and to catch up on notes changed while Obsidian was closed | Once on first run, then only notes whose modified time changed. Folders you untick in the settings are skipped |
 | **Reading notes** | To count new characters, links, tags, tasks, headings, embeds and callouts | Only when a note changes. Contents are never stored |
-| **Clipboard (write only)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them. Kit Commit never reads your clipboard |
-| **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/kit-commit/data.json`. Nothing is kept in browser storage |
+| **Clipboard (write only)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them. Vault Pet never reads your clipboard |
+| **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/vault-pet/data.json`. Nothing is kept in browser storage |
 
 ## FAQ
 
@@ -155,10 +155,10 @@ Kit Commit is desktop only, since petting, dragging and right-clicking your cat 
 
 ### 한국어
 
-**Kit Commit(킷커밋)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 64개, 장난감·미니게임 30개, 일일 퀘스트, 업적 154개, 놀러 오는 동네 친구, 보물 공방까지. 노트 내용은 읽기만 하고 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
+**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 64개, 장난감·미니게임 30개, 일일 퀘스트, 업적 154개, 놀러 오는 동네 친구, 보물 공방까지. 노트 내용은 읽기만 하고 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
 ---
 
-Kit Commit is the Obsidian edition of the Kit Commit desktop pet. **An unofficial fan-made project**, not affiliated with, made by or endorsed by Anthropic or Obsidian.
+Vault Pet is the Obsidian edition of the Kit Commit desktop pet. **An unofficial fan-made project**, not affiliated with, made by or endorsed by Anthropic or Obsidian.
 
 MIT License · Pretendard font under the SIL Open Font License 1.1

@@ -1,5 +1,5 @@
 /*
- * Kit Commit 1.0.4 — Obsidian plugin (built 2026-09-26)
+ * Vault Pet 1.1.0 — Obsidian plugin (built 2026-09-26)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -1418,6 +1418,8 @@ function coinsSince(usage, sinceMs = 0) {
 const ACCESSORIES = [
   { key: 'none', price: 0 },
   { key: 'sprout', price: 100, slot: 'head' },
+  // Vault Pet(0.x) 때부터 함께한 사용자에게만 주는 기념 코스튬. 상점에서는 안 판다 (가진 사람만 옷장·상점에 보인다)
+  { key: 'vpEggshell', price: 500, slot: 'head', exclusive: true },
   { key: 'mustache', price: 200, slot: 'face' },
   { key: 'mask', price: 250, level: 5, slot: 'face' },
   { key: 'bellcollar', price: 350, level: 10, slot: 'neck' },
@@ -2154,6 +2156,7 @@ class Shop {
     if (!it) return 'missing';
     if (it.workshop) return 'workshop'; // 공방에서만 만든다
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
+    if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
     if (this.dev()) return null;
     if (it.level) {
       const g = this.getGrowth();
@@ -2314,7 +2317,7 @@ class Shop {
       wallet: this.wallet(),
       dev: this.dev(),
       // 보물 공방 코스튬(workshop)은 상점에 안 나온다. 공방에서 보물로 만든다 (main/workshop.js)
-      acc: ACCESSORIES.filter((x) => !x.workshop).map((x) => row({ ...x, kind: 'acc' })),
+      acc: ACCESSORIES.filter((x) => !x.workshop && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
       motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })),
@@ -3272,7 +3275,7 @@ class EventEmitter {
       try {
         fn(...args);
       } catch (e) {
-        console.error('[Kit Commit]', name, e);
+        console.error('[Vault Pet]', name, e);
       }
     }
     return true;
@@ -3379,7 +3382,7 @@ class KitFrame {
     const doc = parent.ownerDocument;
     const iframe = doc.createElement('iframe');
     iframe.className = `kitcommit-frame kitcommit-frame-${this.kind}`;
-    iframe.setAttribute('title', 'Kit Commit');
+    iframe.setAttribute('title', 'Vault Pet');
     iframe.setAttribute('allowtransparency', 'true');
     iframe.setAttribute('scrolling', 'no');
     parent.appendChild(iframe);
@@ -3390,7 +3393,7 @@ class KitFrame {
     const css = (this.kind === 'pet' ? ASSETS.petCss : ASSETS.houseCss) + '\n' + (opts.fontCss || '') + '\n' + ASSETS.frameCss;
     const body = this.kind === 'pet' ? ASSETS.petBody : ASSETS.houseBody;
     // 빈 iframe(about:blank) 문서에 화면 뼈대를 넣는다. 글은 전부 이 플러그인이 가진 고정 HTML 이다
-    const parsed = new win.DOMParser().parseFromString(`<!doctype html><html><head><meta charset="utf-8"><title>Kit Commit</title></head><body>${body}</body></html>`, 'text/html');
+    const parsed = new win.DOMParser().parseFromString(`<!doctype html><html><head><meta charset="utf-8"><title>Vault Pet</title></head><body>${body}</body></html>`, 'text/html');
     d.replaceChild(d.importNode(parsed.documentElement, true), d.documentElement);
     d.documentElement.lang = 'ko';
     d.documentElement.className = `${opts.dark ? 'theme-dark' : 'theme-light'} kc-${this.kind}`;
@@ -3415,7 +3418,7 @@ class KitFrame {
       ASSETS.run(win, win.document, win.pet, this.kind);
       win.__kcLoaded = true;
     } catch (e) {
-      console.error('[Kit Commit] screen', e);
+      console.error('[Vault Pet] screen', e);
     }
   }
 
@@ -3457,7 +3460,7 @@ class KitFrame {
                 const r = await this.host.onInvoke(ch, this, ...a);
                 resolve(this.clone(r));
               } catch (e) {
-                console.error('[Kit Commit]', ch, e);
+                console.error('[Vault Pet]', ch, e);
                 reject(e);
               }
             }, 0);
@@ -3478,7 +3481,7 @@ class KitFrame {
       try {
         fn(p);
       } catch (e) {
-        console.error('[Kit Commit]', ch, e);
+        console.error('[Vault Pet]', ch, e);
       }
     }
   }
@@ -3583,10 +3586,10 @@ class KitHost {
       const kinds = { acc: 0, motion: 0, toy: 0 };
       for (const k of items) {
         const it = findItem(k);
-        if (it && it.kind in kinds && k !== 'none') kinds[it.kind]++;
+        if (it && it.kind in kinds && k !== 'none' && !it.exclusive) kinds[it.kind]++;
       }
       return {
-        owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none').length, totalToy: TOYS.length,
+        owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none' && !a.exclusive).length, totalToy: TOYS.length,
         bought: (state.get('purchases') || []).length, spent: w.spent, earned: w.earned, balance: w.balance,
         treasureKinds: this.treasures.summary().kinds,
         maxBacklinks: this.plugin.linkStats().max,
@@ -4750,6 +4753,110 @@ module.exports = { KitHost, STATE_DEFAULTS, KitFrame, PixelArt, setIcon, Notice 
 
 };
 
+__defs["plugin/legacy"] = function (module, exports, require) {
+// Vault Pet 0.x (다섯 친구 펫) 에서 넘어온 data.json 을 알아보고, 기념 선물을 정한다.
+// 0.x 의 data.json 은 { schema, settings, state: { party, partner, bonus, … }, ledger: { tot, … } } 모양이고 version 이 없다.
+// 새 판(1.1+)은 { version, settings, state, usage, meta } 다. 예전 성장은 새 고양이로 잇지 않고, 쌓은 만큼 코인과 기념 코스튬으로 돌려준다.
+
+const { folderKey } = require('../core/usage');
+
+const DAY = 86_400_000;
+// 0.x 의 경험치 공식 (특기 배율은 빼고 센다)
+const CHARS_PER_XP = 20;
+const XP_PER_LINK = 5;
+const XP_PER_NOTE = 15;
+// 선물 코인: 기본 500 + 예전 경험치의 절반, 최대 30,000 (10 단위로 반올림)
+const BASE_COINS = 500;
+const MAX_COINS = 30_000;
+const LEGACY_COSTUME = 'vpEggshell';
+// 새 판 설정과 뜻이 같아서 그대로 옮기는 것들
+const CARRY_SETTINGS = ['soundEnabled', 'bubblesEnabled', 'chatter', 'lunchEnabled', 'lunchTime', 'dinnerEnabled', 'dinnerTime', 'lateNightEnabled'];
+
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const levelOf = (xp) => Math.floor(Math.sqrt(Math.max(0, xp) / 25)) + 1;
+
+function isLegacy(raw) {
+  return !!(raw && typeof raw === 'object' && raw.version === undefined && raw.state && typeof raw.state === 'object');
+}
+
+function xpOf(t) {
+  return Math.floor(num(t.c) / CHARS_PER_XP) + num(t.l) * XP_PER_LINK + num(t.n) * XP_PER_NOTE;
+}
+
+// 예전에 모은 경험치. 파트너는 지금 자라는 몫까지, 쉬는 친구는 얼려 둔 몫(frozen)을 더한다
+function legacyXp(raw) {
+  const st = raw.state || {};
+  const tot = (raw.ledger && raw.ledger.tot) || {};
+  const bonus = Array.isArray(st.bonus) ? st.bonus : [];
+  const bonusSince = (since) => bonus.reduce((a, b) => a + (b && num(b.at) >= since ? num(b.xp) : 0), 0);
+  const party = st.party && typeof st.party === 'object' ? st.party : null;
+  if (!party || !party[st.partner]) {
+    // 0.1.x: 펫이 하나뿐이었다
+    const xp = xpOf(tot) + bonusSince(0);
+    return { total: xp, partner: xp };
+  }
+  let total = 0;
+  let partner = 0;
+  for (const [key, pet] of Object.entries(party)) {
+    if (!pet || typeof pet !== 'object') continue;
+    let xp = num(pet.frozen) + num(pet.startXp);
+    if (key === st.partner) {
+      const b = pet.base;
+      const used = b ? { c: Math.max(0, num(tot.c) - num(b.c)), l: Math.max(0, num(tot.l) - num(b.l)), n: Math.max(0, num(tot.n) - num(b.n)) } : tot;
+      xp += xpOf(used) + bonusSince(num(pet.since));
+      partner = xp;
+    }
+    total += xp;
+  }
+  return { total, partner };
+}
+
+// 처음 만난 날. 없으면 가장 이른 보너스·업적 시각으로 짐작한다
+function firstSeen(st, now) {
+  let first = num(st.installedAt) || now;
+  for (const b of Array.isArray(st.bonus) ? st.bonus : []) if (b && num(b.at) > 0 && num(b.at) < first) first = num(b.at);
+  for (const at of Object.values(st.achievements || {})) if (num(at) > 0 && num(at) < first) first = num(at);
+  return first;
+}
+
+function coinsFor(xp) {
+  return Math.min(MAX_COINS, Math.round((BASE_COINS + Math.max(0, xp) / 2) / 10) * 10);
+}
+
+// 선물과 안내 창에 쓸 것들
+function legacySummary(raw, now = Date.now()) {
+  const st = raw.state || {};
+  const xp = legacyXp(raw);
+  const pet = st.party && st.party[st.partner];
+  const name = (pet && pet.name) || (raw.settings && raw.settings.petName) || '';
+  return {
+    xp: xp.total,
+    level: levelOf(xp.partner),
+    days: Math.max(1, Math.ceil((now - firstSeen(st, now)) / DAY)),
+    petName: String(name).slice(0, 40),
+    coins: coinsFor(xp.total),
+    costume: LEGACY_COSTUME,
+  };
+}
+
+// 새 판 설정으로 옮길 것. language 는 'ko' | 'en' 일 때만 ('auto' 면 옵시디언 언어를 따르게 비워 둔다)
+function legacySettings(raw) {
+  const old = (raw && raw.settings) || {};
+  const out = {};
+  for (const k of CARRY_SETTINGS) if (old[k] !== undefined) out[k] = old[k];
+  if (old.language === 'ko' || old.language === 'en') out.language = old.language;
+  // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 맨 윗단 폴더 이름의 해시를 쓴다
+  if (Array.isArray(old.excludedFolders)) {
+    const tops = old.excludedFolders.map((f) => String(f).replace(/^\/+/, '').split('/')[0]).filter(Boolean);
+    if (tops.length) out.excludedProjects = [...new Set(tops.map(folderKey))];
+  }
+  return out;
+}
+
+module.exports = { isLegacy, legacyXp, legacySummary, legacySettings, coinsFor, LEGACY_COSTUME };
+
+};
+
 __defs["plugin/main"] = function (module, exports, require) {
 'use strict';
 /*
@@ -4765,11 +4872,12 @@ __defs["plugin/main"] = function (module, exports, require) {
  *  - src/plugin: 데스크톱판 main.js·preload.js 자리 (host.js·frame.js·stage.js) 와 옵시디언 연결(이 파일)
  */
 const obsidian = require('obsidian');
-const { Plugin, ItemView, PluginSettingTab, Setting, Notice, TFile, TFolder, addIcon, setIcon } = obsidian;
+const { Plugin, ItemView, Modal, PluginSettingTab, Setting, Notice, TFile, TFolder, addIcon, setIcon } = obsidian;
 const { Store, DEFAULT_SETTINGS } = require('./store');
 const { KitHost, STATE_DEFAULTS } = require('./host');
 const { KitFrame } = require('./frame');
 const { PetStage } = require('./stage');
+const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 
@@ -4807,7 +4915,7 @@ class HouseView extends ItemView {
 
   getDisplayText() {
     const p = this.plugin;
-    return p.host ? p.host.T.t('obs.houseTitle', { name: p.settings.get('petName') }) : 'Kit Commit';
+    return p.host ? p.host.T.t('obs.houseTitle', { name: p.settings.get('petName') }) : 'Vault Pet';
   }
 
   getIcon() {
@@ -4902,12 +5010,68 @@ class KitSettingTab extends PluginSettingTab {
   }
 }
 
+/* ────────────────────────────── Vault Pet 0.x 사용자 안내 (한 번만) ────────────────────────────── */
+
+class LegacyModal extends Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+
+  onOpen() {
+    const p = this.plugin;
+    const t = (k, v) => p.host.T.t(k, v);
+    const L = p.meta.legacy;
+    const fmt = (n) => Number(n).toLocaleString(p.settings.get('language') === 'ko' ? 'ko-KR' : 'en-US');
+    this.modalEl.addClass('vaultpet-legacy');
+    this.titleEl.setText(t('legacy.title'));
+    const el = this.contentEl;
+    el.empty();
+    el.createEl('p', { text: t('legacy.thanks', { days: fmt(L.days), lv: L.level }) });
+    el.createEl('p', { text: t('legacy.body') });
+    const gifts = el.createDiv({ cls: 'vaultpet-legacy-gifts' });
+    const row = (icon, text) => {
+      const r = gifts.createDiv({ cls: 'vaultpet-legacy-gift' });
+      const id = p.pixelIcon(icon);
+      if (id) setIcon(r.createSpan({ cls: 'vaultpet-legacy-icon' }), id);
+      r.createSpan({ text });
+    };
+    row('coin', t('legacy.coins', { coins: fmt(L.coins) }));
+    row(LEGACY_COSTUME, t('legacy.costume'));
+    el.createEl('p', { text: t('legacy.note'), cls: 'setting-item-description' });
+    new Setting(el)
+      .addButton((b) => b.setButtonText(t('legacy.ok')).onClick(() => this.close()))
+      .addButton((b) =>
+        b
+          .setButtonText(t('legacy.wear'))
+          .setCta()
+          .onClick(() => {
+            p.host.setSettings({ outfit: { head: LEGACY_COSTUME } });
+            this.close();
+            p.openHouse('wardrobe');
+          }),
+      );
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    const L = this.plugin.meta.legacy;
+    if (L && !L.shown) {
+      L.shown = true;
+      this.plugin.saveSoon();
+    }
+  }
+}
+
 /* ────────────────────────────── 플러그인 ────────────────────────────── */
 
 class KitCommitPlugin extends Plugin {
   async onload() {
-    const raw = (await this.loadData()) || {};
-    const firstInstall = !raw.settings;
+    let raw = (await this.loadData()) || {};
+    // Vault Pet 0.x 에서 업데이트했다: 예전 기록은 선물로 바꾸고, 새 고양이는 처음부터 (설정 몇 가지·이름만 옮긴다)
+    const legacy = isLegacy(raw) ? legacySummary(raw) : null;
+    if (legacy) raw = { settings: legacySettings(raw) };
+    const firstInstall = !raw.settings || !!legacy;
     const saveHook = (now) => (now ? this.saveNow() : this.saveSoon());
     this.settings = new Store(raw.settings, DEFAULT_SETTINGS, saveHook);
     this.state = new Store(raw.state, STATE_DEFAULTS, saveHook);
@@ -4916,9 +5080,12 @@ class KitCommitPlugin extends Plugin {
     this.usage.on('session', ({ at }) => this.onSession(at));
     // 처음 설치하면 옵시디언 언어를 따른다
     if (firstInstall) {
-      const lang = obsidianLanguage();
-      this.settings.data.language = lang.startsWith('ko') ? 'ko' : 'en';
-      if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
+      if (!(raw.settings || {}).language) {
+        const lang = obsidianLanguage();
+        this.settings.data.language = lang.startsWith('ko') ? 'ko' : 'en';
+      }
+      if (legacy && legacy.petName) this.settings.data.petName = legacy.petName;
+      else if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
     }
     this.pending = new Set();
     this.icons = new Set();
@@ -4928,6 +5095,13 @@ class KitCommitPlugin extends Plugin {
     this.host = new KitHost(this, { settings: this.settings, state: this.state, usage: this.usage });
     this.host.init();
     this.stage = null;
+    if (legacy) {
+      // 선물: 코인은 지갑 보너스로, 기념 코스튬은 옷장에. 새 형식으로 바로 저장해서 두 번 받지 않게 한다
+      this.state.set({ walletBonus: (this.state.get('walletBonus') || 0) + legacy.coins });
+      this.host.shop.give({ item: LEGACY_COSTUME });
+      this.meta.legacy = { ...legacy, at: Date.now(), shown: false };
+      await this.saveNow();
+    }
 
     this.registerView(VIEW_TYPE, (leaf) => new HouseView(leaf, this));
     this.ribbon = this.addRibbonIcon(this.pixelIcon('paw') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
@@ -5020,6 +5194,7 @@ class KitCommitPlugin extends Plugin {
     this.updateStatus();
     // 처음이면 하우스에서 안내부터 (데스크톱판처럼)
     if (!this.state.get('onboarded')) this.openHouse('home');
+    if (this.meta.legacy && !this.meta.legacy.shown) new LegacyModal(this.app, this).open();
     await this.scan();
     this.host.ready();
     this.updateStatus();
@@ -5306,7 +5481,7 @@ class KitCommitPlugin extends Plugin {
       new Notice(this.host.T.t('obs.cardSaved', { path }));
       return true;
     } catch (e) {
-      console.error('[Kit Commit] card', e);
+      console.error('[Vault Pet] card', e);
       new Notice(String(e && e.message ? e.message : e));
       return false;
     }
@@ -5318,7 +5493,7 @@ class KitCommitPlugin extends Plugin {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       return true;
     } catch (e) {
-      console.error('[Kit Commit] copy', e);
+      console.error('[Vault Pet] copy', e);
       return false;
     }
   }
@@ -5430,7 +5605,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.saveTimer);
     if (!this.settings) return;
     this.dirty = false;
-    return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Kit Commit] save', e));
+    return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Vault Pet] save', e));
   }
 }
 
@@ -10371,7 +10546,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'stats.dayTitle': '{day} · {c}자 · 링크 {l} · 세션 {s}',
       'stats.hourTitle': '{h}시 · 기록 {m}',
       'stats.cumulative': '누적 기록',
-      'stats.cumulativeSub': '볼트 전체와, 킷커밋을 켠 뒤로 함께 쓴 기록이에요',
+      'stats.cumulativeSub': '볼트 전체와, 볼트 펫을 켠 뒤로 함께 쓴 기록이에요',
       'dash.sub': '처음 만난 뒤로 새로 쓴 글자와, 그걸로 번 코인이에요 (하루 {cap}자까지는 {a}자 = 1코인, 그 뒤로는 {b}자 = 1코인)',
       'dash.tokens': '쓴 글자',
       'ach.cat.write': '글쓰기', 'ach.cat.link': '링크', 'ach.cat.note': '새 노트', 'ach.cat.session': '글쓰기 세션',
@@ -10407,8 +10582,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tip.vaultChars': '볼트의 모든 노트 글자를 더한 값이에요 (노트마다 가장 길었을 때 기준).',
       'card.headline': '글자 {tokens}자를 먹고 자랐어요',
       'card.book': '{book}보다 약 {x}배 많은 글',
-      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #KitCommit',
-      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#KitCommit #Obsidian',
+      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #VaultPet',
+      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#VaultPet #Obsidian',
       'book.times': '지금까지 쓴 글은 {book}의 약 {x}배예요',
       'book.part': '지금까지 쓴 글은 {book}의 약 {p}%예요',
       'w.privacyTitle': '노트 내용은 저장하지 않아요',
@@ -10426,7 +10601,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
       'w.b4a': '왼쪽 리본의 <b>발바닥</b>이나 상태 표시줄의 이름을 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
-      'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Kit Commit</b>을 찾아도 돼요',
+      'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
       'w.trayNote': '상태 표시줄의 이름을 누르면 빠른 메뉴가 나와요.',
       'slot.work': '같이 쓸 때',
       'slot.workSub': '내가 타이핑하는 동안',
@@ -10446,18 +10621,28 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'toast.hooked': '준비됐어요',
       'item.claudeeyes': '반짝반짝 별빛 눈동자',
       'item.thinkbubble': '생각 중…',
+      'item.vpEggshell': '옛 친구의 알껍데기',
+      // Vault Pet 0.x 에서 넘어온 사용자에게 한 번만 뜨는 안내
+      'legacy.title': 'Vault Pet이 새로워졌어요',
+      'legacy.thanks': '그동안 Vault Pet과 함께 {days}일, Lv.{lv}까지 키워 주셔서 고마워요.',
+      'legacy.body': '이제 Vault Pet은 옷을 갈아입고, 장난감으로 놀고, 동네 친구가 놀러 오는 도트 고양이예요. 성장은 새로 시작하지만, 처음부터 함께해 주신 분께 작은 선물을 드려요.',
+      'legacy.coins': '{coins} 코인',
+      'legacy.costume': '기념 코스튬 「옛 친구의 알껍데기」 (기존 사용자 전용)',
+      'legacy.note': '예전 펫과 성장 기록은 새 고양이로 이어지지 않아요. 이 창은 한 번만 떠요.',
+      'legacy.ok': '고마워요',
+      'legacy.wear': '알껍데기 바로 써 보기',
       // 옵시디언판에만 있는 글
       'obs.houseTitle': '{name} 하우스',
-      'obs.openHouse': '킷커밋 하우스 열기',
+      'obs.openHouse': '볼트 펫 하우스 열기',
       'obs.openHouseDesc': '고양이 이름·크기·말풍선·생활 알림·모션·폴더 같은 자세한 설정은 하우스의 설정 탭에 있어요.',
-      'obs.settingsIntro': '옵시디언에 글을 쓸수록 자라는 도트 고양이, 킷커밋이에요.',
+      'obs.settingsIntro': '옵시디언에 글을 쓸수록 자라는 도트 고양이, 볼트 펫이에요.',
       'obs.showPet': '화면에 고양이 띄우기',
       'obs.showPetDesc': '끄면 작업 영역에서 고양이를 치워요. 하우스에서는 계속 볼 수 있고, 자라는 건 그대로예요.',
       'obs.petOffTitle': '고양이가 화면에서 쉬는 중이에요',
       'obs.petOffDesc': '다시 켜면 작업 영역 바닥에서 같이 써요.',
       'obs.petOn': '다시 켜기',
       'obs.resetPosBtn': '초기화',
-      'obs.statusTip': '킷커밋 메뉴',
+      'obs.statusTip': '볼트 펫 메뉴',
       'obs.cardSaved': '카드를 저장했어요: {path}',
       'obs.cmd.house': '하우스 열기',
       'obs.cmd.quests': '오늘의 퀘스트 보기',
@@ -10491,7 +10676,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'stats.dayTitle': '{day} · {c} chars · {l} links · {s} sessions',
       'stats.hourTitle': '{h}:00 · {m} saves',
       'stats.cumulative': 'All-time',
-      'stats.cumulativeSub': 'Your whole vault, and what you have written since Kit Commit arrived',
+      'stats.cumulativeSub': 'Your whole vault, and what you have written since Vault Pet arrived',
       'dash.sub': 'New characters you have written since you met, and the coins they earned ({a} chars = 1 coin for the first {cap} a day, then {b} chars = 1 coin)',
       'dash.tokens': 'Characters',
       'ach.cat.write': 'Writing', 'ach.cat.link': 'Links', 'ach.cat.note': 'New notes', 'ach.cat.session': 'Writing sessions',
@@ -10527,8 +10712,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tip.vaultChars': 'All characters across your notes (each note at its longest).',
       'card.headline': 'Grew up on {tokens} characters',
       'card.book': 'About {x}× longer than {book}',
-      'card.footer': 'Raising a cat while writing in Obsidian  #KitCommit',
-      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#KitCommit #Obsidian',
+      'card.footer': 'Raising a cat while writing in Obsidian  #VaultPet',
+      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#VaultPet #Obsidian',
       'book.times': 'Everything you have written is about {x}× {book}',
       'book.part': 'Everything you have written is about {p}% of {book}',
       'w.privacyTitle': 'Your notes stay yours',
@@ -10546,7 +10731,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
       'w.b4a': 'Click the <b>paw</b> in the ribbon or the name in the status bar to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
-      'w.b4c': 'Or search <b>Kit Commit</b> in the command palette (Ctrl+P)',
+      'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
       'w.trayNote': 'Click the name in the status bar for the quick menu.',
       'slot.work': 'Writing together',
       'slot.workSub': 'While you type',
@@ -10566,17 +10751,26 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'toast.hooked': 'All set',
       'item.claudeeyes': 'Starburst eyes',
       'item.thinkbubble': 'Thinking…',
+      'item.vpEggshell': 'Old friend’s eggshell',
+      'legacy.title': 'Vault Pet has a new look',
+      'legacy.thanks': 'Thank you for growing with Vault Pet for {days} days, all the way to Lv.{lv}.',
+      'legacy.body': 'Vault Pet is now a pixel cat that wears costumes, plays with toys and gets visits from neighbor cats. Growth starts fresh, so here is a small thank-you for being here from the start.',
+      'legacy.coins': '{coins} coins',
+      'legacy.costume': 'Commemorative costume “Old friend’s eggshell” (early users only)',
+      'legacy.note': 'Your old pets and their progress don’t carry over to the new cat. This message only shows once.',
+      'legacy.ok': 'Thanks',
+      'legacy.wear': 'Try on the eggshell',
       'obs.houseTitle': "{name}'s house",
-      'obs.openHouse': 'Open Kit Commit house',
+      'obs.openHouse': 'Open Vault Pet house',
       'obs.openHouseDesc': 'Name, size, bubbles, reminders, motions, folders and more live in the Settings tab of the house.',
-      'obs.settingsIntro': 'Kit Commit: a pixel cat that grows as you write in Obsidian.',
+      'obs.settingsIntro': 'Vault Pet: a pixel cat that grows as you write in Obsidian.',
       'obs.showPet': 'Show the cat on screen',
       'obs.showPetDesc': 'Turn off to clear the cat from the workspace. It stays in the house and keeps growing.',
       'obs.petOffTitle': 'Your cat is resting off screen',
       'obs.petOffDesc': 'Turn it back on to write together at the bottom of the workspace.',
       'obs.petOn': 'Turn on',
       'obs.resetPosBtn': 'Reset',
-      'obs.statusTip': 'Kit Commit menu',
+      'obs.statusTip': 'Vault Pet menu',
       'obs.cardSaved': 'Card saved: {path}',
       'obs.cmd.house': 'Open house',
       'obs.cmd.quests': "Show today's quests",
@@ -11284,6 +11478,20 @@ __defs["kit/pixelart"] = function (module, exports, require) {
       '.....nn.....',
       '.....nn.....',
       '.....KK.....',
+      '............',
+      '............',
+    ],
+    vpEggshell: [
+      '............',
+      '............',
+      '............',
+      '.K...K...K..',
+      'KWK.KWK.KWK.',
+      'KWWKWBWKWWK.',
+      'KBWWWWWWMBK.',
+      'KWWMWWWMWWK.',
+      '.KWWWWWWWK..',
+      '..KKKKKKK...',
       '............',
       '............',
     ],
@@ -18283,7 +18491,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'stats.dayTitle': '{day} · {c}자 · 링크 {l} · 세션 {s}',
       'stats.hourTitle': '{h}시 · 기록 {m}',
       'stats.cumulative': '누적 기록',
-      'stats.cumulativeSub': '볼트 전체와, 킷커밋을 켠 뒤로 함께 쓴 기록이에요',
+      'stats.cumulativeSub': '볼트 전체와, 볼트 펫을 켠 뒤로 함께 쓴 기록이에요',
       'dash.sub': '처음 만난 뒤로 새로 쓴 글자와, 그걸로 번 코인이에요 (하루 {cap}자까지는 {a}자 = 1코인, 그 뒤로는 {b}자 = 1코인)',
       'dash.tokens': '쓴 글자',
       'ach.cat.write': '글쓰기', 'ach.cat.link': '링크', 'ach.cat.note': '새 노트', 'ach.cat.session': '글쓰기 세션',
@@ -18319,8 +18527,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'tip.vaultChars': '볼트의 모든 노트 글자를 더한 값이에요 (노트마다 가장 길었을 때 기준).',
       'card.headline': '글자 {tokens}자를 먹고 자랐어요',
       'card.book': '{book}보다 약 {x}배 많은 글',
-      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #KitCommit',
-      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#KitCommit #Obsidian',
+      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #VaultPet',
+      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#VaultPet #Obsidian',
       'book.times': '지금까지 쓴 글은 {book}의 약 {x}배예요',
       'book.part': '지금까지 쓴 글은 {book}의 약 {p}%예요',
       'w.privacyTitle': '노트 내용은 저장하지 않아요',
@@ -18338,7 +18546,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
       'w.b4a': '왼쪽 리본의 <b>발바닥</b>이나 상태 표시줄의 이름을 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
-      'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Kit Commit</b>을 찾아도 돼요',
+      'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
       'w.trayNote': '상태 표시줄의 이름을 누르면 빠른 메뉴가 나와요.',
       'slot.work': '같이 쓸 때',
       'slot.workSub': '내가 타이핑하는 동안',
@@ -18358,18 +18566,28 @@ module.exports.run = function run(window, document, pet, kind) {
       'toast.hooked': '준비됐어요',
       'item.claudeeyes': '반짝반짝 별빛 눈동자',
       'item.thinkbubble': '생각 중…',
+      'item.vpEggshell': '옛 친구의 알껍데기',
+      // Vault Pet 0.x 에서 넘어온 사용자에게 한 번만 뜨는 안내
+      'legacy.title': 'Vault Pet이 새로워졌어요',
+      'legacy.thanks': '그동안 Vault Pet과 함께 {days}일, Lv.{lv}까지 키워 주셔서 고마워요.',
+      'legacy.body': '이제 Vault Pet은 옷을 갈아입고, 장난감으로 놀고, 동네 친구가 놀러 오는 도트 고양이예요. 성장은 새로 시작하지만, 처음부터 함께해 주신 분께 작은 선물을 드려요.',
+      'legacy.coins': '{coins} 코인',
+      'legacy.costume': '기념 코스튬 「옛 친구의 알껍데기」 (기존 사용자 전용)',
+      'legacy.note': '예전 펫과 성장 기록은 새 고양이로 이어지지 않아요. 이 창은 한 번만 떠요.',
+      'legacy.ok': '고마워요',
+      'legacy.wear': '알껍데기 바로 써 보기',
       // 옵시디언판에만 있는 글
       'obs.houseTitle': '{name} 하우스',
-      'obs.openHouse': '킷커밋 하우스 열기',
+      'obs.openHouse': '볼트 펫 하우스 열기',
       'obs.openHouseDesc': '고양이 이름·크기·말풍선·생활 알림·모션·폴더 같은 자세한 설정은 하우스의 설정 탭에 있어요.',
-      'obs.settingsIntro': '옵시디언에 글을 쓸수록 자라는 도트 고양이, 킷커밋이에요.',
+      'obs.settingsIntro': '옵시디언에 글을 쓸수록 자라는 도트 고양이, 볼트 펫이에요.',
       'obs.showPet': '화면에 고양이 띄우기',
       'obs.showPetDesc': '끄면 작업 영역에서 고양이를 치워요. 하우스에서는 계속 볼 수 있고, 자라는 건 그대로예요.',
       'obs.petOffTitle': '고양이가 화면에서 쉬는 중이에요',
       'obs.petOffDesc': '다시 켜면 작업 영역 바닥에서 같이 써요.',
       'obs.petOn': '다시 켜기',
       'obs.resetPosBtn': '초기화',
-      'obs.statusTip': '킷커밋 메뉴',
+      'obs.statusTip': '볼트 펫 메뉴',
       'obs.cardSaved': '카드를 저장했어요: {path}',
       'obs.cmd.house': '하우스 열기',
       'obs.cmd.quests': '오늘의 퀘스트 보기',
@@ -18403,7 +18621,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'stats.dayTitle': '{day} · {c} chars · {l} links · {s} sessions',
       'stats.hourTitle': '{h}:00 · {m} saves',
       'stats.cumulative': 'All-time',
-      'stats.cumulativeSub': 'Your whole vault, and what you have written since Kit Commit arrived',
+      'stats.cumulativeSub': 'Your whole vault, and what you have written since Vault Pet arrived',
       'dash.sub': 'New characters you have written since you met, and the coins they earned ({a} chars = 1 coin for the first {cap} a day, then {b} chars = 1 coin)',
       'dash.tokens': 'Characters',
       'ach.cat.write': 'Writing', 'ach.cat.link': 'Links', 'ach.cat.note': 'New notes', 'ach.cat.session': 'Writing sessions',
@@ -18439,8 +18657,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'tip.vaultChars': 'All characters across your notes (each note at its longest).',
       'card.headline': 'Grew up on {tokens} characters',
       'card.book': 'About {x}× longer than {book}',
-      'card.footer': 'Raising a cat while writing in Obsidian  #KitCommit',
-      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#KitCommit #Obsidian',
+      'card.footer': 'Raising a cat while writing in Obsidian  #VaultPet',
+      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#VaultPet #Obsidian',
       'book.times': 'Everything you have written is about {x}× {book}',
       'book.part': 'Everything you have written is about {p}% of {book}',
       'w.privacyTitle': 'Your notes stay yours',
@@ -18458,7 +18676,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
       'w.b4a': 'Click the <b>paw</b> in the ribbon or the name in the status bar to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
-      'w.b4c': 'Or search <b>Kit Commit</b> in the command palette (Ctrl+P)',
+      'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
       'w.trayNote': 'Click the name in the status bar for the quick menu.',
       'slot.work': 'Writing together',
       'slot.workSub': 'While you type',
@@ -18478,17 +18696,26 @@ module.exports.run = function run(window, document, pet, kind) {
       'toast.hooked': 'All set',
       'item.claudeeyes': 'Starburst eyes',
       'item.thinkbubble': 'Thinking…',
+      'item.vpEggshell': 'Old friend’s eggshell',
+      'legacy.title': 'Vault Pet has a new look',
+      'legacy.thanks': 'Thank you for growing with Vault Pet for {days} days, all the way to Lv.{lv}.',
+      'legacy.body': 'Vault Pet is now a pixel cat that wears costumes, plays with toys and gets visits from neighbor cats. Growth starts fresh, so here is a small thank-you for being here from the start.',
+      'legacy.coins': '{coins} coins',
+      'legacy.costume': 'Commemorative costume “Old friend’s eggshell” (early users only)',
+      'legacy.note': 'Your old pets and their progress don’t carry over to the new cat. This message only shows once.',
+      'legacy.ok': 'Thanks',
+      'legacy.wear': 'Try on the eggshell',
       'obs.houseTitle': "{name}'s house",
-      'obs.openHouse': 'Open Kit Commit house',
+      'obs.openHouse': 'Open Vault Pet house',
       'obs.openHouseDesc': 'Name, size, bubbles, reminders, motions, folders and more live in the Settings tab of the house.',
-      'obs.settingsIntro': 'Kit Commit: a pixel cat that grows as you write in Obsidian.',
+      'obs.settingsIntro': 'Vault Pet: a pixel cat that grows as you write in Obsidian.',
       'obs.showPet': 'Show the cat on screen',
       'obs.showPetDesc': 'Turn off to clear the cat from the workspace. It stays in the house and keeps growing.',
       'obs.petOffTitle': 'Your cat is resting off screen',
       'obs.petOffDesc': 'Turn it back on to write together at the bottom of the workspace.',
       'obs.petOn': 'Turn on',
       'obs.resetPosBtn': 'Reset',
-      'obs.statusTip': 'Kit Commit menu',
+      'obs.statusTip': 'Vault Pet menu',
       'obs.cardSaved': 'Card saved: {path}',
       'obs.cmd.house': 'Open house',
       'obs.cmd.quests': "Show today's quests",
@@ -19195,6 +19422,20 @@ module.exports.run = function run(window, document, pet, kind) {
       '.....nn.....',
       '.....nn.....',
       '.....KK.....',
+      '............',
+      '............',
+    ],
+    vpEggshell: [
+      '............',
+      '............',
+      '............',
+      '.K...K...K..',
+      'KWK.KWK.KWK.',
+      'KWWKWBWKWWK.',
+      'KBWWWWWWMBK.',
+      'KWWMWWWMWWK.',
+      '.KWWWWWWWK..',
+      '..KKKKKKK...',
       '............',
       '............',
     ],
@@ -23540,6 +23781,14 @@ module.exports.run = function run(window, document, pet, kind) {
         this.pattern(['.KK...KK.', 'KNNK.KNNK', 'KNnNKNnNK', '.KNNnNNK.', '..KKnKK..'], a.hx - 4 + s, a.top - 7, c);
         this.px(a.hx, a.top - 2, c.n);
         this.px(a.hx, a.top - 1, c.n);
+      },
+    },
+    vpEggshell: {
+      // Vault Pet 기념: 다섯 친구가 태어난 알의 껍데기를 모자처럼 쓴다. 톱니처럼 깨진 윗단, 민트 반점, 가끔 톡 기울어진다
+      front(g, a, c, t) {
+        const m = { K: c.K || '#2b1a10', E: '#fff6e0', e: '#ecd9b0', S: '#8fd3c1' };
+        const tilt = t % 4 < 0.35 ? 1 : 0;
+        this.pattern(['.K...K...K.', 'KEK.KEK.KEK', 'KEEKESEKEEK', 'KSEEEEEEeSK', 'KEEeEEEeEEK'], a.hx - 5 + tilt, a.top - 4, m);
       },
     },
     bowtie: {
@@ -42073,7 +42322,7 @@ function drawCard() {
   g.fillRect(16, Hh - 12, W - 24, 4);
   g.fillRect(W - 12, 16, 4, Hh - 24);
 
-  text('KIT COMMIT', 36, 48, font(700, 14), accent, 'left');
+  text('VAULT PET', 36, 48, font(700, 14), accent, 'left');
   text(new Date().toLocaleDateString(locale()), W - 36, 48, font(400, 12), muted, 'right');
 
   // 고양이 (지금 입은 꾸미기 그대로)

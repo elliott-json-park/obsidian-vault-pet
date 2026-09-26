@@ -77,10 +77,10 @@ class KitHost {
       const kinds = { acc: 0, motion: 0, toy: 0 };
       for (const k of items) {
         const it = findItem(k);
-        if (it && it.kind in kinds && k !== 'none') kinds[it.kind]++;
+        if (it && it.kind in kinds && k !== 'none' && !it.exclusive) kinds[it.kind]++;
       }
       return {
-        owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none').length, totalToy: TOYS.length,
+        owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none' && !a.exclusive).length, totalToy: TOYS.length,
         bought: (state.get('purchases') || []).length, spent: w.spent, earned: w.earned, balance: w.balance,
         treasureKinds: this.treasures.summary().kinds,
         maxBacklinks: this.plugin.linkStats().max,
