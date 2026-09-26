@@ -2,14 +2,13 @@
 
 /*
  * 데모 볼트를 만든다.
- *   node scripts/demo-vault.js [출력 폴더] [--seeded] [--partner=inky] [--plugin-only]
+ *   node scripts/demo-vault.js [출력 폴더] [--seeded] [--plugin-only] [--enable]
  *
  * - 노트 몇 개와 .obsidian 설정, 플러그인 파일(main.js·manifest.json·styles.css·fonts/)을 넣는다.
- * - --seeded: 설치한 지 3주쯤 된 data.json 을 함께 넣는다 (스크린샷용). 도감에는 친구 셋이 있다.
- *   성장은 설치한 순간부터라서, 기록도 설치한 뒤 3주치만 있다.
- *   --partner 로 지금 파트너를 고른다 (inky·purrl·sprig·ember·dewey).
- *   없으면 플러그인을 처음 켠 상태라 첫 실행 안내(파트너 고르기)부터 나온다.
- * - --plugin-only: 노트는 그대로 두고 플러그인 파일만 새로 복사한다.
+ * - --seeded: 킷커밋을 켠 지 3주쯤 된 data.json 을 함께 넣는다 (스크린샷용). 레벨·코인·코스튬·밥이 조금 있다.
+ *   없으면 플러그인을 처음 켠 상태라 첫 실행 안내부터 나온다.
+ * - --plugin-only: 노트는 그대로 두고 플러그인 파일만 새로 복사한다 (data.json 은 건드리지 않는다).
+ *   --enable 을 같이 주면 커뮤니티 플러그인 목록에서 킷커밋을 켜고 예전 vault-pet 은 끈다.
  */
 
 const fs = require('fs');
@@ -20,7 +19,8 @@ const args = process.argv.slice(2);
 const out = path.resolve(args.find((a) => !a.startsWith('--')) || path.join(root, '..', '데모_볼트'));
 const seeded = args.includes('--seeded');
 const pluginOnly = args.includes('--plugin-only');
-const partner = (args.find((a) => a.startsWith('--partner=')) || '--partner=inky').split('=')[1];
+const enable = args.includes('--enable');
+const ID = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8')).id;
 
 const write = (rel, text) => {
   const p = path.join(out, rel);
@@ -30,33 +30,40 @@ const write = (rel, text) => {
 
 /* ── 플러그인 ── */
 
-const pdir = path.join(out, '.obsidian', 'plugins', 'vault-pet');
+const pdir = path.join(out, '.obsidian', 'plugins', ID);
 fs.mkdirSync(path.join(pdir, 'fonts'), { recursive: true });
-for (const f of ['main.js', 'manifest.json', 'styles.css']) fs.copyFileSync(path.join(root, f), path.join(pdir, f));
-for (const f of fs.readdirSync(path.join(root, 'fonts'))) fs.copyFileSync(path.join(root, 'fonts', f), path.join(pdir, 'fonts', f));
+for (const f of ['main.js', 'manifest.json', 'styles.css']) fs.writeFileSync(path.join(pdir, f), fs.readFileSync(path.join(root, f)));
+for (const f of fs.readdirSync(path.join(root, 'fonts'))) if (/^(Pretendard|OFL-Pretendard)/.test(f)) fs.writeFileSync(path.join(pdir, 'fonts', f), fs.readFileSync(path.join(root, 'fonts', f)));
 
 if (pluginOnly) {
-  console.log(`plugin files copied to ${pdir}`);
+  if (enable) {
+    const file = path.join(out, '.obsidian', 'community-plugins.json');
+    let list = [];
+    try {
+      list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      // 없으면 새로
+    }
+    list = [...new Set([...list.filter((x) => x !== 'vault-pet'), ID])];
+    fs.writeFileSync(file, JSON.stringify(list, null, 2));
+  }
+  console.log(`plugin files copied to ${pdir}${enable ? ' (enabled)' : ''}`);
   process.exit(0);
 }
 
 /* ── 설정 ── */
 
 write('.obsidian/app.json', JSON.stringify({ promptDelete: false, alwaysUpdateLinks: true }, null, 2));
-// 옵시디언도 컴퓨터 밝기 설정을 따라가게 (플러그인 기본 테마와 같게)
 write('.obsidian/appearance.json', JSON.stringify({ theme: 'system', baseFontSize: 16 }, null, 2));
-write('.obsidian/community-plugins.json', JSON.stringify(['vault-pet'], null, 2));
-write('.obsidian/core-plugins.json', JSON.stringify({ 'file-explorer': true, 'global-search': true, backlink: true, 'page-preview': true, 'daily-notes': true, 'command-palette': true }, null, 2));
+write('.obsidian/community-plugins.json', JSON.stringify([ID], null, 2));
+write('.obsidian/core-plugins.json', JSON.stringify({ 'file-explorer': true, 'global-search': true, backlink: true, 'page-preview': true, 'daily-notes': true, 'command-palette': true, canvas: true }, null, 2));
 
 /* ── 노트 ── */
 
 const notes = {
   '홈.md': `# 홈
 
-오늘도 한 줄씩. 아래는 같이 쓰는 펫이에요.
-
-\`\`\`vault-pet
-\`\`\`
+오늘도 한 줄씩. 작업 영역 바닥에서 고양이가 같이 써요.
 
 ## 요즘 보는 것
 - [[독서 - 아주 작은 습관의 힘]]
@@ -101,16 +108,16 @@ tags: [독서]
 - [ ] 화면 스케치
 - [ ] 첫 데모
 
-## 메모
-막히면 [[환경 설계]]부터 다시 본다.
+> [!tip] 메모
+> 막히면 [[환경 설계]]부터 다시 본다.
 `,
   '아이디어 모음.md': `# 아이디어 모음
 
-- 노트를 쓸수록 자라는 펫 🥚
+- 글을 쓸수록 자라는 도트 고양이
 - 읽은 책을 지도처럼 잇는 그래프
 - 하루 회고 템플릿
 
-[[프로젝트 - 사이드 앱]]
+[[프로젝트 - 사이드 앱]] #아이디어
 `,
   'Daily/2026-09-18.md': `# 2026-09-18
 
@@ -121,7 +128,7 @@ tags: [독서]
   'Daily/2026-09-19.md': `# 2026-09-19
 
 오늘 할 일
-- [ ] 펫 이름 짓기
+- [ ] 고양이 이름 짓기
 - [ ] [[환경 설계]] 다시 읽기
 `,
   'Templates/일일 노트.md': `# {{date}}
@@ -134,88 +141,52 @@ tags: [독서]
 };
 for (const [rel, text] of Object.entries(notes)) write(rel, text);
 
-/* ── 키워 둔 펫 (--seeded) ── */
+/* ── 키워 둔 고양이 (--seeded) ── */
 
 const dataFile = path.join(pdir, 'data.json');
 if (!seeded) {
-  fs.rmSync(dataFile, { force: true });
+  if (fs.existsSync(dataFile)) fs.unlinkSync(dataFile);
   console.log(`demo vault (fresh) at ${out}`);
   process.exit(0);
 }
 
+const DAY = 24 * 60 * 60 * 1000;
+const now = Date.now();
+const startedAt = now - 21 * DAY;
 const pad = (n) => String(n).padStart(2, '0');
-const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const now = new Date();
-const ago = (n, h = 12) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - n, h);
-
-// 설치한 지 21일. 주말엔 조금, 평일엔 많이
+const hourKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}`;
+// 볼트 맨 위('/') 한 곳에 3주치 기록. 평일 저녁과 주말 오전에 조금씩
 let seed = 7;
-const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-const days = {};
-const hours = new Array(24).fill(0);
-const tot = { c: 0, l: 0, n: 0 };
-for (let i = 21; i >= 1; i--) {
-  if (i === 9 || i === 15) continue; // 쉰 날
-  const d = ago(i);
-  const weekend = d.getDay() === 0 || d.getDay() === 6;
-  const c = Math.round((weekend ? 1400 : 3000) + rnd() * 3000);
-  const l = Math.round(6 + rnd() * 14);
-  const n = Math.round(rnd() * 3);
-  days[dayOf(d)] = { c, l, n, o: Math.round(4 + rnd() * 10) };
-  for (const h of [9, 10, 14, 15, 21, 22]) hours[h] += Math.round((c + l + n) / 6);
-  tot.c += c;
-  tot.l += l;
-  tot.n += n;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const buckets = {};
+const tot = { c: 0, l: 0, n: 0, s: 0 };
+for (let d = 20; d >= 0; d--) {
+  if (rnd() < 0.2) continue;
+  const base = new Date(now - d * DAY);
+  const hours = base.getDay() % 6 === 0 ? [10, 11, 14] : [20, 21];
+  for (const h of hours) {
+    const at = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h);
+    if (at.getTime() > now) continue;
+    const c = Math.round(300 + rnd() * 1400);
+    const l = Math.round(rnd() * 6);
+    const n = rnd() < 0.4 ? 1 : 0;
+    const s = h === hours[0] ? 1 : 0;
+    buckets[hourKey(at)] = { c, l, n, s, v: Math.round(2 + rnd() * 6), e: Math.round(8 + rnd() * 30), t: rnd() < 0.3 ? { tag: 1, done: 1 } : undefined };
+    Object.assign(tot, { c: tot.c + c, l: tot.l + l, n: tot.n + n, s: tot.s + s });
+  }
 }
-hours[1] += 80; // 올빼미 한 번
-// 오늘
-days[dayOf(now)] = { c: 820, l: 5, n: 1, o: 6 };
-tot.c += 820;
-tot.l += 5;
-tot.n += 1;
-hours[now.getHours()] += 826;
-
-const files = {};
-for (const [rel, text] of Object.entries(notes)) files[rel] = [text.replace(/\s/g, '').length, (text.match(/\[\[/g) || []).length, Date.now() + 60_000, 1];
-
-const at = (n) => ago(n, 20).getTime();
-const installedAt = ago(21, 9).getTime();
-const achievements = { friends_3: at(6), first_note: at(21), chars_10k: at(18), streak_3: at(18), streak_7: at(14), links_100: at(9), night_owl: at(12), early_bird: at(19), focus_day: at(17), pet_50: at(4), quest_10: at(3), lv_10: at(10), stage_child: at(5), marathon: at(6) };
-const bonus = [
-  { at: at(3), xp: 60, why: ['quest', 'chars', 800] },
-  { at: at(3), xp: 100, why: ['allclear'] },
-  { at: at(2), xp: 80, why: ['attend', 12] },
-  { at: at(1), xp: 85, why: ['attend', 13] },
-  { at: at(1), xp: 40, why: ['quest', 'links', 3] },
-  { at: at(0), xp: 90, why: ['attend', 14] },
-  { at: at(0), xp: 30, why: ['quest', 'poke', 5] },
-];
-// 업적 보너스도 넣는다
-const ACH_XP = { friends_3: 150, first_note: 50, chars_10k: 100, streak_3: 100, streak_7: 250, links_100: 100, night_owl: 100, early_bird: 100, focus_day: 200, pet_50: 100, quest_10: 200, lv_10: 100, stage_child: 150, marathon: 150 };
-for (const [id, t] of Object.entries(achievements)) bonus.unshift({ at: t, xp: ACH_XP[id], why: ['badge', id] });
-// 매일 출석·퀘스트 보너스를 조금씩
-for (let i = 21; i >= 4; i--) if (days[dayOf(ago(i))]) bonus.unshift({ at: at(i), xp: 110, why: ['attend', 21 - i] });
-
-// 도감: 지금 파트너는 설치한 날부터 자랐고, 나머지 둘은 쉬는 중
-const NAMES = { inky: '잉키', purrl: '냥타래', sprig: '새록이', ember: '모닥이', dewey: '듀이' };
-const pet = (o) => ({ mode: 'fresh', startStage: 0, base: null, since: 0, startXp: 0, frozen: 0, color: 'natural', accessory: 'none', metAt: at(21), best: 0, ...o });
-const party = { [partner]: pet({ name: NAMES[partner], since: installedAt, metAt: installedAt, accessory: 'glasses', best: 2 }) };
-for (const [k, o] of [['purrl', { frozen: 2400, accessory: 'scarf', best: 1, metAt: at(9) }], ['ember', { frozen: 320, best: 0, metAt: at(3) }], ['inky', { frozen: 1100, best: 1, metAt: at(12) }]]) {
-  if (Object.keys(party).length < 3 && !party[k]) party[k] = pet({ name: NAMES[k], ...o });
-}
-
 const data = {
-  schema: 3,
-  settings: { language: 'ko', theme: 'system', showWidget: true, roam: true, scale: 2, excludedFolders: ['Templates'] },
+  version: 1,
+  settings: { petName: '킷', language: 'ko', scale: 3, outfit: { neck: 'scarf', face: 'glasses' }, accessory: 'glasses,scarf' },
   state: {
-    partner, party, picked: true, installedAt,
-    pokes: 64, pokesDay: dayOf(now), pokesToday: 5, mealsTaken: 3, restsTaken: 6, maxStreakMin: 150,
-    bonus: bonus.sort((a, b) => a.at - b.at), achievements,
-    items: ['none', 'sprout', 'ribbon', 'glasses', 'headphones', 'quill', 'nightcap', 'party'], colors: ['natural', 'clay', 'mint'],
-    questsDone: 17, attendDay: dayOf(now), initialized: true, onboarded: true, scanned: true,
-    lastLevel: null, lastStage: null, seen: ['i:sprout', 'i:ribbon', 'i:glasses', 'i:headphones', 'i:nightcap', 'i:party', 'c:clay', 'c:mint'],
+    startedAt, onboarded: true, greeted: true, lastLevel: null, lastStage: null,
+    items: ['none', 'glasses', 'scarf', 'sprout', 'ball', 'yarn'],
+    pantry: { churu: 3, tuna: 2, milk: 1 },
+    walletSpent: 900,
+    purchases: [{ at: now - 5 * DAY, key: 'glasses', price: 200 }, { at: now - 3 * DAY, key: 'ball', price: 400 }, { at: now - DAY, key: 'churu', price: 25 }],
   },
-  ledger: { files, days, hours, tot },
+  usage: { files: {}, projects: { '/': { buckets, last: now - DAY } }, lastEdit: now - DAY },
+  meta: { scanned: false, baseline: { c: 0, l: 0, n: 0, s: 0 } },
 };
 fs.writeFileSync(dataFile, JSON.stringify(data));
-console.log(`demo vault (seeded: ${Object.keys(days).length} days, ${tot.c} chars, partner ${partner}) at ${out}`);
+console.log(`demo vault (seeded: ${tot.c} chars, ${tot.l} links, ${tot.n} notes, ${tot.s} sessions) at ${out}`);

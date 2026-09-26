@@ -1,4 +1,5 @@
-Copyright &copy; 2019–2025 Lee Minseo (quiple@quiple.dev)
+Galmuri &copy; 2019-2025 Lee Minseo (quiple@quiple.dev)
+Pretendard &copy; 2021-2024 Kil Hyungjin (orioncactus)
 
 This font software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

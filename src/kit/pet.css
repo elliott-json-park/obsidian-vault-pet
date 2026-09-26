@@ -1,0 +1,426 @@
+:root {
+  --ink: #3a2118;
+  --paper: #fffaf3;
+  --accent: #d97757;
+  --muted: #8b6f60;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
+  cursor: default;
+}
+
+/* 창은 화면 전체다. 고양이 자리(left·bottom)는 pet.js 가 정한다 */
+#pet {
+  position: absolute;
+  z-index: 2;
+  bottom: 0;
+  left: 0;
+  image-rendering: pixelated;
+  cursor: grab;
+}
+
+body.dragging #pet {
+  cursor: grabbing;
+}
+
+/* 떠 있는 고양이의 바닥 그림자 (pet.js 의 updateFloorShadow) */
+#floor-shadow {
+  position: absolute;
+  z-index: 1;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* ---------- 말풍선 ---------- */
+
+.bubble {
+  position: absolute;
+  left: 50%;
+  max-width: 260px;
+  width: max-content;
+  box-sizing: border-box;
+  padding: 7px 10px 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);
+  transform: translateX(-50%) scale(0.6);
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transition: transform 0.18s steps(3), opacity 0.12s;
+  cursor: pointer;
+}
+
+.bubble.show {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+}
+
+/* 꼬리: 도트 계단 모양 */
+.bubble::before,
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border: solid transparent;
+}
+.bubble::before {
+  bottom: -10px;
+  margin-left: -7px;
+  border-width: 8px 7px 0;
+  border-top-color: var(--ink);
+}
+.bubble::after {
+  bottom: -6px;
+  margin-left: -4px;
+  border-width: 5px 4px 0;
+  border-top-color: var(--paper);
+}
+
+.bubble.reward {
+  background: #fff4c7;
+  --paper: #fff4c7;
+}
+.bubble.notify {
+  background: #ffe1d6;
+  --paper: #ffe1d6;
+}
+
+/* 말풍선 왼쪽에 붙는 도트 아이콘 */
+.bubble .ico {
+  float: left;
+  margin: 1px 5px 0 0;
+}
+.bubble .ico:empty {
+  display: none;
+}
+
+.bubble .hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.bubble .hint:empty {
+  display: none;
+}
+
+.loading {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  background: rgba(58, 33, 24, 0.8);
+  color: #fff;
+  font-size: 10px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */
+[hidden]:not(#kc-a):not(#kc-b) {
+  display: none;
+}
+
+/* ---------- 장난감 놀이 ---------- */
+
+body.playing #pet {
+  cursor: default;
+}
+
+/* 바닥에 놓인 것 — 던지는 장난감과 간식이 같은 모양새를 쓴다.
+   고양이보다 위에 있어야 끌어서 집을 수 있다 */
+.toy {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+  cursor: grab;
+  filter: drop-shadow(1px 2px 0 rgba(58, 33, 24, 0.3));
+}
+.toy.held {
+  cursor: grabbing;
+  filter: drop-shadow(2px 4px 0 rgba(58, 33, 24, 0.28));
+}
+
+/* 놀이판: 낚싯줄·깃털·비눗방울·레이저·털실 가닥을 그리는 화면 전체 캔버스. 마우스는 통과시킨다 */
+#field {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 상자·봉투·스크래처는 그림자 대신 바닥에 딱 붙는다 */
+.toy.placed {
+  filter: none;
+}
+
+/* 놀이 안내는 고양이 머리 위에 붙어 다닌다 (자리는 pet.js) */
+.playhint {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  background: rgba(58, 33, 24, 0.75);
+  color: #fff;
+  font-size: 10px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 상자·봉투·스크래처를 톡 두드렸을 때 */
+.toy.knock {
+  animation: knock 0.32s steps(4);
+}
+@keyframes knock {
+  25% {
+    translate: -3px 0;
+  }
+  50% {
+    translate: 3px -2px;
+  }
+  75% {
+    translate: -2px 0;
+  }
+}
+
+/* ---------- 깜짝 이벤트 ---------- */
+
+/* 바닥에 떨어진 보물: 눌러서 줍는다. 살짝 반짝인다 */
+.toy.loot {
+  cursor: pointer;
+  animation: lootGlow 1.4s ease-in-out infinite;
+}
+@keyframes lootGlow {
+  50% {
+    filter: drop-shadow(0 0 3px rgba(255, 236, 160, 0.95)) drop-shadow(1px 2px 0 rgba(58, 33, 24, 0.3));
+  }
+}
+/* 주우면 위로 톡 튀며 사라진다 */
+.toy.collect {
+  animation: lootUp 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes lootUp {
+  to {
+    translate: 0 -34px;
+    scale: 1.5;
+    opacity: 0;
+  }
+}
+/* 보물을 떨어뜨리고 가는 새 */
+.bird {
+  position: absolute;
+  z-index: 3;
+  image-rendering: pixelated;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.bird.left {
+  transform: translate(-50%, -50%) scaleX(-1);
+}
+/* 놀러 온 손님 고양이 (자리는 pet.js) */
+.guest {
+  position: absolute;
+  z-index: 1;
+  bottom: 0;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* ---------- 동네 친구 (7차) ---------- */
+.friend { position: absolute; z-index: 1; bottom: 0; image-rendering: pixelated; cursor: grab; }
+body.dragging .friend { cursor: grabbing; }
+.friend-food { position: absolute; z-index: 1; image-rendering: pixelated; pointer-events: none; }
+.fbubble { z-index: 7; pointer-events: none; }
+.fbubble.cat { background: #fff4e0; }
+/* 친구 카드: 윗줄(이름 칸)이 손잡이. 글자를 키우고 칸마다 옅은 상자로 나눠 한눈에 읽히게 */
+.fcard { position: absolute; z-index: 6; width: 272px; box-sizing: border-box; overflow: hidden; background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: 8px; box-shadow: 4px 4px 0 rgba(58, 33, 24, 0.25); font-size: 13px; line-height: 1.45; }
+.fcard.moving { box-shadow: 6px 7px 0 rgba(58, 33, 24, 0.22); }
+.fcard svg { image-rendering: pixelated; vertical-align: middle; flex: none; }
+.fc-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 8px; background: #f6e3d3; border-bottom: 2px solid var(--ink); cursor: grab; user-select: none; }
+.fcard.moving .fc-head { cursor: grabbing; }
+/* 손잡이 표시: 점 여섯 개 */
+.fc-grip { flex: none; width: 8px; height: 14px; opacity: 0.45;
+  background: radial-gradient(circle, var(--ink) 1.2px, transparent 1.6px) 0 0 / 4px 5px; }
+.fc-id { flex: 1; min-width: 0; }
+.fc-name { font-size: 16px; font-weight: 800; line-height: 1.25; }
+.fc-sp { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-x { flex: none; align-self: flex-start; width: 24px; height: 24px; border: 0; border-radius: 4px; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); }
+.fc-x:hover { background: rgba(58, 33, 24, 0.08); color: var(--ink); }
+.fc-body { padding: 8px 12px 12px; }
+.fc-time { display: inline-flex; gap: 4px; align-items: center; padding: 2px 8px; border-radius: 10px; background: #fbe5dc; color: #a33f25; font-size: 12px; font-weight: 700; }
+.fc-bond { margin-top: 8px; }
+.fc-bond-top { display: flex; align-items: center; gap: 6px; }
+.fc-bond-top b { font-size: 13px; }
+.fc-bond-top .fc-note { margin-left: auto; }
+.fc-hearts { display: inline-flex; gap: 1px; }
+.fc-hearts span { opacity: 0.25; }
+.fc-hearts span.on { opacity: 1; }
+.fc-bar { height: 8px; margin: 5px 0 0; background: #efe3d4; border: 1px solid #e0cdb8; border-radius: 4px; overflow: hidden; }
+.fc-bar i { display: block; height: 100%; background: var(--accent); }
+.fc-sec { margin-top: 10px; padding: 8px 9px 9px; background: #f7eee4; border-radius: 6px; }
+.fc-title { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.fc-title b { font-size: 13.5px; }
+.fc-title small { color: var(--muted); font-size: 11.5px; text-align: right; }
+.fc-title small.lack { color: #a33f25; font-weight: 700; }
+.fc-trade { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.fc-box { flex: 1; display: flex; align-items: center; gap: 6px; padding: 5px 7px; background: #fff; border: 1px solid #e6d6c4; border-radius: 6px; min-width: 0; }
+.fc-box.gift { flex: 0 0 auto; }
+.fc-box > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.fc-box b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-box small { color: var(--muted); font-size: 11.5px; }
+.fc-box small.ok { color: #3f7a3a; font-weight: 700; }
+.fc-box small.lack { color: #a33f25; font-weight: 700; }
+.fc-arrow { color: var(--muted); font-weight: 700; }
+.fc-row { margin-top: 7px; display: flex; gap: 8px; align-items: center; }
+.fc-btn { border: 2px solid var(--ink); background: var(--accent); color: #fff; font: inherit; font-weight: 700; padding: 4px 16px; border-radius: 4px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+.fc-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.fc-btn:disabled { background: #d8cfc4; color: #fff; cursor: default; box-shadow: none; transform: none; }
+.fc-note { color: var(--muted); font-size: 11.5px; }
+.fc-foods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; padding: 0 5px 5px 0; max-height: 118px; overflow-y: auto; }
+.fc-food { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1px solid #e6d6c4; background: #fff; border-radius: 6px; padding: 0; cursor: pointer; font: inherit; }
+.fc-food:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.fc-food:disabled { opacity: 0.4; cursor: default; }
+/* 가진 개수: 오른쪽 아래 작은 딱지 */
+.fc-food small { position: absolute; right: -4px; bottom: -4px; min-width: 16px; padding: 0 3px; border: 1px solid var(--ink); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 14px; }
+
+/* ---------- 함께 하는 놀이 (toyplay4.js): 버튼·말풍선 ---------- */
+
+/* 뿅망치를 든 동안은 진짜 커서를 숨긴다 (놀이판에 망치를 그린다) */
+body.no-cursor,
+body.no-cursor #pet {
+  cursor: none;
+}
+
+.toygame {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  top: 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tg-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 52px;
+  padding: 6px 8px 5px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 2px 2px 0 rgba(58, 33, 24, 0.3);
+  cursor: pointer;
+}
+.tg-btn:hover:not(:disabled) {
+  background: #fff1dc;
+  transform: translateY(-1px);
+}
+.tg-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(58, 33, 24, 0.3);
+}
+.tg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tg-btn.picked:disabled {
+  opacity: 1;
+  background: #ffe2a8;
+}
+.tg-btn.wide {
+  flex-direction: row;
+  min-width: 0;
+  padding: 4px 12px;
+}
+.toygame .pix {
+  image-rendering: pixelated;
+  display: block;
+}
+
+/* 가위바위보: 고양이 옆 버튼판 */
+.rps-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.rps-btns {
+  display: flex;
+  gap: 6px;
+}
+.rps-rec {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(58, 33, 24, 0.78);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* 서로 낸 것 (말풍선) */
+.rps-bubble {
+  padding: 6px 8px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rps-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  margin-left: -6px;
+  border: solid transparent;
+  border-width: 7px 6px 0;
+  border-top-color: var(--ink);
+}
+.rps-result {
+  padding: 3px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--ink);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.rps-result.win {
+  background: #3d8c5a;
+}
+.rps-result.lose {
+  background: #b0413a;
+}

@@ -1,10 +1,10 @@
 {
-  "id": "vault-pet",
-  "name": "Vault Pet",
-  "version": "0.4.0",
+  "id": "kit-commit",
+  "name": "Kit Commit",
+  "version": "1.0.4",
   "minAppVersion": "1.5.0",
-  "description": "A pixel partner that grows as you write. Pick one of five friends, and characters, links and new notes become XP, with daily quests, badges, a dex, streaks and accessories to unlock.",
+  "description": "Raise a pixel cat that grows as you write. Every word earns XP and coins for 260+ costumes, toys and mini-games, with daily quests, 154 badges and visiting neighbor cats.",
   "author": "Elliott Park",
   "authorUrl": "https://github.com/elliott-json-park",
-  "isDesktopOnly": false
+  "isDesktopOnly": true
 }
