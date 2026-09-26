@@ -110,6 +110,8 @@ class KitFrame {
     // preload 가 넣어 주던 window.pet (+ 하우스가 처음 열 탭)
     win.pet = this.api();
     if (opts.tab) win.KC_TAB = opts.tab;
+    // 하우스가 '이미 본 것'(새로 열림·NEW 표시)을 기억하는 곳. 플러그인 data.json 에 둔다
+    win.KC_STORE = { get: (k) => this.host.uiGet(k), set: (k, v) => this.host.uiSet(k, v) };
     win.KC_OBSIDIAN = true;
     this.run();
     return iframe;

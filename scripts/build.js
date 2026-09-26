@@ -157,7 +157,7 @@ const RUN = `function run(window, document, pet, kind) {
   var setInterval = window.setInterval.bind(window), clearInterval = window.clearInterval.bind(window);
   var requestAnimationFrame = window.requestAnimationFrame.bind(window), cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
   var getComputedStyle = window.getComputedStyle.bind(window), confirm = window.confirm.bind(window);
-  var performance = window.performance, localStorage = window.localStorage, history = window.history, location = window.location;
+  var performance = window.performance, history = window.history, location = window.location;
   var AudioContext = window.AudioContext;
   var ${EXPORTS.join(', ')};
 ${wrap(COMMON)}

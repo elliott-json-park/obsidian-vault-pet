@@ -18,7 +18,7 @@ const { KitHost, STATE_DEFAULTS } = require('./host');
 const { KitFrame } = require('./frame');
 const { PetStage } = require('./stage');
 const PixelArt = require('../kit/pixelart');
-const { UsageTracker, measure, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
+const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 
 const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
@@ -28,16 +28,13 @@ const BURST_DONE = 45_000; // 이만큼은 이어서 써야 '다 썼다' 모션�
 const EMPTY_WAIT = 25_000; // 새로 만든 빈 노트가 이만큼 비어 있으면 느낌표 (데스크톱판의 '허락을 기다린다')
 
 // 사용자가 옵시디언에 설정해 둔 언어 ('ko', 'en', 'ja'…). 처음 설치할 때 고양이 언어를 이걸로 고른다.
-// getLanguage() 는 옵시디언 1.8.7 부터 있다. 그 전에는 옵시디언이 쓰는 localStorage 'language'(비어 있으면 영어)를 본다
+// getLanguage() 는 옵시디언 1.8.7 부터 있다. 그 전에는 옵시디언이 화면 언어에 맞춰 둔 moment 로케일을 본다
 function obsidianLanguage() {
   try {
     if (typeof obsidian.getLanguage === 'function') return String(obsidian.getLanguage() || 'en').toLowerCase();
   } catch {
     // 옛 옵시디언
   }
-  const saved = window.localStorage.getItem('language');
-  if (saved) return saved.toLowerCase();
-  // 옵시디언 화면 언어를 moment 로케일에 맞춰 둔다
   return String((window.moment && window.moment.locale()) || document.documentElement.lang || 'en').toLowerCase();
 }
 
@@ -318,8 +315,25 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 볼트 읽기 ── */
 
+  // 숨김 폴더와, 설정에서 뺀 폴더(맨 윗단)는 읽지도 세지도 않는다
   isExcludedPath(path) {
-    return path.startsWith('.') || path.split('/').some((x) => x.startsWith('.'));
+    if (path.startsWith('.') || path.split('/').some((x) => x.startsWith('.'))) return true;
+    const ex = this.settings.get('excludedProjects') || [];
+    return ex.length > 0 && ex.includes(folderKey(folderOf(path)));
+  }
+
+  // 뺐던 폴더를 다시 넣었다. 그동안 안 읽었으니, 지금 크기를 기준으로만 잡는다 (뺀 동안 쓴 글이 한꺼번에 세지지 않게)
+  async rebaseline(ids) {
+    const want = new Set(ids);
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      if (!want.has(folderKey(folderOf(f.path)))) continue;
+      try {
+        this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+      } catch {
+        // 못 읽으면 다음 기회에
+      }
+    }
+    this.saveSoon();
   }
 
   // 처음 설치했을 때는 볼트 전체를 한 번 읽어, 이미 있던 노트의 크기만 기억한다 (이미 써 둔 글은 세지 않는다).

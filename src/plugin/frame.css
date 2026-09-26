@@ -6,15 +6,8 @@ html.kc-house body {
   height: 100%;
 }
 
-/* 옵시디언판에서 뺀 것: Claude Code 연결·자동 실행 */
-html.kc-house [data-act='hooks'],
-html.kc-house [data-act='unhooks'],
-html.kc-house [data-act='reveal'] {
-  display: none !important;
-}
-
 /* 펫 무대는 투명하다 */
 html.kc-pet,
 html.kc-pet body {
-  background: transparent !important;
+  background: transparent;
 }

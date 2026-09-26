@@ -219,6 +219,17 @@ class KitHost {
 
   // ---------- 하우스 ----------
 
+  // 하우스 화면이 기억하는 작은 값들 (데스크톱판은 창의 저장소에 두던 것)
+  uiGet(key) {
+    const v = (this.state.get('ui') || {})[key];
+    return v === undefined ? null : v;
+  }
+
+  uiSet(key, value) {
+    this.state.set({ ui: { ...(this.state.get('ui') || {}), [key]: String(value) } });
+  }
+
+
   openHouse(tab) {
     this.plugin.openHouse(tab);
   }
@@ -1196,6 +1207,7 @@ class KitHost {
     const before = this.effScale();
     if ('petName' in allowed && allowed.petName !== settings.get('petName')) gamify.count('rename');
     const showBefore = !!settings.get('showPet');
+    const excludedBefore = settings.get('excludedProjects') || [];
     settings.set(allowed);
     if ('outfit' in allowed || allowed.devMode === false) {
       settings.set({ outfit: this.cleanOutfit(settings.get('outfit')) });
@@ -1214,6 +1226,9 @@ class KitHost {
     if (['petName', 'outfit', 'fur', 'soundEnabled', 'language', 'personality', 'motions', 'idleMotions', 'devMode', 'bubblesEnabled'].some((k) => k in allowed)) this.send('pet:config', { ...this.petConfig(), wearMotion });
     if (wearMotion) this.send('pet:action', wearMotion);
     if ('excludedProjects' in allowed) {
+      // 다시 넣은 폴더는 그동안 안 읽었으니 지금 크기로 기준만 잡는다
+      const back = excludedBefore.filter((id) => !(allowed.excludedProjects || []).includes(id));
+      if (back.length && this.plugin.rebaseline) this.plugin.rebaseline(back);
       this.usage.setExcluded(allowed.excludedProjects);
       this.state.set({ lastLevel: null, lastStage: null });
       this.recomputeGrowth();

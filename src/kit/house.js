@@ -860,14 +860,14 @@ function openToyDemo(key) {
 // 해금 알림은 말풍선 없이 이것만 한다. 처음 켰을 때는 이미 열려 있던 것을 다 본 걸로 친다 (한꺼번에 NEW 가 뜨지 않게)
 let seenUnlocks = null;
 try {
-  const raw = localStorage.getItem('kitcommit:seenUnlocks');
+  const raw = window.KC_STORE.get('seenUnlocks');
   if (raw) seenUnlocks = new Set(JSON.parse(raw));
 } catch {
   // 저장소를 못 쓰면 켤 때마다 지금 열린 것부터 센다
 }
 function saveUnlocks() {
   try {
-    localStorage.setItem('kitcommit:seenUnlocks', JSON.stringify([...seenUnlocks]));
+    window.KC_STORE.set('seenUnlocks', JSON.stringify([...seenUnlocks]));
   } catch {
     // 무시
   }
@@ -890,14 +890,14 @@ function markUnlocksSeen(keys) {
 
 let seenItems = new Set();
 try {
-  seenItems = new Set(JSON.parse(localStorage.getItem('kitcommit:seenItems') || '[]'));
+  seenItems = new Set(JSON.parse(window.KC_STORE.get('seenItems') || '[]'));
 } catch {
   // 저장소를 못 쓰면 매번 새로 본다
 }
 function markItemsSeen() {
   for (const it of D.game.items) if (it.unlocked) seenItems.add(it.key);
   try {
-    localStorage.setItem('kitcommit:seenItems', JSON.stringify([...seenItems]));
+    window.KC_STORE.set('seenItems', JSON.stringify([...seenItems]));
   } catch {
     // 무시
   }

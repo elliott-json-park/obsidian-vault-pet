@@ -238,7 +238,6 @@ button {
   margin-top: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
 }
 .tabs::-webkit-scrollbar {
   display: none;
@@ -979,10 +978,6 @@ h3.sub small {
   border-radius: 4px;
   cursor: pointer;
 }
-.radio:has(input:checked) {
-  border-color: var(--accent);
-  background: rgba(217, 119, 87, 0.08);
-}
 .radio small {
   display: block;
   color: var(--muted);
@@ -1096,8 +1091,9 @@ code {
   z-index: 20;
 }
 
-[hidden] {
-  display: none !important;
+/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */
+[hidden]:not(#kc-a):not(#kc-b) {
+  display: none;
 }
 
 input {
@@ -2738,18 +2734,16 @@ input:focus-visible {
   }
 }
 
-/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼 다섯 줄을 subgrid 로 같은 줄 카드끼리 맞춘다.
-   이름이 한 줄이든 두 줄이든, 효과가 있든 없든 줄 사이 간격은 늘 6px 이고 가격·버튼 줄이 가지런하다 */
+/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼을 세로로 쌓는다. 같은 줄 카드는 높이가 같으니(그리드가 늘린다)
+   가격·버튼을 맨 아래로 밀어서 가지런히 둔다. [옵시디언] 옵시디언 리뷰에 맞춰 flex 로 바꿨다 */
 .wardrobe.shop-grid {
   row-gap: 12px;
 }
 .shop-grid > .panel.item {
-  display: grid;
-  grid-row: span 5;
-  grid-template-rows: subgrid;
-  row-gap: 6px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-items: center;
+  gap: 6px;
   padding: 10px 8px;
 }
 .shop-grid > .item > * {
@@ -2760,15 +2754,14 @@ input:focus-visible {
 }
 /* 이름은 아래(효과 쪽)에 붙인다: 한 줄짜리 이름이면 남는 칸은 그림 쪽으로 가서 이름·효과·가격·버튼 간격이 늘 같다 */
 .shop-grid > .item .nm {
-  align-self: end;
   line-height: 1.35;
+  text-align: center;
 }
 .shop-grid > .item .fx {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  align-self: start;
 }
 .shop-grid > .item .fx > * {
   margin: 0;
@@ -2777,35 +2770,30 @@ input:focus-visible {
   display: block;
 }
 .shop-grid > .item .price {
-  align-self: end;
-  margin: 0;
+  margin: auto 0 0;
   padding: 0;
 }
 .shop-grid > .item .hint,
 .shop-grid > .item .hint:empty {
   display: flex;
-  align-self: start;
   min-height: 24px;
 }
 .shop-grid > .item .btn.buy {
   margin: 0;
 }
 
-/* 보물 공방 카드: 그림 · 이름 · 재료 · 버튼 네 줄을 subgrid 로 같은 줄 카드끼리 맞춘다.
-   재료가 두 줄이든 네 줄이든 버튼은 같은 높이, 요소 사이는 늘 10px */
+/* 보물 공방 카드: 그림 · 이름 · 재료 · 버튼을 세로로 쌓고, 버튼은 맨 아래로 밀어 같은 줄 카드끼리 맞춘다 (요소 사이 10px).
+   [옵시디언] flex 로 쌓는다 */
 .wardrobe.ws-grid {
   row-gap: 14px;
 }
 .ws-grid > .panel.ws-card {
-  display: grid;
-  grid-row: span 4;
-  grid-template-rows: subgrid;
-  /* 칸 너비를 카드 안으로 묶는다. 없으면 줄바꿈 안 하는 재료 이름 길이만큼 칸이 넓어져서
-     재료 상자와 긴 이름이 카드 오른쪽 테두리 밖으로 삐져나갔다 */
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 카드 너비를 넘지 않게 (줄바꿈 안 하는 재료 이름이 테두리 밖으로 삐져나가지 않게) */
   min-width: 0;
-  row-gap: 10px;
-  justify-items: center;
+  gap: 10px;
   padding: 12px 10px;
 }
 .ws-grid > .ws-card > * {
@@ -2817,7 +2805,6 @@ input:focus-visible {
   align-self: center;
 }
 .ws-grid > .ws-card .nm {
-  align-self: end;
   line-height: 1.35;
   text-align: center;
   word-break: keep-all;
@@ -2847,7 +2834,7 @@ input:focus-visible {
 }
 .ws-grid > .ws-card .hint {
   display: flex;
-  align-self: end;
+  margin-top: auto;
   justify-content: center;
   align-items: center;
   gap: 6px;

@@ -134,8 +134,9 @@ body.dragging #pet {
   pointer-events: none;
 }
 
-[hidden] {
-  display: none !important;
+/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */
+[hidden]:not(#kc-a):not(#kc-b) {
+  display: none;
 }
 
 /* ---------- 장난감 놀이 ---------- */

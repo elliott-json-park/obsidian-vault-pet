@@ -132,6 +132,15 @@ Kit Commit is desktop only, since petting, dragging and right-clicking your cat 
 - What is saved: for each note, its longest-ever character and link counts and a few feature counts; hourly writing totals per top-level folder; and your cat. All of it lives in `.obsidian/plugins/kit-commit/data.json`.
 - A PNG is only created in your vault when you press **Save image** on the show-off card.
 
+### What Kit Commit accesses, and why
+
+| Access | Why | When |
+|---|---|---|
+| **List of notes in your vault** | To remember how long each note already is, so writing you did before installing never counts, and to catch up on notes changed while Obsidian was closed | Once on first run, then only notes whose modified time changed. Folders you untick in the settings are skipped |
+| **Reading notes** | To count new characters, links, tags, tasks, headings, embeds and callouts | Only when a note changes. Contents are never stored |
+| **Clipboard (write only)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them. Kit Commit never reads your clipboard |
+| **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/kit-commit/data.json`. Nothing is kept in browser storage |
+
 ## FAQ
 
 **Will old notes level up my cat?** No. Growth starts when you install. Adding to an old note later counts, but only the new part.
