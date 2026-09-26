@@ -578,8 +578,8 @@ function showMotionPeek(el, e) {
     <div class="st">${state}</div>`;
   document.body.appendChild(box);
   const r = box.getBoundingClientRect();
-  box.style.left = `${Math.max(8, Math.min(innerWidth - r.width - 8, e.clientX + 14))}px`;
-  box.style.top = `${Math.max(8, Math.min(innerHeight - r.height - 8, e.clientY + 14))}px`;
+  box.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, e.clientX + 14))}px`;
+  box.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, e.clientY + 14))}px`;
   const m = mini(box.querySelector('canvas'));
   if (m.demo) m.play(m.demo);
   minis.push(m);
@@ -659,8 +659,8 @@ function showToyPeek(key, e) {
     <div class="st">${esc(t('toyHow.' + key))}</div>`;
   document.body.appendChild(box);
   const r = box.getBoundingClientRect();
-  box.style.left = `${Math.max(8, Math.min(innerWidth - r.width - 8, e.clientX + 14))}px`;
-  box.style.top = `${Math.max(8, Math.min(innerHeight - r.height - 8, e.clientY + 14))}px`;
+  box.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, e.clientX + 14))}px`;
+  box.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, e.clientY + 14))}px`;
   const m = mini(box.querySelector('canvas'));
   m.seq = TOY_PEEK[key] || ['pounce'];
   m.seqAt = 0;

@@ -111,23 +111,20 @@ class KitFrame {
     win.pet = this.api();
     if (opts.tab) win.KC_TAB = opts.tab;
     win.KC_OBSIDIAN = true;
-    this.run(ASSETS.commonScript + '\n;\n' + (this.kind === 'pet' ? ASSETS.petScript : ASSETS.houseScript));
+    this.run();
     return iframe;
   }
 
-  // 화면 코드를 한 번에 올린다. 한 스크립트로 이어 붙여야 데스크톱판처럼 파일끼리 맨 위 이름(const sprite 등)을 같이 쓴다
-  run(code) {
+  // 화면 코드를 돌린다. 데스크톱판 스크립트들을 빌드할 때 한 함수로 묶어 두었고(scripts/build.js 의 run),
+  // iframe 의 window·document·window.pet 을 넘겨서 부른다. 런타임에 스크립트를 꽂거나 eval 하지 않는다
+  run() {
     const win = this.win;
-    const d = win.document;
-    win.__kcLoaded = false;
     try {
-      const s = d.createElement('script');
-      s.textContent = code + '\n;window.__kcLoaded = true;';
-      d.body.appendChild(s);
+      ASSETS.run(win, win.document, win.pet, this.kind);
+      win.__kcLoaded = true;
     } catch (e) {
-      console.error('[Kit Commit] script', e);
+      console.error('[Kit Commit] screen', e);
     }
-    if (!win.__kcLoaded) console.error('[Kit Commit] screen script did not load');
   }
 
   // 부모 쪽 값을 iframe 쪽 값으로 옮긴다 (배열·객체가 iframe 안에서도 제 것으로 보이게. IPC 가 복사해 주던 것과 같다)

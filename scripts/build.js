@@ -123,9 +123,6 @@ const assets = {
   petCss: read('kit/pet.css'),
   houseCss: themeCss(read('kit/house.css')),
   frameCss: FRAME_CSS,
-  commonScript: join(COMMON),
-  petScript: join(PET),
-  houseScript: join(HOUSE),
 };
 
 // ---------- 모듈 묶기 ----------
@@ -145,7 +142,33 @@ walk('plugin');
 // 호스트(플러그인) 쪽에서도 쓰는 화면 코드: 글(i18n + 옵시디언판 글)과 도트 아이콘
 add('kit/i18n', read('kit/i18n.js') + '\n;\n' + read('kit/i18n-obsidian.js'));
 add('kit/pixelart', read('kit/pixelart.js'));
-add('plugin/kit-assets', `module.exports = ${JSON.stringify(assets)};`);
+// 화면 코드는 글자로 넣었다가 iframe 에 스크립트로 꽂지 않고, 보통 함수로 묶어 둔다 (옵시디언 자동 리뷰가 런타임 스크립트 주입을 막는다).
+// run(window, document, pet, kind) 를 부르면 iframe 의 window·document 를 쥐고 데스크톱판 화면 코드가 그대로 돈다.
+// 전역처럼 쓰던 이름(타이머·storage·모듈 이름)은 함수 안 변수로 iframe 쪽 것을 가리키게 한다
+const EXPORTS = ['PetSprite', 'PixelArt', 'I18N', 'PetFriends', 'PetToys', 'PetSound', 'ToyKit'];
+const sync = EXPORTS.map((n) => `if (window.${n} !== undefined) ${n} = window.${n};`).join(' ');
+const wrap = (list) => list.map((f) => `/* ${f} */
+${read(f)}
+;${sync}`).join('\n');
+const RUN = `function run(window, document, pet, kind) {
+  var module, exports, require;
+  var globalThis = window, self = window;
+  var setTimeout = window.setTimeout.bind(window), clearTimeout = window.clearTimeout.bind(window);
+  var setInterval = window.setInterval.bind(window), clearInterval = window.clearInterval.bind(window);
+  var requestAnimationFrame = window.requestAnimationFrame.bind(window), cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+  var getComputedStyle = window.getComputedStyle.bind(window), confirm = window.confirm.bind(window);
+  var performance = window.performance, localStorage = window.localStorage, history = window.history, location = window.location;
+  var AudioContext = window.AudioContext;
+  var ${EXPORTS.join(', ')};
+${wrap(COMMON)}
+  if (kind === 'pet') {
+${wrap(PET)}
+  } else {
+${wrap(HOUSE)}
+  }
+}`;
+add('plugin/kit-assets', `module.exports = ${JSON.stringify(assets)};
+module.exports.run = ${RUN};`);
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 let out = `/*
@@ -153,7 +176,6 @@ let out = `/*
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
-'use strict';
 const __ext = require;
 const __defs = {};
 const __cache = {};
@@ -189,4 +211,4 @@ out += `\nmodule.exports = __require('plugin/main')('./main');\n`;
 fs.writeFileSync(path.join(root, 'main.js'), out);
 fs.writeFileSync(path.join(root, 'styles.css'), read('plugin/styles.css'));
 const kb = (n) => (n / 1024).toFixed(0) + ' KB';
-console.log(`main.js ${kb(out.length)} (common ${kb(assets.commonScript.length)}, pet ${kb(assets.petScript.length)}, house ${kb(assets.houseScript.length)})`);
+console.log(`main.js ${kb(out.length)}`);
