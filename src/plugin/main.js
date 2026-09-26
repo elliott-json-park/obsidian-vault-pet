@@ -637,7 +637,8 @@ class KitCommitPlugin extends Plugin {
     this._status = key;
     el.empty();
     const ic = el.createSpan({ cls: 'kitcommit-status-icon' });
-    ic.innerHTML = PixelArt.svg(this.host.isQuiet() ? 'bellOff' : 'paw', 14);
+    const svg = new DOMParser().parseFromString(PixelArt.svg(this.host.isQuiet() ? 'bellOff' : 'paw', 14).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement;
+    ic.appendChild(document.importNode(svg, true));
     el.createSpan({ text });
     el.setAttribute('aria-label', this.host.T.t('obs.statusTip'));
   }

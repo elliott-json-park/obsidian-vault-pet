@@ -1,5 +1,5 @@
 /*
- * Kit Commit 1.0.0 — Obsidian plugin (built 2026-09-26)
+ * Kit Commit 1.0.1 — Obsidian plugin (built 2026-09-26)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -3390,9 +3390,14 @@ class KitFrame {
     const d = win.document;
     const css = (this.kind === 'pet' ? ASSETS.petCss : ASSETS.houseCss) + '\n' + (opts.fontCss || '') + '\n' + ASSETS.frameCss;
     const body = this.kind === 'pet' ? ASSETS.petBody : ASSETS.houseBody;
-    d.open();
-    d.write(`<!doctype html><html lang="ko" class="${opts.dark ? 'theme-dark' : 'theme-light'} kc-${this.kind}"><head><meta charset="utf-8"><title>Kit Commit</title><style>${css}</style></head><body>${body}</body></html>`);
-    d.close();
+    // 빈 iframe(about:blank) 문서에 화면 뼈대를 넣는다. 글은 전부 이 플러그인이 가진 고정 HTML 이다
+    const parsed = new win.DOMParser().parseFromString(`<!doctype html><html><head><meta charset="utf-8"><title>Kit Commit</title></head><body>${body}</body></html>`, 'text/html');
+    d.replaceChild(d.importNode(parsed.documentElement, true), d.documentElement);
+    d.documentElement.lang = 'ko';
+    d.documentElement.className = `${opts.dark ? 'theme-dark' : 'theme-light'} kc-${this.kind}`;
+    const style = d.createElement('style');
+    style.textContent = css;
+    d.head.appendChild(style);
     // preload 가 넣어 주던 window.pet (+ 하우스가 처음 열 탭)
     win.pet = this.api();
     if (opts.tab) win.KC_TAB = opts.tab;
@@ -3413,14 +3418,7 @@ class KitFrame {
     } catch (e) {
       console.error('[Kit Commit] script', e);
     }
-    // 인라인 스크립트가 막힌 환경이면 eval 로 한 번 더
-    if (!win.__kcLoaded) {
-      try {
-        win.eval(code + '\n;window.__kcLoaded = true;');
-      } catch (e) {
-        console.error('[Kit Commit] eval', e);
-      }
-    }
+    if (!win.__kcLoaded) console.error('[Kit Commit] screen script did not load');
   }
 
   // 부모 쪽 값을 iframe 쪽 값으로 옮긴다 (배열·객체가 iframe 안에서도 제 것으로 보이게. IPC 가 복사해 주던 것과 같다)
@@ -5379,7 +5377,8 @@ class KitCommitPlugin extends Plugin {
     this._status = key;
     el.empty();
     const ic = el.createSpan({ cls: 'kitcommit-status-icon' });
-    ic.innerHTML = PixelArt.svg(this.host.isQuiet() ? 'bellOff' : 'paw', 14);
+    const svg = new DOMParser().parseFromString(PixelArt.svg(this.host.isQuiet() ? 'bellOff' : 'paw', 14).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement;
+    ic.appendChild(document.importNode(svg, true));
     el.createSpan({ text });
     el.setAttribute('aria-label', this.host.T.t('obs.statusTip'));
   }
