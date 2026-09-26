@@ -1,5 +1,5 @@
 /*
- * Kit Commit 1.0.1 — Obsidian plugin (built 2026-09-26)
+ * Kit Commit 1.0.2 — Obsidian plugin (built 2026-09-26)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
