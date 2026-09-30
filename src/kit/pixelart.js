@@ -1678,6 +1678,475 @@
     ],
   };
 
+  // ---------- 4차 (2026-09-26): 프리미엄 밥 9 + 간식 9. 상점 카드에서 움직인다 ----------
+  // 정지 그림(우클릭 메뉴·바닥에 떨어진 먹이)은 첫 프레임. 움직임은 FOOD_ANIM 이 프레임마다 얹는 점들이다
+  const steam = (cols, bottom, h, f) => {
+    const out = [];
+    cols.forEach((c, i) => {
+      for (let k = 0; k < h; k++) {
+        const s = k + f + i;
+        if (s % 3 === 0) continue;
+        out.push([c + [0, 1, 1, 0][s % 4], bottom - k, k > h / 2 ? 'G' : 'g']);
+      }
+    });
+    return out;
+  };
+  const sparkle = (points, f) => {
+    const p = points[f % points.length];
+    if (!p) return [];
+    const [x, y] = p;
+    return [[x, y, 'H'], [x - 1, y, 'Y'], [x + 1, y, 'Y'], [x, y - 1, 'Y'], [x, y + 1, 'Y']];
+  };
+  const rep = (s, n) => s.repeat(Math.max(0, n));
+  // 빈 칸 중 색칠된 칸과 맞닿은 곳을 외곽선(K)으로. 코드로 찍는 그림에 쓴다
+  const outline = (rows) => {
+    const g = rows.map((r) => r.split(''));
+    const filled = (x, y) => y >= 0 && y < 16 && x >= 0 && x < 16 && rows[y][x] !== '.' && rows[y][x] !== 'K';
+    return g.map((r, y) => r.map((ch, x) => (ch === '.' && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1)) ? 'K' : ch)).join(''));
+  };
+
+  const PREM = {
+    samgyetang: [
+      '................',
+      '................',
+      '................',
+      '.....KKKKKK.....',
+      '....KSWWSSsK....',
+      '...KSWSSSSSsK...',
+      '..KKSSSSSSSssKK.',
+      '.KUUKsSSSSssKNUK',
+      'KUWUUKKKKKKKRNUK',
+      'KUUUSsUUUURRUUUK',
+      'KKKKKKKKKKKKKKKK',
+      'KCCCCCCCCCCCCCcK',
+      '.KcCcccccccccXK.',
+      '.KccccccccccXXK.',
+      '..KKKKKKKKKKKK..',
+      '................',
+    ],
+    otoroOmakase: [
+      '................',
+      '................',
+      '................',
+      '.KKKKK..KKKKK...',
+      'KQPYPPKKQPYPPK..',
+      'KPPQPQKKPPQPQK..',
+      'KpPpPpKKpPpPpK..',
+      'KWWWWwKKWWWWwK..',
+      'KwWWwwKKwWWwwKNN',
+      '.KKKKK..KKKKK.nn',
+      'KKKKKKKKKKKKKKKK',
+      'KXDXXXXXXXXXXXXK',
+      'KyYYYYYYYYYYYYyK',
+      'KXXXXXXXXXXXXXXK',
+      '.KK..........KK.',
+      '................',
+    ],
+    roomService: [
+      '................',
+      '................',
+      '.......KK.......',
+      '......KYyK......',
+      '....KKKKKKKK....',
+      '...KGHHGGGGgK...',
+      '..KGHWGGGGGGgK..',
+      '.KGHWGGGGGGGGgK.',
+      '.KGWGGGGGGGGGgK.',
+      '.KGGGGGGGGGGggK.',
+      '.KgGGGGGGGGgggK.',
+      'KKKKKKKKKKKKKKKK',
+      'KWHWWWWWWWWWWWGK',
+      '.KGWWWWWWWWWWGK.',
+      '..KKKKKKKKKKKK..',
+      '................',
+    ],
+    roomServiceOpen: [
+      '..KKKKKKKKK.....',
+      '.KGHHGGGGGgK....',
+      'KKKKKKKKKKKKK...',
+      '................',
+      '................',
+      '................',
+      '................',
+      '...KKKKK.KKKK...',
+      '..KCcCCCKRZRRK..',
+      '.KCCCcCCKRRRrNK.',
+      '.KcCCCcCKrRrNnK.',
+      'KKKKKKKKKKKKKKKK',
+      'KWHWWWWWWWWWWWGK',
+      '.KGWWWWWWWWWWGK.',
+      '..KKKKKKKKKKKK..',
+      '................',
+    ],
+    firstClassMeal: [
+      '................',
+      '................',
+      '...........KKK..',
+      '...........KYK..',
+      '...KKKKK...KYK..',
+      '..KWWWWWK..KHK..',
+      '.KWKKKKKWK.KYK..',
+      'KWKCcCCNKWK.K...',
+      'KWKcCCNnKWK.K...',
+      '.KWKKKKKWK.KKK..',
+      '..KWWWWWK.......',
+      'KKKKKKKKKKKKKKKK',
+      'KbbYbbbbbbbbYbbK',
+      'KyyyyyyyyyyyyyyK',
+      '.KKKKKKKKKKKKKK.',
+      '................',
+    ],
+    hanwooSteak: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '..KKKKKKKKKK....',
+      '.KDgggggggDDK...',
+      'KDgKKKKKKKKDDK..',
+      'KDKCSCYCSCCKDKKK',
+      'KDKCcSCCcSCKDTTK',
+      'KDKSCCcSNCcKDKKK',
+      'KDgKKKKKKKKDDK..',
+      '.KDDDDDDDDDDK...',
+      '..KKKKKKKKKK....',
+      '................',
+      '................',
+    ],
+    spaceFood: [
+      '................',
+      '......KKKK......',
+      '......KDgK......',
+      '.....KKKKKK.....',
+      '....KgGHWGgK....',
+      '....KGHWGGgK....',
+      '....KbbbbHbK....',
+      '....KbbOObbK....',
+      '....KYYOOYYK....',
+      '....KbbooHbK....',
+      '....KbbbbbbK....',
+      '....KGHWGGgK....',
+      '....KKKKKKKK....',
+      '....KGKGKGKK....',
+      '....KKKKKKKK....',
+      '................',
+    ],
+    royalTable: [
+      '................',
+      '................',
+      '................',
+      '..KKKK....KKKK..',
+      '.KWWHWK..KUBUBK.',
+      '.KYHYYK..KYHYYK.',
+      '.KyYYyK..KyYYyK.',
+      'KNnKOoKRZKMmKTtK',
+      'KyyKyyKyyKyyKyyK',
+      'KKKKKKKKKKKKKKKK',
+      'KZRRRRRRRRRRRRRK',
+      'KrRYRRRRRRRRYRrK',
+      '.KrK........KrK.',
+      '.KrK........KrK.',
+      '.KKK........KKK.',
+      '................',
+    ],
+    dragonKingFeast: [
+      '................',
+      '................',
+      '........P.......',
+      '........P.......',
+      '......KKKKK.....',
+      '....KKRZRRrK..KK',
+      '...KRZZRRRRrKKRK',
+      '..KRHKRRRRRRRrRK',
+      '.KPRRRRZRRRRRRrK',
+      '..KAAAARRRRRrrRK',
+      '...KrRrRrRrrKKrK',
+      '.PP.KKKKKKKKNNKK',
+      'KKKKKKKKKKKKKKKK',
+      'KYBUBBBBBBBUBBYK',
+      '.KyyyyyyyyyyyyK.',
+      '..KKKKKKKKKKKK..',
+    ],
+    fortuneCookie: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '.....KKKKKK.....',
+      '...KKTTSSTTKK...',
+      '..KTTSSTTTTTtK..',
+      '.KTSTTTKKTTTTtK.',
+      'KTSTTTKWWKTTTtK.',
+      'KTTTTK.RW.KTttK.',
+      '.KtTK..WW..KtK..',
+      '..KK........KK..',
+      '................',
+      '................',
+      '................',
+    ],
+    mysteryBox: [
+      '................',
+      '................',
+      '....KK....KK....',
+      '...KYyK..KyYK...',
+      '....KYYKKYYK....',
+      '.....KKyyKK.....',
+      '.KKKKKKYYKKKKKK.',
+      'KVHHVVVYYVVVVVvK',
+      'KvvvvvvyyvvvvvvK',
+      'KKKKKKKKKKKKKKKK',
+      '.KVVVVWWWVVVVvK.',
+      '.KVVVVVVVWVVVvK.',
+      '.KVVVVVVWVVVVvK.',
+      '.KVVVVVVVVVVVvK.',
+      '.KvvvvvvWvvvvvK.',
+      '.KKKKKKKKKKKKKK.',
+    ],
+    cloudMallow: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '.....KKKK.......',
+      '....KHWWWK.KK...',
+      '..KKKWWWWWKWWK..',
+      '.KWHWWWWWWWWWUK.',
+      'KWWWWKWWWWKWWWUK',
+      'KWWPWWWKKWWPWUUK',
+      '.KUWWWWWWWWWUUK.',
+      '..KKKKKKKKKKKK..',
+      '................',
+      '................',
+      '................',
+      '................',
+    ],
+    inviteCookie: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '.KKKKKKKKKKKKKK.',
+      '.KWSSSSSSSSSSWK.',
+      '.KTWTTTTTTTTWtK.',
+      '.KTTWRRTTRRWTtK.',
+      '.KTTTZRRRRRTTtK.',
+      '.KTTTTRRRRTTTtK.',
+      '.KtTTTTRRTTTttK.',
+      '.KttttttttttttK.',
+      '.KKKKKKKKKKKKKK.',
+      '................',
+      '................',
+    ],
+    dragonCandy: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '.....KKKKKK.....',
+      '....KRRZRRrK....',
+      '...KRZHRRRRrK...',
+      '...KRRYYYYRrK...',
+      '...KRYRRRYRrK...',
+      '...KRYRYYRYrK...',
+      '....KrRRRYrK....',
+      '.....KKKKKK.....',
+      '.....KPKWKPK....',
+      '.......KW.......',
+      '.......KW.......',
+      '.......KK.......',
+    ],
+    goldMouseChoco: [
+      '................',
+      '................',
+      '................',
+      '.......KKKK.....',
+      '......KYPPyK....',
+      '......KYPPyK....',
+      '.....KKKYYyKK...',
+      '...KKYYHYYYYYK..',
+      '..KYYKYYHYYYYyK.',
+      'gKYYYYYYYYYYyyK.',
+      'KPYYYYYYYYYyyyK.',
+      'gKKyyyyyyyyyyK..',
+      '..KTtTtTtTtTtK..',
+      '...KtTtTtTtTK...',
+      '....KKKKKKKK....',
+      '................',
+    ],
+  };
+
+  // 츄르 마카롱 10개 피라미드 (1·2·3·4)
+  PREM.macaronTower = (() => {
+    const g = Array.from({ length: 16 }, () => Array(16).fill('.'));
+    const cols = [['P', 'p'], ['M', 'm'], ['Y', 'y'], ['V', 'v'], ['A', 'a'], ['B', 'b'], ['Q', 'P'], ['N', 'n'], ['P', 'p'], ['Y', 'y']];
+    let i = 0;
+    [[6], [4, 8], [2, 6, 10], [0, 4, 8, 12]].forEach((xs, lv) => {
+      xs.forEach((x0) => {
+        const [c, d] = cols[i++];
+        const y0 = 1 + lv * 3;
+        g[y0][x0 + 1] = c; g[y0][x0 + 2] = c; g[y0][x0 + 3] = c;
+        g[y0][x0 + 1] = 'H';
+        g[y0 + 1][x0 + 1] = 'W'; g[y0 + 1][x0 + 2] = 'W'; g[y0 + 1][x0 + 3] = 'W';
+        g[y0 + 2][x0 + 1] = d; g[y0 + 2][x0 + 2] = d; g[y0 + 2][x0 + 3] = d;
+      });
+    });
+    for (let x = 0; x < 16; x++) g[13][x] = x === 0 || x === 15 ? '.' : x < 3 || x > 12 ? 'y' : 'Y';
+    return outline(g.map((r) => r.join('')));
+  })();
+
+  // 애프터눈 티 3단 트레이: 딸기 케이크 / 마카롱 셋 / 스콘·오이 샌드위치
+  PREM.afternoonTea = [
+    '.......KK.......',
+    '......KYYK......',
+    '......KRRK......',
+    '.....KWQQWK.....',
+    '....KWWWWWWK....',
+    '.....KKyyKK.....',
+    '...KPPKMMKYYK...',
+    '...KppKmmKyyK...',
+    '..KWWWWWWWWWWK..',
+    '...KKKKyyKKKK...',
+    '.KTTKNWNKTTKNWK.',
+    '.KttKSSSKttKSSK.',
+    'KWWWWWWWWWWWWWWK',
+    '.KKKKKKyyKKKKKK.',
+    '......KYYK......',
+    '.....KKKKKK.....',
+  ];
+
+  // 참치 아이스크림 5단콘: 스쿱마다 아래가 볼록해서 층이 보인다
+  PREM.tunaCone = [
+    '.....KKKKKK.....',
+    '....KQPPPPpK....',
+    '...KpPpPpPppK...',
+    '....KSAAAAaK....',
+    '...KaAaAaAaaK...',
+    '....KWWWWWGK....',
+    '...KGWGWGWGGK...',
+    '....KQPPPPpK....',
+    '...KpPpPpPppK...',
+    '....KMMMMMmK....',
+    '...KmMmMmMmmK...',
+    '...KKKKKKKKKK...',
+    '....KTtTtTtK....',
+    '.....KtTtTK.....',
+    '......KTtK......',
+    '.......KK.......',
+  ];
+
+  // 회전초밥: 접시 셋이 벨트를 따라 흐른다 (연어·참치·계란)
+  const sushiTrainFrame = (f) => {
+    const g = Array.from({ length: 16 }, () => Array(16).fill('.'));
+    const put = (x, y, ch) => { if (x >= 0 && x < 16 && y >= 0 && y < 16 && ch !== '.') g[y][x] = ch; };
+    // 뒤쪽 벽의 빨간 포렴
+    for (let x = 0; x < 16; x++) { put(x, 0, 'K'); put(x, 1, x % 4 === 3 ? 'K' : 'R'); put(x, 2, x % 4 === 3 ? '.' : x % 4 === 1 ? 'W' : 'R'); put(x, 3, x % 4 === 3 ? '.' : 'K'); }
+    for (let x = 0; x < 16; x++) {
+      put(x, 9, 'K');
+      put(x, 10, (x + f) % 3 === 0 ? 'g' : 'G');
+      put(x, 11, 'D');
+      put(x, 12, 'K');
+    }
+    put(1, 13, 'K'); put(1, 14, 'K'); put(14, 13, 'K'); put(14, 14, 'K');
+    const fish = [['O', 'W', 'o'], ['R', 'Z', 'r'], ['Y', 'X', 'y']];
+    fish.forEach(([c, s, d], i) => {
+      const x0 = ((f + i * 7) % 21) - 4;
+      ['.KKKK.', 'K' + c + s + c + d + 'K', 'KWWWwK', 'KKKKKK', 'bBBBBb'].forEach((row, dy) => {
+        [...row].forEach((ch, dx) => put(x0 + dx, 4 + dy, ch));
+      });
+    });
+    return g.map((r) => r.join(''));
+  };
+
+  const FOOD_ANIM = {
+    samgyetang: { frames: 6, ms: 220, draw: (f) => ({ px: steam([5, 9], 2, 3, f) }) },
+    otoroOmakase: { frames: 4, ms: 350, draw: (f) => ({ px: sparkle([[3, 4], null, [10, 4], null], f) }) },
+    roomService: { frames: 8, ms: 380, draw: (f) => {
+      const seq = ['c', 'c', 'c', 'semi', 'open', 'open', 'open', 'semi'][f];
+      if (seq === 'c') return { rows: PREM.roomService, px: f === 1 ? sparkle([[4, 7]], 0) : [] };
+      if (seq === 'open') return { rows: PREM.roomServiceOpen, px: steam([5, 11], 6, 4, f) };
+      const rows = PREM.roomServiceOpen.map((r, y) => (y >= 7 ? r : rep('.', 16)));
+      for (let y = 3; y <= 10; y++) rows[y - 3] = PREM.roomService[y];
+      return { rows };
+    } },
+    firstClassMeal: { frames: 6, ms: 260, draw: (f) => ({ px: [...steam([4, 6], 3, 3, f), [12, 6 - (f % 3), 'H']] }) },
+    sushiTrain: { frames: 21, ms: 160, draw: (f) => ({ rows: sushiTrainFrame(f) }) },
+    hanwooSteak: { frames: 6, ms: 200, draw: (f) => {
+      const pops = [[[3, 5, 'Y'], [11, 4, 'H']], [[6, 4, 'H'], [13, 6, 'Y']], [[2, 6, 'Y'], [9, 3, 'Y']]][f % 3];
+      return { px: [...steam([5, 8], 4, 4, f), ...pops] };
+    } },
+    spaceFood: { frames: 8, ms: 240, draw: (f) => {
+      const orb = [[1, 4], [1, 7], [2, 10], [13, 11], [14, 8], [14, 5], [13, 2], [2, 2]][f];
+      return { dy: [0, 0, -1, -1, 0, 0, 1, 1][f], px: [[orb[0], orb[1], 'N'], [orb[0] + 1, orb[1], 'n'], ...(f % 2 ? [[15, 1, 'Y'], [0, 14, 'H']] : [[0, 1, 'H'], [15, 14, 'Y']])] };
+    } },
+    royalTable: { frames: 6, ms: 230, draw: (f) => ({ px: [...steam([3, 11], 2, 3, f), ...sparkle([[4, 5], null, null, [12, 5], null, null], f)] }) },
+    dragonKingFeast: { frames: 6, ms: 220, draw: (f) => {
+      const flame = f % 2 ? [[8, 1, 'E'], [8, 0, 'Y']] : [[8, 1, 'O'], [9, 0, 'Y']];
+      const bub = [];
+      const y = 10 - (f % 6) * 2;
+      bub.push([0, y, 'U'], [0, y - 1, 'B']);
+      const y2 = 3 - (f % 4);
+      bub.push([13, y2, 'U']);
+      return { px: [...flame, ...bub, ...sparkle([[6, 8], null, null], f)] };
+    } },
+    fortuneCookie: { frames: 6, ms: 300, draw: (f) => {
+      const n = [0, 1, 2, 2, 1, 0][f];
+      const px = [];
+      for (let k = 0; k < n; k++) px.push([7, 12 + k, k === n - 1 ? 'R' : 'W'], [8, 12 + k, 'W']);
+      return { px: [...px, ...sparkle([null, null, [13, 3], null, null, null], f)] };
+    } },
+    mysteryBox: { frames: 8, ms: 150, draw: (f) => ({ dx: [0, -1, 1, -1, 1, 0, 0, 0][f], dy: [0, 0, 0, 0, 0, 0, -1, 0][f], px: f >= 5 ? sparkle([[2, 3]], 0) : [] }) },
+    cloudMallow: { frames: 8, ms: 220, draw: (f) => ({ dy: [0, -1, -1, -1, 0, 0, 0, 0][f], px: sparkle([[2, 2], null, null, [14, 12], null, null, null, null], f) }) },
+    tunaCone: { frames: 6, ms: 260, draw: (f) => {
+      const d = [];
+      for (let k = 0; k <= Math.min(f, 3); k++) d.push([12, 11 + k, k === Math.min(f, 3) ? 'p' : 'P']);
+      return { px: f < 5 ? d : [] };
+    } },
+    macaronTower: { frames: 6, ms: 280, draw: (f) => {
+      const sway = [0, 1, 0, -1, 0, 0][f];
+      const rows = PREM.macaronTower.map((r, y) => (y < 5 && sway ? (sway > 0 ? '.' + r.slice(0, 15) : r.slice(1) + '.') : r));
+      return { rows, px: sparkle([null, [13, 3], null, null, [2, 5], null], f) };
+    } },
+    inviteCookie: { frames: 6, ms: 260, draw: (f) => {
+      const px = [];
+      if (f % 3 === 1) px.push([5, 7, 'Z'], [10, 7, 'Z'], [4, 9, 'Z'], [11, 9, 'Z'], [7, 12, 'Z'], [8, 12, 'Z']);
+      const hy = 4 - f;
+      if (hy >= 0) px.push([12, hy, 'P'], [14, hy, 'P'], [13, hy + 1, 'P']);
+      return { px };
+    } },
+    afternoonTea: { frames: 6, ms: 280, draw: (f) => ({ px: [...(f % 3 === 0 ? [[7, 1, 'E'], [8, 1, 'E']] : []), [7, 2, f % 2 ? 'Z' : 'R'], ...sparkle([[1, 5], null, [14, 3], null, [14, 9], null], f)] }) },
+    dragonCandy: { frames: 4, ms: 150, draw: (f) => {
+      const F = [
+        [[6, 3, 'R'], [7, 3, 'O'], [8, 3, 'O'], [9, 3, 'R'], [7, 2, 'O'], [8, 2, 'Y'], [7, 1, 'Y'], [8, 0, 'R']],
+        [[6, 3, 'R'], [7, 3, 'O'], [8, 3, 'O'], [9, 3, 'R'], [7, 2, 'Y'], [8, 2, 'O'], [8, 1, 'Y'], [7, 0, 'R']],
+        [[6, 3, 'O'], [7, 3, 'Y'], [8, 3, 'O'], [9, 3, 'R'], [6, 2, 'R'], [7, 2, 'O'], [8, 2, 'E'], [7, 1, 'O'], [6, 0, 'R']],
+        [[6, 3, 'R'], [7, 3, 'O'], [8, 3, 'Y'], [9, 3, 'O'], [8, 2, 'O'], [9, 2, 'R'], [8, 1, 'E'], [9, 0, 'R']],
+      ];
+      return { px: F[f] };
+    } },
+    goldMouseChoco: { frames: 6, ms: 240, draw: (f) => {
+      const tail = f % 2 ? [[15, 10, 'y'], [15, 9, 'y'], [15, 8, 'y'], [14, 7, 'y']] : [[15, 10, 'y'], [15, 11, 'y'], [15, 12, 'y'], [14, 13, 'y']];
+      return { px: [...tail, ...sparkle([[7, 7], null, [11, 9], null, [5, 10], null], f)] };
+    } },
+  };
+  for (const k of Object.keys(FOOD_ANIM)) FOOD[k] = k === 'sushiTrain' ? sushiTrainFrame(0) : PREM[k];
+
+  // 움직이는 먹이의 f 번째 프레임 (줄 문자열 배열). 움직임이 없으면 그대로
+  function frameRows(name, f) {
+    const a = FOOD_ANIM[name];
+    if (!a) return FOOD[name];
+    const o = a.draw(f % a.frames) || {};
+    const base = o.rows || FOOD[name];
+    const g = Array.from({ length: 16 }, () => Array(16).fill('.'));
+    const dx = o.dx || 0, dy = o.dy || 0;
+    const put = (x, y, ch) => { x += dx; y += dy; if (ch !== '.' && x >= 0 && y >= 0 && x < 16 && y < 16) g[y][x] = ch; };
+    base.forEach((r, y) => [...r].forEach((ch, x) => put(x, y, ch)));
+    (o.px || []).forEach(([x, y, ch]) => put(x, y, ch));
+    return g.map((r) => r.join(''));
+  }
+
   // 장난감 — 상점 카드·우클릭 메뉴·바닥에 던진 장난감이 이 그림을 쓴다. 먹이처럼 16×16 에 음영 두 톤
   const TOY = {
     ball: [
@@ -2910,8 +3379,10 @@
   };
 
   // 같은 색이 가로로 이어지면 사각형 하나로 묶는다. 아이콘 하나가 길어야 스무 줄 남짓이다
-  function svg(name, px = 16, cls = '') {
-    const [rows, PALETTE] = find(name);
+  // frame 을 주면 움직이는 먹이(FOOD_ANIM)의 그 프레임을 그린다 (house.js 가 상점 카드에서 돌린다)
+  function svg(name, px = 16, cls = '', frame) {
+    const [found, PALETTE] = find(name);
+    const rows = frame != null && FOOD_ANIM[name] ? frameRows(name, frame) : found;
     if (!rows) return '';
     const w = rows[0].length;
     const h = rows.length;
@@ -2993,5 +3464,5 @@
     return buf;
   }
 
-  return { PALETTE, ICONS, FOOD_PALETTE, FOOD, TOY, TREASURE, has, size, svg, paint, rgba };
+  return { PALETTE, ICONS, FOOD_PALETTE, FOOD, FOOD_ANIM, TOY, TREASURE, has, size, svg, paint, rgba, frameRows };
 });

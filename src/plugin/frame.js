@@ -17,7 +17,6 @@ const API = [
   ['caught', 'send', 'pet:caught'],
   ['played', 'send', 'pet:played'],
   ['toyRecord', 'send', 'pet:toy-record'],
-  ['bored', 'send', 'pet:bored'],
   ['stat', 'send', 'pet:stat'],
   ['treatEaten', 'send', 'pet:treat-eaten'],
   ['treasure', 'send', 'pet:treasure'],

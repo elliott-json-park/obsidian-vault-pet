@@ -17,6 +17,32 @@ const why = (b) => (b.why && typeof b.why === 'object' ? t(b.why.k, b.why.v) : S
 const scaleStep = (v) => Math.max(1, Math.min(5, Math.round(Number(v) || 5)));
 // 아이콘은 전부 도트다 (renderer/pixelart.js). 이모지는 기기마다 모양이 달라서 안 쓴다
 const icon = (name, px = 16) => PixelArt.svg(name, px);
+// 먹이 카드의 배부름·기운: 도트 아이콘 + 숫자 한 줄 (글자로 쓰면 좁은 카드에서 두 줄로 쪼개진다). 뜻은 마우스를 올리면
+const foodGain = (it) => {
+  const tip = `${t('shop.gainFood', { n: it.fill })}${it.energy ? ` · ${t('shop.gainEnergy', { n: it.energy })}` : ''}`;
+  return `<div class="food-gain" title="${esc(tip)}"><span>${icon('ricebowl', 11)}+${it.fill}</span>${it.energy ? `<span>${icon('fire', 11)}+${it.energy}</span>` : ''}</div>`;
+};
+// 먹었을 때 특별한 일이 있는 먹이(프리미엄)는 그 밑에 효과를 짧게 한 줄 (i18n 'foodFx.<키>', 긴 설명은 'foodFxTip.<키>'. 없으면 줄도 없다)
+const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift', inviteCookie: 'paw' };
+const foodFx = (key) => {
+  const k = 'foodFx.' + key;
+  const s = t(k);
+  if (s === k) return '';
+  const tip = t('foodFxTip.' + key);
+  return `<div class="food-fx" title="${esc(tip === 'foodFxTip.' + key ? s : tip)}">${FOOD_FX_ICON[key] ? icon(FOOD_FX_ICON[key], 11) : ''}${esc(s)}</div>`;
+};
+// 움직이는 먹이(프리미엄)는 data-anim 을 달아 두면 아래 루프가 프레임을 바꿔 그린다
+const foodArt = (key, px) => `<div class="art"${PixelArt.FOOD_ANIM[key] ? ` data-anim="${key}" data-px="${px}"` : ''}>${icon(key, px)}</div>`;
+setInterval(() => {
+  const now = Date.now();
+  for (const el of document.querySelectorAll('[data-anim]')) {
+    const a = PixelArt.FOOD_ANIM[el.dataset.anim];
+    const f = Math.floor(now / a.ms) % a.frames;
+    if (el.dataset.f === String(f)) continue;
+    el.dataset.f = f;
+    el.innerHTML = PixelArt.svg(el.dataset.anim, +el.dataset.px, '', f);
+  }
+}, 60);
 // 어려운 말 옆에 붙는 (i). 마우스를 올리면 설명이 뜬다 (아래 '설명 말풍선')
 const info = (key) => `<span class="info" tabindex="0" data-tip="${esc(t('tip.' + key))}">i</span>`;
 // 큰 토큰 수는 Claude Code 화면처럼 영어 줄임(7.1B)으로
@@ -374,6 +400,11 @@ function openCard() {
 // 이 모션을 작은 캔버스로 보여 줄 때 붙일 속성. type·curl·wait 는 기분 자세라 그 기분으로
 const motionCanvasAttr = (key) => (PEEK_MOOD[key] ? `data-mood="${PEEK_MOOD[key]}"` : `data-motion="${key}"`);
 const stageNow = () => (D.growth ? D.growth.stageKey : 'cat');
+// 레벨이 아직 안 돼서 상점에서 그림자로 보이는 모션 (설정의 미리보기도 똑같이 그림자로)
+const motionLvLocked = (k) => {
+  const m = D.shop.motion.find((x) => x.key === k);
+  return !!m && m.locked && !m.owned;
+};
 
 // 이 자리에 지금 골라 둔 모션들
 function motionsIn(sl) {
@@ -452,6 +483,8 @@ function openMotionEditor(slotKey) {
     delete prevCanvas.dataset.mood;
     if (PEEK_MOOD[k]) prevCanvas.dataset.mood = PEEK_MOOD[k];
     else prevCanvas.dataset.motion = k;
+    prevCanvas.classList.toggle('lv-locked', motionLvLocked(k));
+    prevCanvas.parentElement.classList.toggle('lv-locked-box', motionLvLocked(k)); // [옵시디언] 바탕은 감싼 상자가 (house.css)
     const r = mini(prevCanvas);
     if (r.demo) r.play(r.demo);
     minis.push(r);
@@ -572,8 +605,8 @@ function showMotionPeek(el, e) {
   const mood = PEEK_MOOD[key];
   const state = el.dataset.locked ? t('set.peekLocked') : el.classList.contains('on') ? t('set.peekOn') : t('set.peekOff');
   const box = document.createElement('div');
-  box.className = 'motion-peek';
-  box.innerHTML = `<canvas class="pixel" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
+  box.className = 'motion-peek' + (motionLvLocked(key) ? ' lv-locked-box' : ''); // [옵시디언] 바탕은 감싼 상자가 (house.css)
+  box.innerHTML = `<canvas class="pixel ${motionLvLocked(key) ? 'lv-locked' : ''}" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
     <div class="nm">${esc(t('motion.' + key))}</div>
     <div class="st">${state}</div>`;
   document.body.appendChild(box);
@@ -637,14 +670,20 @@ const TOY_DRAWN = new Set(['box', 'bag', 'scratcher', 'yarn', 'catnip', 'catwhee
 
 // 함께 하는 놀이 카드에 붙는 것: 최고 기록, 줄다리기 난이도 (가진 것만)
 const TOY_RECORD = { whackcat: 'whackcat', rps: 'rps', trampoline: 'trampoline' };
-function toyExtra(it) {
+// 장난감 카드 정보 칸: 하는 일 태그 + 기록·난이도. [옵시디언] 기록·난이도 줄이 붙으면 태그는 한 줄만 (tags-1, house.css)
+function toyTags(it, inShop = false) {
+  const extra = toyExtra(it, inShop);
+  return `<div class="tags${extra ? ' tags-1' : ''}"><span>${esc(t('toyDo.' + it.key))}</span></div>${extra}`;
+}
+// inShop: 상점 카드에서는 줄다리기 난이도 버튼을 빼고 기록만 (카드 규격을 맞추려고. 난이도는 인벤토리 카드에서 고른다)
+function toyExtra(it, inShop = false) {
   if (!it.owned) return '';
   const rec = TOY_RECORD[it.key];
   const n = rec ? (D.toyRecords || {})[rec] || 0 : 0;
   let s = n ? `<div class="toy-rec">${icon('trophy', 11)}${esc(t('game.rec.' + it.key, { n }))}</div>` : '';
-  if (it.key === 'tugrope') {
+  if (it.key === 'tugrope' && !inShop) {
     const lv = D.settings.tugLevel || 'mid';
-    s += `<div class="tug-lv"><span>${t('game.tugLevel')}</span>${['easy', 'mid', 'hard'].map((k) => `<button class="${k === lv ? 'on' : ''}" data-tug-lv="${k}">${t('game.tugLv.' + k)}</button>`).join('')}</div>`;
+    s += `<div class="tug-lv" title="${esc(t('game.tugLevel'))}">${['easy', 'mid', 'hard'].map((k) => `<button class="${k === lv ? 'on' : ''}" data-tug-lv="${k}">${t('game.tugLv.' + k)}</button>`).join('')}</div>`;
   }
   return s;
 }
@@ -1009,11 +1048,11 @@ const INV_PAGES = ['costume', 'meal', 'snack', 'toy', 'treasure'];
 let invPage = 'costume';
 // 보물 공방 탭 안의 페이지: 공방(코스튬 만들기) · 보물 상자(주운 보물 도감)
 let wsPage = 'workshop';
-let shopCostumeTab = 'all';
+let shopCostumeTab = 'set'; // 처음 열면 세트부터 (2026-09-29)
 // 상점 모션 페이지에서 고른 상황 ('all' | MOTION_SLOTS 키. 일할 때 셋은 'work' 하나로 묶는다)
-let shopMotionTab = 'all';
+let shopMotionTab = 'work'; // 처음 열면 일할 때부터 (2026-09-29)
 const WORK_SLOTS = ['work', 'workLong', 'workHour'];
-// 모션이 그 상황 칩에 들어가나 (일할 때 칩은 15분·1시간 넘게 일할 때까지 포함)
+// 모션이 그 상황 칩에 들어가나 (일할 때 칩은 30분·1시간 넘게 일할 때까지 포함)
 const motionInTab = (it, k) => (k === 'work' ? it.slots.some((x) => WORK_SLOTS.includes(x)) : it.slots.includes(k));
 
 // 설정의 '경험치에 넣을 프로젝트' 목록을 처음에 몇 줄만 보여 줄지
@@ -1263,9 +1302,9 @@ const TABS = {
         const isNew = !seenItems.has(it.key);
         return `<div class="panel item witem ${on ? 'on' : ''}" data-item="${it.key}" title="${esc(it.name)}">
           <span class="wtag">${t('cslot.' + it.slot)}</span>
-          <span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span>
+          <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span></div>
           <div class="nm">${esc(it.name)} ${isNew ? '<span class="new">NEW</span>' : ''}</div>
-          ${setMoBtn(it.key)}
+          <div class="fx">${setMoBtn(it.key)}</div>
           <div class="hint">${on ? t('ward.wearing') : ''}</div>
         </div>`;
       })
@@ -1284,16 +1323,15 @@ const TABS = {
       (k) => `<button class="chip ${k === page ? 'on' : ''} ${have[k].length ? '' : 'empty'}" data-inv-page="${k}">${t('inv.' + k)}<small>${have[k].length}</small></button>`,
     ).join('');
     const foodCard = (it) => `<div class="panel item inv-item">
-        ${it.energy ? `<span class="energy-tag">${t('shop.energyTag')}</span>` : ''}
-        <div class="art">${icon(it.key, 62)}</div>
+        <div class="pv">${foodArt(it.key, 62)}</div>
         <div class="nm">${esc(t('item.' + it.key))}</div>
-        <div class="food-gain">${t('shop.gainFood', { n: it.fill })}${it.energy ? ` · ${t('shop.gainEnergy', { n: it.energy })}` : ''}</div>
+        <div class="fx">${foodGain(it)}${foodFx(it.key)}</div>
         <div class="hint"><span class="own">${t('shop.stock', { n: it.stock })}</span><button class="btn primary buy" data-give="${it.key}">${t('shop.give')}</button></div>
       </div>`;
     const toyCard = (it) => `<div class="panel item inv-item">
-        <div class="art">${icon(it.key, 62)}</div>
+        <div class="pv"><div class="art">${icon(it.key, 62)}</div></div>
         <div class="nm">${esc(t('item.' + it.key))}</div>
-        <div class="tags"><span>${esc(t('toyDo.' + it.key))}</span></div>${toyExtra(it)}
+        <div class="fx">${toyTags(it)}</div>
         <div class="hint"><button class="btn primary buy" data-play="${it.key}">${t('inv.play')}</button><button class="btn ghost buy" data-toy-demo="${it.key}">${t('shop.guide')}</button></div>
       </div>`;
     const treasureCard = (x) => `<div class="panel tcell tr-${x.rarity}" title="${esc(t('treasure.' + x.key))}">
@@ -1318,12 +1356,12 @@ const TABS = {
     const right =
       page === 'costume'
         ? `<nav class="shop-jump ward-tabs">${chips}</nav>
-          ${list.length ? `<div class="wardrobe">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
+          ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
         : !have[page].length
           ? `<p class="muted center">${t('inv.empty.' + page)}</p>`
           : page === 'treasure'
             ? `<div class="tbox">${have.treasure.map(treasureCard).join('')}</div>`
-            : `<div class="wardrobe inv-grid">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
+            : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
     const html = `
       <div class="h2-row"><h2>${t('ward.title')}</h2><button class="btn head-act" data-act="card">${icon('sparkle', 12)}${t('card.open')}</button></div>
       <p class="muted" style="margin-top:-4px">${t(page === 'costume' ? 'ward.sub' : 'inv.sub.' + page)}</p>
@@ -1358,7 +1396,9 @@ const TABS = {
           ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span>`
           : it.kind === 'motion'
             ? `<canvas class="pixel" data-stage="${stage}" data-motion="${it.key}"></canvas>`
-            : `<div class="art">${icon(it.key, 62)}</div>`;
+            : it.kind === 'food'
+              ? foodArt(it.key, 62)
+              : `<div class="art">${icon(it.key, 62)}</div>`;
       let foot;
       if (it.kind === 'motion' && it.owned) foot = `<button class="btn buy" data-act="toMotions">${t('shop.apply')}</button>`;
       // 산 코스튬은 옷장까지 안 가도 여기서 바로 입고 벗는다
@@ -1382,14 +1422,13 @@ const TABS = {
         it.kind === 'motion'
           ? `<div class="tags">${[...new Set(it.slots.map((x) => (WORK_SLOTS.includes(x) ? 'work' : x)))].map((x) => `<span>#${esc(t('slot.' + x))}</span>`).join('')}</div>`
           : it.kind === 'toy'
-            ? `<div class="tags"><span>${esc(t('toyDo.' + it.key))}</span></div>${toyExtra(it)}`
+            ? toyTags(it, true)
             : '';
       // 먹이는 하나 먹으면 배부름·기운이 얼마나 차는지. 기운 음식은 왼쪽 위에 '기운' 딱지
       const gauge = it.kind === 'food'
-        ? `<div class="food-gain">${t('shop.gainFood', { n: it.fill })}${it.energy ? ` · ${t('shop.gainEnergy', { n: it.energy })}` : ''}</div>`
+        ? `${foodGain(it)}${foodFx(it.key)}`
         : '';
       const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : '';
-      const energyTag = it.kind === 'food' && it.energy ? `<span class="energy-tag">${t('shop.energyTag')}</span>` : '';
       // 이미 가진 물건(먹이 빼고)은 가격 대신 '가짐'. 버튼 줄은 한 줄로 (사기·입기·적용 | 사용법)
       const price =
         it.kind !== 'food' && it.owned
@@ -1399,8 +1438,8 @@ const TABS = {
             : coins(it.price, 13);
       // 업적 보상으로 레벨보다 먼저 받은 건 잠김 그림자로 보이지 않게 (가진 건 가진 것)
       // 카드는 늘 다섯 줄 (그림 · 이름 · 효과 · 가격 · 버튼). 같은 줄의 카드끼리 줄 높이를 맞춰서 간격이 똑같다 (house.css .shop-grid)
-      return `<div class="panel item ${it.owned || it.stock ? 'on' : ''} ${it.locked && !it.owned ? 'locked' : ''}" ${it.kind === 'toy' ? `data-toy-card="${it.key}" title="${esc(t('shop.toyPeekHint'))}"` : ''}>
-        ${energyTag}${slotTag}<div class="pv">${preview}</div>
+      return `<div class="panel item k-${it.kind} ${it.owned || it.stock ? 'on' : ''} ${it.locked && !it.owned ? 'locked' : ''} ${it.premium ? 'premium' : ''}" ${it.kind === 'toy' ? `data-toy-card="${it.key}" title="${esc(t('shop.toyPeekHint'))}"` : ''}>
+        ${slotTag}<div class="pv">${preview}</div>
         <div class="nm">${esc(name)} ${have}${fresh}</div>
         <div class="fx">${slot}${gauge}${setMoBtn(it.key)}</div>
         <div class="price ico-row">${price}</div>

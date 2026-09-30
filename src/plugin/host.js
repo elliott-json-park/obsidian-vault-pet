@@ -7,7 +7,7 @@ const { Brain } = require('../core/brain');
 const { Gamify } = require('../core/gamify');
 const { SET_MOTIONS, COSTUME_SLOTS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTION_SLOTS, slotOf, find: findItem } = require('../core/shop');
 const stats = require('../core/stats');
-const { Treasures } = require('../core/treasure');
+const { Treasures, TREASURES } = require('../core/treasure');
 const { Workshop } = require('../core/workshop');
 const { Friends, FRIENDS, FRIEND_STEPS } = require('../core/friends');
 const { Gauge } = require('../core/gauge');
@@ -19,10 +19,21 @@ const { KitFrame } = require('./frame');
 const MIN = 60_000;
 const WORK_TIERS = [
   { slot: 'workHour', ms: 60 * MIN },
-  { slot: 'workLong', ms: 15 * MIN },
+  { slot: 'workLong', ms: 30 * MIN }, // 2026-09-29: 15분은 모션이 너무 금방 바뀌어서 30분으로 (데스크톱판과 같이)
 ];
 const STATE_DEFAULTS = { lastLevel: null, lastStage: null, stageScheme: 0, greeted: false, onboarded: false, quietUntil: 0, brainDaily: {}, life: { hungrySince: 0, fedAt: 0 }, walletSpent: 0, startedAt: 0, pantry: {}, purchases: [] };
-const BORED_REST = 10 * MIN;
+// 프리미엄 밥·간식 (데스크톱판 4차, 2026-09-26). 몇 가지는 먹으면 특별한 일이 생긴다 (premiumEaten)
+const HOUR_MS = 60 * MIN;
+const OMAKASE_LOCK = 4 * HOUR_MS; // 참치 뱃살 오마카세: 4시간 배부름 고정
+// 배부름·기운을 같이 고정하는 음식: 비쌀수록 길다 (2026-09-27 가격 정리)
+const BOTH_LOCK = { afternoonTea: 2 * HOUR_MS, royalTable: 8 * HOUR_MS, dragonKingFeast: 24 * HOUR_MS };
+const GOLD_MOUSE_RARE = 0.3; // 황금 쥐 초콜릿: 보물 1개 확정. 이 확률로 드문 보물, 아니면 흔한 보물
+const INVITE_CHANCE = 0.3; // 초대장 쿠키: 먹는 즉시 친구가 놀러 올 확률
+const MYSTERY_PREMIUM = 0.15; // 미스터리 간식 상자: 프리미엄 간식이 나올 확률
+const FORTUNE_GIFT = 0.2; // 포춘 쿠키: 보물이나 코인을 같이 받을 확률
+const FORTUNE_COINS = 50;
+// 기본 '냠냠' 대신 자기 말을 하는 간식
+const PREMIUM_TALK = new Set(['fortuneCookie', 'mysteryBox', 'inviteCookie']);
 const MOTION_HOLD = 5 * MIN;
 const ALWAYS = new Set(['notify']);
 const REWARD = new Set(['grow', 'achieve', 'item', 'quest', 'attend', 'retro']);
@@ -363,11 +374,6 @@ class KitHost {
     if (this.playing) return this.stopPlay();
     if (!this.shop.owned(toy)) return this.openHouse('shop');
     if (!this.pet) this.showPet();
-    if ((this.state.get('boredUntil') || 0) > Date.now()) {
-      this.send('pet:action', 'bored');
-      this.bubble(this.T.line('stillBored'), 'play');
-      return;
-    }
     this.gauge.tick(this.isResting());
     const no = this.gauge.playBlocker();
     if (no === 'hungry') {
@@ -489,6 +495,72 @@ class KitHost {
     const away = this.plugin.idleSeconds() > 5 * 60;
     const v = this.friends.tick({ away, busy: this.isQuiet() || !this.petVisible() });
     if (v) this.friendArrive(v);
+  }
+
+  // 놀다가 배고파지거나 지쳤나. 그렇다면 한 번만 말하고 조금 뒤 놀이를 접는다 (접히기 전에 또 잡아도 다시 안 센다).
+  // 몇 번 잡으면 질리던 게 빠져서(2026-09-29) 기운이 바닥나 그만두는 걸 업적 '지겨움 전문가'의 횟수로 센다
+  playWornOut() {
+    const no = this.gauge.playBlocker();
+    if (!no) return false;
+    if (this.playing.ending) return true;
+    this.playing.ending = true;
+    if (no === 'tired') this.gamify.count('bored');
+    this.bubble(this.T.line(no === 'hungry' ? 'playHungry' : 'playTired'), 'play');
+    const p = this.playing;
+    this.later(() => this.playing === p && this.stopPlay(), 2500);
+    return true;
+  }
+
+  // 프리미엄 밥·간식을 먹었다. 먹은 횟수·종류는 업적용으로 센다
+  premiumEaten(it) {
+    const { T, gamify } = this;
+    gamify.count('premium');
+    gamify.count('pf_' + it.key);
+    const later = (fn) => this.later(fn, 2600);
+    const pickTreasure = (rarity) => {
+      const pool = TREASURES.filter((x) => x.rarity === rarity);
+      const tk = pool[Math.floor(Math.random() * pool.length)].key;
+      this.treasures.add(tk);
+      return tk;
+    };
+    if (it.key === 'otoroOmakase') {
+      this.gauge.lockFood(OMAKASE_LOCK);
+      later(() => this.bubble(T.line('omakaseLock'), 'fed'));
+    } else if (BOTH_LOCK[it.key]) {
+      this.gauge.lockFood(BOTH_LOCK[it.key]);
+      this.gauge.lockEnergy(BOTH_LOCK[it.key]);
+      later(() => this.bubble(T.line('bothLock', { h: BOTH_LOCK[it.key] / HOUR_MS }), 'fed'));
+    } else if (it.key === 'goldMouseChoco') {
+      const tk = pickTreasure(Math.random() < GOLD_MOUSE_RARE ? 'rare' : 'common');
+      later(() => this.bubble(T.line('goldMouseTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
+    } else if (it.key === 'roomService') {
+      this.bubble(T.line('roomService'), 'fed');
+    } else if (it.key === 'fortuneCookie') {
+      this.bubble(T.line('fortune'), 'treat');
+      if (Math.random() < FORTUNE_GIFT) {
+        if (Math.random() < 0.5) {
+          const tk = pickTreasure('common');
+          later(() => this.bubble(T.line('fortuneTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
+        } else {
+          this.shop.give({ coins: FORTUNE_COINS });
+          later(() => this.bubble(T.line('fortuneCoins', { n: FORTUNE_COINS }), 'item'));
+        }
+      }
+    } else if (it.key === 'mysteryBox') {
+      const premium = Math.random() < MYSTERY_PREMIUM;
+      const pool = FOODS.filter((x) => x.group === 'snack' && x.key !== 'mysteryBox' && x.fill !== 0 && !!x.premium === premium);
+      const got = pool[Math.floor(Math.random() * pool.length)].key;
+      this.shop.give({ food: { [got]: 1 } });
+      if (premium) gamify.count('mysteryPremium');
+      this.bubble(T.line(premium ? 'mysteryJackpot' : 'mysteryGot', { name: T.t('item.' + got) }), 'item');
+    } else if (it.key === 'inviteCookie') {
+      const v = !this.friends.current() && Math.random() < INVITE_CHANCE ? this.friends.start(FRIENDS[Math.floor(Math.random() * FRIENDS.length)].id, 'visit') : null;
+      if (v) {
+        gamify.count('invite');
+        this.friendArrive(v);
+      } else this.bubble(T.line('inviteMiss'), 'treat');
+    }
+    if (this.houses.size) this.sendHouse('house:data', this.housePayload());
   }
 
   friendArrive(v) {
@@ -869,13 +941,14 @@ class KitHost {
         if (!it) return;
         state.set({ lastFood: key });
         this.sound('quest');
+        if (it.premium) this.premiumEaten(it);
         if (it.group === 'meal') {
-          this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'fed');
+          if (key !== 'roomService') this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'fed');
           this.gauge.eat('meal', fillOf(it), it.energy);
           gamify.count('fed');
           brain.meal();
         } else {
-          this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'treat');
+          if (!PREMIUM_TALK.has(key)) this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'treat');
           this.gauge.eat('snack', fillOf(it), it.energy);
           gamify.count('snack');
           brain.treat();
@@ -885,24 +958,12 @@ class KitHost {
       case 'pet:stat':
         if (['giant', 'box'].includes(a[0])) gamify.count(a[0]);
         return;
-      case 'pet:bored':
-        if (!this.playing) return;
-        state.set({ boredUntil: Date.now() + BORED_REST });
-        gamify.count('bored');
-        this.bubble(T.line('bored'), 'play');
-        this.later(() => this.stopPlay(), 3800);
-        return;
       case 'pet:played':
       case 'pet:caught': {
         if (!this.playing) return;
         this.gauge.play();
         gamify.count('catch');
-        const no = this.gauge.playBlocker();
-        if (no) {
-          this.bubble(T.line(no === 'hungry' ? 'playHungry' : 'playTired'), 'play');
-          this.later(() => this.stopPlay(), 2500);
-          return;
-        }
+        if (this.playWornOut()) return;
         if (ch === 'pet:played' || !brain.ready('caught', 4_000)) return;
         this.bubble(T.line('caught'), 'play');
         this.sound('quest');
@@ -1071,6 +1132,8 @@ class KitHost {
       case 'shop:buy': {
         const key = a[0];
         const r = shop.buy(key);
+        // 먹이에 쓴 코인 (업적 '큰손 집사'). 개발자 모드의 공짜 구매는 안 센다
+        if (r.ok && r.item.kind === 'food' && !shop.dev()) gamify.count('foodSpent', r.item.price);
         if (r.ok) {
           this.sound('achieve');
           this.send('pet:action', 'happy');

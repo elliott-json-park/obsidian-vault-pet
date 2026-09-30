@@ -57,7 +57,7 @@ function flushWear() {
 pet.onConfig((c) => {
   scale = c.scale;
   soundOn = c.sound;
-  T.set(c.language, c.personality);
+  T.set(c.language, c.personality, c.mode);
   sprite.setFur(c.fur);
   bubblesOn = c.bubbles !== false;
   clearTimeout(pendingWearTimer);
@@ -165,7 +165,7 @@ const BUBBLE_ICON = {
   notify: 'bang', rest: 'pillow', late: 'moon', tip: 'claudethink',
 };
 const REWARD = new Set(['grow', 'achieve', 'item', 'quest', 'attend', 'retro']);
-const CHATTY = new Set(['chatter', 'poke', 'stop', 'tip']);
+const CHATTY = new Set(['chatter', 'poke', 'tip']); // 'stop'(답 끝남)은 꼭 보여 줘야 해서 뺐다 (2026-09-29)
 
 let skipFollow = false; // 앞말을 버렸으면 이어지는 뒷말('follow')도 버린다
 pet.onBubble((b) => {
@@ -352,9 +352,6 @@ const TOY_DEFS = {
 };
 const HINT = { throw: 'play.hintThrow', place: 'play.hintPlace', rod: 'play.hintRod', teaser: 'play.hintTeaser', bubbles: 'play.hintBubbles', laser: 'play.hintLaser' };
 const HINT_MS = 4_000; // 놀이 안내는 이만큼 보여 주고 사라진다
-// 놀다 보면 질린다. 이만큼 잡거나(5~8번 중 하나) 이만큼 놀고 나면 더는 안 쫓는다 (큰 장난감은 안 질린다)
-const BORED_CATCHES = [5, 8];
-const BORED_SECS = 75;
 
 let toy = null; // 지금 꺼낸 장난감 (startPlay 참고)
 let treats = []; // 바닥에 떨어진 간식들
@@ -468,8 +465,7 @@ function startPlay(key) {
   const side = catX > W / 2 ? -1 : 1;
   toy = {
     key, def, mode: def.mode, state: 'free', until: 0, busyUntil: 0, pounceUntil: 0, catches: 0,
-    limit: BORED_CATCHES[0] + Math.floor(Math.random() * (BORED_CATCHES[1] - BORED_CATCHES[0] + 1)),
-    startedAt: now, bored: false, x: 0, y: 0, vx: 0, vy: 0, el: null,
+    x: 0, y: 0, vx: 0, vy: 0, el: null,
   };
   if (def.mode === 'throw') {
     Object.assign(toy, spawnItem(key));
@@ -568,27 +564,13 @@ function releaseToy(o) {
   o.state = o.placed ? 'drop' : 'free';
 }
 
-// 한 번 잡았다. main 이 배부름·기운을 깎고, 기분 좋은 말은 가끔만 한다. 다 놀았으면 질린다
+// 한 번 잡았다. main 이 배부름·기운을 깎고, 기분 좋은 말은 가끔만 한다.
+// 몇 번 잡거나 몇십 초 놀면 질리던 건 뺐다 (1차 테스트 피드백, 2026-09-29). 기운이 10 이하로 떨어져야 main 이 놀이를 접는다.
+// 놀이를 끝냈으면 true 를 돌려주던 자리라 부르는 쪽은 그대로 둔다
 function scored(o, now) {
   o.catches++;
   pet.caught();
-  if (o.catches >= o.limit || now - o.startedAt > BORED_SECS * 1000) {
-    getBored(o);
-    return true;
-  }
   return false;
-}
-
-// 장난감에 질렸다. 고개를 돌리고 하품한 뒤 식빵 자세. 놀이를 접는 건 main 이 한다
-function getBored(o) {
-  releaseToy(o);
-  o.bored = true;
-  sprite.setMove(0);
-  sprite.setLook(0);
-  const x = o.el ? o.x : mouseX != null ? mouseX : catX;
-  sprite.setFacing(x > catX ? -1 : 1);
-  sprite.play('bored');
-  pet.bored();
 }
 
 // ---------- 주우러 가기 ----------
@@ -688,10 +670,6 @@ function paintBitten(o, frac, fromLeft) {
 function stepToy(dt, now) {
   const o = toy;
   if (catX == null) return false;
-  if (o.bored) {
-    sprite.setMove(0);
-    return true;
-  }
   if (o.mode === 'custom') return o.C.step(o, dt, now) !== false;
   if (o.mode === 'place') return stepPlace(o, dt, now);
   if (o.mode === 'throw') return stepThrow(o, dt, now);
@@ -1957,13 +1935,15 @@ async function friendBye(fromMain) {
   if (!friend || friend.state === 'bye') return;
   friend.state = 'bye';
   closeFriendCard(true);
+  // 나갈 쪽은 main 의 답을 기다리기 전에 정한다. 기다리는 사이 stepFriend 가 exit 없이 걸으면 x 가 NaN 이 돼서
+  // 친구가 그 자리에 굳은 채 안 사라졌다 (1차 테스트 피드백, 2026-09-29)
+  const [min, max] = lane();
+  friend.exit = friend.x > (min + max) / 2 ? window.innerWidth + petPx() : -petPx();
   const r = fromMain ? null : await pet.friendBye().catch(() => null);
   if (!friend) return;
   if (r && r.gift) spawnLoot(r.gift, friend.x, floorY() - 20);
   friendSay(friendLine('bye', 'fr.bye'), 'f');
   pet.eventSay('eventGuestBye', { friend: friend.id, item: (r && r.gift) || undefined });
-  const [min, max] = lane();
-  friend.exit = friend.x > (min + max) / 2 ? window.innerWidth + petPx() : -petPx();
 }
 
 // 친구마다 다른 멘트 (i18n 'fr.<id>.<kind>', 여러 개면 '|' 로 나눠 하나 고른다). 없으면 공통 멘트
@@ -2020,6 +2000,7 @@ function stepFriend(dt, now) {
   if (f.held) mode = 'held';
   else if (f.state === 'bye') {
     const d = f.exit - f.x;
+    if (!Number.isFinite(d)) return removeFriend(); // 갈 곳을 잃었으면 그냥 보낸다
     f.x += Math.sign(d) * FSPEED * 1.2 * dt;
     f.facing = Math.sign(d) || f.facing;
     mode = 'walk';

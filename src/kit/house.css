@@ -570,13 +570,34 @@ main {
   box-shadow: none;
   border-style: dashed;
 }
-.item.locked canvas {
+.item.locked canvas,
+canvas.lv-locked {
   filter: brightness(0) opacity(0.25);
 }
 @media (prefers-color-scheme: dark) {
-  .item.locked canvas {
+  .item.locked canvas,
+  canvas.lv-locked {
     filter: brightness(0) invert(1) opacity(0.2);
   }
+}
+/* 설정의 모션 미리보기: 캔버스 바탕까지 그림자가 되지 않게, 바탕은 감싼 상자가 대신 깐다
+   [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 감싼 상자에 lv-locked-box 를 붙인다 */
+.medit-preview canvas.lv-locked,
+.motion-peek canvas.lv-locked {
+  background: transparent;
+}
+.medit-preview.lv-locked-box,
+.motion-peek.lv-locked-box {
+  background-image: linear-gradient(var(--soft), var(--soft));
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  background-position: top center;
+}
+.medit-preview.lv-locked-box {
+  background-size: 108px 108px;
+}
+.motion-peek.lv-locked-box {
+  background-size: 144px 144px;
 }
 .item .new {
   font-family: var(--pixel);
@@ -612,6 +633,41 @@ main {
   font-size: 11px;
   color: var(--accent);
   margin: 1px 0;
+}
+/* 코스튬·모션은 고양이 그림이 그림 칸을 꽉 채워서 이름이 바로 붙는다: 이름 위에 6px 띄운다
+   (먹이·장난감 그림은 칸보다 작아 원래 그만큼 떨어져 있다. 이름 칸은 모두 6px 더 크게 잡았다) */
+.shop-grid > .item.k-acc .nm,
+.shop-grid > .item.k-motion .nm,
+.inv-uni > .witem .nm {
+  padding-top: 6px;
+}
+/* 카드 정보 칸의 글줄은 조금 촘촘히 (카드 세로를 줄이려고) */
+.shop-grid > .item .fx,
+.inv-uni > .item .fx {
+  line-height: 1.25;
+}
+.shop-grid > .item .food-fx,
+.inv-uni > .item .food-fx {
+  line-height: 1.25;
+}
+/* 카드 규격 안에서: 해시태그는 최대 두 줄 (기록 줄이 있으면 한 줄). 넘치는 태그는 통째로 가린다 */
+.shop-grid > .item .tags,
+.inv-uni > .item .tags {
+  max-height: 32px;
+  overflow: hidden;
+}
+/* [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 기록·난이도 줄이 붙는 태그에 tags-1 을 붙인다 */
+.shop-grid > .item .tags.tags-1,
+.inv-uni > .item .tags.tags-1 {
+  max-height: 16px;
+}
+.inv-uni > .item .tug-lv {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+.inv-uni > .item .tug-lv button {
+  padding: 1px 3px;
+  white-space: nowrap;
 }
 
 /* 홈: 한 줄 레벨 */
@@ -703,13 +759,10 @@ main {
   font-size: 11px;
   color: var(--muted);
 }
-.item .tug-lv span {
-  flex-basis: 100%;
-  text-align: center;
-}
+/* 하·중·상 버튼만 한 줄로 ('고양이 힘' 이름표는 마우스를 올리면. 카드 규격 안에 들어가게) */
 .item .tug-lv button {
-  min-width: 26px;
-  padding: 1px 6px;
+  min-width: 22px;
+  padding: 1px 4px;
   font: inherit;
   font-weight: 700;
   color: var(--ink);
@@ -1296,6 +1349,21 @@ input {
 .gauge-note {
   margin: 6px 0 0;
   font-size: 12px;
+}
+
+/* 연결할 도구 고르기 (첫 안내·설정). 지금 모드는 눌린 버튼 */
+.tool-pick {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.tool-pick .btn {
+  flex: 1;
+  justify-content: center;
+}
+.tool-pick .btn small {
+  opacity: 0.8;
+  font-weight: 400;
 }
 
 /* 첫 안내의 개인정보 안내 상자 */
@@ -2012,19 +2080,30 @@ input {
   color: var(--muted);
   margin-top: 2px;
 }
-.energy-tag {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  font-family: var(--pixel);
-  font-size: 10px;
-  line-height: 1;
-  padding: 3px 5px;
-  border-radius: 3px;
-  background: #e0a91e;
-  color: #fff;
+/* 프리미엄 먹이의 효과 한 줄 (배부름·기운 줄 밑) */
+.food-fx {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #b07a12;
+  margin-top: 1px;
 }
-
+/* 배부름·기운: 아이콘 + 숫자 한 줄 */
+.food-gain {
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+.food-gain span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.panel.item.premium {
+  box-shadow: inset 0 0 0 2px #f2cf63;
+}
 /* ---------- 알림: 누르면 스르륵 ---------- */
 
 .toast {
@@ -2397,7 +2476,7 @@ input {
 }
 /* 밥·간식·장난감 카드는 버튼이 두 개라 코스튬 카드보다 조금 넓게 */
 .closet-right .wardrobe.inv-grid {
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
 }
 .inv-item {
   display: flex;
@@ -2408,6 +2487,78 @@ input {
 .inv-item .hint {
   margin-top: auto;
   padding-top: 6px;
+}
+/* 인벤토리 카드(코스튬 · 밥 · 간식 · 장난감)도 상점처럼 한 규격: 그림 · 이름 · 정보 · 버튼 네 칸의 높이를 고정해
+   모든 카드가 같다 (2026-09-27. 탭마다 가장 큰 내용을 재서 정했다).
+   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */
+.wardrobe.inv-uni {
+  row-gap: 12px;
+}
+.inv-uni > .panel.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px 12px;
+}
+.inv-uni > .item > * {
+  margin: 0;
+  flex: none;
+}
+/* 그림 96 (코스튬) · 이름 두 줄 · 정보 38 (줄다리기: 설명 + 난이도 한 줄) · 버튼 29 */
+.inv-uni > .item .pv {
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inv-uni > .item .nm {
+  height: 36px;
+}
+.inv-uni > .item .fx {
+  height: 38px;
+  overflow: hidden;
+}
+.inv-uni > .item .hint {
+  height: 29px;
+}
+/* 인벤토리 코스튬은 가운데 칸에 세트 전용 모션 버튼만, 아래 칸에 '착용 중' 글자만 들어가서 따로 더 낮게 */
+.inv-uni.inv-cos > .item .fx {
+  height: 22px;
+}
+.inv-uni.inv-cos > .item .hint {
+  height: 16px;
+  min-height: 0;
+}
+.inv-uni > .item .nm {
+  align-self: stretch;
+  text-align: center;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.inv-uni > .item .fx {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  align-self: start;
+}
+.inv-uni > .item .fx > * {
+  margin: 0;
+}
+.inv-uni > .item .hint {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  align-self: start;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
 }
 /* 왼쪽 좁은 패널의 배부름·기운 게이지: 이름 칸을 줄이고 줄마다 한 칸씩 */
 .inv-gauge .gauge {
@@ -2734,34 +2885,52 @@ input:focus-visible {
   }
 }
 
-/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼을 세로로 쌓는다. 같은 줄 카드는 높이가 같으니(그리드가 늘린다)
-   가격·버튼을 맨 아래로 밀어서 가지런히 둔다. [옵시디언] 옵시디언 리뷰에 맞춰 flex 로 바꿨다 */
+/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼 다섯 칸의 높이를 고정해 모든 카드가 같은 규격이다.
+   이름이 한 줄이든 두 줄이든, 효과가 있든 없든 가격·버튼 줄이 가지런하다.
+   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */
 .wardrobe.shop-grid {
   row-gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
 }
 .shop-grid > .panel.item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 8px;
+  gap: 4px;
+  padding: 10px 8px 14px; /* 아래는 더 넉넉히: 가격·버튼이 테두리에 붙지 않게 */
 }
 .shop-grid > .item > * {
   margin: 0;
+  flex: none;
 }
+/* 모든 상점 카드(밥·간식·코스튬·모션·장난감)를 같은 규격으로: 다섯 칸 높이를 고정한다.
+   탭마다 가장 큰 내용을 재서 정했다 (2026-09-27: 그림 96 코스튬·모션 · 이름 두 줄 · 정보 두 줄 · 가격 · 버튼 한 줄).
+   정보가 두 줄에 들어가도록 배부름·기운은 아이콘 한 줄, 효과는 짧게, 줄다리기 난이도는 인벤토리에서만 */
 .shop-grid > .item .pv {
   align-self: center;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-/* 이름은 아래(효과 쪽)에 붙인다: 한 줄짜리 이름이면 남는 칸은 그림 쪽으로 가서 이름·효과·가격·버튼 간격이 늘 같다 */
+/* 이름은 칸 위쪽(그림 쪽)에 붙이고 최대 두 줄: 그림 → 이름 간격이 모든 카드에서 같다 */
 .shop-grid > .item .nm {
-  line-height: 1.35;
+  align-self: stretch;
+  height: 36px;
   text-align: center;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .shop-grid > .item .fx {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  height: 36px;
+  overflow: hidden;
 }
 .shop-grid > .item .fx > * {
   margin: 0;
@@ -2770,12 +2939,15 @@ input:focus-visible {
   display: block;
 }
 .shop-grid > .item .price {
-  margin: auto 0 0;
+  height: 17px;
   padding: 0;
 }
 .shop-grid > .item .hint,
 .shop-grid > .item .hint:empty {
   display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  height: 27px;
   min-height: 24px;
 }
 .shop-grid > .item .btn.buy {

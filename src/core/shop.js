@@ -88,7 +88,7 @@ const ACCESSORIES = [
 
   // --- 3차 (2026-09-22 확정): 칸마다 B급 감성, 비싼 건 화려하게 ---
   { key: 'spidercat', price: 1800, level: 18, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
-  { key: 'ironcat', price: 4700, level: 35, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
+  { key: 'ironcat', price: 2300, level: 35, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
   { key: 'aliencat', price: 2400, level: 38, slot: 'set', covers: ['head', 'face', 'neck'] },
   { key: 'beesuit', price: 1300, level: 20, slot: 'set', covers: ['head', 'neck', 'back', 'hand'] },
   { key: 'ninjaset', price: 1600, level: 15, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
@@ -444,7 +444,29 @@ const FOODS = [
   { key: 'pumpkinLatte', group: 'snack', price: 45 },
   { key: 'dietair', group: 'snack', price: 5, fill: 0 },
   { key: 'goldmackerel', group: 'snack', price: 150 },
+  // 4차 (2026-09-26): 프리미엄 — 코스튬 대신 먹는 데 코인을 쓰는 사람을 위한 비싼 밥·간식. 레벨 잠금 없음.
+  // 상점 카드에서 움직인다 (renderer/pixelart.js FOOD_ANIM). 먹었을 때 특별한 일은 main.js 의 premiumEaten
+  { key: 'samgyetang', group: 'meal', price: 450, fill: 70, energy: 50, premium: true },
+  { key: 'otoroOmakase', group: 'meal', price: 600, fill: 100, premium: true }, // 배부름 4시간 고정
+  { key: 'roomService', group: 'meal', price: 700, fill: 80, premium: true }, // 오늘의 메뉴가 매번 다르다
+  { key: 'firstClassMeal', group: 'meal', price: 800, fill: 80, energy: 60, premium: true },
+  { key: 'sushiTrain', group: 'meal', price: 800, fill: 100, premium: true },
+  { key: 'hanwooSteak', group: 'meal', price: 850, fill: 70, energy: 40, premium: true },
+  { key: 'spaceFood', group: 'meal', price: 750, fill: 70, energy: 30, premium: true }, // 2026-09-27 950 → 750 (한우·기내식보다 내용이 적어서)
+  { key: 'royalTable', group: 'meal', price: 1500, fill: 100, energy: 100, premium: true }, // 배부름·기운 8시간 고정
+  { key: 'dragonKingFeast', group: 'meal', price: 2000, fill: 100, energy: 100, premium: true }, // 배부름·기운 24시간 고정
+  { key: 'fortuneCookie', group: 'snack', price: 200, fill: 12, premium: true }, // 운세 한마디 + 가끔 보물·코인
+  { key: 'mysteryBox', group: 'snack', price: 250, fill: 12, premium: true }, // 열면 간식 하나가 창고로
+  { key: 'cloudMallow', group: 'snack', price: 400, fill: 12, energy: 50, premium: true }, // 구름 위 낮잠
+  { key: 'tunaCone', group: 'snack', price: 450, fill: 40, premium: true }, // 5단이라 든든
+  { key: 'macaronTower', group: 'snack', price: 500, fill: 50, premium: true }, // 10단
+  { key: 'inviteCookie', group: 'snack', price: 500, fill: 12, premium: true }, // 30% 확률로 친구가 바로 놀러 온다
+  { key: 'afternoonTea', group: 'snack', price: 650, fill: 20, energy: 20, premium: true }, // 배부름·기운 2시간 고정
+  { key: 'dragonCandy', group: 'snack', price: 700, fill: 12, energy: 100, premium: true }, // 기운 가득
+  { key: 'goldMouseChoco', group: 'snack', price: 800, fill: 20, premium: true }, // 보물 1개 확정 (흔함·드묾)
 ];
+// 상점·창고·우클릭 메뉴 모두 싼 것부터 (같은 값이면 적어 둔 순서). '밥 주기' 버튼도 그래서 싼 밥부터 꺼낸다
+FOODS.sort((a, b) => a.price - b.price);
 
 // 상점에서 뺀 간식 (2026-09-21 개편: 츄르·멸치·아이스크림만 남겼다). 창고에 남은 건 산 값만큼 코인으로 돌려준다
 // 2026-09-22 에 뺀 간식도 같은 식으로 (아이스크림·생쥐 앞다리·도마뱀 떡볶이·테이프 캔디·쥐돌이 크림빵)
@@ -464,7 +486,7 @@ const TOYS = [
   { key: 'scratcher', price: 850, level: 30 },
   { key: 'windup', price: 900, level: 36 },
   { key: 'laser', price: 950, level: 42 },
-  { key: 'bubbles', price: 1050 },
+  { key: 'bubbles', price: 1050, level: 48 },
   // 2차 (2026-09-22): 동작은 renderer/toyplay*.js 가 갖는다
   { key: 'grenade', price: 1200, level: 52 },
   { key: 'squirtgun', price: 900, level: 33 },
@@ -515,7 +537,7 @@ const SLOT_SYMBOLS = 5;
 // type·curl·wait·happy·levelup·wave 는 motions.js 가 아니라 sprite.js 의 기본 자세라서 원래 자리에서만 쓴다 (BASIC_POSES)
 const MOTION_SLOTS = [
   { key: 'work', free: ['type'], multi: true }, // Claude 가 일하는 동안
-  { key: 'workLong', free: ['type'], multi: true }, // 15분 넘게 쉬지 않고 이어서 일할 때 (main.js 의 WORK_TIERS)
+  { key: 'workLong', free: ['type'], multi: true }, // 30분 넘게 쉬지 않고 이어서 일할 때 (main.js 의 WORK_TIERS)
   { key: 'workHour', free: ['type'], multi: true }, // 1시간 넘게 이어서 일할 때
   { key: 'waiting', free: ['wait'], multi: true }, // Claude 가 권한·확인을 기다릴 때. wait = 느낌표 띄우고 손 흔드는 원래 자세
   { key: 'done', free: ['happy', 'hooray'], multi: true }, // Claude 가 답을 끝냈을 때
@@ -642,74 +664,87 @@ const RETIRED_MOTIONS = [
 
 // 상점에서 파는 모션 (전부 B급). rec = 권장 자리. 권장일 뿐이고 산 모션은 어느 자리에든 끼울 수 있다
 const MOTIONS = [
+  // --- 10차 (2026-09-29 확정) ---
+  { key: 'sojuchug', rec: ['idle', 'rest'], price: 900, level: 36 },
+  { key: 'ramenslurp', rec: ['idle', 'hungry'], price: 650, level: 20 },
+  { key: 'darkmode', rec: ['idle'], price: 750, level: 25 },
+  { key: 'stockdown', rec: ['idle', 'workHour'], price: 800, level: 30 },
+  { key: 'stockup', rec: ['idle', 'done'], price: 1000, level: 45 },
+  { key: 'callbell', rec: ['waiting'], price: 550, level: 10 },
+  { key: 'enterwait', rec: ['waiting'], price: 650, level: 20 },
+  { key: 'staticfur', rec: ['poke'], price: 850, level: 33 },
+  { key: 'bowlcarry', rec: ['hungry'], price: 650, level: 20 },
+  { key: 'cicheck', rec: ['done'], price: 600, level: 15 },
+  { key: 'deployrocket', rec: ['done', 'levelup'], price: 1050, level: 48 },
+  { key: 'donebell', rec: ['done'], price: 450, level: 5 },
   // --- 6차 (2026-09-23 확정) ---
-  { key: 'giantfist', rec: ['workLong', 'workHour'], price: 650, level: 64 },
-  { key: 'trophy', rec: ['done', 'levelup'], price: 550, level: 50 },
-  { key: 'laptoptoss', rec: ['rest'], price: 600, level: 56 },
-  { key: 'smokereveal', rec: ['wear'], price: 550, level: 48 },
-  { key: 'curtainreveal', rec: ['wear'], price: 600, level: 52 },
-  { key: 'drums', rec: ['idle'], price: 600, level: 54 },
-  { key: 'piano', rec: ['idle'], price: 600, level: 56 },
-  { key: 'electricjam', rec: ['idle'], price: 650, level: 60 },
-  { key: 'ropeskip', rec: ['idle'], price: 500, level: 30 },
-  { key: 'sneeze', rec: ['idle'], price: 250 },
-  { key: 'hiccup', rec: ['idle'], price: 250 },
-  { key: 'fart', rec: ['idle'], price: 300 },
-  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'], price: 500, level: 15 },
-  { key: 'snot', rec: ['sleep'], price: 550, level: 48 },
-  { key: 'workout', rec: ['rest', 'idle'], price: 550, level: 52 },
-  { key: 'soul', rec: ['rest', 'workHour'], price: 650, level: 70 },
-  { key: 'cafe', rec: ['rest', 'idle'], price: 500, level: 15 },
-  { key: 'karaoke', rec: ['idle', 'levelup'], price: 350, level: 5 },
-  { key: 'gum', rec: ['idle'], price: 350 },
-  { key: 'ghost', rec: ['idle'], price: 300 },
-  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'], price: 350 },
-  { key: 'rocket', rec: ['levelup', 'done'], price: 700, level: 74 },
-  { key: 'explode', rec: ['hungry', 'workHour'], price: 650, level: 62 },
-  { key: 'smoke', rec: ['rest'], price: 500, level: 33 },
-  { key: 'soju', rec: ['rest', 'idle'], price: 500, level: 36 },
-  { key: 'bubbles', rec: ['idle'], price: 300 },
-  { key: 'ufo', rec: ['idle'], price: 700, level: 76 },
-  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 650, level: 58 },
-  { key: 'skullsmoke', rec: ['rest'], price: 550, level: 45 },
-  { key: 'lightning', rec: ['idle', 'workHour'], price: 550, level: 42 },
-  { key: 'monitors', rec: ['work', 'workLong'], price: 500, level: 25 },
-  { key: 'papers', rec: ['workLong', 'workHour'], price: 550, level: 45 },
-  { key: 'aura', rec: ['workHour'], price: 700, level: 72 },
-  { key: 'tapfoot', rec: ['waiting'], price: 350, level: 10 },
-  { key: 'blanket', rec: ['sleep'], price: 500, level: 10 },
-  { key: 'grumpy', rec: ['poke'], price: 350 },
-  { key: 'startle', rec: ['poke'], price: 500, level: 36 },
-  { key: 'melt', rec: ['poke'], price: 550, level: 42 },
-  { key: 'popper', rec: ['done', 'levelup'], price: 500, level: 30 },
-  { key: 'coronation', rec: ['levelup', 'wear'], price: 650, level: 60 },
-  { key: 'levelbanner', rec: ['levelup'], price: 550, level: 39 },
-  { key: 'hammock', rec: ['rest', 'sleep'], price: 550, level: 39 },
-  { key: 'fooddream', rec: ['hungry'], price: 500, level: 20 },
-  { key: 'sipcode', rec: ['work'], price: 500, level: 30 },
-  { key: 'headbang', rec: ['work', 'workLong'], price: 500, level: 25 },
-  { key: 'eureka', rec: ['work'], price: 500, level: 15 },
-  { key: 'smokingkeys', rec: ['workLong', 'workHour'], price: 550, level: 48 },
-  { key: 'soulcode', rec: ['workHour'], price: 650, level: 72 },
-  { key: 'ivcoffee', rec: ['workHour'], price: 650, level: 68 },
-  { key: 'overheat', rec: ['workHour'], price: 650, level: 68 },
-  { key: 'raisehand', rec: ['waiting'], price: 350, level: 5 },
-  { key: 'pray', rec: ['waiting'], price: 350, level: 5 },
-  { key: 'fishdream', rec: ['sleep'], price: 500, level: 20 },
-  { key: 'slowblink', rec: ['poke'], price: 500, level: 33 },
-  { key: 'shinyfur', rec: ['poke', 'wear'], price: 500, level: 30 },
-  { key: 'donebanner', rec: ['done'], price: 500, level: 15 },
-  { key: 'bigbutton', rec: ['done'], price: 500, level: 10 },
-  { key: 'glowup', rec: ['levelup', 'wear'], price: 650, level: 66 },
-  { key: 'fireworksbg', rec: ['levelup', 'done'], price: 650, level: 64 },
-  { key: 'teatime', rec: ['rest'], price: 500, level: 39 },
-  { key: 'foodsign', rec: ['hungry'], price: 500, level: 20 },
-  { key: 'paperplane', rec: ['idle'], price: 500, level: 25 },
-  { key: 'airpunch', rec: ['idle'], price: 500, level: 10 },
-  { key: 'knitting', rec: ['idle', 'rest'], price: 500, level: 25 },
+  { key: 'giantfist', rec: ['workLong', 'workHour'], price: 1100, level: 54 },
+  { key: 'trophy', rec: ['done', 'levelup'], price: 1000, level: 45 },
+  { key: 'laptoptoss', rec: ['rest'], price: 1050, level: 50 },
+  { key: 'smokereveal', rec: ['wear'], price: 950, level: 42 },
+  { key: 'curtainreveal', rec: ['wear'], price: 1050, level: 48 },
+  { key: 'drums', rec: ['idle'], price: 1050, level: 48 },
+  { key: 'piano', rec: ['idle'], price: 1050, level: 50 },
+  { key: 'electricjam', rec: ['idle'], price: 1100, level: 52 },
+  { key: 'ropeskip', rec: ['idle'], price: 800, level: 30 },
+  { key: 'sneeze', rec: ['idle'], price: 300 },
+  { key: 'hiccup', rec: ['idle'], price: 300 },
+  { key: 'fart', rec: ['idle'], price: 350 },
+  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'], price: 600, level: 15 },
+  { key: 'snot', rec: ['sleep'], price: 1000, level: 45 },
+  { key: 'workout', rec: ['rest', 'idle'], price: 1050, level: 48 },
+  { key: 'soul', rec: ['rest', 'workHour'], price: 1150, level: 56 },
+  { key: 'cafe', rec: ['rest', 'idle'], price: 600, level: 15 },
+  { key: 'karaoke', rec: ['idle', 'levelup'], price: 450, level: 5 },
+  { key: 'gum', rec: ['idle'], price: 400 },
+  { key: 'ghost', rec: ['idle'], price: 350 },
+  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'], price: 400 },
+  { key: 'rocket', rec: ['levelup', 'done'], price: 1200, level: 60 },
+  { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
+  { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
+  { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
+  { key: 'bubbles', rec: ['idle'], price: 350 },
+  { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
+  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
+  { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
+  { key: 'lightning', rec: ['idle', 'workHour'], price: 900, level: 39 },
+  { key: 'monitors', rec: ['work', 'workLong'], price: 750, level: 25 },
+  { key: 'papers', rec: ['workLong', 'workHour'], price: 950, level: 42 },
+  { key: 'aura', rec: ['workHour'], price: 1150, level: 58 },
+  { key: 'tapfoot', rec: ['waiting'], price: 550, level: 10 },
+  { key: 'blanket', rec: ['sleep'], price: 550, level: 10 },
+  { key: 'grumpy', rec: ['poke'], price: 400 },
+  { key: 'startle', rec: ['poke'], price: 900, level: 36 },
+  { key: 'melt', rec: ['poke'], price: 900, level: 39 },
+  { key: 'popper', rec: ['done', 'levelup'], price: 800, level: 30 },
+  { key: 'coronation', rec: ['levelup', 'wear'], price: 1100, level: 52 },
+  { key: 'levelbanner', rec: ['levelup'], price: 900, level: 36 },
+  { key: 'hammock', rec: ['rest', 'sleep'], price: 900, level: 36 },
+  { key: 'fooddream', rec: ['hungry'], price: 650, level: 20 },
+  { key: 'sipcode', rec: ['work'], price: 800, level: 30 },
+  { key: 'headbang', rec: ['work', 'workLong'], price: 750, level: 25 },
+  { key: 'eureka', rec: ['work'], price: 600, level: 15 },
+  { key: 'smokingkeys', rec: ['workLong', 'workHour'], price: 1000, level: 45 },
+  { key: 'soulcode', rec: ['workHour'], price: 1150, level: 58 },
+  { key: 'ivcoffee', rec: ['workHour'], price: 1150, level: 56 },
+  { key: 'overheat', rec: ['workHour'], price: 1150, level: 56 },
+  { key: 'raisehand', rec: ['waiting'], price: 450, level: 5 },
+  { key: 'pray', rec: ['waiting'], price: 450, level: 5 },
+  { key: 'fishdream', rec: ['sleep'], price: 650, level: 20 },
+  { key: 'slowblink', rec: ['poke'], price: 850, level: 33 },
+  { key: 'shinyfur', rec: ['poke', 'wear'], price: 800, level: 30 },
+  { key: 'donebanner', rec: ['done'], price: 600, level: 15 },
+  { key: 'bigbutton', rec: ['done'], price: 550, level: 10 },
+  { key: 'glowup', rec: ['levelup', 'wear'], price: 1100, level: 54 },
+  { key: 'fireworksbg', rec: ['levelup', 'done'], price: 1100, level: 54 },
+  { key: 'teatime', rec: ['rest'], price: 900, level: 39 },
+  { key: 'foodsign', rec: ['hungry'], price: 650, level: 20 },
+  { key: 'paperplane', rec: ['idle'], price: 750, level: 25 },
+  { key: 'airpunch', rec: ['idle'], price: 550, level: 10 },
+  { key: 'knitting', rec: ['idle', 'rest'], price: 750, level: 25 },
 ];
 
-// 모션의 권장 자리들. '일할 때' · '15분 넘게' · '1시간 넘게' 는 서로 호환이라 셋 중 하나에 맞으면 셋 다 권장
+// 모션의 권장 자리들. '일할 때' · '30분 넘게' · '1시간 넘게' 는 서로 호환이라 셋 중 하나에 맞으면 셋 다 권장
 const WORK_SLOTS = ['work', 'workLong', 'workHour'];
 const slotsOf = (m) => (m.rec.some((s) => WORK_SLOTS.includes(s)) ? [...new Set([...m.rec, ...WORK_SLOTS])] : m.rec);
 
@@ -826,7 +861,7 @@ class Shop {
       do reels = [pick(), pick(), pick()];
       while (reels[0] === reels[1] && reels[1] === reels[2] && reels[0] !== SLOT_SYMBOLS - 1);
     }
-    const snacks = FOODS.filter((x) => x.group === 'snack' && x.fill !== 0);
+    const snacks = FOODS.filter((x) => x.group === 'snack' && x.fill !== 0 && !x.premium); // 15코인 슬롯에서 프리미엄은 안 나온다
     const prize = win ? [0, 1].map(() => snacks[Math.floor(Math.random() * snacks.length)].key) : [];
     return { ok: true, reels, win, prize };
   }
@@ -926,6 +961,7 @@ class Shop {
       covers: it.covers || undefined,
       fill: it.kind === 'food' ? fillOf(it) : undefined,
       energy: it.kind === 'food' ? it.energy || 0 : undefined,
+      premium: it.premium || undefined,
       slots: it.kind === 'motion' ? slotsOf(it) : undefined,
       owned: it.kind === 'food' ? undefined : this.owned(it.key),
       stock: it.kind === 'food' ? this.stock(it.key) : undefined,
@@ -946,4 +982,4 @@ class Shop {
   }
 }
 
-module.exports = { SET_MOTIONS, COSTUME_SLOTS, COSTUME_TABS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, BASIC_POSES, FREE_MOTIONS, find, slotOf, slotsOf, coinsForDay, coinsSince, WELCOME_COINS, SLOT_PRICE };
+module.exports = { PREMIUM_FOODS: FOODS.filter((x) => x.premium).map((x) => x.key), SET_MOTIONS, COSTUME_SLOTS, COSTUME_TABS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, BASIC_POSES, FREE_MOTIONS, find, slotOf, slotsOf, coinsForDay, coinsSince, WELCOME_COINS, SLOT_PRICE };

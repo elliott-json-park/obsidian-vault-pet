@@ -5,6 +5,7 @@
 //  c 는 gamify.js 의 context(): c.all{c,l,n,s,v,e} 누적 · c.today 오늘 · c.hours[0..23] 시각별 기록 횟수 · c.use(usage.obsidianUse) · c.maxBacklinks
 // 이름·설명은 i18n 의 ach.<id>.name / ach.<id>.desc, icon 은 pixelart.js 의 도트 이름.
 const { TREASURES } = require('./treasure');
+const { PREMIUM_FOODS } = require('./shop');
 
 const XP = { easy: 50, normal: 150, hard: 400, legend: 1000 };
 const n = (c, k) => (c.st.cnt && c.st.cnt[k]) || 0;
@@ -122,6 +123,13 @@ const RAW = [
   ['fed_200', 'bond', 'hard', 'ricebowl', (c) => n(c, 'fed'), 200, { item: 'fooddream' }],
   ['snack_10', 'bond', 'easy', 'gift', (c) => n(c, 'snack'), 10, { food: { churu: 2 } }],
   ['snack_100', 'bond', 'hard', 'gift', (c) => n(c, 'snack'), 100, { item: 'mustache' }],
+  // 4차 (2026-09-26): 프리미엄 밥·간식. 먹은 종류는 cnt 의 'pf_<키>' 로 센다 (main.js premiumEaten)
+  ['premium_1', 'bond', 'easy', 'ricebowl', (c) => n(c, 'premium'), 1, { food: { fortuneCookie: 1 } }],
+  ['premium_10', 'bond', 'normal', 'ricebowl', (c) => n(c, 'premium'), 10, { food: { mysteryBox: 2 } }],
+  ['premium_all', 'collect', 'legend', 'star', (c) => PREMIUM_FOODS.filter((k) => n(c, 'pf_' + k) > 0).length, PREMIUM_FOODS.length, { item: 'chef' }],
+  ['foodspend_10k', 'collect', 'hard', 'moneybag', (c) => n(c, 'foodSpent'), 10000, { food: { goldMouseChoco: 1 } }],
+  ['dragonking', 'bond', 'hard', 'gem', (c) => n(c, 'pf_dragonKingFeast'), 1, COIN.hard],
+  ['invite_ok', 'bond', 'normal', 'paw', (c) => n(c, 'invite'), 1, { food: { inviteCookie: 1 } }],
   ['play_1', 'bond', 'easy', 'paw', (c) => n(c, 'play'), 1, { food: { churu: 2 } }],
   ['play_30', 'bond', 'normal', 'paw', (c) => n(c, 'play'), 30, { item: 'sneeze' }],
   ['catch_100', 'bond', 'normal', 'star', (c) => n(c, 'catch'), 100, { item: 'frog' }],
@@ -194,6 +202,7 @@ const RAW = [
   // ---------- 비밀·잡동사니 ----------
   ['house_1', 'secret', 'easy', 'home', (c) => n(c, 'house'), 1, { food: { churu: 2 } }],
   ['rename', 'secret', 'easy', 'paw', (c) => n(c, 'rename'), 1, { food: { milk: 1 } }],
+  ['mystery_jackpot', 'secret', 'normal', 'gift', (c) => n(c, 'mysteryPremium'), 1, { food: { fortuneCookie: 2 } }],
   ['quiet_10', 'secret', 'normal', 'bellOff', (c) => n(c, 'quiet'), 10, { item: 'teatime' }],
   ['smoke_break', 'secret', 'normal', 'pillow', (c) => n(c, 'lift') >= 1 && c.st.restsTaken >= 3 ? 1 : 0, 1, { item: 'smoke' }],
 ];

@@ -239,6 +239,35 @@ test('host: 상점에서 사고 입고, 밥을 사서 먹인다', async () => {
   assert.ok(host.gamify.st.cnt.fed >= 1);
 });
 
+test('host: 프리미엄 음식 — 고정·보물·업적 횟수, 먹이에 쓴 코인', async () => {
+  const { host } = makeHost();
+  host.shop.state.set({ walletBonus: 100000 });
+  for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:buy', null, key)).ok, key);
+  assert.ok(host.gamify.st.cnt.foodSpent > 0);
+  host.onSend('pet:treat-eaten', null, 'royalTable');
+  assert.ok(host.gauge.locked('food') && host.gauge.locked('energy'), '수라상은 배부름·기운 8시간 고정');
+  const before = host.treasures.summary().kinds;
+  host.onSend('pet:treat-eaten', null, 'goldMouseChoco');
+  assert.ok(host.treasures.summary().kinds >= before);
+  host.onSend('pet:treat-eaten', null, 'mysteryBox');
+  assert.strictEqual(host.gamify.st.cnt.premium, 3);
+  assert.strictEqual(host.gamify.st.cnt.pf_royalTable, 1);
+});
+
+test('host: 놀다가 기운이 10 이하로 떨어지면 한 번만 세고 놀이를 접는다', async () => {
+  const { host } = makeHost();
+  const toy = host.shop.summary().toy.find((x) => !x.locked);
+  host.shop.state.set({ walletBonus: 100000 });
+  assert.ok((await host.onInvoke('shop:buy', null, toy.key)).ok);
+  assert.ok((await host.onInvoke('house:play', null, toy.key)).on);
+  host.gauge.g.energy = 11;
+  host.gauge.g.food = 100;
+  host.onSend('pet:caught');
+  host.onSend('pet:caught');
+  assert.strictEqual(host.gamify.st.cnt.bored, 1, '지쳐서 그만둔 횟수는 한 번만');
+  assert.ok(host.playing && host.playing.ending);
+});
+
 test('host: 쓰다듬기·들기·장난감 놀이 흐름', async () => {
   const { host, sent } = makeHost();
   host.onSend('pet:poke');

@@ -81,7 +81,7 @@
       notifyAgain: {
         angel: ['아직 Claude가 기다리고 있어…', '저기… Claude 5분째 기다리는 중이야', '깜빡했어? Claude가 대답 기다려!'],
       },
-      // 하루 한 번 AI 활용 팁
+      // AI 활용 팁 (하루 최대 5번)
       tip: {
         angel: [
           '헷갈리기 시작하면||/clear로 새로 시작해 봐',
@@ -145,7 +145,7 @@
       'session@rare': {
         angel: ['아침에 사료 냉장고에 넣는 걸 깜빡했다… ||…상하진 않았겠지..?'],
       },
-      // Claude 가 답을 끝냈을 때 (자리를 비웠을 때 · 가끔. 오래 걸린 답은 stopLong)
+      // Claude 가 답을 끝냈을 때 (늘. 오래 걸린 답은 stopLong)
       stop: {
         angel: ['끝났다! 확인해 봐', '짠! 답변 나왔다옹', '오 이번 거 꽤 괜찮은데?', '작업 끝! 일동 박수!!', '다 됐다. 한번 확인해 보라옹!', '완성! 오늘 일 빨리 끝나겠는데?', '됐다옹! 한번 봐 줘', '답 왔어! 맞게 했는지 봐 봐', '끝! 다음 거 시켜도 돼', '짜잔~ 결과 나왔어'],
       },
@@ -300,15 +300,42 @@
       'treat@rare': {
         angel: ['이 맛은…||평생 기억할 거야'],
       },
+      // 4차 프리미엄 음식 (main.js premiumEaten)
+      omakaseLock: { angel: ['뱃살이 입에서 녹았어… 네 시간은 배 안 고플 것 같아', '오마카세 최고… 한동안 배부름 걱정 끝!'] },
+      bothLock: { angel: ['이렇게 잘 먹었으니 {h}시간은 배도 안 고프고 기운도 안 빠질 거야', '든든하다… {h}시간 동안은 끄떡없어!'] },
+      goldMouseTreasure: { angel: ['초콜릿 쥐 속에 {item#이/가} 숨어 있었어! 보물 상자에 넣어 둘게'] },
+      roomService: {
+        angel: [
+          '(뚜껑을 열며) 오늘의 메뉴는… 랍스터 테르미도르!',
+          '(뚜껑을 열며) 오늘의 메뉴는… 트러플 연어 스테이크!',
+          '(뚜껑을 열며) 오늘의 메뉴는… 캐비어 참치 타르타르!',
+          '(뚜껑을 열며) 오늘의 메뉴는… 셰프 특선 고등어 콩피!',
+          '(뚜껑을 열며) 오늘의 메뉴는… 전복 버터 리조또!',
+          '(뚜껑을 열며) 오늘의 메뉴는… 푸아그라 닭가슴살!',
+        ],
+      },
+      fortune: {
+        angel: [
+          '운세: 오늘 네 코드는 한 번에 돌아간다',
+          '운세: 곧 반가운 손님이 찾아온다',
+          '운세: 커밋 메시지를 정성껏 쓰면 복이 온다',
+          '운세: 오늘은 낮잠 운이 아주 좋다',
+          '운세: 잃어버린 양말 한 짝을 찾게 된다',
+          '운세: 버그는 생각보다 가까운 곳에 있다',
+          '운세: 간식을 나누면 행운이 두 배',
+          '운세: 오늘의 행운 아이템은 츄르',
+          '운세: 급할수록 테스트부터',
+          '운세: 뜻밖의 코인이 굴러들어 온다',
+        ],
+      },
+      fortuneTreasure: { angel: ['쿠키 속에 {item#이/가} 들어 있었어! 보물 상자에 넣어 둘게'] },
+      fortuneCoins: { angel: ['쿠키 속에 코인 {n}개가! 오늘 운 좋다'] },
+      mysteryGot: { angel: ['상자를 열었더니… {name}! 창고에 넣어 둘게', '두구두구… {name} 나왔다!'] },
+      mysteryJackpot: { angel: ['대박!! 상자에서 {name#이/가} 나왔어!', '이건… 전설의 {name}!!'] },
+      inviteMiss: { angel: ['초대장 보냈는데… 다들 바쁜가 봐', '냠. 친구들이 나중에 오려나?'] },
       // 장난감 놀이
       caught: {
         angel: ['잡았다!', '헤헤 내가 이겼어', '한 번 더!', '나.. 혹시 사냥 천재..?'],
-      },
-      bored: {
-        angel: ['이제 좀 지겨워…', '나 이제 그만할래', '오늘 놀이는 여기까지!'],
-      },
-      stillBored: {
-        angel: ['아까 많이 놀았잖아! 좀 이따 하자', '지금은 쉬는 중이야'],
       },
       // 배부름 게이지가 바닥이라 놀자고 해도 안 놀 때
       playHungry: {
@@ -600,9 +627,35 @@
         angel: ['Nom nom… so happy'],
       },
       'treat@rare': { angel: ['This taste…||I will remember it forever'] },
+      omakaseLock: { angel: ['The fatty tuna melted… I will not be hungry for four hours'] },
+      bothLock: { angel: ['That was a feast… I will not get hungry or tired for {h} hours'] },
+      goldMouseTreasure: { angel: ['There was a {item} hidden in the chocolate mouse! Into the treasure box'] },
+      roomService: {
+        angel: [
+          "(lifts the lid) Today's menu… lobster thermidor!",
+          "(lifts the lid) Today's menu… truffle salmon steak!",
+          "(lifts the lid) Today's menu… caviar tuna tartare!",
+          "(lifts the lid) Today's menu… chef's mackerel confit!",
+        ],
+      },
+      fortune: {
+        angel: [
+          'Fortune: your code will run on the first try today',
+          'Fortune: a welcome guest is coming soon',
+          'Fortune: write a kind commit message and luck will follow',
+          'Fortune: great nap luck today',
+          'Fortune: the bug is closer than you think',
+          'Fortune: share a snack, double your luck',
+          'Fortune: test first when in a hurry',
+          'Fortune: unexpected coins roll your way',
+        ],
+      },
+      fortuneTreasure: { angel: ['There was a {item} inside the cookie! Into the treasure box'] },
+      fortuneCoins: { angel: ['{n} coins were inside the cookie! Lucky day'] },
+      mysteryGot: { angel: ['I opened the box… {name}! Into the pantry'] },
+      mysteryJackpot: { angel: ['Jackpot!! {name} came out of the box!'] },
+      inviteMiss: { angel: ['I sent the invitation… everyone must be busy'] },
       caught: { angel: ['Gotcha!', 'Hehe, I win', 'Again!'] },
-      bored: { angel: ['Getting a little bored…', 'That was fun! Break time'] },
-      stillBored: { angel: ["We just played~ later, okay?"] },
       playHungry: { angel: ['Too hungry to play… food first?'] },
       playTired: { angel: ['Yawn… too tired. Nap first'] },
       'insight.busier': { angel: ["{n}% more work than last week! Amazing, but don't overdo it"] },
@@ -764,6 +817,8 @@
       'game.rec.trampoline': '최고 {n}콤보',
       'tray.resetPos': '위치 초기화',
       'tray.quit': '종료',
+      'tray.update': '새 버전 {v} 설치하고 다시 켜기',
+      'update.ready': '새 버전 {v} 받아 뒀어! 앱을 다시 켜면 바뀌어',
 
       // 펫 창
       'pet.loading': '기억을 떠올리는 중… {p}%',
@@ -1383,6 +1438,20 @@
       'ach.snack_10.desc': '간식 10번 주기',
       'ach.snack_100.name': '간식 중독',
       'ach.snack_100.desc': '간식 100번 주기',
+      'ach.premium_1.name': '첫 호강',
+      'ach.premium_1.desc': '프리미엄 음식 처음 먹이기',
+      'ach.premium_10.name': '입이 고급',
+      'ach.premium_10.desc': '프리미엄 음식 10번 먹이기',
+      'ach.premium_all.name': '미식 순례',
+      'ach.premium_all.desc': '프리미엄 음식 18종 모두 먹여 보기',
+      'ach.foodspend_10k.name': '큰손 집사',
+      'ach.foodspend_10k.desc': '먹이에 코인 10,000 쓰기',
+      'ach.dragonking.name': '용궁 초대장',
+      'ach.dragonking.desc': '용왕님 생일상 먹이기',
+      'ach.invite_ok.name': '반가운 손님',
+      'ach.invite_ok.desc': '초대장 쿠키로 친구 부르기',
+      'ach.mystery_jackpot.name': '대박 상자',
+      'ach.mystery_jackpot.desc': '미스터리 간식 상자에서 프리미엄 간식 뽑기',
       'ach.play_1.name': '첫 놀이',
       'ach.play_1.desc': '처음으로 장난감을 꺼냈어요',
       'ach.play_30.name': '놀이 대장',
@@ -1396,7 +1465,7 @@
       'ach.box_10.name': '상자 중독',
       'ach.box_10.desc': '상자에 10번 들어갔어요',
       'ach.bored_10.name': '지겨움 전문가',
-      'ach.bored_10.desc': '고양이를 10번 질리게 했어요',
+      'ach.bored_10.desc': '고양이가 10번 지칠 때까지 놀아 줬어요',
       'ach.buy_1.name': '첫 쇼핑',
       'ach.buy_1.desc': '상점에서 처음 샀어요',
       'ach.buy_20.name': '단골 고객',
@@ -1579,7 +1648,7 @@
       'gauge.title': '고양이 컨디션',
       'gauge.food': '배부름',
       'gauge.energy': '기운',
-      'gauge.okNote': '둘 중 하나라도 20 밑으로 떨어지면 장난감 놀이를 거부해요. 밥을 먹으면 배가 차고, 졸거나 자면 기운이 차요',
+      'gauge.okNote': '배부름이 20 밑이거나 기운이 10 이하면 장난감 놀이를 거부해요. 밥을 먹으면 배가 차고, 졸거나 자면 기운이 차요',
       'gauge.hungryNote': '배가 너무 고파서 지금은 놀지 않아요. 밥을 먼저 주세요',
       'gauge.tiredNote': '너무 지쳐서 지금은 놀지 않아요. 한숨 자고 나면 괜찮아져요',
       'set.bubbles': '말풍선',
@@ -1587,7 +1656,7 @@
       'set.chatter': '가끔 수다 떨기',
       'set.chatterSub': '일하는 중 30분쯤마다 한마디',
       'set.aiTips': '가끔 AI 활용 팁',
-      'set.aiTipsSub': '하루 한 번, Claude를 더 잘 쓰는 요령 한마디',
+      'set.aiTipsSub': '하루 최대 5번, Claude를 더 잘 쓰는 요령 한마디',
       'set.sound': '효과음',
       'set.soundSub': '레벨 업·업적 달성 때 작은 8비트 소리',
       'set.life': '생활 알림',
@@ -1604,11 +1673,21 @@
       'set.lateNightSub': '취침 시간이 지나도 일하고 있으면 한마디 해요',
       'set.minutes': '분',
       'set.hooks': 'Claude Code 연결',
+      // 연결할 도구 (2026-09-29). 'tool.*' 은 Codex 모드에서도 이름을 바꾸지 않는다 (Strings.t)
+      'tool.title': '연결할 도구',
+      'tool.sub': '고양이가 어느 도구를 쓸 때 자랄지 골라요. 도구마다 고양이·레벨·코인·옷·업적이 따로 저장되고, 바꾸면 앱이 다시 켜져요.',
+      'tool.welcome': '어느 도구와 함께할까요? 바꾸면 앱이 다시 켜지고 그 도구의 고양이로 시작해요.',
+      'tool.claude': 'Claude Code',
+      'tool.codex': 'Codex',
+      'tool.now': '지금 연결됨',
+      'tool.confirm': '{tool} 모드로 바꿀까요?\n앱이 다시 켜지고 {tool} 쪽 고양이로 넘어가요. 지금 고양이는 그대로 저장돼 있어서 언제든 돌아올 수 있어요.',
+      'tool.codexTrust': 'Codex 는 처음 한 번 이 hook 을 믿는다고 승인해야 돌아가요. Codex CLI 에서 <code>/hooks</code> 를 열어 킷커밋 hook 을 승인해 주세요.',
       'set.status': '상태',
       'set.connected': '연결됨',
       'set.partial': '일부만 연결됨',
       'set.notConnected': '연결 안 됨',
       'set.hookDesc': '연결하면 hook 5개(세션 시작·프롬프트·응답 완료·알림·세션 종료)를 <code>{file}</code>에 추가해요. 기존 설정은 그대로 두고, 처음 한 번 백업(<code>.kitcommit.bak</code>)을 만들어요.',
+      'set.hookDescCodex': '연결하면 hook 5개(세션 시작·프롬프트·응답 완료·허락 요청·세션 종료)를 <code>{file}</code>에 추가해요. 기존 hook 은 그대로 두고, 처음 한 번 백업(<code>.kitcommit.bak</code>)을 만들어요.',
       'set.disconnect': '연결 해제',
       'set.connect': '연결하기',
       'set.revealFile': '설정 파일 위치 열기',
@@ -1818,7 +1897,6 @@
       'ach.treasure_all.desc': '보물을 전부 모으기',
       'shop.gainFood': '배부름 +{n}',
       'shop.gainEnergy': '기운 +{n}',
-      'shop.energyTag': '기운',
       'slot.wear': '코스튬 입을 때',
       'slot.wearSub': '인벤토리에서 코스튬을 새로 입혔을 때',
       'item.tonkotsu': '모리짱 돈코츠 라멘',
@@ -1895,6 +1973,7 @@
       'w.b3b': 'Claude가 허락을 기다리면 <b>느낌표</b>를 띄우고 알려줘요',
       'w.b3c': '응답이 끝나면 폴짝 뛰어요',
       'w.hookNote': '<code>{file}</code>에 hook 5개를 추가해요. 기존 설정은 그대로 두고 백업도 만들어요. 연결하지 않아도 대화 기록으로 성장은 해요.',
+      'w.hookNoteCodex': '<code>{file}</code>에 hook 5개(세션 시작·프롬프트·응답 완료·허락 요청·세션 종료)를 추가해요. 기존 hook 은 그대로 두고 백업도 만들어요. 연결하지 않아도 대화 기록으로 성장은 해요.',
       'w.connect': '연결하기',
       'w.connected': '연결됨',
       'w.title4': '준비 끝!',
@@ -2022,6 +2101,44 @@
       'item.churuchamp': '츄르 샴페인',
       'item.dietair': '다이어트 공기 한 조각',
       'item.goldmackerel': '황금 고등어 통조림',
+      // 4차 (2026-09-26) 프리미엄 밥·간식
+      'item.samgyetang': '보양 삼계탕',
+      'item.otoroOmakase': '참치 뱃살 오마카세',
+      'item.roomService': '호텔 룸서비스',
+      'item.firstClassMeal': '퍼스트클래스 기내식',
+      'item.sushiTrain': '무한 회전초밥',
+      'item.hanwooSteak': '한우 투뿔 스테이크',
+      'item.spaceFood': '우주 식량 풀코스',
+      'item.royalTable': '궁중 12첩 수라상',
+      'item.dragonKingFeast': '용왕님 생일상',
+      'item.fortuneCookie': '포춘 쿠키',
+      'item.mysteryBox': '미스터리 간식 상자',
+      'item.cloudMallow': '구름 마시멜로',
+      'item.tunaCone': '참치 아이스크림 5단콘',
+      'item.macaronTower': '츄르 마카롱 10단 타워',
+      'item.inviteCookie': '초대장 쿠키',
+      'item.afternoonTea': '애프터눈 티 3단 트레이',
+      'item.dragonCandy': '용의 숨결 캔디',
+      'item.goldMouseChoco': '황금 쥐 초콜릿',
+      // 먹었을 때 효과 (상점·인벤토리 카드의 한 줄)
+      'foodFx.otoroOmakase': '배부름 4시간 고정',
+      'foodFxTip.otoroOmakase': '배부름 4시간 고정',
+      'foodFx.royalTable': '배부름·기운 8시간',
+      'foodFxTip.royalTable': '배부름·기운 8시간 고정',
+      'foodFx.dragonKingFeast': '배부름·기운 24시간',
+      'foodFxTip.dragonKingFeast': '배부름·기운 24시간 고정',
+      'foodFx.afternoonTea': '배부름·기운 2시간',
+      'foodFxTip.afternoonTea': '배부름·기운 2시간 고정',
+      'foodFx.roomService': '매번 다른 메뉴',
+      'foodFxTip.roomService': '오늘의 메뉴가 매번 달라요',
+      'foodFx.goldMouseChoco': '보물 1개 확정',
+      'foodFxTip.goldMouseChoco': '보물 1개 확정',
+      'foodFx.fortuneCookie': '운세 · 가끔 보물',
+      'foodFxTip.fortuneCookie': '운세 한마디 · 가끔 보물이나 코인',
+      'foodFx.mysteryBox': '간식 1개 뽑기',
+      'foodFxTip.mysteryBox': '간식 1개 뽑기 · 가끔 프리미엄',
+      'foodFx.inviteCookie': '30% 친구 방문',
+      'foodFxTip.inviteCookie': '30% 확률로 친구가 놀러 와요',
       'item.pistol': '백종원의 데저트 이글',
       'item.watergun': '워터밤 준비물',
       'item.lightsaber': 'LED 광선검',
@@ -2416,6 +2533,18 @@
       'motion.paperplane': '종이비행기',
       'motion.airpunch': '허공에 냥펀치',
       'motion.knitting': '뜨개질',
+      'motion.sojuchug': '소주 병나발',
+      'motion.ramenslurp': '라면 후루룩',
+      'motion.darkmode': '다크모드 전환',
+      'motion.stockdown': '주식 차트 떡락',
+      'motion.stockup': '주식 차트 떡상',
+      'motion.callbell': '호출벨 연타',
+      'motion.enterwait': '엔터 키 대기',
+      'motion.staticfur': '정전기 폭발',
+      'motion.bowlcarry': '밥그릇 물고 오기',
+      'motion.cicheck': '초록 체크 뱃지',
+      'motion.deployrocket': '배포 성공 로켓',
+      'motion.donebell': '끝났다옹 종 울리기',
       'motion.webhang': '거꾸로 대롱대롱',
       'motion.bunshin': '분신술',
       'motion.leafwarp': '나뭇잎 순간이동',
@@ -2502,8 +2631,8 @@
       'motion.gamer': '게임 분노',
       'slot.work': '일할 때',
       'slot.workSub': 'Claude가 답을 쓰는 동안',
-      'slot.workLong': '15분 넘게 일할 때',
-      'slot.workLongSub': '쉬지 않고 15분 넘게 이어서 일하면 이걸로 바뀌어요',
+      'slot.workLong': '30분 넘게 일할 때',
+      'slot.workLongSub': '쉬지 않고 30분 넘게 이어서 일하면 이걸로 바뀌어요',
       'slot.workHour': '1시간 넘게 일할 때',
       'slot.workHourSub': '쉬지 않고 1시간 넘게 이어서 일하면 이걸로 바뀌어요',
       'slot.waiting': '허락을 기다릴 때',
@@ -2608,6 +2737,8 @@
       'game.rec.trampoline': 'Best combo {n}',
       'tray.resetPos': 'Reset position',
       'tray.quit': 'Quit',
+      'tray.update': 'Install version {v} and restart',
+      'update.ready': 'Version {v} is ready! Restart the app to update',
 
       // Pet window
       'pet.loading': 'Remembering… {p}%',
@@ -3226,6 +3357,20 @@
       'ach.snack_10.desc': 'Give 10 snacks',
       'ach.snack_100.name': 'Snack addict',
       'ach.snack_100.desc': 'Give 100 snacks',
+      'ach.premium_1.name': 'First taste of luxury',
+      'ach.premium_1.desc': 'Feed a premium food for the first time',
+      'ach.premium_10.name': 'Fancy palate',
+      'ach.premium_10.desc': 'Feed premium food 10 times',
+      'ach.premium_all.name': 'Gourmet pilgrimage',
+      'ach.premium_all.desc': 'Feed all 18 premium foods',
+      'ach.foodspend_10k.name': 'Generous butler',
+      'ach.foodspend_10k.desc': 'Spend 10,000 coins on food',
+      'ach.dragonking.name': 'Invited to the Dragon Palace',
+      'ach.dragonking.desc': "Feed the Dragon King's birthday feast",
+      'ach.invite_ok.name': 'Welcome guest',
+      'ach.invite_ok.desc': 'Call a friend over with an invitation cookie',
+      'ach.mystery_jackpot.name': 'Jackpot box',
+      'ach.mystery_jackpot.desc': 'Get a premium snack from a mystery box',
       'ach.play_1.name': 'First playtime',
       'ach.play_1.desc': 'Play with a toy',
       'ach.play_30.name': 'Play captain',
@@ -3239,7 +3384,7 @@
       'ach.box_10.name': 'Box addict',
       'ach.box_10.desc': 'The cat entered a box 10 times',
       'ach.bored_10.name': 'Boredom expert',
-      'ach.bored_10.desc': 'Bore your cat 10 times',
+      'ach.bored_10.desc': 'Play with your cat until it tires out 10 times',
       'ach.buy_1.name': 'First purchase',
       'ach.buy_1.desc': 'Buy something',
       'ach.buy_20.name': 'Regular customer',
@@ -3422,7 +3567,7 @@
       'gauge.title': 'Condition',
       'gauge.food': 'Fullness',
       'gauge.energy': 'Energy',
-      'gauge.okNote': 'If either drops below 20, your cat refuses to play. Meals fill the tummy; dozing or sleeping restores energy',
+      'gauge.okNote': 'If fullness drops below 20 or energy to 10 or less, your cat refuses to play. Meals fill the tummy; dozing or sleeping restores energy',
       'gauge.hungryNote': 'Too hungry to play right now. Feed it first',
       'gauge.tiredNote': 'Too tired to play right now. A nap will fix it',
       'set.bubbles': 'Speech bubbles',
@@ -3430,7 +3575,7 @@
       'set.chatter': 'Occasional chatter',
       'set.chatterSub': 'A line every 30 minutes or so while you work',
       'set.aiTips': 'Occasional AI tips',
-      'set.aiTipsSub': 'Once a day, a tip for getting more out of Claude',
+      'set.aiTipsSub': 'Up to 5 times a day, a tip for getting more out of Claude',
       'set.sound': 'Sound effects',
       'set.soundSub': 'Small 8-bit sounds on level ups and achievements',
       'set.life': 'Life reminders',
@@ -3447,11 +3592,20 @@
       'set.lateNightSub': 'Says something if you are still working past bedtime',
       'set.minutes': 'min',
       'set.hooks': 'Claude Code connection',
+      'tool.title': 'Coding tool',
+      'tool.sub': 'Pick which tool your cat grows with. Each tool keeps its own cat, level, coins, outfits and achievements, and switching restarts the app.',
+      'tool.welcome': 'Which tool will you use? Switching restarts the app and starts the cat for that tool.',
+      'tool.claude': 'Claude Code',
+      'tool.codex': 'Codex',
+      'tool.now': 'Connected',
+      'tool.confirm': 'Switch to {tool} mode?\nThe app restarts and moves to your {tool} cat. Your current cat stays saved, so you can come back any time.',
+      'tool.codexTrust': 'Codex runs these hooks only after you trust them once. Open <code>/hooks</code> in the Codex CLI and approve the Kit Commit hooks.',
       'set.status': 'Status',
       'set.connected': 'Connected',
       'set.partial': 'Partly connected',
       'set.notConnected': 'Not connected',
       'set.hookDesc': 'Connecting adds 5 hooks (session start, prompt, stop, notification, session end) to <code>{file}</code>. Your existing settings are left alone, and a one-time backup (<code>.kitcommit.bak</code>) is made.',
+      'set.hookDescCodex': 'Connecting adds 5 hooks (session start, prompt, stop, permission request, session end) to <code>{file}</code>. Your existing hooks are left alone, and a one-time backup (<code>.kitcommit.bak</code>) is made.',
       'set.disconnect': 'Disconnect',
       'set.connect': 'Connect',
       'set.revealFile': 'Show settings file',
@@ -3661,7 +3815,6 @@
       'ach.treasure_all.desc': 'Collect every treasure',
       'shop.gainFood': 'Fullness +{n}',
       'shop.gainEnergy': 'Energy +{n}',
-      'shop.energyTag': 'ENERGY',
       'slot.wear': 'Putting on a costume',
       'slot.wearSub': 'When you put a new costume on in the inventory',
       'item.tonkotsu': "Mori-chan's tonkotsu ramen",
@@ -3736,6 +3889,7 @@
       'w.b3b': 'Shows an <b>exclamation mark</b> when Claude needs your approval',
       'w.b3c': 'Hops when a reply lands',
       'w.hookNote': 'Adds 5 hooks to <code>{file}</code>. Your existing settings stay, and a backup is made. It still grows from your conversation history even without connecting.',
+      'w.hookNoteCodex': 'Adds 5 hooks (session start, prompt, stop, permission request, session end) to <code>{file}</code>. Your existing hooks stay, and a backup is made. It still grows from your conversation history even without connecting.',
       'w.connect': 'Connect',
       'w.connected': 'Connected',
       'w.title4': 'All set!',
@@ -3862,6 +4016,42 @@
       'item.churuchamp': "Churu champagne",
       'item.dietair': "A slice of diet air",
       'item.goldmackerel': "Golden mackerel can",
+      'item.samgyetang': 'Ginseng chicken soup',
+      'item.otoroOmakase': 'Fatty tuna omakase',
+      'item.roomService': 'Hotel room service',
+      'item.firstClassMeal': 'First-class in-flight meal',
+      'item.sushiTrain': 'Endless conveyor sushi',
+      'item.hanwooSteak': 'Premium Hanwoo steak',
+      'item.spaceFood': 'Space food full course',
+      'item.royalTable': 'Royal 12-dish table',
+      'item.dragonKingFeast': "Dragon King's birthday feast",
+      'item.fortuneCookie': 'Fortune cookie',
+      'item.mysteryBox': 'Mystery snack box',
+      'item.cloudMallow': 'Cloud marshmallow',
+      'item.tunaCone': '5-scoop tuna ice cream',
+      'item.macaronTower': '10-tier churu macaron tower',
+      'item.inviteCookie': 'Invitation cookie',
+      'item.afternoonTea': 'Afternoon tea tower',
+      'item.dragonCandy': "Dragon's breath candy",
+      'item.goldMouseChoco': 'Golden mouse chocolate',
+      'foodFx.otoroOmakase': 'Fullness 4h lock',
+      'foodFxTip.otoroOmakase': 'Fullness locked for 4h',
+      'foodFx.royalTable': 'Both locked 8h',
+      'foodFxTip.royalTable': 'Fullness & energy locked for 8h',
+      'foodFx.dragonKingFeast': 'Both locked 24h',
+      'foodFxTip.dragonKingFeast': 'Fullness & energy locked for 24h',
+      'foodFx.afternoonTea': 'Both locked 2h',
+      'foodFxTip.afternoonTea': 'Fullness & energy locked for 2h',
+      'foodFx.roomService': 'New menu each time',
+      'foodFxTip.roomService': 'A different menu every time',
+      'foodFx.goldMouseChoco': '1 treasure',
+      'foodFxTip.goldMouseChoco': 'One treasure guaranteed',
+      'foodFx.fortuneCookie': 'Fortune · loot',
+      'foodFxTip.fortuneCookie': 'A fortune · sometimes a treasure or coins',
+      'foodFx.mysteryBox': 'Random snack',
+      'foodFxTip.mysteryBox': 'Draw a snack · sometimes premium',
+      'foodFx.inviteCookie': '30% friend visit',
+      'foodFxTip.inviteCookie': '30% chance a friend drops by',
       'item.pistol': 'Pistol',
       'item.watergun': 'Water gun',
       'item.lightsaber': 'Lightsaber',
@@ -4254,6 +4444,18 @@
       'motion.paperplane': 'Paper plane',
       'motion.airpunch': 'Punching the air',
       'motion.knitting': 'Knitting',
+      'motion.sojuchug': 'Soju straight from the bottle',
+      'motion.ramenslurp': 'Ramen slurp',
+      'motion.darkmode': 'Dark mode switch',
+      'motion.stockdown': 'Stock crash',
+      'motion.stockup': 'Stock to the moon',
+      'motion.callbell': 'Service bell spam',
+      'motion.enterwait': 'Waiting on Enter',
+      'motion.staticfur': 'Static shock',
+      'motion.bowlcarry': 'Bringing the bowl',
+      'motion.cicheck': 'Green CI check',
+      'motion.deployrocket': 'Deploy rocket',
+      'motion.donebell': 'Done! bell',
       'motion.webhang': 'Upside-down dangle',
       'motion.bunshin': 'Shadow clones',
       'motion.leafwarp': 'Leaf teleport',
@@ -4340,8 +4542,8 @@
       'motion.gamer': 'Rage quit',
       'slot.work': 'While working',
       'slot.workSub': 'While Claude is writing a reply',
-      'slot.workLong': 'Working 15+ min',
-      'slot.workLongSub': 'Switches to this after 15 minutes of nonstop work',
+      'slot.workLong': 'Working 30+ min',
+      'slot.workLongSub': 'Switches to this after 30 minutes of nonstop work',
       'slot.workHour': 'Working 1+ hour',
       'slot.workHourSub': 'Switches to this after an hour of nonstop work',
       'slot.waiting': 'Waiting for approval',
@@ -4413,13 +4615,15 @@
     constructor(lang, persona) {
       this.lang = DEFAULT_LANG;
       this.persona = DEFAULT_PERSONA;
+      this.tool = 'claude'; // 연결한 도구 'claude' | 'codex'. Codex 모드면 화면에 나가는 'Claude (Code)' 를 'Codex' 로 바꿔 보여 준다
       this.recent = {}; // 대사 종류마다 최근에 한 말 (같은 말을 연달아 안 하려고)
       this.context = null; // () => { name, m, streak, last… } 대사에 끼울 요즘 사정. main 이 넣어 준다
       this.set(lang, persona);
     }
 
-    set(lang, persona) {
+    set(lang, persona, tool) {
       if (LANGS.includes(lang)) this.lang = lang;
+      if (tool === 'claude' || tool === 'codex') this.tool = tool;
       if (OLD_PERSONA[persona]) persona = OLD_PERSONA[persona];
       if (PERSONAS.includes(persona)) this.persona = persona;
       return this;
@@ -4429,7 +4633,15 @@
     t(key, vars) {
       const table = UI[this.lang] || UI[DEFAULT_LANG];
       const v = key in table ? table[key] : UI[DEFAULT_LANG][key];
-      return v === undefined ? key : fill(v, vars);
+      if (v === undefined) return key;
+      return key.startsWith('tool.') ? fill(v, vars) : this.brand(fill(v, vars));
+    }
+
+    // Codex 모드: 'Claude Code' · 'Claude' → 'Codex'. 받침이 없는 이름끼리라 조사(가·를·는)는 그대로 맞는다
+    // 'tool.*' 문구(모드 고르기 화면)는 두 도구 이름을 다 보여 줘야 해서 바꾸지 않는다
+    brand(s) {
+      if (this.tool !== 'codex' || typeof s !== 'string') return s;
+      return s.replace(/Claude Code/g, 'Codex').replace(/Claude/g, 'Codex');
     }
 
     // 성격에 맞는 대사 후보들. 시간·요일 대사('kind@꼬리표')는 그 언어에 있을 때만 쓴다
@@ -4448,7 +4660,7 @@
     line(kind, vars) {
       const all = { ...(this.context ? this.context() : {}), ...(vars || {}) };
       const rare = this.lines(kind + '@rare').filter((t) => canFill(t, all));
-      if (rare.length && Math.random() < RARE_CHANCE) return fill(pick(rare), all);
+      if (rare.length && Math.random() < RARE_CHANCE) return this.brand(fill(pick(rare), all));
       const every = [...this.lines(kind), ...momentTags().flatMap((tag) => this.lines(kind + '@' + tag))];
       const pool = every.filter((t) => canFill(t, all));
       const list = pool.length ? pool : every;
@@ -4458,7 +4670,7 @@
       const tpl = pick(fresh.length ? fresh : list);
       recent.push(tpl);
       while (recent.length > Math.min(6, Math.floor(list.length / 2))) recent.shift();
-      return fill(tpl, all);
+      return this.brand(fill(tpl, all));
     }
   }
 

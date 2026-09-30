@@ -57,6 +57,8 @@
       stop: lines(['한 문단 끝! 잘 썼다', '짠! 꽤 많이 썼다옹', '오 이번 거 꽤 괜찮은데?', '숨 고르는 거야? 좋아', '한 차례 끝! 박수!!', '다 썼다옹! 한번 읽어 봐', '생각 정리 잘 되고 있어', '좋았어, 흐름 좋다', '멈춘 김에 한 번 훑어볼까?', '짜잔~ 한 뭉치 완성']),
       'stop@evening': lines(['오늘 꽤 썼다!||…끝나고 치맥 고?']),
       end: lines(['수고했다옹~', '수고했어! 이제 좀 쉬어', '오늘 쓴 거 꽤 많다? 고생했어~']),
+      // 포춘 쿠키 운세 (데스크톱판의 코드·커밋 운세를 글쓰기로)
+      fortune: lines(['운세: 오늘 쓴 첫 문장이 끝까지 간다', '운세: 곧 반가운 손님이 찾아온다', '운세: 링크 하나가 뜻밖의 생각을 이어 준다', '운세: 오늘은 낮잠 운이 아주 좋다', '운세: 잃어버린 양말 한 짝을 찾게 된다', '운세: 찾던 메모는 생각보다 가까운 노트에 있다', '운세: 간식을 나누면 행운이 두 배', '운세: 오늘의 행운 아이템은 츄르', '운세: 급할수록 개요부터', '운세: 뜻밖의 코인이 굴러들어 온다']),
       chatter: lines(['오늘 {m}자째! 열심히 쓰는구만!', '나도 옆에서 응원하는 중', '이따 잠깐 바람 쐬고 오자', '물 마셨어? 나는 방금 마셨어||물이 건강에 좋대!', '어깨 한 번 돌려 봐. 뚜둑!', '막히면 나한테 말해 봐.||들어만 줄게', '우리 꽤 좋은 팀이야', '{streak}일째 같이 쓰는 중!']),
     },
     en: {
@@ -103,6 +105,7 @@
       stop: lines(['Paragraph done! Nice', 'Ta-da! That was a lot', 'Ooh, this one is pretty good', 'Taking a breath? Good', 'One round done! Applause!!', 'Done! Give it a read', 'Your thoughts are coming together', 'Nice flow', 'Want to skim it while we pause?', 'Ta-da~ one more chunk']),
       'stop@evening': lines(['Wrote a lot today!||…chicken and beer after?']),
       end: lines(['Good work~', 'Well done! Get some rest', 'You wrote a lot today. Nice job~']),
+      fortune: lines(['Fortune: the first sentence you write today will make it to the end', 'Fortune: a welcome guest is coming soon', 'Fortune: one link will connect an unexpected thought', 'Fortune: great nap luck today', 'Fortune: the note you are looking for is closer than you think', 'Fortune: share a snack, double your luck', 'Fortune: outline first when in a hurry', 'Fortune: unexpected coins roll your way']),
       chatter: lines(['{m} characters today! Look at you go!', "I'm cheering right beside you", "Let's get some fresh air in a bit", 'Had water? I just did||Water is good for you!', 'Roll your shoulders. Crack!', "Stuck? Tell me.||I'll just listen", "We're a pretty good team", 'Day {streak} of writing together!']),
     },
   };
@@ -285,8 +288,8 @@
       'w.trayNote': '상태 표시줄의 이름을 누르면 빠른 메뉴가 나와요.',
       'slot.work': '같이 쓸 때',
       'slot.workSub': '내가 타이핑하는 동안',
-      'slot.workLong': '15분 넘게 쓸 때',
-      'slot.workLongSub': '쉬지 않고 15분 넘게 이어서 쓰면 이걸로 바뀌어요',
+      'slot.workLong': '30분 넘게 쓸 때',
+      'slot.workLongSub': '쉬지 않고 30분 넘게 이어서 쓰면 이걸로 바뀌어요',
       'slot.workHour': '1시간 넘게 쓸 때',
       'slot.workHourSub': '쉬지 않고 1시간 넘게 이어서 쓰면 이걸로 바뀌어요',
       'slot.waiting': '빈 노트를 기다릴 때',
@@ -418,8 +421,8 @@
       'w.trayNote': 'Click the name in the status bar for the quick menu.',
       'slot.work': 'Writing together',
       'slot.workSub': 'While you type',
-      'slot.workLong': 'Writing 15+ minutes',
-      'slot.workLongSub': 'Switches to this after 15 minutes of writing without a break',
+      'slot.workLong': 'Writing 30+ minutes',
+      'slot.workLongSub': 'Switches to this after 30 minutes of writing without a break',
       'slot.workHour': 'Writing 1+ hour',
       'slot.workHourSub': 'Switches to this after an hour of writing without a break',
       'slot.waiting': 'Waiting on a blank note',

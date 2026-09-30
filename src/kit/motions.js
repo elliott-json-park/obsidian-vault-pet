@@ -1828,7 +1828,7 @@
   // 가로 w 칸짜리 노트북 (멀리 날아갈수록 작아진다)
   const laptopRows = (w) => { const h = Math.max(1, Math.round(w * 0.5)); return Array.from({ length: h }, (_, j) => (j === 0 || j === h - 1 || w < 4 ? 'K'.repeat(w) : 'K' + 'g'.repeat(w - 2) + 'K')); };
   const M = {
-    // ---------- 15분·1시간 넘게 일할 때 ----------
+    // ---------- 30분·1시간 넘게 일할 때 ----------
     giantfist: {
       // 거대 주먹: 타자 치다 열받아서… 앞발이 뿅 커지더니 번쩍 치켜들어 노트북 모서리를 쾅! 쾅! 쾅!
       // (7차: 커다란 주먹이 얼굴을 통째로 가리던 걸, 어깨에서 뻗은 앞발이 옆쪽 노트북 모서리를 내리치게.
@@ -2954,6 +2954,309 @@
     if (k < 0.3 || k > 0.92) return 0;
     const up = k < 0.55 ? ease(seg(k, 0.3, 0.55)) : k < 0.72 ? 1 : 1 - ease(seg(k, 0.72, 0.92));
     return -Math.round(up * 12 + (k > 0.5 && k < 0.75 ? Math.sin(at * 2.5) * 1 : 0));
+  }
+  Object.assign(root.PetSprite.MOTIONS, M);
+})(window);
+
+// ================= 10차 (2026-09-29 확정): 1차 테스트 뒤 새 모션 =================
+// 심심할 때 · 허락을 기다릴 때 · 쓰다듬을 때 · 배고플 때 · 답이 끝났을 때. 시안은 모션 실험실에서 고른 것
+(function (root) {
+  const { rand, seg, bump, ease, GROUND } = root.PetSprite.util;
+  const { tintUnder, tintArea, limb } = root.PetSprite.motionFx;
+  const once = (r, tag, cond) => { if (cond && !r.ms[tag]) { r.ms[tag] = true; return true; } return false; };
+  const every = (r, tag, at, period) => { const n = Math.floor(at / period); if (r.ms[tag] !== n) { r.ms[tag] = n; return true; } return false; };
+  const txt = (r, s, x, y, c, life = 0.8, vy = -4) => r.emit({ type: 'text', s, x, y, vy, life, c });
+  const hold = (r, s, x, y, c) => r.emit({ type: 'text', s, x, y, perFrame: true, fade: false, c }); // 이번 프레임에만 (계속 떠 있는 글자)
+  // 두 점을 잇는 막대. back/mid/front 안에서 this 로 부른다
+  function stick(x0, y0, x1, y1, col, w = 1) {
+    const n = Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+    for (let i = 0; i <= n; i++) {
+      const x = Math.round(x0 + ((x1 - x0) * i) / n), y = Math.round(y0 + ((y1 - y0) * i) / n);
+      const c = typeof col === 'function' ? col(i / n) : col;
+      for (let d = 0; d < w; d++) this.px(x + d, y, c);
+    }
+  }
+  // 테두리 있는 네모 (떠 있는 창). back/mid/front 안에서 this 로 부른다
+  function box(x, y, w, h, fill, edge) {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, i === 0 || j === 0 || i === w - 1 || j === h - 1 ? edge : fill);
+  }
+  const SOJU = { K: '#1d4a2a', N: '#3fae62', n: '#2c8a4a', W: '#ffffff', B: '#3d6fb0' };
+  const SOJU_UP = ['.KK.', '.KK.', '.KNK', 'KNNK', 'KWWK', 'KWBK', 'KNnK', 'KKKK'];
+  const SOJU_LAY = ['..KKKKKK..', 'KKNNWBNNKK', 'KKNNWWNNKK', '..KKKKKK..']; // 다 마시고 눕힌 병
+  const PHONE = ['KKKKK', 'KUUUK', 'KUUUK', 'KUUUK', 'KKKKK'];
+  const BELL = ['...K...', '..KYK..', '.KYYYK.', 'KYYWYYK', 'KYYYYYK', 'KKKKKKK', 'KkkkkkK']; // 호출벨·호텔 벨
+  const INK = '#2b1a10';
+  const spr = (r, rows, x, y, map) => r.emit({ type: 'sprite', rows, x: Math.round(x), y: Math.round(y), map, perFrame: true, fade: false }); // 캔버스에 바로 찍는 그림 (이번 프레임에만)
+
+  const M = {
+    // 소주 병나발: 초록 병을 들고 뚜껑 퐁! 병 바닥을 하늘로 꿀꺽꿀꺽, 크아! 병은 옆에 눕히고 발그레 비틀비틀 딸꾹
+    sojuchug: { len: 5.4,
+      pose(p, k, at) {
+        if (k < 0.18) { p.armL = p.armR = 'hold'; p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; }
+        else if (k < 0.58) { p.armR = 'kiss'; p.eyes = 'closed'; p.mouth = 'none'; p.xf = { rot: -0.16, py: GROUND }; p.dy = Math.floor(at * 3) % 2 ? -1 : 0; }
+        else if (k < 0.72) { p.eyes = 'squint'; p.mouth = 'big'; p.ear = -1; p.xf = { ox: Math.sin(at * 40) > 0 ? 1 : 0 }; }
+        else { p.eyes = Math.floor(at * 1.5) % 2 ? 'half' : 'happy'; p.mouth = 'wavy'; p.blush = true; p.tail = 'slow'; p.xf = { ox: Math.round(Math.sin(at * 2.4) * 1.5), rot: Math.sin(at * 2.4) * 0.06, py: GROUND }; }
+      },
+      front(g, a, k) {
+        if (k < 0.18) this.pattern(SOJU_UP, a.hx - 2, a.my, SOJU);
+        else if (k < 0.58) {
+          // 병 바닥을 하늘로. 남은 소주(흰 줄)가 점점 줄어든다
+          const left = 1 - seg(k, 0.2, 0.56);
+          stick.call(this, a.fx + 1, a.my, a.fx + 3, a.my - 2, SOJU.K, 1);
+          stick.call(this, a.fx + 3, a.my - 2, a.fx + 9, a.my - 9, (t) => (t > 1 - left * 0.8 ? SOJU.W : SOJU.N), 3);
+        } else this.pattern(SOJU_LAY, a.right - 2, GROUND - 3, SOJU);
+        if (k > 0.58) tintArea.call(this, a.left + 1, a.ey - 1, a.right - a.left - 1, 4, 'rgba(255,70,70,0.3)');
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'p', k > 0.06)) txt(r, 'POP', r.scr(a.hx - 5), a.my - 6, '#bff0c8', 0.6);
+        if (k > 0.2 && k < 0.56 && every(r, 'g', at, 0.4)) txt(r, 'GLUG', r.scr(a.hx - 6), a.top - 9, '#fff', 0.5, -2);
+        if (once(r, 'k', k > 0.58)) txt(r, 'KHAA!', r.scr(a.hx) - 9, a.top - 10, '#fff', 1, -2);
+        if (k > 0.74 && every(r, 'h', at, 0.8)) { txt(r, 'HIC', r.scr(a.hx + 4), a.top - 7, '#ffb0b0', 0.6); r.emit({ type: 'bubble', x: r.scr(a.hx + rand(-5, 5)), y: a.top - 2, vy: -5, r: 1, life: 0.9 }); }
+      } },
+    // 라면 후루룩: 빨간 냄비 앞에서 면발을 후루룩 빨아올리다 뜨거워서 혀 날름, 얼굴 빨개지고 후후 분다
+    ramenslurp: { len: 5.6,
+      pose(p, k, at) {
+        p.lookY = 1;
+        if (k < 0.15) { p.eyes = 'sparkle'; p.mouth = 'open'; p.ear = 1; }
+        else if (k < 0.52) { p.eyes = 'closed'; p.mouth = 'o'; p.armL = p.armR = 'hold'; p.dy = Math.floor(at * 8) % 2 ? -1 : 0; }
+        else if (k < 0.74) { p.eyes = 'x'; p.mouth = 'blep'; p.sweat = true; p.ear = -1; p.xf = { ox: Math.floor(at * 30) % 2 }; }
+        else { p.eyes = 'half'; p.mouth = 'o'; p.armL = p.armR = 'hold'; }
+      },
+      front(g, a, k, at, c) {
+        // 빨간 냄비. 면발(노란 줄 두 가닥)이 입까지 이어졌다가 후루룩 딸려 올라간다
+        const px0 = a.hx - 5, py0 = GROUND - 4;
+        this.pattern(['K..........K', 'KKKKKKKKKKKK', 'KrRRRRRRRRrK', 'KRRRRRRRRRRK', '.KKKKKKKKKK.'], px0, py0, c);
+        this.pattern(['YYYYYYYYYY'], px0 + 1, py0 + 1, { Y: '#ffd65a' });
+        if (k > 0.15 && k < 0.52) {
+          const s = seg(k, 0.15, 0.52);
+          const bot = Math.round(py0 + (a.my + 2 - py0) * s);
+          for (const dx of [-1, 1]) for (let y = a.my + 1; y <= bot; y++) this.px(a.fx + dx + (Math.floor(y / 2 + at * 6) % 2 ? 1 : 0), y, '#ffd65a');
+        }
+        if (k > 0.52 && k < 0.74) tintArea.call(this, a.left + 1, a.ey - 1, a.right - a.left - 1, 5, 'rgba(255,60,40,0.4)');
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 's', at, 0.25)) r.emit({ type: 'spray', x: r.scr(a.hx + rand(-4, 4)), y: GROUND - 6, vy: -6, life: 0.9, c: 'rgba(255,255,255,0.8)' });
+        if (k > 0.15 && k < 0.52 && every(r, 'l', at, 0.5)) txt(r, 'SLURP', r.scr(a.hx) - 10, a.top - 9, '#ffd65a', 0.5, -2);
+        if (once(r, 'h', k > 0.53)) txt(r, 'HOT!', r.scr(a.hx) - 7, a.top - 10, '#ff6a4a', 1, -2);
+        if (k > 0.74 && every(r, 'f', at, 0.3)) r.emit({ type: 'puff', x: r.scr(a.fx + 1), y: a.my + 2, vx: rand(-3, 3), vy: 6, life: 0.5, c: 'rgba(255,255,255,0.8)' });
+      } },
+    // 다크모드 전환: 벽 스위치를 딸깍 누르면 온통 깜깜해지고 노란 눈만 반짝반짝 두리번. 다시 딸깍
+    darkmode: { len: 5.2,
+      pose(p, k, at) {
+        p.lookX = 1;
+        if (k < 0.2) { p.eyes = 'open'; p.mouth = 'flat'; }
+        else if (k < 0.3) { p.armR = 'out'; p.eyes = 'squint'; }
+        else if (k < 0.84) { p.eyes = Math.floor(at * 1.3) % 4 === 0 ? 'blink' : 'wide'; p.mouth = 'none'; p.lookX = Math.round(Math.sin(at * 1.4)); p.tail = 'slow'; }
+        else if (k < 0.9) { p.armR = 'out'; }
+        else { p.eyes = 'squint'; p.mouth = 'wavy'; }
+      },
+      back(g, a, k) {
+        // 벽 스위치 (오른쪽)
+        const on = k < 0.28 || k > 0.86;
+        this.pattern(['KKKKK', 'KWWWK', on ? 'KWKWK' : 'KWWWK', on ? 'KWWWK' : 'KWKWK', 'KKKKK'], a.right + 4, a.ey - 3, { K: '#454b57', W: '#fffaf3' });
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'c1', k > 0.25) || once(r, 'c2', k > 0.86)) txt(r, 'CLICK', r.scr(a.right) - 4, a.ey - 10, '#fff', 0.5);
+        if (k > 0.3 && k < 0.86) {
+          r.emit({ type: 'tint', c: '#0b0d1c', a: 0.82, perFrame: true, fade: false });
+          const blink = Math.floor(at * 1.3) % 4 === 0;
+          if (!blink) for (const x0 of [a.eyeL, a.eyeR]) for (let i = 0; i < a.ew; i++) for (let j = 0; j < 2; j++) r.emit({ type: 'spray', x: r.scr(x0 + i + Math.round(Math.sin(at * 1.4))), y: a.ey + j, perFrame: true, fade: false, c: '#ffe45a' });
+        }
+      } },
+    // 주식 차트 떡락: 폰을 보며 흐뭇… 머리 위 차트가 절벽처럼 떨어지자 -99%, 얼굴이 파래지고 영혼 가출
+    stockdown: { len: 5.6,
+      pose(p, k, at) {
+        p.armL = p.armR = 'hold'; p.lookY = 1;
+        if (k < 0.4) { p.eyes = 'sparkle'; p.mouth = 'smile'; p.tail = 'wag'; }
+        else if (k < 0.55) { p.eyes = 'wide'; p.mouth = 'o'; p.ear = -1; }
+        else { p.eyes = Math.floor(at * 2) % 2 ? 'x' : 'dot'; p.mouth = 'wavy'; p.ear = -1; p.brow = 'sad'; p.tail = 'slow'; p.xf = { sy: 1 - 0.1 * ease(seg(k, 0.55, 0.65)), sx: 1 + 0.06 * ease(seg(k, 0.55, 0.65)), py: GROUND }; }
+      },
+      front(g, a, k, at, c) { this.pattern(PHONE, a.hx - 2, a.my + 1, c); },
+      back(g, a, k) { chart.call(this, a, k, false); },
+      step(r, k, at, dt, a) {
+        if (k > 0.55) tintUnder(r, '#5a7cff', 0.35 * ease(seg(k, 0.55, 0.7)));
+        if (once(r, 'm', k > 0.5)) txt(r, '-99%', r.scr(a.hx) - 7, a.top - 4, '#ff5a5a', 1.4, -2);
+        if (k > 0.7) r.emit({ type: 'soul', x: 24 + Math.round(Math.sin(at * 2) * 2), y: 22 - Math.round(seg(k, 0.7, 1) * 5), perFrame: true, fade: false });
+      } },
+    // 주식 차트 떡상: 심드렁하게 폰을 보다 차트가 창을 뚫고 치솟자 +999%, 별눈 만세에 달러가 쏟아진다. FLEX
+    stockup: { len: 5.6,
+      pose(p, k, at) {
+        if (k < 0.4) { p.armL = p.armR = 'hold'; p.lookY = 1; p.eyes = 'half'; p.mouth = 'flat'; }
+        else if (k < 0.5) { p.armL = p.armR = 'hold'; p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; }
+        else { p.armL = p.armR = 'cheer'; p.eyes = 'star'; p.mouth = 'open'; p.ear = 1; p.tail = 'up'; p.dy = -Math.round(Math.abs(Math.sin(at * 7)) * 3); }
+      },
+      front(g, a, k, at, c) { if (k < 0.5) this.pattern(PHONE, a.hx - 2, a.my + 1, c); },
+      back(g, a, k) { chart.call(this, a, k, true); },
+      step(r, k, at, dt, a) {
+        if (once(r, 'p', k > 0.45)) txt(r, '+999%', r.scr(a.hx) - 9, a.top - 4, '#78e06a', 1.4, -2);
+        if (k > 0.5) {
+          if (every(r, '$', at, 0.15)) txt(r, '$', r.scr(a.hx + rand(-14, 12)), GROUND - rand(0, 8), '#ffd65a', 0.8, -14);
+          if (every(r, 'c', at, 0.1)) r.emit({ type: 'confetti', x: rand(4, 44), y: rand(0, 6), vy: 14, vx: rand(-3, 3), life: 1.4, c: ['#78c46a', '#ffd65a', '#ffffff'][Math.floor(rand(0, 3))] });
+        }
+        if (once(r, 'f', k > 0.7)) txt(r, 'FLEX', r.scr(a.hx) - 7, a.top - 12, '#ffd65a', 1.2, -2);
+      } },
+    // 호출벨 연타: 식당 호출벨을 앞발로 띵띵띵. 점점 눈썹이 올라간다
+    callbell: { len: 3.2, loop: true,
+      pose(p, k, at) { p.eyes = k < 0.5 ? 'squint' : 'half'; p.mouth = 'flat'; p.brow = k > 0.5 ? 'angry' : null; p.lookX = 1; p.tail = 'wag'; },
+      front(g, a, k, at, c) {
+        const x = a.right - 2, y = GROUND - 6;
+        this.pattern(BELL, x, y, c);
+        const tap = Math.floor(at * 6) % 2;
+        limb.call(this, g, a.hx + 3, a.cy, x + 3, y - 2 - (tap ? 0 : 3));
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 'd', at, 0.33)) txt(r, 'DING', r.scr(a.right) - 3 + rand(-2, 2), GROUND - 16 - rand(0, 4), '#ffd65a', 0.4, -4);
+      } },
+    // 밥그릇 물고 오기: 빈 밥그릇을 입에 물고 옆에서 걸어 들어와 앞에 툭 내려놓고, 초롱초롱 올려다보며 밥?
+    bowlcarry: { len: 5.4,
+      pose(p, k, at) {
+        if (k < 0.45) { p.step = (at * 1.8) % 1; p.xf = { ox: Math.round(18 * (1 - ease(seg(k, 0, 0.45)))), flipX: true }; p.eyes = 'open'; p.mouth = 'none'; p.tail = 'up'; }
+        else if (k < 0.55) { p.prop = 'emptyBowl'; p.eyes = 'closed'; p.mouth = 'flat'; }
+        else { p.prop = 'emptyBowl'; p.eyes = 'sparkle'; p.mouth = 'kiss'; p.lookY = -1; p.ear = 1; p.blush = true; p.tail = 'wag'; }
+      },
+      front(g, a, k, at, c) { if (k < 0.45) this.pattern(['KKKKKKKK', 'KWWWWWWK', '.KBBBBK.', '..KKKK..'], a.fx - 4, a.my, c); },
+      step(r, k, at, dt, a) {
+        if (once(r, 'c', k > 0.46)) txt(r, 'CLANG', r.scr(a.hx) - 9, a.top - 8, '#fff', 0.8, -3);
+        if (k > 0.55 && every(r, 'q', at, 1.2)) txt(r, 'FEED?', r.scr(a.hx) - 9, a.top - 10, '#ffd65a', 1, -2);
+      } },
+    // 초록 체크 뱃지: CI 통과! 초록 체크가 쑥 올라와 머리 위에 뜨고, 가슴 쭉 펴고 으쓱. PASS
+    cicheck: { len: 3.6,
+      pose(p, k, at) { p.eyes = k < 0.25 ? 'open' : 'closed'; p.mouth = k < 0.25 ? 'o' : 'grin'; p.ear = 1; p.tail = 'up'; p.blush = k > 0.3; if (k > 0.25) p.xf = { sy: 1.06, sx: 1.04, py: GROUND }; },
+      back(g, a, k) {
+        // 초록 체크 뱃지가 아래에서 쑥 올라와 머리 위에 뜬다
+        const rise = ease(seg(k, 0.05, 0.25));
+        const cx = a.hx, cy = Math.round(a.top - 8 + (1 - rise) * 12);
+        this.ellipse(cx, cy, 6, 6, '#3fae62', '#1d4a2a');
+        for (const [x, y] of [[-3, 0], [-2, 1], [-1, 2], [0, 1], [1, 0], [2, -1], [3, -2]]) { this.px(cx + x, cy + y, '#fff'); this.px(cx + x, cy + y - 1, '#fff'); }
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'p', k > 0.28)) txt(r, 'PASS', r.scr(a.hx) - 7, a.top - 19, '#78e06a', 1.4, -2);
+        if (k > 0.28 && every(r, 's', at, 0.2)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top - rand(2, 14), life: 0.4 });
+      } },
+    // 배포 성공 로켓: 3·2·1 카운트다운, 옆의 작은 로켓이 흔들리다 발사! DEPLOYED 에 색종이, 만세
+    deployrocket: { len: 5.2,
+      pose(p, k, at) {
+        if (k < 0.4) { p.lookX = 1; p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; }
+        else if (k < 0.7) { p.lookX = 1; p.lookY = -1; p.eyes = 'sparkle'; p.mouth = 'open'; }
+        else { p.armL = p.armR = 'cheer'; p.eyes = 'happy'; p.mouth = 'open'; p.tail = 'up'; p.dy = -Math.round(Math.abs(Math.sin(at * 7)) * 3); }
+      },
+      front(g, a, k, at, c) {
+        const x = a.right + 2;
+        const lift = k < 0.4 ? 0 : Math.round(Math.pow(seg(k, 0.4, 0.7), 2) * 50);
+        const shake = k > 0.3 && k < 0.45 ? Math.floor(at * 30) % 2 : 0;
+        this.pattern(['..K..', '.KWK.', '.KWK.', 'KWBWK', 'KWWWK', 'KWRWK', 'KKKKK', 'K.K.K'], x + shake, GROUND - 7 - lift, c);
+        this.pattern(['KKKKKKK'], x - 1, GROUND + 1, { K: '#454b57' });
+      },
+      step(r, k, at, dt, a) {
+        for (const [n, t] of [['3', 0.05], ['2', 0.15], ['1', 0.25]]) if (once(r, 'n' + n, k > t)) txt(r, n, r.scr(a.right + 3), a.top - 6, '#ffd65a', 0.4, -3);
+        if (k > 0.4 && k < 0.7) { const y = GROUND - Math.round(Math.pow(seg(k, 0.4, 0.7), 2) * 50); for (let i = 0; i < 2; i++) r.emit({ type: 'ember', x: r.scr(a.right + 4) + rand(-1, 1), y: y + 1, vy: rand(10, 20), vx: rand(-4, 4), life: 0.4 }); }
+        if (k > 0.3 && k < 0.45 && every(r, 'd', at, 0.08)) r.emit({ type: 'dust', x: r.scr(a.right + 4) + rand(-4, 4), y: GROUND, vx: rand(-8, 8), life: 0.5 });
+        if (k > 0.7) hold(r, 'DEPLOYED', 8, 4, '#78e06a');
+        if (k > 0.7 && every(r, 'c', at, 0.08)) r.emit({ type: 'confetti', x: rand(4, 44), y: rand(8, 12), vy: 12, vx: rand(-3, 3), life: 1.2, c: ['#78c46a', '#ffd65a', '#ff9bb8', '#6fb0ea'][Math.floor(rand(0, 4))] });
+      } },
+    // 끝났다옹 종 울리기: 호텔 벨을 띵! 띵! 두 번 치고 앞발로 가리키며 DONE
+    donebell: { len: 3.8,
+      pose(p, k, at) {
+        if (k < 0.55) { p.lookX = -1; p.lookY = 1; p.eyes = 'squint'; p.mouth = 'grin'; p.ear = 1; }
+        else { p.armR = 'point'; p.eyes = Math.floor(at * 3) % 3 === 0 ? 'happy' : 'open'; p.mouth = 'open'; p.tail = 'up'; p.lookY = -1; }
+      },
+      front(g, a, k, at, c) {
+        const x = a.left - 5, y = GROUND - 6;
+        this.pattern(BELL, x, y, c);
+        if (k < 0.55) { const hit = (k > 0.12 && k < 0.18) || (k > 0.36 && k < 0.42); limb.call(this, g, a.hx - 3, a.cy, x + 3, y - (hit ? 1 : 5)); }
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'd1', k > 0.13) || once(r, 'd2', k > 0.37)) { txt(r, 'DING!', r.scr(a.left) - 10, GROUND - 16, '#ffd65a', 0.7, -3); for (let i = 0; i < 5; i++) r.emit({ type: 'spark', x: r.scr(a.left - 2) + rand(-5, 5), y: GROUND - 8 + rand(-3, 2), life: 0.4 }); }
+        if (k > 0.55) hold(r, 'DONE', r.scr(a.hx) - 7, a.top - 10, '#ffffff');
+      } },
+    // 엔터 키 대기: 떠 있는 'ALLOW?' 창 커서가 깜빡. 앞발이 커다란 엔터 키 쪽으로 조금씩 다가가다… 톡 닿자 화들짝 거둬들이고 헤헤
+    enterwait: { len: 5.2, loop: true,
+      pose(p, k, at) {
+        p.lookY = -1; p.tail = 'slow';
+        if (k < 0.72) { p.eyes = 'sparkle'; p.mouth = 'kiss'; p.ear = 1; p.blush = true; }
+        else if (k < 0.8) { p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; p.xf = { oy: -1 }; }
+        else { p.eyes = 'happy'; p.mouth = 'grin'; p.blush = true; p.sweat = true; }
+      },
+      back(g, a, k, at) {
+        // 확인 창: ALLOW? + 깜빡이는 커서
+        const x = a.hx - 14, y = a.top - 15;
+        box.call(this, x, y, 29, 10, '#1b1d24', '#454b57');
+        for (let i = 1; i < 28; i++) this.px(x + i, y + 1, '#454b57');
+        if (Math.floor(at * 2.5) % 2) for (let j = 3; j < 8; j++) { this.px(x + 25, y + j, '#78c46a'); this.px(x + 26, y + j, '#78c46a'); }
+      },
+      front(g, a, k, at) {
+        // 엔터 키 (ㄱ자 모양, 윗면 밝게 · 아랫단 어둡게). 누르면 한 칸 들어간다
+        const press = k > 0.72 && k < 0.76 ? 1 : 0;
+        const x = a.right - 1, y = GROUND - 9 + press;
+        this.pattern([
+          '...KKKKKKKK', '...KWWWWWWK', '...KWWWWWWK', '...KWWWWWWK', 'KKKKWWWWWWK', 'KWWWWWWWWWK', 'KWWWWWWWWWK', 'KGGGGGGGGGK', 'KKKKKKKKKKK',
+        ], x, y, { K: INK, W: '#fffaf3', G: '#cfc8bd' });
+        this.pattern(['....K', '....K', '.K..K', 'KKKKK', '.K...'], x + 4, y + 1, { K: '#8f95a0' }); // ↵
+        if (Math.floor(at * 3) % 2 && k < 0.72) this.px(x + 8, y + 1, '#ffffff');
+        // 다가가는 앞발: 떨리면서 점점 가까이, 닿으면 휙 거둔다
+        const near = k < 0.72 ? ease(seg(k, 0.05, 0.72)) : k < 0.8 ? 1 : 1 - ease(seg(k, 0.8, 0.86));
+        const shiver = k < 0.72 ? Math.floor(at * 14) % 2 : 0;
+        limb.call(this, g, a.hx + 3, a.cy, x + 6 - Math.round((1 - near) * 4), y - 1 - Math.round((1 - near) * 8) - shiver);
+      },
+      step(r, k, at, dt, a) {
+        hold(r, 'ALLOW?', r.scr(a.hx - 12), a.top - 12, '#78c46a');
+        if (once(r, 't', k > 0.72)) txt(r, 'TAP', r.scr(a.right) + 1, GROUND - 16, '#ffd65a', 0.5, -4);
+        if (once(r, 'h', k > 0.8)) txt(r, 'HEHE', r.scr(a.hx) - 7, a.top - 20, '#ffd3df', 1, -2);
+      } },
+    // 정전기 폭발: 손(커서)이 머리를 슥슥 문지를수록 파지직 쌓이다가 ZAP! 털이 밤송이처럼 부풀고 번개가 튄다. 천천히 가라앉으며 식은땀
+    staticfur: { len: 4.8,
+      pose(p, k, at) {
+        if (k < 0.3) { p.eyes = 'closed'; p.mouth = 'smile'; p.blush = true; p.ear = -1; p.xf = { sy: 1 + seg(k, 0, 0.3) * 0.05, py: GROUND }; }
+        else if (k < 0.36) { p.eyes = 'x'; p.mouth = 'big'; p.ear = 1; p.xf = { sx: 1.12, sy: 1.1, py: GROUND, ox: Math.floor(at * 30) % 2 }; }
+        else if (k < 0.78) { p.eyes = 'dot'; p.mouth = 'o'; p.ear = 1; p.tail = 'up'; const w = Math.sin(at * 9) * 0.02; p.xf = { sx: 1.12 + w, sy: 1.1 - w, py: GROUND }; }
+        else { const s = ease(seg(k, 0.78, 0.95)); p.eyes = 'half'; p.mouth = 'wavy'; p.sweat = true; p.xf = { sx: 1.12 - 0.12 * s, sy: 1.1 - 0.1 * s, py: GROUND }; }
+      },
+      front(g, a, k, at) {
+        // 부푼 털: 가장자리에 가시. 끝이 번쩍
+        const puff = k < 0.3 ? seg(k, 0.1, 0.3) * 0.4 : k < 0.78 ? 1 : 1 - seg(k, 0.78, 0.95);
+        if (puff <= 0) return;
+        const cx = a.hx, cy = Math.round((a.top + GROUND) / 2) + 1, rx = a.hw + 1, ry = (GROUND - a.top) / 2;
+        const n = 28;
+        for (let i = 0; i < n; i++) {
+          const t = (i / n) * Math.PI * 2 + 0.05;
+          if (Math.sin(t) > 0.55) continue; // 바닥 쪽은 빼고
+          const len = Math.round((i % 2 ? 2 : 3) * puff);
+          for (let d = 0; d <= len; d++) this.px(cx + Math.cos(t) * (rx + d), cy + Math.sin(t) * (ry + d), d === len && k > 0.3 && k < 0.78 && (i + Math.floor(at * 12)) % 5 === 0 ? '#ffe45a' : g.c.outline);
+        }
+      },
+      step(r, k, at, dt, a) {
+        // 문지르는 손 커서 (ZAP 에 튕겨 나간다)
+        if (k < 0.42) {
+          const back = k >= 0.3 ? ease(seg(k, 0.3, 0.42)) : 0;
+          const hx = r.scr(a.hx) + Math.round(Math.sin(at * 10) * 5) + Math.round(back * 14), hy = a.top - 7 - Math.round(back * 8);
+          spr(r, ['.KK....', 'KWWK...', 'KWWKKK.', 'KWWWWWK', 'KWWWWWK', '.KWWWK.', '..KKK..'], hx - 3, hy, { K: INK, W: '#fffaf3' });
+        }
+        if (k < 0.3 && every(r, 'c', at, 0.2)) r.emit({ type: 'spark', x: r.scr(a.hx) + rand(-6, 6), y: a.top + rand(-1, 3), life: 0.2, c: '#ffe45a' });
+        if (once(r, 'z', k > 0.3)) { txt(r, 'ZAP!', r.scr(a.hx) - 7, a.top - 16, '#ffe45a', 1, -2); for (const [dx, dy] of [[9, -4], [-13, -2], [4, -12]]) r.emit({ type: 'sprite', rows: ['..Y', '.Y.', 'YYY', '.Y.', 'Y..'], x: r.scr(a.hx) + dx, y: a.top + dy, life: 0.35, map: { Y: '#ffe45a' } }); }
+        if (k > 0.3 && k < 0.36) tintUnder(r, '#fff6a0', 0.7);
+        if (k > 0.36 && k < 0.78) {
+          if (every(r, 's', at, 0.09)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-14, 14)), y: rand(a.top - 3, GROUND - 2), life: 0.22, c: '#ffe45a' });
+          if (every(r, 'b', at, 0.6)) txt(r, 'BZZT', r.scr(a.hx + rand(-14, 4)), a.top - rand(6, 12), '#fff6a0', 0.4, -2);
+        }
+        if (k > 0.78 && every(r, 'g', at, 0.12)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: GROUND - rand(0, 2), vy: 6, life: 0.2, c: '#ffe45a' });
+      } },
+  };
+
+  // 주식 차트 (머리 위 창). up 이면 치솟다 창을 뚫고 나가고, 아니면 오르다 절벽처럼 떨어진다
+  function chart(a, k, up) {
+    const x = a.hx - 12, y = a.top - 20, w = 25, h = 15;
+    box.call(this, x, y, w, h, '#1b1d24', '#454b57');
+    const n = Math.floor(seg(k, 0, 0.55) * (w - 2));
+    let py = y + 10;
+    for (let i = 0; i < n; i++) {
+      const t = i / (w - 3);
+      let v;
+      if (t < 0.7) v = y + 10 - Math.round(t * 6 + Math.sin(i * 1.7) * 1.2);
+      else v = up ? y + 6 - Math.round((t - 0.7) * 40) : y + 6 + Math.round((t - 0.7) * 26);
+      const col = up ? (t < 0.7 ? '#ffd65a' : '#3fe06a') : t < 0.7 ? '#3fe06a' : '#ff3a3a';
+      for (let yy = Math.min(py, v); yy <= Math.max(py, v); yy++) this.px(x + 1 + i, Math.max(y - 30, Math.min(y + h - 2, yy)), col);
+      py = v;
+    }
   }
   Object.assign(root.PetSprite.MOTIONS, M);
 })(window);

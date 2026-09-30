@@ -11,7 +11,7 @@ Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls 
 - **Writing feels rewarding.** Characters, links, new notes and writing sessions all turn into XP and coins, so every session has a small payoff.
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
-- **There's a lot to collect.** 264 costumes, 64 motions, 30 toys and mini-games, 17 fur colors, 154 badges and a treasure workshop.
+- **There's a lot to collect.** 264 costumes, 76 motions, 30 toys and mini-games, 18 premium dishes, 17 fur colors, 161 badges and a treasure workshop.
 - **It's fair.** Only real new writing counts. Deleting and retyping, undo, or pasting in big chunks earns nothing.
 - **It's private.** Your notes are only read, never stored or sent anywhere. No network access at all.
 
@@ -69,9 +69,9 @@ Everything you write fills your wallet. The first 5,000 characters each day earn
 
 | Category | What you get |
 |---|---|
-| Meals and snacks | Fill your cat's fullness and energy. It walks over and eats them off the floor |
+| Meals and snacks | Fill your cat's fullness and energy. It walks over and eats them off the floor. Premium dishes do something extra: keep it full for hours, hide a treasure, tell a fortune or invite a friend over |
 | Costumes | 264 pieces across head, face, body, back, hand, effect and full sets. Layer one per slot, save up to three outfits |
-| Motions | 64 moves for any moment: writing, finishing a stretch, leveling up, bedtime, idle time and more |
+| Motions | 76 moves for any moment: writing, finishing a stretch, leveling up, bedtime, idle time and more |
 | Toys | 30 toys and mini-games: balls, yarn, a laser pointer, bubbles, a cat wheel, a slot machine, whack-a-cat, rock-paper-scissors, tug of war, a trampoline… |
 
 New items unlock as you level up, all the way to Lv.80.
@@ -81,7 +81,7 @@ New items unlock as you level up, all the way to Lv.80.
 ## Quests, badges and more
 
 - **Three daily quests** (hard, normal, easy): write characters, add links, fill new notes, open notes, pet your cat, feed it, take a real break… They pay out the moment you finish.
-- **154 badges** across writing, links, new notes, sessions, streaks, daily rhythm, bonding, collecting and **using Obsidian**: tags, finished tasks, headings, embeds, callouts, daily notes, canvases and hub notes with lots of backlinks.
+- **161 badges** across writing, links, new notes, sessions, streaks, daily rhythm, bonding, collecting and **using Obsidian**: tags, finished tasks, headings, embeds, callouts, daily notes, canvases and hub notes with lots of backlinks.
 - **Neighbor cats** drop by every couple of hours. Trade treasures, share a snack and become best friends, then call them over or gift them costumes.
 - **Surprise events**: your cat might dash off screen and come back with a tiny treasure, or chase a bird across your workspace.
 - **Treasure workshop**: craft exclusive costumes out of the treasures you find.
@@ -149,13 +149,13 @@ Vault Pet is desktop only, since petting, dragging and right-clicking your cat a
 
 **Does it slow Obsidian down?** The cat lives in a lightweight transparent layer that ignores clicks except on the cat itself, and your vault is only read when notes change.
 
-**My cat won't play.** It might be hungry, tired or simply bored of that toy. Feed it, let it nap, or try again in a few minutes.
+**My cat won't play.** It is either hungry (fullness under 20) or worn out (energy 10 or lower). Feed it or let it nap, and it will play again.
 
 ---
 
 ### 한국어
 
-**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 64개, 장난감·미니게임 30개, 일일 퀘스트, 업적 154개, 놀러 오는 동네 친구, 보물 공방까지. 노트 내용은 읽기만 하고 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
+**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 일일 퀘스트, 업적 161개, 놀러 오는 동네 친구, 보물 공방까지. 노트 내용은 읽기만 하고 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
 ---
 
