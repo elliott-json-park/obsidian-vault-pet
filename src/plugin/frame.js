@@ -67,6 +67,7 @@ const API = [
   ['revealHooks', 'invoke', 'hooks:reveal'],
   ['setQuiet', 'invoke', 'quiet:set'],
   ['resetPosition', 'invoke', 'pet:reset-position'],
+  ['feedback', 'invoke', 'app:feedback'],
   ['onData', 'on', 'house:data'],
   ['onMood', 'on', 'house:mood'],
   ['onTab', 'on', 'house:tab'],

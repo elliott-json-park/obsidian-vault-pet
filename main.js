@@ -1,5 +1,5 @@
 /*
- * Vault Pet 1.2.0 — Obsidian plugin (built 2026-09-30)
+ * Vault Pet 1.2.1 — Obsidian plugin (built 2026-09-30)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -3420,6 +3420,7 @@ const API = [
   ['revealHooks', 'invoke', 'hooks:reveal'],
   ['setQuiet', 'invoke', 'quiet:set'],
   ['resetPosition', 'invoke', 'pet:reset-position'],
+  ['feedback', 'invoke', 'app:feedback'],
   ['onData', 'on', 'house:data'],
   ['onMood', 'on', 'house:mood'],
   ['onTab', 'on', 'house:tab'],
@@ -4163,8 +4164,10 @@ class KitHost {
     const today = new Date().toDateString();
     let t = this.state.get('temper');
     if (!t || t.day !== today) {
-      let r = Math.random() * TEMPERS.reduce((a, x) => a + x.w, 0);
-      const key = (TEMPERS.find((x) => (r -= x.w) < 0) || TEMPERS[0]).key;
+      // 처음 만난 날은 쓰다듬기 싫은 날을 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘다)
+      const pool = t ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
+      let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
+      const key = (pool.find((x) => (r -= x.w) < 0) || pool[0]).key;
       t = { day: today, key, said: false };
       this.state.set({ temper: t });
     }
@@ -4767,6 +4770,9 @@ class KitHost {
       case 'pet:reset-position':
         this.resetPosition();
         return true;
+      case 'app:feedback':
+        this.plugin.openFeedback();
+        return true;
     }
     return null;
   }
@@ -5000,11 +5006,13 @@ const { KitHost, STATE_DEFAULTS } = require('./host');
 const { KitFrame } = require('./frame');
 const { PetStage } = require('./stage');
 const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
+const { loadSafe, backupDaily } = require('./safedata');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 
 const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
+const FEEDBACK_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
 const MIN = 60_000;
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
 const BURST_DONE = 45_000; // 이만큼은 이어서 써야 '다 썼다' 모션을 한다
@@ -5137,6 +5145,10 @@ class KitSettingTab extends PluginSettingTab {
     new Setting(el)
       .setName(t('tray.resetPos'))
       .addButton((b) => b.setButtonText(t('tray.resetPos')).onClick(() => p.host.resetPosition()));
+    new Setting(el)
+      .setName(t('obs.feedback'))
+      .setDesc(t('obs.feedbackDesc'))
+      .addButton((b) => b.setButtonText(t('obs.feedbackBtn')).onClick(() => p.openFeedback()));
     el.createEl('p', { text: t('set.disclaimer'), cls: 'setting-item-description kitcommit-disclaimer' });
   }
 }
@@ -5198,7 +5210,12 @@ class LegacyModal extends Modal {
 
 class KitCommitPlugin extends Plugin {
   async onload() {
-    let raw = (await this.loadData()) || {};
+    // 깨진 data.json 은 백업으로 되살린다 (safedata.js). 되살렸는지는 start() 에서 알린다
+    const loaded = await loadSafe(this.app.vault.adapter, this.manifest.dir);
+    this.loadSource = loaded.source;
+    let raw = loaded.raw || {};
+    // 백업할 것: 방금 잘 읽힌 자료 (0.x 자료는 곧 새 형식으로 바뀌니 빼 둔다)
+    this.loadedRaw = loaded.source === 'data' && !isLegacy(raw) ? raw : null;
     // Vault Pet 0.x 에서 업데이트했다: 예전 기록은 선물로 바꾸고, 새 고양이는 처음부터 (설정 몇 가지·이름만 옮긴다)
     const legacy = isLegacy(raw) ? legacySummary(raw) : null;
     if (legacy) raw = { settings: legacySettings(raw) };
@@ -5327,6 +5344,8 @@ class KitCommitPlugin extends Plugin {
     // 처음이면 하우스에서 안내부터 (데스크톱판처럼)
     if (!this.state.get('onboarded')) this.openHouse('home');
     if (this.meta.legacy && !this.meta.legacy.shown) new LegacyModal(this.app, this).open();
+    if (this.loadSource === 'backup' || this.loadSource === 'lost') new Notice(this.host.T.t(this.loadSource === 'backup' ? 'obs.dataRestored' : 'obs.dataLost'), 15000);
+    this.backup();
     await this.scan();
     this.host.ready();
     this.updateStatus();
@@ -5613,7 +5632,7 @@ class KitCommitPlugin extends Plugin {
       const bin = atob(b64);
       const buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      const file = `kitcommit-${String(name).replace(/[\\/:*?"<>|#^[\]]/g, '') || 'cat'}.png`;
+      const file = `vault-pet-${String(name).replace(/[\\/:*?"<>|#^[\]]/g, '') || 'cat'}.png`;
       const active = this.app.workspace.getActiveFile();
       const path = await this.app.fileManager.getAvailablePathForAttachment(file, active ? active.path : '');
       await this.app.vault.createBinary(path, buf.buffer);
@@ -5734,6 +5753,25 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 저장 ── */
 
+  // 하루에 한 번, 방금 잘 읽힌 data.json 을 data.backup.json 으로 남긴다
+  backup() {
+    const raw = this.loadedRaw;
+    this.loadedRaw = null;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    backupDaily(this.app.vault.adapter, this.manifest.dir, raw, this.meta.backupDay, today)
+      .then((done) => {
+        if (!done) return;
+        this.meta.backupDay = today;
+        this.saveSoon();
+      })
+      .catch((e) => console.error('[Vault Pet] backup', e));
+  }
+
+  openFeedback() {
+    window.open(FEEDBACK_URL);
+  }
+
   saveSoon() {
     this.dirty = true;
     window.clearTimeout(this.saveTimer);
@@ -5750,6 +5788,65 @@ class KitCommitPlugin extends Plugin {
 
 module.exports = KitCommitPlugin;
 module.exports.default = KitCommitPlugin;
+
+};
+
+__defs["plugin/safedata"] = function (module, exports, require) {
+'use strict';
+/*
+ * data.json 을 안전하게 읽는다.
+ *
+ * 옵시디언의 loadData 는 파일이 깨져 있으면(쓰다가 꺼짐·동기화 충돌) 던지고, 그러면 플러그인이 아예 안 켜진다.
+ * 그래서 하루에 한 번, 잘 읽힌 data.json 을 data.backup.json 으로 남겨 두고 깨졌을 때 그걸로 되살린다.
+ * 깨진 파일은 지우지 않고 data.broken-<시각>.json 으로 옮겨 둔다.
+ * '깨졌다'는 읽히긴 하는데 JSON 이 아닐 때만이다. 파일을 아예 못 읽으면(권한·디스크) 그대로 던져서
+ * 플러그인이 안 켜지게 둔다 — 잠깐의 읽기 오류로 멀쩡한 파일을 새 고양이로 덮어쓰면 안 된다.
+ *
+ * adapter 는 옵시디언의 DataAdapter (exists · read · write). 테스트에서는 가짜를 넣는다.
+ */
+const BACKUP = 'data.backup.json';
+
+// 우리가 쓴 자료인지 (고양이 설정이 들어 있는 객체)
+function usable(raw) {
+  return !!raw && typeof raw === 'object' && !Array.isArray(raw);
+}
+
+async function readJson(adapter, file) {
+  if (!(await adapter.exists(file))) return { found: false, raw: null };
+  const text = await adapter.read(file);
+  if (!String(text).trim()) return { found: true, raw: null, broken: true };
+  try {
+    const raw = JSON.parse(text);
+    return usable(raw) ? { found: true, raw } : { found: true, raw: null, broken: true };
+  } catch {
+    return { found: true, raw: null, broken: true };
+  }
+}
+
+/*
+ * 돌려주는 것: { raw, source }
+ *   source = 'data' (평소) | 'none' (처음 설치) | 'backup' (깨져서 백업으로 되살림) | 'lost' (깨졌고 백업도 없다 → 처음부터)
+ */
+async function loadSafe(adapter, dir, now = Date.now()) {
+  const file = `${dir}/data.json`;
+  const main = await readJson(adapter, file);
+  if (main.raw) return { raw: main.raw, source: 'data' };
+  if (!main.found) return { raw: null, source: 'none' };
+  // 깨졌다. 원본부터 남겨 둔다 (이게 안 되면 덮어쓰지 않게 던진다)
+  await adapter.write(`${dir}/data.broken-${now}.json`, await adapter.read(file));
+  const back = await readJson(adapter, `${dir}/${BACKUP}`).catch(() => ({ raw: null }));
+  if (back.raw) return { raw: back.raw, source: 'backup' };
+  return { raw: null, source: 'lost' };
+}
+
+// 하루에 한 번 백업한다. raw 는 방금 잘 읽힌 자료 (고양이가 있는 것만)
+async function backupDaily(adapter, dir, raw, lastDay, today) {
+  if (!usable(raw) || !raw.settings || lastDay === today) return false;
+  await adapter.write(`${dir}/${BACKUP}`, JSON.stringify(raw));
+  return true;
+}
+
+module.exports = { loadSafe, backupDaily, BACKUP };
 
 };
 
@@ -10937,8 +11034,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tip.vaultChars': '볼트의 모든 노트 글자를 더한 값이에요 (노트마다 가장 길었을 때 기준).',
       'card.headline': '글자 {tokens}자를 먹고 자랐어요',
       'card.book': '{book}보다 약 {x}배 많은 글',
-      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #VaultPet',
-      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#VaultPet #Obsidian',
+      'card.footer': '옵시디언 플러그인 Vault Pet 으로 고양이 키우는 중  #VaultPet',
+      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n옵시디언 커뮤니티 플러그인에서 「Vault Pet」을 찾아보세요.\n#VaultPet #Obsidian',
       'book.times': '지금까지 쓴 글은 {book}의 약 {x}배예요',
       'book.part': '지금까지 쓴 글은 {book}의 약 {p}%예요',
       'w.privacyTitle': '노트 내용은 저장하지 않아요',
@@ -10954,7 +11051,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.b3b': '새 노트를 비워 두면 <b>느낌표</b>를 띄우고 첫 줄을 기다려요',
       'w.b3c': '한참 쓰고 손을 떼면 폴짝 뛰어요',
       'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
-      'w.b4a': '왼쪽 리본의 <b>발바닥</b>이나 상태 표시줄의 이름을 누르면 하우스가 열려요',
+      'w.b4a': '왼쪽 리본의 <b>고양이 얼굴</b>을 누르거나 고양이를 두 번 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
       'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
       'w.trayNote': '상태 표시줄의 이름을 누르면 빠른 메뉴가 나와요.',
@@ -10999,6 +11096,11 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'obs.resetPosBtn': '초기화',
       'obs.statusTip': '볼트 펫 메뉴',
       'obs.cardSaved': '카드를 저장했어요: {path}',
+      'obs.feedback': '의견 보내기',
+      'obs.feedbackDesc': '버그나 바라는 점을 알려 주세요. 누르면 브라우저에서 GitHub가 열려요.',
+      'obs.feedbackBtn': '의견 남기기',
+      'obs.dataRestored': 'Vault Pet: 저장 파일이 깨져 있어서 가장 최근 백업으로 되살렸어요. 깨진 파일은 플러그인 폴더에 남겨 두었어요.',
+      'obs.dataLost': 'Vault Pet: 저장 파일이 깨져 있고 백업이 없어서 처음부터 시작해요. 깨진 파일은 플러그인 폴더에 남겨 두었어요.',
       'obs.cmd.house': '하우스 열기',
       'obs.cmd.houseSide': '오른쪽 사이드바에 하우스 열기',
       'obs.houseSide': '하우스를 오른쪽 사이드바에서 열기',
@@ -11070,8 +11172,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tip.vaultChars': 'All characters across your notes (each note at its longest).',
       'card.headline': 'Grew up on {tokens} characters',
       'card.book': 'About {x}× longer than {book}',
-      'card.footer': 'Raising a cat while writing in Obsidian  #VaultPet',
-      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#VaultPet #Obsidian',
+      'card.footer': 'Raising a cat with Vault Pet, an Obsidian plugin  #VaultPet',
+      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\nFind “Vault Pet” in Obsidian’s community plugins.\n#VaultPet #Obsidian',
       'book.times': 'Everything you have written is about {x}× {book}',
       'book.part': 'Everything you have written is about {p}% of {book}',
       'w.privacyTitle': 'Your notes stay yours',
@@ -11087,7 +11189,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.b3b': 'Leave a new note blank and it raises a <b>!</b> waiting for the first line',
       'w.b3c': 'Write for a while and stop, and it hops with joy',
       'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
-      'w.b4a': 'Click the <b>paw</b> in the ribbon or the name in the status bar to open the house',
+      'w.b4a': 'Click the <b>cat face</b> in the ribbon, or double-click the cat, to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
       'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
       'w.trayNote': 'Click the name in the status bar for the quick menu.',
@@ -11130,6 +11232,11 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'obs.resetPosBtn': 'Reset',
       'obs.statusTip': 'Vault Pet menu',
       'obs.cardSaved': 'Card saved: {path}',
+      'obs.feedback': 'Send feedback',
+      'obs.feedbackDesc': 'Report a bug or tell us what you wish it did. Opens GitHub in your browser.',
+      'obs.feedbackBtn': 'Give feedback',
+      'obs.dataRestored': 'Vault Pet: the save file was damaged, so your cat was restored from the latest backup. The damaged file was kept in the plugin folder.',
+      'obs.dataLost': 'Vault Pet: the save file was damaged and there was no backup, so your cat starts over. The damaged file was kept in the plugin folder.',
       'obs.cmd.house': 'Open house',
       'obs.cmd.houseSide': 'Open house in the right sidebar',
       'obs.houseSide': 'Open the house in the right sidebar',
@@ -19589,8 +19696,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'tip.vaultChars': '볼트의 모든 노트 글자를 더한 값이에요 (노트마다 가장 길었을 때 기준).',
       'card.headline': '글자 {tokens}자를 먹고 자랐어요',
       'card.book': '{book}보다 약 {x}배 많은 글',
-      'card.footer': '옵시디언에 글 쓰면서 고양이 키우는 중  #VaultPet',
-      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n#VaultPet #Obsidian',
+      'card.footer': '옵시디언 플러그인 Vault Pet 으로 고양이 키우는 중  #VaultPet',
+      'card.shareText': '내 옵시디언 고양이 {name}, 벌써 Lv.{lv}!\n글자 {tokens}자를 먹고 {days}일째 자라는 중이에요.\n옵시디언 커뮤니티 플러그인에서 「Vault Pet」을 찾아보세요.\n#VaultPet #Obsidian',
       'book.times': '지금까지 쓴 글은 {book}의 약 {x}배예요',
       'book.part': '지금까지 쓴 글은 {book}의 약 {p}%예요',
       'w.privacyTitle': '노트 내용은 저장하지 않아요',
@@ -19606,7 +19713,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.b3b': '새 노트를 비워 두면 <b>느낌표</b>를 띄우고 첫 줄을 기다려요',
       'w.b3c': '한참 쓰고 손을 떼면 폴짝 뛰어요',
       'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
-      'w.b4a': '왼쪽 리본의 <b>발바닥</b>이나 상태 표시줄의 이름을 누르면 하우스가 열려요',
+      'w.b4a': '왼쪽 리본의 <b>고양이 얼굴</b>을 누르거나 고양이를 두 번 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
       'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
       'w.trayNote': '상태 표시줄의 이름을 누르면 빠른 메뉴가 나와요.',
@@ -19651,6 +19758,11 @@ module.exports.run = function run(window, document, pet, kind) {
       'obs.resetPosBtn': '초기화',
       'obs.statusTip': '볼트 펫 메뉴',
       'obs.cardSaved': '카드를 저장했어요: {path}',
+      'obs.feedback': '의견 보내기',
+      'obs.feedbackDesc': '버그나 바라는 점을 알려 주세요. 누르면 브라우저에서 GitHub가 열려요.',
+      'obs.feedbackBtn': '의견 남기기',
+      'obs.dataRestored': 'Vault Pet: 저장 파일이 깨져 있어서 가장 최근 백업으로 되살렸어요. 깨진 파일은 플러그인 폴더에 남겨 두었어요.',
+      'obs.dataLost': 'Vault Pet: 저장 파일이 깨져 있고 백업이 없어서 처음부터 시작해요. 깨진 파일은 플러그인 폴더에 남겨 두었어요.',
       'obs.cmd.house': '하우스 열기',
       'obs.cmd.houseSide': '오른쪽 사이드바에 하우스 열기',
       'obs.houseSide': '하우스를 오른쪽 사이드바에서 열기',
@@ -19722,8 +19834,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'tip.vaultChars': 'All characters across your notes (each note at its longest).',
       'card.headline': 'Grew up on {tokens} characters',
       'card.book': 'About {x}× longer than {book}',
-      'card.footer': 'Raising a cat while writing in Obsidian  #VaultPet',
-      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\n#VaultPet #Obsidian',
+      'card.footer': 'Raising a cat with Vault Pet, an Obsidian plugin  #VaultPet',
+      'card.shareText': 'My Obsidian cat {name} is already Lv.{lv}!\nGrowing for {days} days on {tokens} characters.\nFind “Vault Pet” in Obsidian’s community plugins.\n#VaultPet #Obsidian',
       'book.times': 'Everything you have written is about {x}× {book}',
       'book.part': 'Everything you have written is about {p}% of {book}',
       'w.privacyTitle': 'Your notes stay yours',
@@ -19739,7 +19851,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.b3b': 'Leave a new note blank and it raises a <b>!</b> waiting for the first line',
       'w.b3c': 'Write for a while and stop, and it hops with joy',
       'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
-      'w.b4a': 'Click the <b>paw</b> in the ribbon or the name in the status bar to open the house',
+      'w.b4a': 'Click the <b>cat face</b> in the ribbon, or double-click the cat, to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
       'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
       'w.trayNote': 'Click the name in the status bar for the quick menu.',
@@ -19782,6 +19894,11 @@ module.exports.run = function run(window, document, pet, kind) {
       'obs.resetPosBtn': 'Reset',
       'obs.statusTip': 'Vault Pet menu',
       'obs.cardSaved': 'Card saved: {path}',
+      'obs.feedback': 'Send feedback',
+      'obs.feedbackDesc': 'Report a bug or tell us what you wish it did. Opens GitHub in your browser.',
+      'obs.feedbackBtn': 'Give feedback',
+      'obs.dataRestored': 'Vault Pet: the save file was damaged, so your cat was restored from the latest backup. The damaged file was kept in the plugin folder.',
+      'obs.dataLost': 'Vault Pet: the save file was damaged and there was no backup, so your cat starts over. The damaged file was kept in the plugin folder.',
       'obs.cmd.house': 'Open house',
       'obs.cmd.houseSide': 'Open house in the right sidebar',
       'obs.houseSide': 'Open the house in the right sidebar',
@@ -45599,6 +45716,7 @@ const TABS = {
       <div class="panel">
         <div class="field"><div class="lbl">${t('tray.resetPos')}</div><button class="btn ghost" data-act="position">${t('obs.resetPosBtn')}</button></div>
         <div class="field"><div class="lbl">${t('set.showWelcome')}</div><button class="btn ghost" data-act="welcome">${t('set.open')}</button></div>
+        <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
 
       ${
@@ -46123,6 +46241,9 @@ async function act(name) {
       break;
     case 'welcome':
       showWelcome();
+      break;
+    case 'feedback': // [옵시디언]
+      pet.feedback();
       break;
   }
 }

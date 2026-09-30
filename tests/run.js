@@ -381,6 +381,85 @@ test('legacy: 기념 코스튬은 상점에서 못 사고, 받은 사람에게�
   }
 });
 
+test('host: 처음 만난 날은 쓰다듬기 싫은 날이 아니다', () => {
+  const orig = Math.random;
+  Math.random = () => 0.999; // 평소라면 맨 끝(grumpy)을 뽑는 값
+  try {
+    const { host, state } = makeHost();
+    state.data.temper = undefined;
+    assert.notStrictEqual(host.temper(), 'grumpy');
+    state.data.temper = { day: 'Mon Jan 01 2001', key: 'calm', said: true };
+    assert.strictEqual(host.temper(), 'grumpy');
+  } finally {
+    Math.random = orig;
+  }
+});
+
+/* ── 저장 파일 ── */
+
+const safe = require(path.join(src, 'plugin/safedata'));
+const fakeAdapter = (files) => ({
+  files,
+  exists: async (f) => f in files,
+  read: async (f) => files[f],
+  write: async (f, text) => void (files[f] = text),
+});
+
+test('safedata: 멀쩡한 파일·처음 설치는 그대로 읽는다', async () => {
+  const good = { settings: { petName: 'Mochi' }, state: {} };
+  const a = fakeAdapter({ 'p/data.json': JSON.stringify(good) });
+  assert.deepStrictEqual(await safe.loadSafe(a, 'p'), { raw: good, source: 'data' });
+  assert.deepStrictEqual(await safe.loadSafe(fakeAdapter({}), 'p'), { raw: null, source: 'none' });
+  assert.deepStrictEqual(Object.keys(a.files), ['p/data.json']);
+});
+
+test('safedata: 깨진 파일은 백업으로 되살리고, 깨진 원본을 남긴다', async () => {
+  const good = { settings: { petName: 'Mochi' }, state: { coins: 5 } };
+  for (const broken of ['', '   ', '{"settings":{"petN', 'null', '[1,2]']) {
+    const a = fakeAdapter({ 'p/data.json': broken, 'p/data.backup.json': JSON.stringify(good) });
+    const r = await safe.loadSafe(a, 'p', 123);
+    assert.strictEqual(r.source, 'backup', JSON.stringify(broken));
+    assert.deepStrictEqual(r.raw, good);
+    assert.strictEqual(a.files['p/data.broken-123.json'], broken);
+  }
+  // 백업도 없거나 백업도 깨졌으면 처음부터
+  const b = fakeAdapter({ 'p/data.json': '{oops', 'p/data.backup.json': '{oops too' });
+  assert.deepStrictEqual(await safe.loadSafe(b, 'p', 7), { raw: null, source: 'lost' });
+  assert.strictEqual(b.files['p/data.broken-7.json'], '{oops');
+});
+
+test('safedata: 파일을 못 읽으면 던진다 (새 고양이로 덮어쓰지 않게)', async () => {
+  const a = fakeAdapter({ 'p/data.json': '{}' });
+  a.read = async () => {
+    throw new Error('EBUSY');
+  };
+  await assert.rejects(() => safe.loadSafe(a, 'p'), /EBUSY/);
+  // 깨진 원본을 남기지 못해도 던진다
+  const b = fakeAdapter({ 'p/data.json': '{oops' });
+  b.write = async () => {
+    throw new Error('EACCES');
+  };
+  await assert.rejects(() => safe.loadSafe(b, 'p'), /EACCES/);
+});
+
+test('safedata: 백업은 하루에 한 번, 고양이가 있는 자료만', async () => {
+  const a = fakeAdapter({});
+  const good = { settings: { petName: 'Mochi' } };
+  assert.strictEqual(await safe.backupDaily(a, 'p', good, undefined, '2026-9-30'), true);
+  assert.deepStrictEqual(JSON.parse(a.files['p/data.backup.json']), good);
+  assert.strictEqual(await safe.backupDaily(a, 'p', { settings: { petName: 'X' } }, '2026-9-30', '2026-9-30'), false);
+  assert.strictEqual(await safe.backupDaily(a, 'p', null, undefined, '2026-10-1'), false);
+  assert.strictEqual(await safe.backupDaily(a, 'p', {}, undefined, '2026-10-1'), false);
+  assert.deepStrictEqual(JSON.parse(a.files['p/data.backup.json']), good);
+});
+
+test('i18n: 의견 보내기·저장 파일 안내·자랑 카드에 플러그인 이름', () => {
+  for (const lang of ['ko', 'en']) {
+    for (const k of ['obs.feedback', 'obs.feedbackDesc', 'obs.feedbackBtn', 'obs.dataRestored', 'obs.dataLost']) assert.ok(I18N.UI[lang][k], lang + ' ' + k);
+    for (const k of ['card.footer', 'card.shareText']) assert.ok(I18N.UI[lang][k].includes('Vault Pet'), lang + ' ' + k);
+  }
+});
+
 (async () => {
   let fail = 0;
   for (const t of tests) {

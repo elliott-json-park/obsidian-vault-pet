@@ -595,8 +595,10 @@ class KitHost {
     const today = new Date().toDateString();
     let t = this.state.get('temper');
     if (!t || t.day !== today) {
-      let r = Math.random() * TEMPERS.reduce((a, x) => a + x.w, 0);
-      const key = (TEMPERS.find((x) => (r -= x.w) < 0) || TEMPERS[0]).key;
+      // 처음 만난 날은 쓰다듬기 싫은 날을 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘다)
+      const pool = t ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
+      let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
+      const key = (pool.find((x) => (r -= x.w) < 0) || pool[0]).key;
       t = { day: today, key, said: false };
       this.state.set({ temper: t });
     }
@@ -1198,6 +1200,9 @@ class KitHost {
         return this.housePayload();
       case 'pet:reset-position':
         this.resetPosition();
+        return true;
+      case 'app:feedback':
+        this.plugin.openFeedback();
         return true;
     }
     return null;

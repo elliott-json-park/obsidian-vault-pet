@@ -1,0 +1,30 @@
+name: Bug report
+description: Something is broken or behaves oddly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? A screenshot helps a lot.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Vault Pet version
+      description: Settings → Community plugins → Vault Pet
+      placeholder: "1.2.1"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Obsidian version and operating system
+      placeholder: "Obsidian 1.9.0, Windows 11"
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors (optional)
+      description: Press Ctrl/Cmd+Shift+I, open the Console tab and paste any red lines that mention Vault Pet.
+      render: text

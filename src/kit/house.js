@@ -1698,6 +1698,7 @@ const TABS = {
       <div class="panel">
         <div class="field"><div class="lbl">${t('tray.resetPos')}</div><button class="btn ghost" data-act="position">${t('obs.resetPosBtn')}</button></div>
         <div class="field"><div class="lbl">${t('set.showWelcome')}</div><button class="btn ghost" data-act="welcome">${t('set.open')}</button></div>
+        <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
 
       ${
@@ -2222,6 +2223,9 @@ async function act(name) {
       break;
     case 'welcome':
       showWelcome();
+      break;
+    case 'feedback': // [옵시디언]
+      pet.feedback();
       break;
   }
 }

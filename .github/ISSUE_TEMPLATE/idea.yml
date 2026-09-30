@@ -1,0 +1,16 @@
+name: Idea or wish
+description: Something you wish Vault Pet did, or did differently
+labels: [idea]
+body:
+  - type: textarea
+    id: wish
+    attributes:
+      label: What do you wish it did?
+      description: One sentence is fine. Costumes, toys, other animals, mobile, languages, anything.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: When would you use it? (optional)
+      description: A little about how you write in Obsidian helps decide what to build first.

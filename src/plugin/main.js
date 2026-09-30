@@ -18,11 +18,13 @@ const { KitHost, STATE_DEFAULTS } = require('./host');
 const { KitFrame } = require('./frame');
 const { PetStage } = require('./stage');
 const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
+const { loadSafe, backupDaily } = require('./safedata');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 
 const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
+const FEEDBACK_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
 const MIN = 60_000;
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
 const BURST_DONE = 45_000; // 이만큼은 이어서 써야 '다 썼다' 모션을 한다
@@ -155,6 +157,10 @@ class KitSettingTab extends PluginSettingTab {
     new Setting(el)
       .setName(t('tray.resetPos'))
       .addButton((b) => b.setButtonText(t('tray.resetPos')).onClick(() => p.host.resetPosition()));
+    new Setting(el)
+      .setName(t('obs.feedback'))
+      .setDesc(t('obs.feedbackDesc'))
+      .addButton((b) => b.setButtonText(t('obs.feedbackBtn')).onClick(() => p.openFeedback()));
     el.createEl('p', { text: t('set.disclaimer'), cls: 'setting-item-description kitcommit-disclaimer' });
   }
 }
@@ -216,7 +222,12 @@ class LegacyModal extends Modal {
 
 class KitCommitPlugin extends Plugin {
   async onload() {
-    let raw = (await this.loadData()) || {};
+    // 깨진 data.json 은 백업으로 되살린다 (safedata.js). 되살렸는지는 start() 에서 알린다
+    const loaded = await loadSafe(this.app.vault.adapter, this.manifest.dir);
+    this.loadSource = loaded.source;
+    let raw = loaded.raw || {};
+    // 백업할 것: 방금 잘 읽힌 자료 (0.x 자료는 곧 새 형식으로 바뀌니 빼 둔다)
+    this.loadedRaw = loaded.source === 'data' && !isLegacy(raw) ? raw : null;
     // Vault Pet 0.x 에서 업데이트했다: 예전 기록은 선물로 바꾸고, 새 고양이는 처음부터 (설정 몇 가지·이름만 옮긴다)
     const legacy = isLegacy(raw) ? legacySummary(raw) : null;
     if (legacy) raw = { settings: legacySettings(raw) };
@@ -345,6 +356,8 @@ class KitCommitPlugin extends Plugin {
     // 처음이면 하우스에서 안내부터 (데스크톱판처럼)
     if (!this.state.get('onboarded')) this.openHouse('home');
     if (this.meta.legacy && !this.meta.legacy.shown) new LegacyModal(this.app, this).open();
+    if (this.loadSource === 'backup' || this.loadSource === 'lost') new Notice(this.host.T.t(this.loadSource === 'backup' ? 'obs.dataRestored' : 'obs.dataLost'), 15000);
+    this.backup();
     await this.scan();
     this.host.ready();
     this.updateStatus();
@@ -631,7 +644,7 @@ class KitCommitPlugin extends Plugin {
       const bin = atob(b64);
       const buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      const file = `kitcommit-${String(name).replace(/[\\/:*?"<>|#^[\]]/g, '') || 'cat'}.png`;
+      const file = `vault-pet-${String(name).replace(/[\\/:*?"<>|#^[\]]/g, '') || 'cat'}.png`;
       const active = this.app.workspace.getActiveFile();
       const path = await this.app.fileManager.getAvailablePathForAttachment(file, active ? active.path : '');
       await this.app.vault.createBinary(path, buf.buffer);
@@ -751,6 +764,25 @@ class KitCommitPlugin extends Plugin {
   }
 
   /* ── 저장 ── */
+
+  // 하루에 한 번, 방금 잘 읽힌 data.json 을 data.backup.json 으로 남긴다
+  backup() {
+    const raw = this.loadedRaw;
+    this.loadedRaw = null;
+    const d = new Date();
+    const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    backupDaily(this.app.vault.adapter, this.manifest.dir, raw, this.meta.backupDay, today)
+      .then((done) => {
+        if (!done) return;
+        this.meta.backupDay = today;
+        this.saveSoon();
+      })
+      .catch((e) => console.error('[Vault Pet] backup', e));
+  }
+
+  openFeedback() {
+    window.open(FEEDBACK_URL);
+  }
 
   saveSoon() {
     this.dirty = true;

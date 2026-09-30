@@ -4,6 +4,8 @@
 
 Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from the words you put into your notes. Every character you write becomes XP and coins. Spend them on costumes, toys and snacks, clear daily quests, collect badges, and watch your cat grow alongside your notes.
 
+![Mochi the cat pulls out a tiny laptop and types along, a thought bubble over its head, while a paragraph of a novel is being written in the note above.](docs/typing.gif)
+
 ![Mochi the cat types along on its laptop while you write a novel draft. The cat's house is open on the right with today's writing, its fullness and energy, and daily quests.](docs/kitcommit-hero.png)
 
 ## Why you'll love it
@@ -100,7 +102,7 @@ Make a show-off card with your cat in its current outfit, your level and your wr
 
 ## Settings
 
-Open the house (paw icon in the ribbon, your cat's name in the status bar, or double-click the cat) and go to **Settings**:
+Open the house (cat face in the ribbon, or double-click the cat; your cat's name in the status bar opens a quick menu) and go to **Settings**:
 
 - Name, size (5 steps), fur color
 - **Mute**: turns off every sound effect. Also in Obsidian's plugin settings and the command palette
@@ -125,6 +127,13 @@ Open house · Show today's quests · Open shop · Open wardrobe · Feed · Pet t
 
 Vault Pet is desktop only, since petting, dragging and right-clicking your cat are a big part of the fun.
 
+## Feedback
+
+Vault Pet has no telemetry, so the only way to know what you like, what's broken and what's missing is if you say so.
+
+- **A bug or a wish:** [open an issue](../../issues/new/choose). One sentence is enough. The **Send feedback** button in the house settings takes you to the same place.
+- **Screenshots of your cat, questions, anything else:** [Discussions](../../discussions).
+
 ## Privacy
 
 - Notes are only **read**. Their contents are never stored, shown elsewhere or sent anywhere. The plugin makes no network requests.
@@ -140,6 +149,8 @@ Vault Pet is desktop only, since petting, dragging and right-clicking your cat a
 | **Reading notes** | To count new characters, links, tags, tasks, headings, embeds and callouts | Only when a note changes. Contents are never stored |
 | **Clipboard (write only)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them. Vault Pet never reads your clipboard |
 | **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/vault-pet/data.json`. Nothing is kept in browser storage |
+| **Backup of the data file** | To bring your cat back if `data.json` is ever damaged (a crash mid-save, a sync conflict) | Once a day, a copy is written next to it as `data.backup.json`. A damaged file is kept as `data.broken-<time>.json` rather than deleted |
+| **Your browser (link only)** | The **Send feedback** button | Only when you press it. It opens this repository's issue page. Vault Pet itself still makes no network requests |
 
 ## FAQ
 
@@ -148,6 +159,8 @@ Vault Pet is desktop only, since petting, dragging and right-clicking your cat a
 **Can I farm XP by pasting text?** Not really. Each note remembers its longest-ever length, so only real growth counts, and big pastes or bulk changes are capped.
 
 **Does it slow Obsidian down?** The cat lives in a lightweight transparent layer that ignores clicks except on the cat itself, and your vault is only read when notes change.
+
+**My cat disappeared or started over.** If the data file was damaged, Vault Pet restores your cat from the daily backup and tells you so. If that didn't happen, look in `.obsidian/plugins/vault-pet/` for `data.backup.json` and please [open an issue](../../issues/new/choose).
 
 **My cat won't play.** It is either hungry (fullness under 20) or worn out (energy 10 or lower). Feed it or let it nap, and it will play again.
 
