@@ -15,6 +15,7 @@ class PetStage {
     this.hidden = false;
     this.interactive = false;
     this.mouse = null; // 마지막 마우스 자리 (옵시디언 창 좌표)
+    this.dragInset = 0; // 무대 윗변을 내릴 만큼 (맨 위 탭 바 높이, measureDragInset)
     this.cleanup = [];
   }
 
@@ -68,6 +69,12 @@ class PetStage {
       this.cleanup.push(() => ro.disconnect());
     }
     on(window, 'resize', () => this.fit());
+    // 탭 바가 생기거나 사라지면 무대 윗변도 다시 잡는다 (작업 영역 크기는 그대로라 위 관찰자로는 모른다)
+    const wsp = this.plugin.app && this.plugin.app.workspace;
+    if (wsp && wsp.on) {
+      const ref = wsp.on('layout-change', () => this.fit());
+      this.cleanup.push(() => wsp.offref(ref));
+    }
   }
 
   unmount() {
@@ -81,6 +88,8 @@ class PetStage {
   }
 
   // 작업 영역에 맞춘다. 바닥은 상태 표시줄 바로 위 (데스크톱판의 '작업표시줄 바로 위')
+  // 윗변은 맨 위 탭 바 아래. 제목 표시줄을 숨긴 창에서는 탭 바 빈 곳이 창을 끄는 자리(app-region: drag)인데,
+  // 무대가 그 위를 덮으면 pointer-events: none 이어도 창 옮기기·더블클릭 최대화가 막힌다 (이슈 #2)
   rect() {
     const ws = document.querySelector('.workspace');
     if (ws) {
@@ -89,7 +98,8 @@ class PetStage {
         const sb = document.querySelector('.status-bar');
         const sr = sb && sb.offsetParent ? sb.getBoundingClientRect() : null;
         const bottom = sr && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
-        return { left: r.left, top: r.top, width: r.width, height: bottom - r.top, right: r.right, bottom };
+        const top = Math.min(r.top + this.dragInset, bottom - 50);
+        return { left: r.left, top, width: r.width, height: bottom - top, right: r.right, bottom };
       }
     }
     const sb = document.querySelector('.status-bar');
@@ -97,8 +107,24 @@ class PetStage {
     return { left: 0, top: 0, width: window.innerWidth, height: h, right: window.innerWidth, bottom: h };
   }
 
+  // 작업 영역 윗변에 붙은 창 끄는 자리(탭 바)의 높이. 스타일을 읽어야 해서 마우스가 움직일 때마다가 아니라 fit() 때만 잰다
+  measureDragInset() {
+    const ws = document.querySelector('.workspace');
+    if (!ws) return 0;
+    const top = ws.getBoundingClientRect().top;
+    let inset = 0;
+    for (const el of ws.querySelectorAll('.workspace-tab-header-container')) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || r.top > top + 4) continue;
+      if (getComputedStyle(el).webkitAppRegion !== 'drag') continue;
+      inset = Math.max(inset, r.bottom - top);
+    }
+    return inset;
+  }
+
   fit() {
     if (!this.el) return;
+    this.dragInset = this.measureDragInset();
     const r = this.rect();
     Object.assign(this.el.style, { left: `${Math.round(r.left)}px`, top: `${Math.round(r.top)}px`, width: `${Math.round(r.width)}px`, height: `${Math.round(r.height)}px` });
   }
