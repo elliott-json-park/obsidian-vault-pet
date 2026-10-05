@@ -703,7 +703,7 @@ const MOTIONS = [
   { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
   { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
   { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
-  { key: 'bubbles', rec: ['idle'], price: 350 },
+  { key: 'bubbleplay', rec: ['idle'], price: 350 },
   { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
   { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
   { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
@@ -932,6 +932,14 @@ class Shop {
       moved = true;
     }
     if (moved) this.state.set({ pantry });
+
+    // 1.2.3: 장난감 비눗방울과 모션 비눗방울 놀이가 'bubbles' 키 하나를 같이 써서, 장난감을 사면 모션도 가진 걸로 보였다.
+    // 모션 키를 'bubbleplay' 로 나눴다. 그동안 모션까지 가진 걸로 보였던 사람은 모션도 그대로 갖게 한다 (한 번만)
+    if (!this.state.get('bubbleSplit')) {
+      const had = this.state.get('items') || [];
+      if (had.includes('bubbles') && !had.includes('bubbleplay')) this.state.set({ items: [...had, 'bubbleplay'] });
+      this.state.set({ bubbleSplit: true });
+    }
 
     const items = this.state.get('items') || [];
     const gone = [...RETIRED_ACCESSORIES, ...RETIRED_TOYS, ...RETIRED_MOTIONS].filter((r) => items.includes(r.key));

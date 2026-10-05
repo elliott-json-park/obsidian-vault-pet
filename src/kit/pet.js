@@ -2388,12 +2388,15 @@ function endHunt(done) {
 
 // ---------- 그리기 루프 ----------
 
+// [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
+const offscreen = () => document.hidden || !!(window.frameElement && !window.frameElement.getClientRects().length);
 let lastLoop = performance.now();
 function loop() {
   const now = performance.now();
   const dt = Math.min(0.2, (now - lastLoop) / 1000);
   lastLoop = now;
-  if (!document.hidden) {
+  const off = offscreen();
+  if (!off) {
     if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
     if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
     for (const o of treats) stepItem(o, dt);
@@ -2419,7 +2422,7 @@ function loop() {
     placeFriendOverlays();
   }
   const moving = toy || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || dragging || catLift > 0;
-  const slow = !moving && sprite.mood === 'sleeping';
+  const slow = off || (!moving && sprite.mood === 'sleeping');
   setTimeout(loop, slow ? 160 : moving ? 33 : 55);
 }
 

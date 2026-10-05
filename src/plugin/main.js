@@ -26,6 +26,7 @@ const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
 const FEEDBACK_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
 const MIN = 60_000;
+const PASTE_KEEP = MIN; // 붙여 넣은 글을 '세지 않을 몫'으로 들고 있는 시간
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
 const BURST_DONE = 45_000; // 이만큼은 이어서 써야 '다 썼다' 모션을 한다
 const EMPTY_WAIT = 25_000; // 새로 만든 빈 노트가 이만큼 비어 있으면 느낌표 (데스크톱판의 '허락을 기다린다')
@@ -90,6 +91,36 @@ class HouseView extends ItemView {
     this.frame = new KitFrame(this.plugin.host, 'house');
     this.frame.mount(this.contentEl, { tab: this.tab || 'home', fontCss: this.plugin.fontCss(), dark: this.plugin.isDark() });
     this.plugin.host.attachHouse(this.frame);
+    this.hookKeys();
+  }
+
+  // 하우스(iframe)를 누르면 키보드가 iframe 으로 가서 옵시디언 단축키(Ctrl+P·Ctrl+O·Ctrl+W…)가 안 먹었다.
+  // 하우스를 누르면 이 탭을 지금 탭으로 삼고, 단축키는 옵시디언 쪽으로 넘겨준다
+  hookKeys() {
+    const fw = this.frame && this.frame.win;
+    if (!fw) return;
+    const ws = this.app.workspace;
+    fw.addEventListener('mousedown', () => {
+      if (ws.getActiveViewOfType(HouseView) !== this) ws.setActiveLeaf(this.leaf, { focus: false });
+    }, { capture: true });
+    fw.addEventListener('keydown', (e) => {
+      if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return;
+      if (!(e.ctrlKey || e.metaKey || e.altKey) && !/^F\d+$/.test(e.key)) return;
+      const t = e.target;
+      const typing = t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
+      // 글자 칸 안의 전체 선택·복사·붙여넣기·되돌리기는 그 칸에서
+      if (typing && !e.altKey && /^[acvxyz]$/i.test(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const doc = this.contentEl.ownerDocument;
+      const win = doc.defaultView;
+      if (!this.frame) return;
+      this.frame.iframe.blur();
+      win.focus();
+      const init = { key: e.key, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey, repeat: e.repeat, bubbles: true, cancelable: true };
+      const target = doc.activeElement && doc.activeElement !== this.frame.iframe ? doc.activeElement : doc.body;
+      target.dispatchEvent(new win.KeyboardEvent('keydown', init));
+    }, { capture: true });
   }
 
   // 탭을 새 창(팝아웃)으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
@@ -236,6 +267,8 @@ class KitCommitPlugin extends Plugin {
     this.settings = new Store(raw.settings, DEFAULT_SETTINGS, saveHook);
     this.state = new Store(raw.state, STATE_DEFAULTS, saveHook);
     this.meta = { scanned: false, baseline: { c: 0, l: 0, n: 0, s: 0 }, ...(raw.meta || {}) };
+    // 지난번에 마지막으로 저장한 때. 그 뒤로 안 바뀐 노트는 꺼져 있던 동안 쓴 글이 아니다 (scan)
+    this.prevSeen = this.meta.lastSeen || 0;
     this.usage = new UsageTracker(raw.usage);
     this.usage.on('session', ({ at }) => this.onSession(at));
     // 처음 설치하면 옵시디언 언어를 따른다
@@ -248,6 +281,7 @@ class KitCommitPlugin extends Plugin {
       else if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
     }
     this.pending = new Set();
+    this.pasted = new Map(); // 노트 경로 → 붙여넣기·끌어다 놓기로 들어온 글 { c, l, at } (세지 않는다)
     this.icons = new Set();
     this.lastInput = Date.now();
     this.loadingProgress = null;
@@ -264,7 +298,7 @@ class KitCommitPlugin extends Plugin {
     }
 
     this.registerView(VIEW_TYPE, (leaf) => new HouseView(leaf, this));
-    this.ribbon = this.addRibbonIcon(this.pixelIcon('catface') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
+    this.ribbon = this.addRibbonIcon(this.pixelIcon('catface', true) || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass('kitcommit-status', 'mod-clickable');
     this.registerDomEvent(this.statusEl, 'click', (e) => this.host.trayMenu(e));
@@ -335,9 +369,16 @@ class KitCommitPlugin extends Plugin {
       this.saveSoon();
     }));
     this.registerEvent(vault.on('rename', (f, old) => {
+      // 기록 없는 노트(뺀 폴더에 있던 노트 등)가 옮겨 들어오면 지금 크기를 기준으로만 잡는다 (옮긴 건 새로 쓴 글이 아니다)
+      const fresh = (f instanceof TFolder ? this.app.vault.getMarkdownFiles().filter((x) => x.path.startsWith(f.path + '/')) : [f])
+        .filter((x) => x instanceof TFile && x.extension === 'md' && !this.usage.known(old + x.path.slice(f.path.length)));
       this.usage.rename(old, f.path);
+      for (const x of fresh) this.baselineFile(x);
       this.saveSoon();
     }));
+    // 붙여넣기·끌어다 놓기로 들어온 글은 경험치·코인이 되지 않는다 (README '공정하게')
+    this.registerEvent(workspace.on('editor-paste', (evt, editor, info) => this.notePasted(info && info.file, evt.clipboardData)));
+    this.registerEvent(workspace.on('editor-drop', (evt, editor, info) => this.notePasted(info && info.file, evt.dataTransfer)));
     // 열린 노트가 밖에서 바뀌어도 editor-change 가 온다. 편집기에 포커스가 있을 때만 타이핑으로 본다
     this.registerEvent(workspace.on('editor-change', (editor) => {
       if (editor && typeof editor.hasFocus === 'function' && !editor.hasFocus()) return;
@@ -420,6 +461,25 @@ class KitCommitPlugin extends Plugin {
     return ex.length > 0 && ex.includes(folderKey(folderOf(path)));
   }
 
+  notePasted(file, data) {
+    if (!file || !data || typeof data.getData !== 'function') return;
+    const m = measure(data.getData('text/plain') || '');
+    if (!m.chars && !m.links) return;
+    const p = this.pasted.get(file.path);
+    const fresh = p && Date.now() - p.at < PASTE_KEEP;
+    this.pasted.set(file.path, { c: (fresh ? p.c : 0) + m.chars, l: (fresh ? p.l : 0) + m.links, at: Date.now() });
+  }
+
+  async baselineFile(f) {
+    if (this.isExcludedPath(f.path)) return;
+    try {
+      this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+      this.saveSoon();
+    } catch {
+      // 못 읽으면 다음 기회에 (그때는 상한 안에서 센다)
+    }
+  }
+
   // 뺐던 폴더를 다시 넣었다. 그동안 안 읽었으니, 지금 크기를 기준으로만 잡는다 (뺀 동안 쓴 글이 한꺼번에 세지지 않게)
   async rebaseline(ids) {
     const want = new Set(ids);
@@ -469,9 +529,12 @@ class KitCommitPlugin extends Plugin {
       for (const f of files) {
         const seen = U.mtimeOf(f.path);
         if (seen !== null && seen >= f.stat.mtime) continue;
+        // 기록이 없는데 지난번 저장 전부터 그대로인 노트 = 뺀 폴더에서 옮겨 왔거나 밖에서 들어온 노트. 기준만 잡는다
+        const moved = seen === null && !U.known(f.path) && this.prevSeen && f.stat.mtime <= this.prevSeen;
         try {
           const m = measure(await vault.cachedRead(f));
-          U.observe(f.path, m, new Date(f.stat.mtime), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, offline: true });
+          if (moved) U.observe(f.path, m, new Date(), { mtime: f.stat.mtime, baseline: true });
+          else U.observe(f.path, m, new Date(f.stat.mtime), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, offline: true });
         } catch {
           // 다음 기회에
         }
@@ -542,7 +605,16 @@ class KitCommitPlugin extends Plugin {
       } catch {
         continue;
       }
-      const r = this.usage.observe(path, measure(text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget });
+      const paste = this.pasted.get(path);
+      if (paste && Date.now() - paste.at > PASTE_KEEP) this.pasted.delete(path);
+      const skip = this.pasted.get(path);
+      const r = this.usage.observe(path, measure(text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, skip });
+      if (skip) {
+        // 붙여 넣은 글이 아직 파일에 다 안 들어왔을 수 있다. 남은 몫은 조금 더 들고 있는다
+        skip.c -= r.skipped.c;
+        skip.l -= r.skipped.l;
+        if (skip.c <= 0 && skip.l <= 0) this.pasted.delete(path);
+      }
       sum.dc += r.dc;
       sum.dl += r.dl;
       sum.dn += r.dn;
@@ -724,11 +796,14 @@ class KitCommitPlugin extends Plugin {
   }
 
   // 도트 아이콘을 옵시디언 아이콘으로 등록하고 이름을 돌려준다 (메뉴·리본·탭 아이콘)
-  pixelIcon(name) {
+  // mono: 색을 빼고 글자색(currentColor)으로 — 리본처럼 옵시디언 기본 아이콘들 사이에 놓이는 곳
+  pixelIcon(name, mono = false) {
     if (!PixelArt.has(name)) return null;
-    const id = 'kitcommit-' + name;
+    const id = 'kitcommit-' + name + (mono ? '-mono' : '');
     if (!this.icons.has(id)) {
-      const svg = PixelArt.svg(name, 100);
+      // 한 색 아이콘은 옵시디언 기본 아이콘(가장자리 여백이 있다)과 크기가 맞게 조금 작게
+      let svg = PixelArt.svg(name, mono ? 84 : 100);
+      if (mono) svg = svg.replace(/fill="#[0-9a-fA-F]+"/g, 'fill="currentColor"');
       const w = Number((svg.match(/width="(\d+)"/) || [])[1]) || 100;
       const h = Number((svg.match(/height="(\d+)"/) || [])[1]) || 100;
       addIcon(id, svg.replace(/^<svg class="[^"]*"/, `<svg x="${(100 - w) / 2}" y="${(100 - h) / 2}" style="stroke:none"`));
@@ -794,6 +869,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.saveTimer);
     if (!this.settings) return;
     this.dirty = false;
+    this.meta.lastSeen = Date.now();
     return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Vault Pet] save', e));
   }
 }

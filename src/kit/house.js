@@ -32,8 +32,11 @@ const foodFx = (key) => {
   return `<div class="food-fx" title="${esc(tip === 'foodFxTip.' + key ? s : tip)}">${FOOD_FX_ICON[key] ? icon(FOOD_FX_ICON[key], 11) : ''}${esc(s)}</div>`;
 };
 // 움직이는 먹이(프리미엄)는 data-anim 을 달아 두면 아래 루프가 프레임을 바꿔 그린다
+// [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
+const offscreen = () => document.hidden || !!(window.frameElement && !window.frameElement.getClientRects().length);
 const foodArt = (key, px) => `<div class="art"${PixelArt.FOOD_ANIM[key] ? ` data-anim="${key}" data-px="${px}"` : ''}>${icon(key, px)}</div>`;
 setInterval(() => {
+  if (offscreen()) return;
   const now = Date.now();
   for (const el of document.querySelectorAll('[data-anim]')) {
     const a = PixelArt.FOOD_ANIM[el.dataset.anim];
@@ -731,7 +734,8 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && closeMotionPee
 document.addEventListener('scroll', closeMotionPeek, true);
 
 function animate() {
-  if (!document.hidden) {
+  const off = offscreen();
+  if (!off) {
     hero.frame();
     const ft = performance.now() / 1000;
     for (const c of document.querySelectorAll('canvas[data-friend-art]')) {
@@ -749,7 +753,7 @@ function animate() {
       m.frame();
     }
   }
-  setTimeout(animate, 70);
+  setTimeout(animate, off ? 250 : 70);
 }
 
 // 7차 업적 카드의 한 줄 팁 ("이런 기능이 있었구나"). 팁이 없는 업적은 비운다

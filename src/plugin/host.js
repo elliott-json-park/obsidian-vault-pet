@@ -193,6 +193,7 @@ class KitHost {
 
   hideFor(ms) {
     if (!this.stage) return;
+    this.stopPlay(); // 안 보이는 채로 놀면서 배부름·기운이 깎이지 않게
     this.stage.setHidden(true);
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => this.showPet(), ms);
@@ -643,6 +644,14 @@ class KitHost {
   migrateShop() {
     const { refund } = this.shop.migrate();
     if (refund) this.state.set({ refundNote: (this.state.get('refundNote') || 0) + refund });
+    // 모션 자리에 끼워 둔 예전 'bubbles'(비눗방울 놀이) → 'bubbleplay' (shop.migrate 참고)
+    const fix = (v) => (Array.isArray(v) ? v.map(fix) : v === 'bubbles' ? 'bubbleplay' : v);
+    const motions = this.settings.get('motions') || {};
+    if (Object.values(motions).some((v) => JSON.stringify(v).includes('"bubbles"'))) {
+      this.settings.set({ motions: Object.fromEntries(Object.entries(motions).map(([k, v]) => [k, fix(v)])) });
+    }
+    const idle = this.settings.get('idleMotions');
+    if (Array.isArray(idle) && idle.includes('bubbles')) this.settings.set({ idleMotions: fix(idle) });
     if (!this.settings.get('outfit')) this.settings.set({ outfit: {} });
     this.settings.set({ outfit: this.cleanOutfit(this.settings.get('outfit')) });
     this.syncAccessory();

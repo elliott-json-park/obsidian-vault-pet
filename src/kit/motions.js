@@ -1424,7 +1424,7 @@
       },
     },
 
-    bubbles: {
+    bubbleplay: {
       // 비눗방울 놀이 — 비눗방울 막대를 후~ 불면 방울이 둥실둥실. 앞발로 톡톡 터뜨리며 신남
       len: 4.4, loop: true,
       pose(p, k, at) {

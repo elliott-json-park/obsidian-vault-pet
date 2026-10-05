@@ -134,7 +134,7 @@ const RAW = [
   ['play_30', 'bond', 'normal', 'paw', (c) => n(c, 'play'), 30, { item: 'sneeze' }],
   ['catch_100', 'bond', 'normal', 'star', (c) => n(c, 'catch'), 100, { item: 'frog' }],
   ['catch_1000', 'bond', 'hard', 'star', (c) => n(c, 'catch'), 1000, { item: 'ropeskip' }],
-  ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbles' }],
+  ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbleplay' }],
   ['box_10', 'bond', 'normal', 'gift', (c) => n(c, 'box'), 10, { item: 'snot' }],
   ['bored_10', 'bond', 'normal', 'doze', (c) => n(c, 'bored'), 10, { item: 'gum' }],
 

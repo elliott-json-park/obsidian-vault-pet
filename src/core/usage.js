@@ -30,6 +30,8 @@ const SESSION_GAP = 30 * MIN;
 const FEATURES = ['tag', 'task', 'done', 'head', 'embed', 'callout'];
 // 파일 기록 한 줄: [최고 글자, 최고 링크, mtime, 새 노트로 셌나, ...FEATURES 의 최고값]
 const F0 = 4;
+// 지운 노트의 기록을 이만큼까지 남겨 둔다. 같은 자리에 다시 생기면(휴지통 복원·동기화·git) 이어서 센다
+const GONE_MAX = 3000;
 
 const pad = (n) => String(n).padStart(2, '0');
 const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -126,7 +128,7 @@ const folderKey = (name) => (name === ROOT ? ROOT : hashSeg(name));
 const DAILY_RE = /(^|\/)\d{4}-\d{2}-\d{2}(\.md)?$/;
 
 function emptyData() {
-  return { files: {}, projects: {}, lastEdit: 0, lastBurst: 0, firstAt: 0 };
+  return { files: {}, gone: {}, projects: {}, lastEdit: 0, lastBurst: 0, firstAt: 0 };
 }
 
 class UsageTracker extends EventEmitter {
@@ -169,17 +171,25 @@ class UsageTracker extends EventEmitter {
   //  opts.canvas : 캔버스 파일 (내용은 안 재고, 새로 만든 것만 센다)
   observe(path, m, when = new Date(), opts = {}) {
     const key = pathKey(path);
-    const f = this.d.files[key] || null;
+    const f = this.d.files[key] || this.revive(key);
     const prev = (i) => (f ? f[i] || 0 : 0);
     const counted = prev(3);
     const fresh = [Math.max(prev(0), m.chars), Math.max(prev(1), m.links), opts.mtime || prev(2), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
     FEATURES.forEach((k, i) => (fresh[F0 + i] = Math.max(prev(F0 + i), m[k] || 0)));
     if (opts.baseline) {
       this.d.files[key] = fresh;
-      return { dc: 0, dl: 0, dn: 0 };
+      return { dc: 0, dl: 0, dn: 0, skipped: { c: 0, l: 0 } };
     }
     let dc = Math.max(0, m.chars - prev(0));
     let dl = Math.max(0, m.links - prev(1));
+    // 붙여넣기·끌어다 놓기로 들어온 글은 세지 않는다 (최고 기록은 올라간다)
+    const skipped = { c: 0, l: 0 };
+    if (opts.skip) {
+      skipped.c = Math.min(dc, Math.max(0, opts.skip.c || 0));
+      skipped.l = Math.min(dl, Math.max(0, opts.skip.l || 0));
+      dc -= skipped.c;
+      dl -= skipped.l;
+    }
     if (opts.cap != null) dc = Math.min(dc, opts.cap);
     if (opts.linkCap != null) dl = Math.min(dl, opts.linkCap);
     let dn = !counted && m.chars >= NOTE_MIN_CHARS ? 1 : 0;
@@ -200,7 +210,7 @@ class UsageTracker extends EventEmitter {
     if (dn && DAILY_RE.test(path)) feat.daily = 1;
     this.d.files[key] = fresh;
     if (dc || dl || dn || Object.keys(feat).length) this.add(path, when, dc, dl, dn, feat, opts);
-    return { dc, dl, dn, feat };
+    return { dc, dl, dn, feat, skipped };
   }
 
   add(path, when, dc, dl, dn, feat, opts = {}) {
@@ -226,7 +236,7 @@ class UsageTracker extends EventEmitter {
   // 캔버스를 새로 만들었다
   canvas(path, when = new Date()) {
     const key = pathKey(path);
-    if (this.d.files[key]) return;
+    if (this.d.files[key] || this.revive(key)) return;
     this.d.files[key] = [0, 0, 0, 1];
     const { b } = this.bucket(folderKey(folderOf(path)), when);
     (b.t ||= {}).canvas = (b.t.canvas || 0) + 1;
@@ -248,19 +258,44 @@ class UsageTracker extends EventEmitter {
     return Object.prototype.hasOwnProperty.call(this.d.files, pathKey(path));
   }
 
+  // 기록이 있는 노트인가 (지운 노트 기록까지)
+  known(path) {
+    const k = pathKey(path);
+    return !!(this.d.files[k] || (this.d.gone || {})[k]);
+  }
+
+  // 지운 노트의 기록은 버리지 않고 옆에 둔다. 지우고 다시 만들어도 같은 글이 또 경험치가 되지 않게
+  bury(k) {
+    const gone = (this.d.gone ||= {});
+    delete gone[k];
+    gone[k] = this.d.files[k];
+    delete this.d.files[k];
+    const keys = Object.keys(gone);
+    for (let i = 0; i < keys.length - GONE_MAX; i++) delete gone[keys[i]];
+  }
+
+  revive(k) {
+    const gone = this.d.gone;
+    if (!gone || !gone[k]) return null;
+    this.d.files[k] = gone[k];
+    delete gone[k];
+    return this.d.files[k];
+  }
+
   remove(path) {
-    delete this.d.files[pathKey(path)];
+    const k = pathKey(path);
+    if (this.d.files[k]) this.bury(k);
   }
 
   removeUnder(folder) {
     const prefix = pathKey(folder) + '/';
-    for (const k of Object.keys(this.d.files)) if (k.startsWith(prefix)) delete this.d.files[k];
+    for (const k of Object.keys(this.d.files)) if (k.startsWith(prefix)) this.bury(k);
   }
 
   keepOnly(paths) {
     const live = new Set();
     for (const p of paths) live.add(pathKey(p));
-    for (const k of Object.keys(this.d.files)) if (!live.has(k)) delete this.d.files[k];
+    for (const k of Object.keys(this.d.files)) if (!live.has(k)) this.bury(k);
   }
 
   rename(from, to) {
@@ -269,6 +304,7 @@ class UsageTracker extends EventEmitter {
     if (this.d.files[a]) {
       this.d.files[b] = this.d.files[a];
       delete this.d.files[a];
+      if (this.d.gone) delete this.d.gone[b];
     }
     const prefix = a + '/';
     for (const k of Object.keys(this.d.files)) {

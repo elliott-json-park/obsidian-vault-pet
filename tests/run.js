@@ -171,10 +171,10 @@ test('i18n: 퀘스트·홈·설정 글에 Claude·토큰 이야기가 안 남았
 
 /* ── 호스트 (데스크톱판 main.js 흐름) ── */
 
-function makeHost() {
+function makeHost(pre = {}) {
   const saves = [];
-  const settings = new Store({}, DEFAULT_SETTINGS, () => saves.push(1));
-  const state = new Store({}, STATE_DEFAULTS, () => saves.push(1));
+  const settings = new Store(pre.settings || {}, DEFAULT_SETTINGS, () => saves.push(1));
+  const state = new Store(pre.state || {}, STATE_DEFAULTS, () => saves.push(1));
   const usage = new UsageTracker();
   const sent = [];
   const plugin = {
@@ -458,6 +458,68 @@ test('i18n: 의견 보내기·저장 파일 안내·자랑 카드에 플러그�
     for (const k of ['obs.feedback', 'obs.feedbackDesc', 'obs.feedbackBtn', 'obs.dataRestored', 'obs.dataLost']) assert.ok(I18N.UI[lang][k], lang + ' ' + k);
     for (const k of ['card.footer', 'card.shareText']) assert.ok(I18N.UI[lang][k].includes('Vault Pet'), lang + ' ' + k);
   }
+});
+
+/* ── 1.2.3 ── */
+
+test('usage: 노트를 지웠다 다시 만들어도(휴지통 복원·동기화·git) 같은 글은 다시 안 센다', () => {
+  const u = new UsageTracker();
+  u.observe('a/x.md', measure('가'.repeat(500)), new Date());
+  assert.strictEqual(u.totals().c, 500);
+  assert.strictEqual(u.totals().n, 1);
+  u.remove('a/x.md');
+  assert.strictEqual(u.has('a/x.md'), false);
+  assert.strictEqual(u.known('a/x.md'), true, '지운 노트의 기록은 남겨 둔다');
+  u.observe('a/x.md', measure('가'.repeat(500)), new Date(), { cap: 3000 });
+  assert.strictEqual(u.totals().c, 500, '되살린 노트는 다시 안 센다');
+  assert.strictEqual(u.totals().n, 1, '새 노트로도 다시 안 센다');
+  u.keepOnly([]);
+  u.observe('a/x.md', measure('가'.repeat(600)), new Date(), { cap: 3000 });
+  assert.strictEqual(u.totals().c, 600, '꺼진 동안 지워졌다 돌아와도 늘어난 만큼만');
+  u.canvas('c.canvas');
+  u.remove('c.canvas');
+  u.canvas('c.canvas');
+  let cv = 0;
+  for (const [, b] of u.eachBucket()) cv += (b.t && b.t.canvas) || 0;
+  assert.strictEqual(cv, 1, '캔버스를 지웠다 만들어도 한 번');
+});
+
+test('usage: 붙여넣기·끌어다 놓기로 들어온 글은 세지 않는다', () => {
+  const u = new UsageTracker();
+  u.observe('n.md', measure('가'.repeat(20)), new Date());
+  const skip = { c: 1000, l: 2 };
+  const m = measure('가'.repeat(1050) + ' [[a]] [[b]] [[c]]');
+  const r = u.observe('n.md', m, new Date(), { cap: 3000, linkCap: 30, skip });
+  assert.strictEqual(r.dc, m.chars - 20 - 1000, '늘어난 글자에서 붙여 넣은 1,000자를 뺀 만큼만');
+  assert.strictEqual(r.skipped.c, 1000);
+  assert.strictEqual(r.skipped.l, 2);
+  assert.strictEqual(r.dl, 1, '붙여 넣지 않은 링크만');
+  assert.strictEqual(u.totals().c, 20 + r.dc);
+});
+
+test('host: 비눗방울 — 장난감과 모션이 키를 나눠 쓴다 (예전 보유자는 모션도 그대로)', async () => {
+  const shop = require(path.join(src, 'core/shop'));
+  assert.strictEqual(shop.find('bubbles').kind, 'toy');
+  assert.strictEqual(shop.find('bubbleplay').kind, 'motion');
+  const keys = [...shop.ACCESSORIES, ...shop.FOODS, ...shop.TOYS, ...shop.MOTIONS].map((x) => x.key);
+  assert.strictEqual(new Set(keys).size, keys.length, '상점 키가 겹치지 않는다');
+  for (const lang of ['ko', 'en']) assert.ok(I18N.UI[lang]['motion.bubbleplay'], lang);
+  // 예전 저장: 장난감 'bubbles' 를 샀고 모션 자리에 'bubbles' 를 끼워 뒀다
+  const { host, settings, state } = makeHost({ state: { items: ['bubbles'] }, settings: { idleMotions: ['bubbles', 'loaf'], motions: { done: ['bubbles'] } } });
+  assert.ok(state.get('items').includes('bubbleplay'));
+  assert.deepStrictEqual(settings.get('idleMotions').slice(0, 1), ['bubbleplay']);
+  assert.deepStrictEqual(settings.get('motions').done, ['bubbleplay']);
+  // 새로 사는 사람은 장난감만
+  const fresh = makeHost();
+  fresh.host.shop.state.set({ walletBonus: 100000 });
+  assert.strictEqual(fresh.host.shop.blocker('bubbleplay'), null, '모션은 레벨 제한 없이 350코인');
+  const before = fresh.host.shop.wallet().balance;
+  assert.ok((await fresh.host.onInvoke('shop:buy', null, 'bubbleplay')).ok);
+  assert.strictEqual(before - fresh.host.shop.wallet().balance, 350);
+  assert.strictEqual(fresh.host.shop.owned('bubbles'), false, '모션을 사도 장난감은 안 생긴다');
+  fresh.host.migrateShop();
+  assert.strictEqual(fresh.host.shop.owned('bubbles'), false);
+  assert.ok(host);
 });
 
 (async () => {

@@ -1,5 +1,5 @@
 /*
- * Vault Pet 1.2.2 — Obsidian plugin (built 2026-10-03)
+ * Vault Pet 1.2.3 — Obsidian plugin (built 2026-10-05)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -167,7 +167,7 @@ const RAW = [
   ['play_30', 'bond', 'normal', 'paw', (c) => n(c, 'play'), 30, { item: 'sneeze' }],
   ['catch_100', 'bond', 'normal', 'star', (c) => n(c, 'catch'), 100, { item: 'frog' }],
   ['catch_1000', 'bond', 'hard', 'star', (c) => n(c, 'catch'), 1000, { item: 'ropeskip' }],
-  ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbles' }],
+  ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbleplay' }],
   ['box_10', 'bond', 'normal', 'gift', (c) => n(c, 'box'), 10, { item: 'snot' }],
   ['bored_10', 'bond', 'normal', 'doze', (c) => n(c, 'bored'), 10, { item: 'gum' }],
 
@@ -2108,7 +2108,7 @@ const MOTIONS = [
   { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
   { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
   { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
-  { key: 'bubbles', rec: ['idle'], price: 350 },
+  { key: 'bubbleplay', rec: ['idle'], price: 350 },
   { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
   { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
   { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
@@ -2337,6 +2337,14 @@ class Shop {
       moved = true;
     }
     if (moved) this.state.set({ pantry });
+
+    // 1.2.3: 장난감 비눗방울과 모션 비눗방울 놀이가 'bubbles' 키 하나를 같이 써서, 장난감을 사면 모션도 가진 걸로 보였다.
+    // 모션 키를 'bubbleplay' 로 나눴다. 그동안 모션까지 가진 걸로 보였던 사람은 모션도 그대로 갖게 한다 (한 번만)
+    if (!this.state.get('bubbleSplit')) {
+      const had = this.state.get('items') || [];
+      if (had.includes('bubbles') && !had.includes('bubbleplay')) this.state.set({ items: [...had, 'bubbleplay'] });
+      this.state.set({ bubbleSplit: true });
+    }
 
     const items = this.state.get('items') || [];
     const gone = [...RETIRED_ACCESSORIES, ...RETIRED_TOYS, ...RETIRED_MOTIONS].filter((r) => items.includes(r.key));
@@ -2782,6 +2790,8 @@ const SESSION_GAP = 30 * MIN;
 const FEATURES = ['tag', 'task', 'done', 'head', 'embed', 'callout'];
 // 파일 기록 한 줄: [최고 글자, 최고 링크, mtime, 새 노트로 셌나, ...FEATURES 의 최고값]
 const F0 = 4;
+// 지운 노트의 기록을 이만큼까지 남겨 둔다. 같은 자리에 다시 생기면(휴지통 복원·동기화·git) 이어서 센다
+const GONE_MAX = 3000;
 
 const pad = (n) => String(n).padStart(2, '0');
 const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -2878,7 +2888,7 @@ const folderKey = (name) => (name === ROOT ? ROOT : hashSeg(name));
 const DAILY_RE = /(^|\/)\d{4}-\d{2}-\d{2}(\.md)?$/;
 
 function emptyData() {
-  return { files: {}, projects: {}, lastEdit: 0, lastBurst: 0, firstAt: 0 };
+  return { files: {}, gone: {}, projects: {}, lastEdit: 0, lastBurst: 0, firstAt: 0 };
 }
 
 class UsageTracker extends EventEmitter {
@@ -2921,17 +2931,25 @@ class UsageTracker extends EventEmitter {
   //  opts.canvas : 캔버스 파일 (내용은 안 재고, 새로 만든 것만 센다)
   observe(path, m, when = new Date(), opts = {}) {
     const key = pathKey(path);
-    const f = this.d.files[key] || null;
+    const f = this.d.files[key] || this.revive(key);
     const prev = (i) => (f ? f[i] || 0 : 0);
     const counted = prev(3);
     const fresh = [Math.max(prev(0), m.chars), Math.max(prev(1), m.links), opts.mtime || prev(2), counted || (m.chars >= NOTE_MIN_CHARS ? 1 : 0)];
     FEATURES.forEach((k, i) => (fresh[F0 + i] = Math.max(prev(F0 + i), m[k] || 0)));
     if (opts.baseline) {
       this.d.files[key] = fresh;
-      return { dc: 0, dl: 0, dn: 0 };
+      return { dc: 0, dl: 0, dn: 0, skipped: { c: 0, l: 0 } };
     }
     let dc = Math.max(0, m.chars - prev(0));
     let dl = Math.max(0, m.links - prev(1));
+    // 붙여넣기·끌어다 놓기로 들어온 글은 세지 않는다 (최고 기록은 올라간다)
+    const skipped = { c: 0, l: 0 };
+    if (opts.skip) {
+      skipped.c = Math.min(dc, Math.max(0, opts.skip.c || 0));
+      skipped.l = Math.min(dl, Math.max(0, opts.skip.l || 0));
+      dc -= skipped.c;
+      dl -= skipped.l;
+    }
     if (opts.cap != null) dc = Math.min(dc, opts.cap);
     if (opts.linkCap != null) dl = Math.min(dl, opts.linkCap);
     let dn = !counted && m.chars >= NOTE_MIN_CHARS ? 1 : 0;
@@ -2952,7 +2970,7 @@ class UsageTracker extends EventEmitter {
     if (dn && DAILY_RE.test(path)) feat.daily = 1;
     this.d.files[key] = fresh;
     if (dc || dl || dn || Object.keys(feat).length) this.add(path, when, dc, dl, dn, feat, opts);
-    return { dc, dl, dn, feat };
+    return { dc, dl, dn, feat, skipped };
   }
 
   add(path, when, dc, dl, dn, feat, opts = {}) {
@@ -2978,7 +2996,7 @@ class UsageTracker extends EventEmitter {
   // 캔버스를 새로 만들었다
   canvas(path, when = new Date()) {
     const key = pathKey(path);
-    if (this.d.files[key]) return;
+    if (this.d.files[key] || this.revive(key)) return;
     this.d.files[key] = [0, 0, 0, 1];
     const { b } = this.bucket(folderKey(folderOf(path)), when);
     (b.t ||= {}).canvas = (b.t.canvas || 0) + 1;
@@ -3000,19 +3018,44 @@ class UsageTracker extends EventEmitter {
     return Object.prototype.hasOwnProperty.call(this.d.files, pathKey(path));
   }
 
+  // 기록이 있는 노트인가 (지운 노트 기록까지)
+  known(path) {
+    const k = pathKey(path);
+    return !!(this.d.files[k] || (this.d.gone || {})[k]);
+  }
+
+  // 지운 노트의 기록은 버리지 않고 옆에 둔다. 지우고 다시 만들어도 같은 글이 또 경험치가 되지 않게
+  bury(k) {
+    const gone = (this.d.gone ||= {});
+    delete gone[k];
+    gone[k] = this.d.files[k];
+    delete this.d.files[k];
+    const keys = Object.keys(gone);
+    for (let i = 0; i < keys.length - GONE_MAX; i++) delete gone[keys[i]];
+  }
+
+  revive(k) {
+    const gone = this.d.gone;
+    if (!gone || !gone[k]) return null;
+    this.d.files[k] = gone[k];
+    delete gone[k];
+    return this.d.files[k];
+  }
+
   remove(path) {
-    delete this.d.files[pathKey(path)];
+    const k = pathKey(path);
+    if (this.d.files[k]) this.bury(k);
   }
 
   removeUnder(folder) {
     const prefix = pathKey(folder) + '/';
-    for (const k of Object.keys(this.d.files)) if (k.startsWith(prefix)) delete this.d.files[k];
+    for (const k of Object.keys(this.d.files)) if (k.startsWith(prefix)) this.bury(k);
   }
 
   keepOnly(paths) {
     const live = new Set();
     for (const p of paths) live.add(pathKey(p));
-    for (const k of Object.keys(this.d.files)) if (!live.has(k)) delete this.d.files[k];
+    for (const k of Object.keys(this.d.files)) if (!live.has(k)) this.bury(k);
   }
 
   rename(from, to) {
@@ -3021,6 +3064,7 @@ class UsageTracker extends EventEmitter {
     if (this.d.files[a]) {
       this.d.files[b] = this.d.files[a];
       delete this.d.files[a];
+      if (this.d.gone) delete this.d.gone[b];
     }
     const prefix = a + '/';
     for (const k of Object.keys(this.d.files)) {
@@ -3762,6 +3806,7 @@ class KitHost {
 
   hideFor(ms) {
     if (!this.stage) return;
+    this.stopPlay(); // 안 보이는 채로 놀면서 배부름·기운이 깎이지 않게
     this.stage.setHidden(true);
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => this.showPet(), ms);
@@ -4212,6 +4257,14 @@ class KitHost {
   migrateShop() {
     const { refund } = this.shop.migrate();
     if (refund) this.state.set({ refundNote: (this.state.get('refundNote') || 0) + refund });
+    // 모션 자리에 끼워 둔 예전 'bubbles'(비눗방울 놀이) → 'bubbleplay' (shop.migrate 참고)
+    const fix = (v) => (Array.isArray(v) ? v.map(fix) : v === 'bubbles' ? 'bubbleplay' : v);
+    const motions = this.settings.get('motions') || {};
+    if (Object.values(motions).some((v) => JSON.stringify(v).includes('"bubbles"'))) {
+      this.settings.set({ motions: Object.fromEntries(Object.entries(motions).map(([k, v]) => [k, fix(v)])) });
+    }
+    const idle = this.settings.get('idleMotions');
+    if (Array.isArray(idle) && idle.includes('bubbles')) this.settings.set({ idleMotions: fix(idle) });
     if (!this.settings.get('outfit')) this.settings.set({ outfit: {} });
     this.settings.set({ outfit: this.cleanOutfit(this.settings.get('outfit')) });
     this.syncAccessory();
@@ -5014,6 +5067,7 @@ const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
 const FEEDBACK_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
 const MIN = 60_000;
+const PASTE_KEEP = MIN; // 붙여 넣은 글을 '세지 않을 몫'으로 들고 있는 시간
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
 const BURST_DONE = 45_000; // 이만큼은 이어서 써야 '다 썼다' 모션을 한다
 const EMPTY_WAIT = 25_000; // 새로 만든 빈 노트가 이만큼 비어 있으면 느낌표 (데스크톱판의 '허락을 기다린다')
@@ -5078,6 +5132,36 @@ class HouseView extends ItemView {
     this.frame = new KitFrame(this.plugin.host, 'house');
     this.frame.mount(this.contentEl, { tab: this.tab || 'home', fontCss: this.plugin.fontCss(), dark: this.plugin.isDark() });
     this.plugin.host.attachHouse(this.frame);
+    this.hookKeys();
+  }
+
+  // 하우스(iframe)를 누르면 키보드가 iframe 으로 가서 옵시디언 단축키(Ctrl+P·Ctrl+O·Ctrl+W…)가 안 먹었다.
+  // 하우스를 누르면 이 탭을 지금 탭으로 삼고, 단축키는 옵시디언 쪽으로 넘겨준다
+  hookKeys() {
+    const fw = this.frame && this.frame.win;
+    if (!fw) return;
+    const ws = this.app.workspace;
+    fw.addEventListener('mousedown', () => {
+      if (ws.getActiveViewOfType(HouseView) !== this) ws.setActiveLeaf(this.leaf, { focus: false });
+    }, { capture: true });
+    fw.addEventListener('keydown', (e) => {
+      if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return;
+      if (!(e.ctrlKey || e.metaKey || e.altKey) && !/^F\d+$/.test(e.key)) return;
+      const t = e.target;
+      const typing = t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
+      // 글자 칸 안의 전체 선택·복사·붙여넣기·되돌리기는 그 칸에서
+      if (typing && !e.altKey && /^[acvxyz]$/i.test(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const doc = this.contentEl.ownerDocument;
+      const win = doc.defaultView;
+      if (!this.frame) return;
+      this.frame.iframe.blur();
+      win.focus();
+      const init = { key: e.key, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey, repeat: e.repeat, bubbles: true, cancelable: true };
+      const target = doc.activeElement && doc.activeElement !== this.frame.iframe ? doc.activeElement : doc.body;
+      target.dispatchEvent(new win.KeyboardEvent('keydown', init));
+    }, { capture: true });
   }
 
   // 탭을 새 창(팝아웃)으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
@@ -5224,6 +5308,8 @@ class KitCommitPlugin extends Plugin {
     this.settings = new Store(raw.settings, DEFAULT_SETTINGS, saveHook);
     this.state = new Store(raw.state, STATE_DEFAULTS, saveHook);
     this.meta = { scanned: false, baseline: { c: 0, l: 0, n: 0, s: 0 }, ...(raw.meta || {}) };
+    // 지난번에 마지막으로 저장한 때. 그 뒤로 안 바뀐 노트는 꺼져 있던 동안 쓴 글이 아니다 (scan)
+    this.prevSeen = this.meta.lastSeen || 0;
     this.usage = new UsageTracker(raw.usage);
     this.usage.on('session', ({ at }) => this.onSession(at));
     // 처음 설치하면 옵시디언 언어를 따른다
@@ -5236,6 +5322,7 @@ class KitCommitPlugin extends Plugin {
       else if (this.settings.data.language === 'en') this.settings.data.petName = 'Kit';
     }
     this.pending = new Set();
+    this.pasted = new Map(); // 노트 경로 → 붙여넣기·끌어다 놓기로 들어온 글 { c, l, at } (세지 않는다)
     this.icons = new Set();
     this.lastInput = Date.now();
     this.loadingProgress = null;
@@ -5252,7 +5339,7 @@ class KitCommitPlugin extends Plugin {
     }
 
     this.registerView(VIEW_TYPE, (leaf) => new HouseView(leaf, this));
-    this.ribbon = this.addRibbonIcon(this.pixelIcon('catface') || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
+    this.ribbon = this.addRibbonIcon(this.pixelIcon('catface', true) || 'cat', this.host.T.t('obs.openHouse'), () => this.openHouse());
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addClass('kitcommit-status', 'mod-clickable');
     this.registerDomEvent(this.statusEl, 'click', (e) => this.host.trayMenu(e));
@@ -5323,9 +5410,16 @@ class KitCommitPlugin extends Plugin {
       this.saveSoon();
     }));
     this.registerEvent(vault.on('rename', (f, old) => {
+      // 기록 없는 노트(뺀 폴더에 있던 노트 등)가 옮겨 들어오면 지금 크기를 기준으로만 잡는다 (옮긴 건 새로 쓴 글이 아니다)
+      const fresh = (f instanceof TFolder ? this.app.vault.getMarkdownFiles().filter((x) => x.path.startsWith(f.path + '/')) : [f])
+        .filter((x) => x instanceof TFile && x.extension === 'md' && !this.usage.known(old + x.path.slice(f.path.length)));
       this.usage.rename(old, f.path);
+      for (const x of fresh) this.baselineFile(x);
       this.saveSoon();
     }));
+    // 붙여넣기·끌어다 놓기로 들어온 글은 경험치·코인이 되지 않는다 (README '공정하게')
+    this.registerEvent(workspace.on('editor-paste', (evt, editor, info) => this.notePasted(info && info.file, evt.clipboardData)));
+    this.registerEvent(workspace.on('editor-drop', (evt, editor, info) => this.notePasted(info && info.file, evt.dataTransfer)));
     // 열린 노트가 밖에서 바뀌어도 editor-change 가 온다. 편집기에 포커스가 있을 때만 타이핑으로 본다
     this.registerEvent(workspace.on('editor-change', (editor) => {
       if (editor && typeof editor.hasFocus === 'function' && !editor.hasFocus()) return;
@@ -5408,6 +5502,25 @@ class KitCommitPlugin extends Plugin {
     return ex.length > 0 && ex.includes(folderKey(folderOf(path)));
   }
 
+  notePasted(file, data) {
+    if (!file || !data || typeof data.getData !== 'function') return;
+    const m = measure(data.getData('text/plain') || '');
+    if (!m.chars && !m.links) return;
+    const p = this.pasted.get(file.path);
+    const fresh = p && Date.now() - p.at < PASTE_KEEP;
+    this.pasted.set(file.path, { c: (fresh ? p.c : 0) + m.chars, l: (fresh ? p.l : 0) + m.links, at: Date.now() });
+  }
+
+  async baselineFile(f) {
+    if (this.isExcludedPath(f.path)) return;
+    try {
+      this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+      this.saveSoon();
+    } catch {
+      // 못 읽으면 다음 기회에 (그때는 상한 안에서 센다)
+    }
+  }
+
   // 뺐던 폴더를 다시 넣었다. 그동안 안 읽었으니, 지금 크기를 기준으로만 잡는다 (뺀 동안 쓴 글이 한꺼번에 세지지 않게)
   async rebaseline(ids) {
     const want = new Set(ids);
@@ -5457,9 +5570,12 @@ class KitCommitPlugin extends Plugin {
       for (const f of files) {
         const seen = U.mtimeOf(f.path);
         if (seen !== null && seen >= f.stat.mtime) continue;
+        // 기록이 없는데 지난번 저장 전부터 그대로인 노트 = 뺀 폴더에서 옮겨 왔거나 밖에서 들어온 노트. 기준만 잡는다
+        const moved = seen === null && !U.known(f.path) && this.prevSeen && f.stat.mtime <= this.prevSeen;
         try {
           const m = measure(await vault.cachedRead(f));
-          U.observe(f.path, m, new Date(f.stat.mtime), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, offline: true });
+          if (moved) U.observe(f.path, m, new Date(), { mtime: f.stat.mtime, baseline: true });
+          else U.observe(f.path, m, new Date(f.stat.mtime), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, offline: true });
         } catch {
           // 다음 기회에
         }
@@ -5530,7 +5646,16 @@ class KitCommitPlugin extends Plugin {
       } catch {
         continue;
       }
-      const r = this.usage.observe(path, measure(text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget });
+      const paste = this.pasted.get(path);
+      if (paste && Date.now() - paste.at > PASTE_KEEP) this.pasted.delete(path);
+      const skip = this.pasted.get(path);
+      const r = this.usage.observe(path, measure(text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, skip });
+      if (skip) {
+        // 붙여 넣은 글이 아직 파일에 다 안 들어왔을 수 있다. 남은 몫은 조금 더 들고 있는다
+        skip.c -= r.skipped.c;
+        skip.l -= r.skipped.l;
+        if (skip.c <= 0 && skip.l <= 0) this.pasted.delete(path);
+      }
       sum.dc += r.dc;
       sum.dl += r.dl;
       sum.dn += r.dn;
@@ -5712,11 +5837,14 @@ class KitCommitPlugin extends Plugin {
   }
 
   // 도트 아이콘을 옵시디언 아이콘으로 등록하고 이름을 돌려준다 (메뉴·리본·탭 아이콘)
-  pixelIcon(name) {
+  // mono: 색을 빼고 글자색(currentColor)으로 — 리본처럼 옵시디언 기본 아이콘들 사이에 놓이는 곳
+  pixelIcon(name, mono = false) {
     if (!PixelArt.has(name)) return null;
-    const id = 'kitcommit-' + name;
+    const id = 'kitcommit-' + name + (mono ? '-mono' : '');
     if (!this.icons.has(id)) {
-      const svg = PixelArt.svg(name, 100);
+      // 한 색 아이콘은 옵시디언 기본 아이콘(가장자리 여백이 있다)과 크기가 맞게 조금 작게
+      let svg = PixelArt.svg(name, mono ? 84 : 100);
+      if (mono) svg = svg.replace(/fill="#[0-9a-fA-F]+"/g, 'fill="currentColor"');
       const w = Number((svg.match(/width="(\d+)"/) || [])[1]) || 100;
       const h = Number((svg.match(/height="(\d+)"/) || [])[1]) || 100;
       addIcon(id, svg.replace(/^<svg class="[^"]*"/, `<svg x="${(100 - w) / 2}" y="${(100 - h) / 2}" style="stroke:none"`));
@@ -5782,6 +5910,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.saveTimer);
     if (!this.settings) return;
     this.dirty = false;
+    this.meta.lastSeen = Date.now();
     return this.saveData({ version: DATA_VERSION, settings: this.settings.data, state: this.state.data, usage: this.usage.data, meta: this.meta }).catch((e) => console.error('[Vault Pet] save', e));
   }
 }
@@ -8736,7 +8865,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'motion.explode': '스트레스 폭발',
       'motion.smoke': '담배 한 대',
       'motion.soju': '소주 한 잔',
-      'motion.bubbles': '비눗방울 놀이',
+      'motion.bubbleplay': '비눗방울 놀이',
       'motion.spider': '스파이더냥',
       'motion.ufo': 'UFO 납치',
       'motion.codeflame': '코딩 불꽃',
@@ -10647,7 +10776,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'motion.explode': 'Stress explosion',
       'motion.smoke': 'Smoke break',
       'motion.soju': 'Soju shot',
-      'motion.bubbles': 'Bubble time',
+      'motion.bubbleplay': 'Bubble time',
       'motion.spider': 'Spider-cat',
       'motion.ufo': 'UFO abduction',
       'motion.codeflame': 'Coding on fire',
@@ -11707,20 +11836,19 @@ __defs["kit/pixelart"] = function (module, exports, require) {
       '....KNNK....',
       '.....KK.....',
     ],
-    // 리본 아이콘: 치즈 고양이 얼굴
+    // 리본 아이콘: 고양이 얼굴 윤곽 (좌우 대칭, 한 색. 옵시디언 아이콘처럼 글자색을 따른다 — main.js pixelIcon mono)
     catface: [
-      '............',
       '.K........K.',
-      'KPK......KPK',
-      'KOOKKKKKKOOK',
-      'KOOOOOOOOOOK',
-      'KOOKOOOOKOOK',
-      'KOOKOOOOKOOK',
-      'KPOOOKKOOOPK',
-      'KOOOOOOOOOOK',
-      '.KOOOOOOOOK.',
+      '.KK......KK.',
+      '.K.K....K.K.',
+      '.K..KKKK..K.',
+      'K..........K',
+      'K..K....K..K',
+      'K..K....K..K',
+      'K....KK....K',
+      'K..........K',
+      '.K........K.',
       '..KKKKKKKK..',
-      '............',
     ],
     paw: [
       'KKK.KKK.KKK.',
@@ -17397,7 +17525,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'motion.explode': '스트레스 폭발',
       'motion.smoke': '담배 한 대',
       'motion.soju': '소주 한 잔',
-      'motion.bubbles': '비눗방울 놀이',
+      'motion.bubbleplay': '비눗방울 놀이',
       'motion.spider': '스파이더냥',
       'motion.ufo': 'UFO 납치',
       'motion.codeflame': '코딩 불꽃',
@@ -19308,7 +19436,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'motion.explode': 'Stress explosion',
       'motion.smoke': 'Smoke break',
       'motion.soju': 'Soju shot',
-      'motion.bubbles': 'Bubble time',
+      'motion.bubbleplay': 'Bubble time',
       'motion.spider': 'Spider-cat',
       'motion.ufo': 'UFO abduction',
       'motion.codeflame': 'Coding on fire',
@@ -20368,20 +20496,19 @@ module.exports.run = function run(window, document, pet, kind) {
       '....KNNK....',
       '.....KK.....',
     ],
-    // 리본 아이콘: 치즈 고양이 얼굴
+    // 리본 아이콘: 고양이 얼굴 윤곽 (좌우 대칭, 한 색. 옵시디언 아이콘처럼 글자색을 따른다 — main.js pixelIcon mono)
     catface: [
-      '............',
       '.K........K.',
-      'KPK......KPK',
-      'KOOKKKKKKOOK',
-      'KOOOOOOOOOOK',
-      'KOOKOOOOKOOK',
-      'KOOKOOOOKOOK',
-      'KPOOOKKOOOPK',
-      'KOOOOOOOOOOK',
-      '.KOOOOOOOOK.',
+      '.KK......KK.',
+      '.K.K....K.K.',
+      '.K..KKKK..K.',
+      'K..........K',
+      'K..K....K..K',
+      'K..K....K..K',
+      'K....KK....K',
+      'K..........K',
+      '.K........K.',
       '..KKKKKKKK..',
-      '............',
     ],
     paw: [
       'KKK.KKK.KKK.',
@@ -35196,7 +35323,7 @@ module.exports.run = function run(window, document, pet, kind) {
       },
     },
 
-    bubbles: {
+    bubbleplay: {
       // 비눗방울 놀이 — 비눗방울 막대를 후~ 불면 방울이 둥실둥실. 앞발로 톡톡 터뜨리며 신남
       len: 4.4, loop: true,
       pose(p, k, at) {
@@ -40842,12 +40969,15 @@ function endHunt(done) {
 
 // ---------- 그리기 루프 ----------
 
+// [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
+const offscreen = () => document.hidden || !!(window.frameElement && !window.frameElement.getClientRects().length);
 let lastLoop = performance.now();
 function loop() {
   const now = performance.now();
   const dt = Math.min(0.2, (now - lastLoop) / 1000);
   lastLoop = now;
-  if (!document.hidden) {
+  const off = offscreen();
+  if (!off) {
     if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
     if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
     for (const o of treats) stepItem(o, dt);
@@ -40873,7 +41003,7 @@ function loop() {
     placeFriendOverlays();
   }
   const moving = toy || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || dragging || catLift > 0;
-  const slow = !moving && sprite.mood === 'sleeping';
+  const slow = off || (!moving && sprite.mood === 'sleeping');
   setTimeout(loop, slow ? 160 : moving ? 33 : 55);
 }
 
@@ -44076,8 +44206,11 @@ const foodFx = (key) => {
   return `<div class="food-fx" title="${esc(tip === 'foodFxTip.' + key ? s : tip)}">${FOOD_FX_ICON[key] ? icon(FOOD_FX_ICON[key], 11) : ''}${esc(s)}</div>`;
 };
 // 움직이는 먹이(프리미엄)는 data-anim 을 달아 두면 아래 루프가 프레임을 바꿔 그린다
+// [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
+const offscreen = () => document.hidden || !!(window.frameElement && !window.frameElement.getClientRects().length);
 const foodArt = (key, px) => `<div class="art"${PixelArt.FOOD_ANIM[key] ? ` data-anim="${key}" data-px="${px}"` : ''}>${icon(key, px)}</div>`;
 setInterval(() => {
+  if (offscreen()) return;
   const now = Date.now();
   for (const el of document.querySelectorAll('[data-anim]')) {
     const a = PixelArt.FOOD_ANIM[el.dataset.anim];
@@ -44775,7 +44908,8 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && closeMotionPee
 document.addEventListener('scroll', closeMotionPeek, true);
 
 function animate() {
-  if (!document.hidden) {
+  const off = offscreen();
+  if (!off) {
     hero.frame();
     const ft = performance.now() / 1000;
     for (const c of document.querySelectorAll('canvas[data-friend-art]')) {
@@ -44793,7 +44927,7 @@ function animate() {
       m.frame();
     }
   }
-  setTimeout(animate, 70);
+  setTimeout(animate, off ? 250 : 70);
 }
 
 // 7차 업적 카드의 한 줄 팁 ("이런 기능이 있었구나"). 팁이 없는 업적은 비운다
