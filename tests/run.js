@@ -361,8 +361,10 @@ test('legacy: 뜻이 같은 설정만 옮기고, 뺀 폴더는 맨 윗단 해시
   assert.strictEqual(s.lunchTime, '12:10');
   assert.ok(!('theme' in s) && !('showWidget' in s));
   const u = new UsageTracker();
-  const ids = u.projects(['Templates', 'Journal']).map((p) => p.id);
-  assert.deepStrictEqual([...s.excludedProjects].sort(), [...ids].sort());
+  const ids = u.projects(['Templates']).map((p) => p.id);
+  assert.deepStrictEqual([...s.excludedProjects].sort(), [...ids].sort(), '하위 폴더(Journal/Private)만 뺀 것은 맨 윗단 전체로 넓히지 않는다');
+  assert.strictEqual(legacyMod.legacySummary(oldData(Date.now())).partialFolders, 1);
+  for (const lang of ['ko', 'en']) assert.ok(I18N.UI[lang]['legacy.folders'].includes('{n}'), lang);
   assert.ok(!('language' in legacyMod.legacySettings({ settings: { language: 'auto' }, state: {} })));
 });
 
@@ -520,6 +522,29 @@ test('host: 비눗방울 — 장난감과 모션이 키를 나눠 쓴다 (예전
   fresh.host.migrateShop();
   assert.strictEqual(fresh.host.shop.owned('bubbles'), false);
   assert.ok(host);
+});
+
+/* ── 1.2.4 ── */
+
+test('gauge: 고정 음식을 먹고 오래 꺼 둬도, 고정이 끝난 뒤의 시간만큼은 준다 (24시간 상한)', () => {
+  const { Gauge } = require(path.join(src, 'core/gauge'));
+  const HOUR = 3600e3;
+  const t0 = Date.UTC(2026, 9, 1);
+  const st = new Store({ gauge: { food: 100, energy: 100, at: t0, foodLockUntil: t0 + 24 * HOUR, energyLockUntil: t0 + 24 * HOUR } }, {}, () => {});
+  const g = new Gauge(st);
+  g.tick(false, t0 + 48 * HOUR);
+  assert.ok(g.get().food < 100, '고정이 끝난 24시간 동안은 줄어야 한다');
+  const free = new Gauge(new Store({ gauge: { food: 100, energy: 100, at: t0 } }, {}, () => {}));
+  free.tick(false, t0 + 24 * HOUR);
+  assert.strictEqual(g.get().food, free.get().food, '고정 뒤 24시간 = 고정 없이 24시간');
+  const locked = new Gauge(new Store({ gauge: { food: 100, energy: 100, at: t0, foodLockUntil: t0 + 24 * HOUR } }, {}, () => {}));
+  locked.tick(false, t0 + 10 * HOUR);
+  assert.strictEqual(locked.get().food, 100, '고정 동안은 그대로');
+});
+
+test('achievements: 보상 코스튬이 두 업적에 겹치지 않는다', () => {
+  const items = ACHIEVEMENTS.map((a) => a.reward && a.reward.item).filter(Boolean);
+  assert.strictEqual(new Set(items).size, items.length, items.filter((x, i) => items.indexOf(x) !== i).join(','));
 });
 
 (async () => {

@@ -29,10 +29,11 @@ class Gauge {
   // 지난번 이후 흐른 시간만큼 줄이거나 채운다. sleeping = 지금 졸거나 자는 중
   tick(sleeping, now = Date.now()) {
     const h = Math.max(0, Math.min(24 * HOUR, now - this.g.at)) / HOUR;
-    // 고정(프리미엄 음식) 동안은 줄지 않는다. 고정이 끝난 뒤의 시간만 줄인다 (자면서 기운이 차는 건 그대로)
-    const lockedH = (until) => Math.max(0, Math.min(now, until || 0) - this.g.at) / HOUR;
-    this.g.food = clamp(this.g.food - FOOD_DROP_PER_HOUR * Math.max(0, h - lockedH(this.g.foodLockUntil)));
-    this.g.energy = clamp(this.g.energy + (sleeping ? ENERGY_REST_PER_HOUR * h : -ENERGY_DROP_PER_HOUR * Math.max(0, h - lockedH(this.g.energyLockUntil))));
+    // 고정(프리미엄 음식) 동안은 줄지 않는다. 고정이 끝난 뒤의 시간만 줄인다 (자면서 기운이 차는 건 그대로).
+    // 24시간 상한은 고정이 끝난 뒤의 시간에 건다 (전에는 상한과 고정 시간이 서로 상쇄돼 오래 꺼 두면 안 줄었다)
+    const openH = (until) => Math.max(0, Math.min(24 * HOUR, now - Math.max(this.g.at, until || 0))) / HOUR;
+    this.g.food = clamp(this.g.food - FOOD_DROP_PER_HOUR * openH(this.g.foodLockUntil));
+    this.g.energy = clamp(this.g.energy + (sleeping ? ENERGY_REST_PER_HOUR * h : -ENERGY_DROP_PER_HOUR * openH(this.g.energyLockUntil)));
     this.g.at = now;
     if (now - this.savedAt > 60_000) this.save();
   }

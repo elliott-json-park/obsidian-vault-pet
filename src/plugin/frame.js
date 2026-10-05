@@ -125,6 +125,7 @@ class KitFrame {
       ASSETS.run(win, win.document, win.pet, this.kind);
       win.__kcLoaded = true;
     } catch (e) {
+      this.failed = true;
       console.error('[Vault Pet] screen', e);
     }
   }

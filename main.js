@@ -1,5 +1,5 @@
 /*
- * Vault Pet 1.2.3 — Obsidian plugin (built 2026-10-05)
+ * Vault Pet 1.2.4 — Obsidian plugin (built 2026-10-05)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -73,7 +73,7 @@ const RAW = [
   ['link_30', 'link', 'easy', 'pin', (c) => c.all.l, 30, { food: { chicken: 2 } }],
   ['link_100', 'link', 'normal', 'pin', (c) => c.all.l, 100, { item: 'nerd' }],
   ['link_300', 'link', 'normal', 'map', (c) => c.all.l, 300, { item: 'codefrenzy' }],
-  ['link_1000', 'link', 'hard', 'map', (c) => c.all.l, 1000, { item: 'chef' }],
+  ['link_1000', 'link', 'hard', 'map', (c) => c.all.l, 1000, { item: 'magnifier' }], // 1.2.4: 'chef' 는 premium_all(프리미엄 음식 다 먹이기)과 겹쳐서 돋보기로
   ['link_3000', 'link', 'hard', 'gem', (c) => c.all.l, 3000, { item: 'levelbanner' }],
   ['link_10000', 'link', 'legend', 'gem', (c) => c.all.l, 1e4, { item: 'halo' }],
   ['link_30000', 'link', 'legend', 'gem', (c) => c.all.l, 3e4, { item: 'rocket' }],
@@ -1258,10 +1258,11 @@ class Gauge {
   // 지난번 이후 흐른 시간만큼 줄이거나 채운다. sleeping = 지금 졸거나 자는 중
   tick(sleeping, now = Date.now()) {
     const h = Math.max(0, Math.min(24 * HOUR, now - this.g.at)) / HOUR;
-    // 고정(프리미엄 음식) 동안은 줄지 않는다. 고정이 끝난 뒤의 시간만 줄인다 (자면서 기운이 차는 건 그대로)
-    const lockedH = (until) => Math.max(0, Math.min(now, until || 0) - this.g.at) / HOUR;
-    this.g.food = clamp(this.g.food - FOOD_DROP_PER_HOUR * Math.max(0, h - lockedH(this.g.foodLockUntil)));
-    this.g.energy = clamp(this.g.energy + (sleeping ? ENERGY_REST_PER_HOUR * h : -ENERGY_DROP_PER_HOUR * Math.max(0, h - lockedH(this.g.energyLockUntil))));
+    // 고정(프리미엄 음식) 동안은 줄지 않는다. 고정이 끝난 뒤의 시간만 줄인다 (자면서 기운이 차는 건 그대로).
+    // 24시간 상한은 고정이 끝난 뒤의 시간에 건다 (전에는 상한과 고정 시간이 서로 상쇄돼 오래 꺼 두면 안 줄었다)
+    const openH = (until) => Math.max(0, Math.min(24 * HOUR, now - Math.max(this.g.at, until || 0))) / HOUR;
+    this.g.food = clamp(this.g.food - FOOD_DROP_PER_HOUR * openH(this.g.foodLockUntil));
+    this.g.energy = clamp(this.g.energy + (sleeping ? ENERGY_REST_PER_HOUR * h : -ENERGY_DROP_PER_HOUR * openH(this.g.energyLockUntil)));
     this.g.at = now;
     if (now - this.savedAt > 60_000) this.save();
   }
@@ -3522,6 +3523,7 @@ class KitFrame {
       ASSETS.run(win, win.document, win.pet, this.kind);
       win.__kcLoaded = true;
     } catch (e) {
+      this.failed = true;
       console.error('[Vault Pet] screen', e);
     }
   }
@@ -5017,6 +5019,7 @@ function legacySummary(raw, now = Date.now()) {
     petName: String(name).slice(0, 40),
     coins: coinsFor(xp.total),
     costume: LEGACY_COSTUME,
+    partialFolders: partialExcluded(raw.settings || {}), // 폴더 이름은 남기지 않고 개수만
   };
 }
 
@@ -5026,12 +5029,19 @@ function legacySettings(raw) {
   const out = {};
   for (const k of CARRY_SETTINGS) if (old[k] !== undefined) out[k] = old[k];
   if (old.language === 'ko' || old.language === 'en') out.language = old.language;
-  // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 맨 윗단 폴더 이름의 해시를 쓴다
-  if (Array.isArray(old.excludedFolders)) {
-    const tops = old.excludedFolders.map((f) => String(f).replace(/^\/+/, '').split('/')[0]).filter(Boolean);
-    if (tops.length) out.excludedProjects = [...new Set(tops.map(folderKey))];
-  }
+  // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 맨 윗단 폴더 이름의 해시를 쓴다.
+  // 하위 폴더만 뺐던 것('Projects/Archive')은 옮기지 않는다. 맨 윗단으로 넓히면 그 폴더 전체가 빠져 버린다 (안내 창에서 알린다)
+  const tops = topExcluded(old);
+  if (tops.length) out.excludedProjects = [...new Set(tops.map(folderKey))];
   return out;
+}
+
+const cleanFolders = (old) => (Array.isArray(old.excludedFolders) ? old.excludedFolders.map((f) => String(f).replace(/^\/+|\/+$/g, '')).filter(Boolean) : []);
+const topExcluded = (old) => cleanFolders(old).filter((f) => !f.includes('/'));
+// 옮기지 못한 하위 폴더 수 (맨 윗단이 통째로 빠진 경우는 빼고)
+function partialExcluded(old) {
+  const tops = new Set(topExcluded(old));
+  return cleanFolders(old).filter((f) => f.includes('/') && !tops.has(f.split('/')[0])).length;
 }
 
 module.exports = { isLegacy, legacyXp, legacySummary, legacySettings, coinsFor, LEGACY_COSTUME };
@@ -5164,9 +5174,14 @@ class HouseView extends ItemView {
     }, { capture: true });
   }
 
-  // 탭을 새 창(팝아웃)으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
+  // 탭을 새 창(팝아웃)이나 다른 분할 창으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
+  // (같은 창 안에서 옮기면 문서는 같지만 iframe 안 창이 새것으로 바뀐다)
   onResize() {
-    if (this.frame && (!this.frame.win || !this.frame.win.__kcLoaded || this.frame.iframe.ownerDocument !== this.contentEl.ownerDocument)) this.mountFrame();
+    const fr = this.frame;
+    if (!fr) return;
+    const stale = !fr.win || !fr.iframe || fr.iframe.contentWindow !== fr.win || fr.iframe.ownerDocument !== this.contentEl.ownerDocument;
+    // 화면 코드가 터져서 못 올라온 거면 크기가 바뀔 때마다 다시 만들지 않는다 (한 번 실패하면 그대로)
+    if (stale || (!fr.win.__kcLoaded && !fr.failed)) this.mountFrame();
   }
 
   async onClose() {
@@ -5265,6 +5280,7 @@ class LegacyModal extends Modal {
     };
     row('coin', t('legacy.coins', { coins: fmt(L.coins) }));
     row(LEGACY_COSTUME, t('legacy.costume'));
+    if (L.partialFolders) el.createEl('p', { text: t('legacy.folders', { n: L.partialFolders }), cls: 'setting-item-description' });
     el.createEl('p', { text: t('legacy.note'), cls: 'setting-item-description' });
     new Setting(el)
       .addButton((b) => b.setButtonText(t('legacy.ok')).onClick(() => this.close()))
@@ -11149,7 +11165,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'stats.heatmapSub': '진할수록 그 시간에 많이 썼어요',
       'stats.heatCell': '{day} {hour}시 · {n}자',
       'stats.recent14': '최근 14일 쓴 글자',
-      'stats.formula': '글자 {c}자 = 1XP · 링크 1개 = {l}XP · 새 노트 1개 = {n}XP · 글쓰기 세션 1번 = {s}XP. 지웠다 다시 쓴 글자·붙여 넣은 큰 덩어리는 세지 않아요.',
+      'stats.formula': '글자 {c}자 = 1XP · 링크 1개 = {l}XP · 새 노트 1개 = {n}XP · 글쓰기 세션 1번 = {s}XP. 지웠다 다시 쓴 글자·붙여 넣거나 끌어다 놓은 글·지웠다 되살린 노트는 세지 않아요.',
       'stats.dayTitle': '{day} · {c}자 · 링크 {l} · 세션 {s}',
       'stats.hourTitle': '{h}시 · 기록 {m}',
       'stats.cumulative': '누적 기록',
@@ -11205,7 +11221,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.b3a': '타이핑하는 동안 노트북을 꺼내 같이 타이핑',
       'w.b3b': '새 노트를 비워 두면 <b>느낌표</b>를 띄우고 첫 줄을 기다려요',
       'w.b3c': '한참 쓰고 손을 떼면 폴짝 뛰어요',
-      'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
+      'w.hookNote': '지웠다 다시 쓰기·붙여넣기·지운 노트 되살리기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
       'w.b4a': '왼쪽 리본의 <b>고양이 얼굴</b>을 누르거나 고양이를 두 번 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
       'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
@@ -11236,6 +11252,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'legacy.coins': '{coins} 코인',
       'legacy.costume': '기념 코스튬 「옛 친구의 알껍데기」 (기존 사용자 전용)',
       'legacy.note': '예전 펫과 성장 기록은 새 고양이로 이어지지 않아요. 이 창은 한 번만 떠요.',
+      'legacy.folders': '예전에 하위 폴더만 경험치에서 빼 둔 설정 {n}개는 옮기지 않았어요. 이제는 맨 위 폴더 단위로 뺄 수 있어요 (하우스 → 설정).',
       'legacy.ok': '고마워요',
       'legacy.wear': '알껍데기 바로 써 보기',
       // 옵시디언판에만 있는 글
@@ -11287,7 +11304,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'stats.heatmapSub': 'Darker means you wrote more at that hour',
       'stats.heatCell': '{day} {hour}:00 · {n} chars',
       'stats.recent14': 'Characters, last 14 days',
-      'stats.formula': '{c} characters = 1 XP · 1 link = {l} XP · 1 new note = {n} XP · 1 writing session = {s} XP. Retyping deleted text or pasting big chunks does not count.',
+      'stats.formula': '{c} characters = 1 XP · 1 link = {l} XP · 1 new note = {n} XP · 1 writing session = {s} XP. Retyping deleted text, pasting or dropping text in, and restoring deleted notes don’t count.',
       'stats.dayTitle': '{day} · {c} chars · {l} links · {s} sessions',
       'stats.hourTitle': '{h}:00 · {m} saves',
       'stats.cumulative': 'All-time',
@@ -11343,7 +11360,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'w.b3a': 'While you type it pulls out a laptop and types along',
       'w.b3b': 'Leave a new note blank and it raises a <b>!</b> waiting for the first line',
       'w.b3c': 'Write for a while and stop, and it hops with joy',
-      'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
+      'w.hookNote': 'Retyping deleted text, pasting, or restoring a deleted note earns nothing. Exclude folders in the settings to leave them out.',
       'w.b4a': 'Click the <b>cat face</b> in the ribbon, or double-click the cat, to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
       'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
@@ -11373,6 +11390,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'legacy.coins': '{coins} coins',
       'legacy.costume': 'Commemorative costume “Old friend’s eggshell” (early users only)',
       'legacy.note': 'Your old pets and their progress don’t carry over to the new cat. This message only shows once.',
+      'legacy.folders': '{n} excluded subfolder setting(s) from the old version weren’t carried over. Folders can now be left out by top-level folder (house → Settings).',
       'legacy.ok': 'Thanks',
       'legacy.wear': 'Try on the eggshell',
       'obs.houseTitle': "{name}'s house",
@@ -19810,7 +19828,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'stats.heatmapSub': '진할수록 그 시간에 많이 썼어요',
       'stats.heatCell': '{day} {hour}시 · {n}자',
       'stats.recent14': '최근 14일 쓴 글자',
-      'stats.formula': '글자 {c}자 = 1XP · 링크 1개 = {l}XP · 새 노트 1개 = {n}XP · 글쓰기 세션 1번 = {s}XP. 지웠다 다시 쓴 글자·붙여 넣은 큰 덩어리는 세지 않아요.',
+      'stats.formula': '글자 {c}자 = 1XP · 링크 1개 = {l}XP · 새 노트 1개 = {n}XP · 글쓰기 세션 1번 = {s}XP. 지웠다 다시 쓴 글자·붙여 넣거나 끌어다 놓은 글·지웠다 되살린 노트는 세지 않아요.',
       'stats.dayTitle': '{day} · {c}자 · 링크 {l} · 세션 {s}',
       'stats.hourTitle': '{h}시 · 기록 {m}',
       'stats.cumulative': '누적 기록',
@@ -19866,7 +19884,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.b3a': '타이핑하는 동안 노트북을 꺼내 같이 타이핑',
       'w.b3b': '새 노트를 비워 두면 <b>느낌표</b>를 띄우고 첫 줄을 기다려요',
       'w.b3c': '한참 쓰고 손을 떼면 폴짝 뛰어요',
-      'w.hookNote': '지웠다 다시 쓰기·큰 붙여넣기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
+      'w.hookNote': '지웠다 다시 쓰기·붙여넣기·지운 노트 되살리기로는 경험치가 오르지 않아요. 설정에서 폴더를 빼면 그 폴더에 쓴 글은 세지 않아요.',
       'w.b4a': '왼쪽 리본의 <b>고양이 얼굴</b>을 누르거나 고양이를 두 번 누르면 하우스가 열려요',
       'w.b4b': '고양이를 <b>우클릭</b>하면 밥·간식·장난감 메뉴가 나와요',
       'w.b4c': '명령 팔레트(Ctrl+P)에서 <b>Vault Pet</b>을 찾아도 돼요',
@@ -19897,6 +19915,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'legacy.coins': '{coins} 코인',
       'legacy.costume': '기념 코스튬 「옛 친구의 알껍데기」 (기존 사용자 전용)',
       'legacy.note': '예전 펫과 성장 기록은 새 고양이로 이어지지 않아요. 이 창은 한 번만 떠요.',
+      'legacy.folders': '예전에 하위 폴더만 경험치에서 빼 둔 설정 {n}개는 옮기지 않았어요. 이제는 맨 위 폴더 단위로 뺄 수 있어요 (하우스 → 설정).',
       'legacy.ok': '고마워요',
       'legacy.wear': '알껍데기 바로 써 보기',
       // 옵시디언판에만 있는 글
@@ -19948,7 +19967,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'stats.heatmapSub': 'Darker means you wrote more at that hour',
       'stats.heatCell': '{day} {hour}:00 · {n} chars',
       'stats.recent14': 'Characters, last 14 days',
-      'stats.formula': '{c} characters = 1 XP · 1 link = {l} XP · 1 new note = {n} XP · 1 writing session = {s} XP. Retyping deleted text or pasting big chunks does not count.',
+      'stats.formula': '{c} characters = 1 XP · 1 link = {l} XP · 1 new note = {n} XP · 1 writing session = {s} XP. Retyping deleted text, pasting or dropping text in, and restoring deleted notes don’t count.',
       'stats.dayTitle': '{day} · {c} chars · {l} links · {s} sessions',
       'stats.hourTitle': '{h}:00 · {m} saves',
       'stats.cumulative': 'All-time',
@@ -20004,7 +20023,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'w.b3a': 'While you type it pulls out a laptop and types along',
       'w.b3b': 'Leave a new note blank and it raises a <b>!</b> waiting for the first line',
       'w.b3c': 'Write for a while and stop, and it hops with joy',
-      'w.hookNote': 'Retyping deleted text or pasting big chunks earns nothing. Exclude folders in the settings to leave them out.',
+      'w.hookNote': 'Retyping deleted text, pasting, or restoring a deleted note earns nothing. Exclude folders in the settings to leave them out.',
       'w.b4a': 'Click the <b>cat face</b> in the ribbon, or double-click the cat, to open the house',
       'w.b4b': '<b>Right-click</b> the cat for food, treats and toys',
       'w.b4c': 'Or search <b>Vault Pet</b> in the command palette (Ctrl+P)',
@@ -20034,6 +20053,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'legacy.coins': '{coins} coins',
       'legacy.costume': 'Commemorative costume “Old friend’s eggshell” (early users only)',
       'legacy.note': 'Your old pets and their progress don’t carry over to the new cat. This message only shows once.',
+      'legacy.folders': '{n} excluded subfolder setting(s) from the old version weren’t carried over. Folders can now be left out by top-level folder (house → Settings).',
       'legacy.ok': 'Thanks',
       'legacy.wear': 'Try on the eggshell',
       'obs.houseTitle': "{name}'s house",
@@ -40222,6 +40242,8 @@ function escapeHold() {
   press = null;
   document.body.classList.remove('dragging');
   pet.drag('end', { x: catX });
+  // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 다음 마우스 움직임에서 고양이 위인지 다시 알린다
+  over = false;
   fallFrom = catLift;
   catVy = -220;
   catVx = (Math.random() < 0.5 ? -1 : 1) * 120;
@@ -41235,6 +41257,9 @@ window.addEventListener('mouseup', (e) => {
     fallFrom = catLift;
     document.body.classList.remove('dragging');
     pet.drag('end', { x: catX });
+    // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 마우스가 아직 고양이 위면 바로 다시 알려서, 그 자리 클릭이 밑의 노트로 새지 않게
+    over = isOverPet(e);
+    if (over) pet.hover(true);
     // 바닥에서 끌기만 했으면 바로 내려놓은 것
     if (catLift <= 0) {
       lifted = false;

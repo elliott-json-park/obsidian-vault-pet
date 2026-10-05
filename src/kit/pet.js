@@ -1641,6 +1641,8 @@ function escapeHold() {
   press = null;
   document.body.classList.remove('dragging');
   pet.drag('end', { x: catX });
+  // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 다음 마우스 움직임에서 고양이 위인지 다시 알린다
+  over = false;
   fallFrom = catLift;
   catVy = -220;
   catVx = (Math.random() < 0.5 ? -1 : 1) * 120;
@@ -2654,6 +2656,9 @@ window.addEventListener('mouseup', (e) => {
     fallFrom = catLift;
     document.body.classList.remove('dragging');
     pet.drag('end', { x: catX });
+    // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 마우스가 아직 고양이 위면 바로 다시 알려서, 그 자리 클릭이 밑의 노트로 새지 않게
+    over = isOverPet(e);
+    if (over) pet.hover(true);
     // 바닥에서 끌기만 했으면 바로 내려놓은 것
     if (catLift <= 0) {
       lifted = false;

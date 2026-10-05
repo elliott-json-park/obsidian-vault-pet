@@ -14,7 +14,7 @@ Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls 
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
 - **There's a lot to collect.** 264 costumes, 76 motions, 30 toys and mini-games, 18 premium dishes, 17 fur colors, 161 badges and a treasure workshop.
-- **It's fair.** Only real new writing counts. Deleting and retyping, undo, or pasting in big chunks earns nothing.
+- **It's fair.** Only real new writing counts. Deleting and retyping, undo, pasting or dragging text in, and restoring a deleted note earn nothing.
 - **It's private.** Your notes are only read, never stored or sent anywhere. No network access at all.
 
 ## Meet your cat
@@ -113,9 +113,11 @@ Open the house (cat face in the ribbon, or double-click the cat; your cat's name
 - Folders that count toward growth (untick a top-level folder to leave it out)
 - Show or hide the cat on screen, reset its position, start over
 
+Obsidian's own plugin settings for Vault Pet have the everyday switches too: show the cat, open the house in the right sidebar instead of a tab, mute, language, reset position and **Send feedback**.
+
 ## Commands
 
-Open house · Show today's quests · Open shop · Open wardrobe · Feed · Pet the cat · Toggle sound (mute) · Toggle quiet mode (1 hour) · Show or hide the cat · Hide the cat for 1 hour · Reset cat position · Stop playing
+Open house · Open house in the right sidebar · Show today's quests · Open shop · Open wardrobe · Feed · Pet the cat · Toggle sound (mute) · Toggle quiet mode (1 hour) · Show or hide the cat · Hide the cat for 1 hour · Reset cat position · Stop playing
 
 ## Installation
 
@@ -138,7 +140,7 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 - Notes are only **read**. Their contents are never stored, shown elsewhere or sent anywhere. The plugin makes no network requests.
 - File and folder paths are never stored as-is. Each part of a path is replaced by a short hash, so your data file can't reveal what's in your vault.
-- What is saved: for each note, its longest-ever character and link counts and a few feature counts; hourly writing totals per top-level folder; and your cat. All of it lives in `.obsidian/plugins/vault-pet/data.json`.
+- What is saved: for each note, its longest-ever character and link counts and a few feature counts (kept for a while after you delete a note, so restoring it doesn't count twice); hourly writing totals per top-level folder; and your cat. All of it lives in `.obsidian/plugins/vault-pet/data.json`.
 - A PNG is only created in your vault when you press **Save image** on the show-off card.
 
 ### What Vault Pet accesses, and why
@@ -147,7 +149,8 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 |---|---|---|
 | **List of notes in your vault** | To remember how long each note already is, so writing you did before installing never counts, and to catch up on notes changed while Obsidian was closed | Once on first run, then only notes whose modified time changed. Folders you untick in the settings are skipped |
 | **Reading notes** | To count new characters, links, tags, tasks, headings, embeds and callouts | Only when a note changes. Contents are never stored |
-| **Clipboard (write only)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them. Vault Pet never reads your clipboard |
+| **Clipboard (write)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them |
+| **Text you paste or drop into a note** | So pasted text doesn't turn into XP and coins | Only at the moment you paste or drop it into a note. Only its length is measured; the text is never stored. Vault Pet never reads your clipboard at any other time |
 | **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/vault-pet/data.json`. Nothing is kept in browser storage |
 | **Backup of the data file** | To bring your cat back if `data.json` is ever damaged (a crash mid-save, a sync conflict) | Once a day, a copy is written next to it as `data.backup.json`. A damaged file is kept as `data.broken-<time>.json` rather than deleted |
 | **Your browser (link only)** | The **Send feedback** button | Only when you press it. It opens this repository's issue page. Vault Pet itself still makes no network requests |
@@ -156,7 +159,7 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 **Will old notes level up my cat?** No. Growth starts when you install. Adding to an old note later counts, but only the new part.
 
-**Can I farm XP by pasting text?** Not really. Each note remembers its longest-ever length, so only real growth counts, and big pastes or bulk changes are capped.
+**Can I farm XP by pasting text?** No. Text you paste or drag into a note doesn't count. Each note also remembers its longest-ever length, even after you delete it, so retyping, restoring a note from the trash or a sync that re-creates files earns nothing. Notes moved in from a folder you left out start from their current size, and bulk changes are capped.
 
 **Does it slow Obsidian down?** The cat lives in a lightweight transparent layer that ignores clicks except on the cat itself, and your vault is only read when notes change.
 
@@ -168,7 +171,7 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 ### 한국어
 
-**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 일일 퀘스트, 업적 161개, 놀러 오는 동네 친구, 보물 공방까지. 노트 내용은 읽기만 하고 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
+**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 일일 퀘스트, 업적 161개, 놀러 오는 동네 친구, 보물 공방까지. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
 ---
 

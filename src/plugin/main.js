@@ -123,9 +123,14 @@ class HouseView extends ItemView {
     }, { capture: true });
   }
 
-  // 탭을 새 창(팝아웃)으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
+  // 탭을 새 창(팝아웃)이나 다른 분할 창으로 옮기면 iframe 이 새로 읽히면서 비어 버린다. 그러면 다시 올린다
+  // (같은 창 안에서 옮기면 문서는 같지만 iframe 안 창이 새것으로 바뀐다)
   onResize() {
-    if (this.frame && (!this.frame.win || !this.frame.win.__kcLoaded || this.frame.iframe.ownerDocument !== this.contentEl.ownerDocument)) this.mountFrame();
+    const fr = this.frame;
+    if (!fr) return;
+    const stale = !fr.win || !fr.iframe || fr.iframe.contentWindow !== fr.win || fr.iframe.ownerDocument !== this.contentEl.ownerDocument;
+    // 화면 코드가 터져서 못 올라온 거면 크기가 바뀔 때마다 다시 만들지 않는다 (한 번 실패하면 그대로)
+    if (stale || (!fr.win.__kcLoaded && !fr.failed)) this.mountFrame();
   }
 
   async onClose() {
@@ -224,6 +229,7 @@ class LegacyModal extends Modal {
     };
     row('coin', t('legacy.coins', { coins: fmt(L.coins) }));
     row(LEGACY_COSTUME, t('legacy.costume'));
+    if (L.partialFolders) el.createEl('p', { text: t('legacy.folders', { n: L.partialFolders }), cls: 'setting-item-description' });
     el.createEl('p', { text: t('legacy.note'), cls: 'setting-item-description' });
     new Setting(el)
       .addButton((b) => b.setButtonText(t('legacy.ok')).onClick(() => this.close()))
