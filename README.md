@@ -131,6 +131,10 @@ Open house · Open house in the right sidebar · Show today's quests · Open sho
 
 Vault Pet is desktop only, since petting, dragging and right-clicking your cat are a big part of the fun.
 
+## Also on your desktop: Kit Commit
+
+Working with Claude Code or Codex too? **[Kit Commit](https://elliott-json-park.github.io/kitcommit-releases/)** is the free desktop edition of the same cat for Windows and Mac. Instead of your writing, it turns your AI token usage into XP and coins: it types along while a reply is being written, claps when it's done and waves when your OK is needed. It never reads your conversations. [Download it here](https://elliott-json-park.github.io/kitcommit-releases/).
+
 ## Feedback
 
 Vault Pet has no telemetry, so the only way to know what you like, what's broken and what's missing is if you say so.
@@ -175,8 +179,10 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 **Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 일일 퀘스트, 업적 161개, 놀러 오는 동네 친구, 보물 공방까지. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
+Claude Code·Codex 로 일한다면, AI 토큰 사용량을 코인으로 바꿔 주는 데스크톱판 **[킷커밋(Kit Commit)](https://elliott-json-park.github.io/kitcommit-releases/ko/)** 도 무료로 받을 수 있어요 (윈도우·맥).
+
 ---
 
-Vault Pet is the Obsidian edition of the Kit Commit desktop pet. **An unofficial fan-made project**, not affiliated with, made by or endorsed by Anthropic or Obsidian.
+Vault Pet is the Obsidian edition of the [Kit Commit](https://elliott-json-park.github.io/kitcommit-releases/) desktop pet. **An unofficial fan-made project**, not affiliated with, made by or endorsed by Anthropic or Obsidian.
 
 MIT License · Pretendard font under the SIL Open Font License 1.1
