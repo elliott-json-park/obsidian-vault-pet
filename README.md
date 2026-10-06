@@ -100,6 +100,8 @@ Make a show-off card with your cat in its current outfit, your level and your wr
 
 ![A show-off card: Mochi at Lv.18 grew up on 32.4K characters, with sessions, characters, links, days together, busiest hour and favorite folder, plus a 20-week writing grid.](docs/kitcommit-card.png)
 
+Using [Hearth](https://github.com/ondreu/Hearth)? Its **Vault Pet** card puts your cat, or its whole house, on your Hearth dashboard.
+
 ## Settings
 
 Open the house (cat face in the ribbon, or double-click the cat; your cat's name in the status bar opens a quick menu) and go to **Settings**:
