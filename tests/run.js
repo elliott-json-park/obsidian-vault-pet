@@ -568,11 +568,12 @@ test('achievements: 보상 코스튬이 두 업적에 겹치지 않는다', () =
 
 test('styles: 테마가 iframe 에 칠하는 배경·테두리·그림자를 펫 iframe 이 이긴다 (Retroma, 이슈 #3)', () => {
   const css = require('fs').readFileSync(path.join(src, 'plugin/styles.css'), 'utf8');
-  const m = css.match(/iframe\.kitcommit-frame\s*\{([^}]*)\}/);
-  assert.ok(m, 'iframe.kitcommit-frame 규칙이 있어야 한다');
+  const m = css.match(/iframe\.kitcommit-frame:not\(#[\w-]+\)\s*\{([^}]*)\}/);
+  assert.ok(m, 'iframe.kitcommit-frame:not(#…) 규칙이 있어야 한다 (ID 우선순위로 테마 규칙을 이긴다)');
   for (const p of ['background: transparent', 'border: 0', 'border-radius: 0', 'box-shadow: none']) {
-    assert.ok(m[1].includes(`${p} !important`), p);
+    assert.ok(m[1].includes(p), p);
   }
+  assert.ok(!css.includes('!important'), '!important 없이 (옵시디언 자동 리뷰 CSS lint)');
 });
 
 /* ── 1.3.0 (킷커밋 데스크톱 0.3.0 ~ 0.4.0 반영) ── */

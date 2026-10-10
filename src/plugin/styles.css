@@ -16,12 +16,13 @@
   color-scheme: normal;
 }
 
-/* 테마가 iframe 전체에 거는 꾸밈(배경·테두리·그림자)을 막는다. 예: Retroma 는 :is(..., iframe) 로 불투명한 배경을 칠해 노트를 덮는다 (이슈 #3) */
-iframe.kitcommit-frame {
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+/* 테마가 iframe 전체에 거는 꾸밈(배경·테두리·그림자)을 막는다. 예: Retroma 는 :is(..., iframe) 로 불투명한 배경을 칠해 노트를 덮는다 (이슈 #3)
+   important 표시 대신 :not(#…) 로 ID 한 개만큼 우선순위를 올린다. 이런 테마 규칙은 클래스 여러 개 수준이라 ID 하나면 이긴다 */
+iframe.kitcommit-frame:not(#kitcommit-none) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* 하우스 탭 */

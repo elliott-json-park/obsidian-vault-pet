@@ -1,7 +1,7 @@
 {
   "id": "vault-pet",
   "name": "Vault Pet",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "minAppVersion": "1.5.0",
   "description": "Raise a pixel cat that grows as you write. Every word earns XP and coins for 320 costumes, toys and mini-games, with daily quests, 165 badges, neighbor cats and a star shop after Lv.80.",
   "author": "Elliott Park",
