@@ -10,6 +10,7 @@ const T = new I18N.Strings();
 
 let scale = 3;
 let soundOn = true;
+let lowPower = false; // 저전력 모드: 그리는 횟수를 줄이고 산책·심심풀이 모션을 덜 한다 (pet:config 의 lowPower)
 let realMood = 'idle'; // brain 이 알려 준 진짜 기분
 let growth = null;
 let wasLoading = false;
@@ -59,7 +60,9 @@ pet.onConfig((c) => {
   soundOn = c.sound;
   T.set(c.language, c.personality, c.mode);
   sprite.setFur(c.fur);
+  sprite.setEars(c.ears);
   bubblesOn = c.bubbles !== false;
+  lowPower = !!c.lowPower;
   clearTimeout(pendingWearTimer);
   pendingWear = null;
   if (c.wearMotion) {
@@ -118,6 +121,7 @@ pet.onLoading((p) => {
   wasLoading = true;
   loadingEl.hidden = false;
   loadingEl.textContent = T.t('pet.loading', { p: Math.round(p * 100) });
+  placeOverlays();
 });
 
 pet.onAction((a) => {
@@ -165,23 +169,44 @@ const BUBBLE_ICON = {
   notify: 'bang', rest: 'pillow', late: 'moon', tip: 'claudethink',
 };
 const REWARD = new Set(['grow', 'achieve', 'item', 'quest', 'attend', 'retro']);
-const CHATTY = new Set(['chatter', 'poke', 'tip']); // 'stop'(답 끝남)은 꼭 보여 줘야 해서 뺐다 (2026-09-29)
+const CHATTY = new Set(['chatter', 'poke', 'tip', 'memory', 'crave', 'reply']); // 'stop'(답 끝남)은 꼭 보여 줘야 해서 뺐다 (2026-09-29)
+// main 이 수다 상한을 조절하려고 끝난 걸 알고 싶어 하는 말풍선 (2초 안에 눌러 닫으면 귀찮다는 뜻)
+const TRACKED = new Set(['chatter', 'tip', 'memory', 'crave', 'reply']);
 
 let skipFollow = false; // 앞말을 버렸으면 이어지는 뒷말('follow')도 버린다
 pet.onBubble((b) => {
+  // 홍보 모드 연출 패널의 말풍선: 줄을 비우고 지금 바로 (ms = 보일 시간, -1 = 지울 때까지)
+  if (b.promo) {
+    queue.length = 0;
+    skipFollow = false;
+    queue.push(b);
+    nextBubble();
+    return;
+  }
   if (b.kind === 'follow' && skipFollow) return;
   skipFollow = false;
   if (current && CHATTY.has(b.kind) && queue.length) {
     skipFollow = true;
     return; // 수다는 밀려 있으면 버린다
   }
-  if (b.kind === 'notify') queue.unshift(b);
+  // 같은 표식(merge)이 줄에 서 있으면 새것으로 바꾼다. 그 말에 딸린 뒷말도 같이 치운다
+  const same = b.merge ? queue.findIndex((q) => q.merge === b.merge) : -1;
+  if (same >= 0) {
+    let n = 1;
+    while (queue[same + n] && queue[same + n].kind === 'follow') n++;
+    queue.splice(same, n, b);
+  } else if (b.kind === 'notify') queue.unshift(b);
   else queue.push(b);
   while (queue.length > 5) {
     const i = queue.findIndex((q) => CHATTY.has(q.kind));
     queue.splice(i >= 0 ? i : queue.length - 1, 1);
   }
   if (!current) nextBubble();
+});
+// 홍보 모드: 말풍선 지우기
+pet.onBubbleClear(() => {
+  queue.length = 0;
+  if (current) nextBubble();
 });
 
 function nextBubble() {
@@ -194,13 +219,37 @@ function nextBubble() {
     return;
   }
   const textEl = bubbleEl.querySelector('.text');
-  bubbleEl.className = 'bubble' + (REWARD.has(current.kind) ? ' reward' : current.kind === 'notify' ? ' notify' : '');
-  bubbleEl.querySelector('.hint').textContent = current.link && LINK_HINT[current.link] ? T.t(LINK_HINT[current.link]) : '';
+  bubbleEl.className = 'bubble' + (REWARD.has(current.kind) ? ' reward' : current.kind === 'notify' ? ' notify' : '') + (current.promo ? ' promo' : '');
+  bubbleEl.querySelector('.hint').textContent = current.link && LINK_HINT[current.link] ? T.t(LINK_HINT[current.link]) : current.link && current.link.startsWith('play:') ? T.t('pet.linkPlay') : '';
   const ic = BUBBLE_ICON[current.kind];
   bubbleEl.querySelector('.ico').innerHTML = ic ? PixelArt.svg(ic, 14) : '';
+  // 고양이 질문: 고를 것 두 개 (누르면 대답하고 닫힌다. 창의 포커스는 가져가지 않는다)
+  let choices = bubbleEl.querySelector('.choices');
+  if (!choices) {
+    choices = document.createElement('div');
+    choices.className = 'choices';
+    bubbleEl.appendChild(choices);
+  }
+  choices.innerHTML = '';
+  if (current.ask && Array.isArray(current.choices)) {
+    current.choices.slice(0, 2).forEach((label, i) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!current || !current.ask) return;
+        pet.bubbleReply(current.ask, i);
+        if (TRACKED.has(current.kind)) pet.bubbleEnd(current.kind, -1); // 대답은 귀찮다는 뜻이 아니다
+        current.kind = 'answered';
+        nextBubble();
+      });
+      choices.appendChild(b);
+    });
+  }
   // 부르는 소리가 나면 귀를 세우고 고개를 돌려 본다
   if (current.kind === 'notify' && !sprite.action && !(toy && toy.inside)) sprite.play('perk');
   bubbleEl.hidden = false;
+  placeOverlays(); // 나타나기 전에 자리부터 (그리기 루프는 떠 있는 것만 옮긴다)
   requestAnimationFrame(() => bubbleEl.classList.add('show'));
 
   // 한 글자씩 타이핑
@@ -213,15 +262,21 @@ function nextBubble() {
   }, 28);
   if (soundOn && REWARD.has(current.kind) === false && current.kind !== 'poke') PetSound.play('pop', 0.015);
 
-  const ms = Math.max(3500, Math.min(9000, 2200 + chars.length * 110)) + (current.link ? 2500 : 0);
+  if (current.ms === -1) return; // 홍보 모드: 지울 때까지 둔다
+  const ms = current.ms > 0 ? current.ms : Math.max(3500, Math.min(9000, 2200 + chars.length * 110)) + (current.link ? 2500 : 0);
+  current.shownAt = performance.now();
   hideTimer = setTimeout(() => {
+    if (current && TRACKED.has(current.kind)) pet.bubbleEnd(current.kind, -1);
     bubbleEl.classList.remove('show');
     hideTimer = setTimeout(nextBubble, 220);
   }, ms);
 }
 
 bubbleEl.addEventListener('click', () => {
-  if (current && current.link) pet.open(current.link);
+  if (current && TRACKED.has(current.kind)) pet.bubbleEnd(current.kind, Math.round(performance.now() - (current.shownAt || 0)));
+  // '기다리는 동안 한 판?' 은 누르면 그 장난감으로 논다
+  if (current && current.link && current.link.startsWith('play:')) pet.play(current.link.slice(5));
+  else if (current && current.link) pet.open(current.link);
   nextBubble();
 });
 
@@ -511,6 +566,7 @@ function startPlay(key) {
   hintTimer = setTimeout(() => (hintEl.hidden = true), HINT_MS);
   if (isCursorToy()) setOver(true);
   placeCat();
+  placeOverlays();
 }
 
 function endPlay() {
@@ -1519,7 +1575,7 @@ function stepStroll(dt, now) {
       const pick = idlePool.length ? idlePool[idleTurn.i % idlePool.length] : null;
       const M = pick && PetSprite.MOTIONS[pick];
       // 다른 걸 하는 중이면 조금 있다가 다시 본다
-      nextIdleMotion = now + (M && awake && sprite.busy() ? 3000 : (50000 + Math.random() * 60000) * tp().idle);
+      nextIdleMotion = now + (M && awake && sprite.busy() ? 3000 : (50000 + Math.random() * 60000) * tp().idle * (lowPower ? 2.5 : 1));
       if (M && awake && !sprite.busy()) {
         sprite.play(pick, { times: M.loop ? 2 : 1 });
         if (!idleTurn.at) idleTurn.at = now; // 처음 쓴 때부터 5분을 센다
@@ -1528,7 +1584,7 @@ function stepStroll(dt, now) {
       }
     }
     if (now < nextStroll) return;
-    nextStroll = now + (14000 + Math.random() * 16000) * tp().stroll;
+    nextStroll = now + (14000 + Math.random() * 16000) * tp().stroll * (lowPower ? 3 : 1);
     if (sprite.busy() || sprite.mood !== 'idle' || current) return;
     // 화면이 넓어도 산책은 몇 걸음만. 벽에 붙어 있으면 반대쪽으로
     let dir = Math.random() < 0.5 ? -1 : 1;
@@ -1574,21 +1630,42 @@ pet.onTreat(({ key }) => {
 });
 
 // 말풍선이 캐릭터 머리 위에 붙어 있게
+// 아무것도 안 떠 있으면 크기를 재지 않는다 (재는 것만으로 레이아웃 계산이 돈다)
 function placeOverlays() {
   if (catX == null) return;
+  if (bubbleEl.hidden && hintEl.hidden && loadingEl.hidden) return;
   const headPx = (PetSprite.GRID - sprite.headTop()) * scale + catLift;
-  const keepIn = (el) => {
+  const keepInX = (el) => {
     const half = el.offsetWidth / 2 + 6;
-    return `${Math.round(Math.max(half, Math.min(window.innerWidth - half, catX)))}px`;
+    return Math.round(Math.max(half, Math.min(window.innerWidth - half, catX)));
   };
   const hintUp = hintEl.hidden ? 0 : 24;
   if (!hintEl.hidden) {
     hintEl.style.bottom = `${Math.round(headPx + 8)}px`;
-    hintEl.style.left = keepIn(hintEl);
+    hintEl.style.left = `${keepInX(hintEl)}px`;
   }
-  bubbleEl.style.bottom = `${Math.min(headPx + 8 + hintUp, window.innerHeight - 30)}px`;
-  bubbleEl.style.left = keepIn(bubbleEl);
-  if (!loadingEl.hidden) loadingEl.style.left = keepIn(loadingEl);
+  if (!bubbleEl.hidden) {
+    // 높이 들어 올려서 머리 위에 자리가 없으면 고양이 발 밑으로 내린다. 그래도 모자라면 화면 안에 붙여 둔다
+    const h = bubbleEl.offsetHeight;
+    const top = window.innerHeight - 4;
+    let bottom = headPx + 8 + hintUp;
+    let below = false;
+    if (bottom + h + 10 > top) {
+      const under = catLift - h - 12;
+      if (under >= 4) {
+        bottom = under;
+        below = true;
+      } else bottom = Math.max(4, top - h - 10);
+    }
+    bubbleEl.classList.toggle('below', below);
+    bubbleEl.style.bottom = `${Math.round(bottom)}px`;
+    const x = keepInX(bubbleEl);
+    bubbleEl.style.left = `${x}px`;
+    // 화면 끝에 붙어서 가운데가 고양이와 어긋나면 꼬리가 고양이 쪽을 가리키게
+    const room = Math.max(0, bubbleEl.offsetWidth / 2 - 12);
+    bubbleEl.style.setProperty('--tail-x', `${Math.round(clamp(catX - x, -room, room))}px`);
+  }
+  if (!loadingEl.hidden) loadingEl.style.left = `${keepInX(loadingEl)}px`;
 }
 
 // ---------- 들어 올리기 ----------
@@ -1641,8 +1718,7 @@ function escapeHold() {
   press = null;
   document.body.classList.remove('dragging');
   pet.drag('end', { x: catX });
-  // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 다음 마우스 움직임에서 고양이 위인지 다시 알린다
-  over = false;
+  resyncHover();
   fallFrom = catLift;
   catVy = -220;
   catVx = (Math.random() < 0.5 ? -1 : 1) * 120;
@@ -1716,9 +1792,11 @@ const catFree = () => !ev && !toy && !treats.length && !held && !dragging && !li
 pet.onEvent((e) => {
   const now = performance.now();
   if (e.type === 'bird') return startBird(e.treasure);
-  if (!catFree() || hunt) return;
+  // 고양이가 바쁘면 건너뛰고 main 에 알린다 (오늘 횟수를 돌려받는다)
+  if (!catFree() || hunt) return pet.eventSkip(e.id);
   if (e.type === 'rare') {
-    pendingRare = { motion: e.motion, until: performance.now() + 60_000 };
+    if (pendingRare) pet.eventSkip(pendingRare.id);
+    pendingRare = { id: e.id, motion: e.motion, until: performance.now() + 60_000 };
     return;
   }
   if (sprite.motion) sprite.cancel();
@@ -1726,7 +1804,7 @@ pet.onEvent((e) => {
   const [min, max] = lane();
   const side = catX - min < max - catX ? -1 : 1; // 가까운 쪽 화면 끝으로
   if (e.type === 'fetch') {
-    ev = { type: 'fetch', key: e.treasure, phase: 'out', side, home: catX, x: catX, until: 0 };
+    ev = { type: 'fetch', id: e.id, key: e.treasure, phase: 'out', side, home: catX, x: catX, until: 0 };
     pet.eventSay('eventFetchOut');
   }
   void now;
@@ -1777,7 +1855,10 @@ function stepBirds(dt) {
 let pendingRare = null;
 function stepRare(now) {
   if (!pendingRare) return;
-  if (now > pendingRare.until) return (pendingRare = null);
+  if (now > pendingRare.until) {
+    pet.eventSkip(pendingRare.id);
+    return (pendingRare = null);
+  }
   if (!catFree() || hunt || sprite.busy() || sprite.move || !['idle', 'active'].includes(sprite.mood)) return;
   sprite.play(pendingRare.motion, { times: 1 });
   pendingRare = null;
@@ -1962,6 +2043,7 @@ function friendSay(text, who, ms = 3200) {
   const el = who === 'c' ? cbubble : fbubble;
   el.textContent = text;
   el.hidden = false;
+  placeFriendOverlays();
   requestAnimationFrame(() => el.classList.add('show'));
   clearTimeout(el._t);
   el._t = setTimeout(() => {
@@ -2033,6 +2115,9 @@ function stepFriend(dt, now) {
         f.state = 'here';
         friendSay(friendLine('hi', 'fr.hi'), 'f', 2800);
         pet.eventSay('eventGuest', { friend: f.id });
+        // 선물받은 공방 코스튬을 입고 왔으면 자랑한다 (2026-10-10)
+        const gift = Array.isArray(f.wear) && f.wear.length ? f.wear[Math.floor(Math.random() * f.wear.length)] : null;
+        if (gift) setTimeout(() => friend === f && friendSay(T.t('fr.wearGift', { item: T.t('item.' + gift) }), 'f', 3600), 4200);
         if (f.r) f.r.play('wave');
       }
       if (catX != null && !toy) f.facing = Math.sign(catX - f.x) || f.facing;
@@ -2060,17 +2145,72 @@ function stepFriend(dt, now) {
   placeFriend();
 }
 
+// 친구 말풍선 · 수다 중 우리 고양이 말풍선을 머리 위에 놓되 서로, 그리고 보통 말풍선과 겹치지 않게 한다.
+// 먼저 옆으로 밀어 비키고(꼬리는 --tail-x 로 계속 말한 쪽을 가리킨다), 화면이 좁아 못 비키면 위로 쌓는다
+const BUBBLE_GAP = 8;
+function placeChatBubbles(P) {
+  const W = window.innerWidth, H = window.innerHeight;
+  // 보통 말풍선(업적·대사 등)은 placeOverlays 가 이미 놓았다. 여기서는 피해 갈 자리로만 쓴다
+  const main = !bubbleEl.hidden && catX != null
+    ? { x: parseFloat(bubbleEl.style.left) || catX, w: bubbleEl.offsetWidth, h: bubbleEl.offsetHeight, bottom: parseFloat(bubbleEl.style.bottom) || 0 }
+    : null;
+  const box = (el, owner, bottom) => ({ el, owner, x: owner, w: el.offsetWidth, h: el.offsetHeight, bottom });
+  const list = [];
+  if (friend && !fbubble.hidden) list.push(box(fbubble, friend.x, friend.lift + P * 0.62));
+  if (catX != null && !cbubble.hidden) {
+    // 보통 말풍선이 떠 있으면 그 위로 (예전엔 44px 만 올려서 두 줄짜리 말풍선과 겹쳤다)
+    const over = main && !bubbleEl.classList.contains('below') ? main.bottom + main.h + BUBBLE_GAP + 4 : catLift + P * 0.62;
+    list.push(box(cbubble, catX, over));
+  }
+  if (!list.length) return;
+  const fitX = (b) => (b.x = Math.max(b.w / 2 + 6, Math.min(W - b.w / 2 - 6, b.x)));
+  const hitY = (a, b) => a.bottom < b.bottom + b.h + BUBBLE_GAP && b.bottom < a.bottom + a.h + BUBBLE_GAP;
+  const needX = (a, b) => (a.w + b.w) / 2 + BUBBLE_GAP - Math.abs(a.x - b.x);
+  const hits = (a, b) => hitY(a, b) && needX(a, b) > 0;
+  // 움직이지 않는 것(o)에서 b 를 비킨다: 말한 쪽 방향으로 밀고, 안 되면 그 위로
+  const dodge = (b, o) => {
+    if (!hits(b, o)) return;
+    const dir = Math.sign(b.owner - o.x) || (b.owner < W / 2 ? 1 : -1);
+    b.x += dir * needX(b, o);
+    fitX(b);
+    if (hits(b, o)) b.bottom = o.bottom + o.h + BUBBLE_GAP;
+  };
+  for (const b of list) fitX(b);
+  if (main) for (const b of list) dodge(b, main);
+  if (list.length === 2 && hits(list[0], list[1])) {
+    // 둘 다 반씩 비켜선다. 화면 끝에 막히면 다른 쪽이 마저 비킨다
+    const [a, b] = list;
+    const dir = Math.sign(a.owner - b.owner) || 1;
+    const half = needX(a, b) / 2;
+    a.x += dir * half;
+    b.x -= dir * half;
+    fitX(a);
+    fitX(b);
+    if (hits(a, b)) {
+      b.x -= dir * needX(a, b);
+      fitX(b);
+    }
+    if (hits(a, b)) {
+      a.x += dir * needX(a, b);
+      fitX(a);
+    }
+    if (hits(a, b)) a.bottom = b.bottom + b.h + BUBBLE_GAP; // 그래도 안 되면 친구 말풍선을 위로
+    if (main) dodge(a, main);
+  }
+  for (const b of list) {
+    b.bottom = Math.max(4, Math.min(b.bottom, H - b.h - 4));
+    b.el.style.left = `${Math.round(b.x)}px`;
+    b.el.style.bottom = `${Math.round(b.bottom)}px`;
+    const room = Math.max(0, b.w / 2 - 12);
+    b.el.style.setProperty('--tail-x', `${Math.round(clamp(b.owner - b.x, -room, room))}px`);
+  }
+}
+
 // 말풍선·카드 자리 (고양이 말풍선과 같은 식으로 머리 위에)
 function placeFriendOverlays() {
+  if (!friend && cbubble.hidden && fbubble.hidden) return; // 떠 있는 게 없으면 재지 않는다
   const P = petPx();
-  const put = (el, x, bottom) => {
-    if (el.hidden) return;
-    const half = el.offsetWidth / 2 + 6;
-    el.style.left = `${Math.round(Math.max(half, Math.min(window.innerWidth - half, x)))}px`;
-    el.style.bottom = `${Math.round(Math.min(bottom, window.innerHeight - 40))}px`;
-  };
-  if (friend) put(fbubble, friend.x, friend.lift + P * 0.62);
-  if (catX != null) put(cbubble, catX, catLift + P * 0.62 + (bubbleEl.hidden ? 0 : 44));
+  placeChatBubbles(P);
   // 카드는 머리 위가 아니라 친구 옆에 붙인다. 말풍선이 머리 위 가운데에 뜨니까 말풍선 반 폭만큼 더 비켜 선다.
   // 고양이가 있는 쪽은 고양이 말풍선이 뜨니 반대쪽을 먼저 쓰고, 화면 끝이라 자리가 없으면 다른 쪽으로
   if (fcard && friend && fcardPos) {
@@ -2173,7 +2313,7 @@ async function openFriendCard() {
         <div class="fc-name">${esc(friendName(id))}</div>
         <div class="fc-sp">${esc(T.t('fr.' + id + '.nick'))} · ${esc(T.t('fr.' + id + '.species'))}</div>
       </div>
-      <button class="fc-x" data-fc="close" aria-label="close">×</button>
+      <button class="fc-x" data-fc="close" aria-label="${esc(T.t('modal.close'))}" title="${esc(T.t('modal.close'))}">×</button>
     </div>
     <div class="fc-body">
       <div class="fc-time">${ic('hourglass', 12)}<span class="fc-left"></span></div>
@@ -2294,6 +2434,7 @@ function friendEat(key) {
 function endFetch(done) {
   if (!ev) return;
   const key = ev.key;
+  const id = ev.id;
   // 이미 밖에 나갔다 왔으면(보물을 찾았으면) 끊겨도 그 자리에 떨군다
   const found = ['away', 'in', 'back'].includes(ev.phase);
   canvas.style.visibility = '';
@@ -2301,6 +2442,8 @@ function endFetch(done) {
   sprite.carryKey = null;
   ev = null;
   placeCat();
+  // 나가기도 전에 끊겼으면 보물은 안 떨어진다. 오늘 횟수를 돌려받는다
+  if (key && !(done || found) && id) pet.eventSkip(id);
   if (!key || !(done || found)) return;
   spawnLoot(key, catX + sprite.facing * petPx() * 0.3, floorY() - petPx() * 0.25);
   if (!done) return;
@@ -2393,40 +2536,75 @@ function endHunt(done) {
 // [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
 const offscreen = () => document.hidden || !!(window.frameElement && !window.frameElement.getClientRects().length);
 let lastLoop = performance.now();
+let loopTimer = null;
+let lastHoverCheck = 0;
 function loop() {
+  loopTimer = null;
   const now = performance.now();
   const dt = Math.min(0.2, (now - lastLoop) / 1000);
   lastLoop = now;
-  const off = offscreen();
-  if (!off) {
-    if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
-    if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
-    for (const o of treats) stepItem(o, dt);
-    for (const o of loot) {
-      stepItem(o, dt);
-      if (now - o.born > LOOT_KEEP_MS && !(held && held.o === o)) collectLoot(o);
-    }
-    stepBirds(dt);
-    stepRare(now);
-    stepFriend(dt, now);
-    stepField(dt, now);
-    stepFall(dt);
-    stepSwing(dt);
-    // 끌려가는 중이거나 들렸다 떨어지는 중이면 걷지 않는다
-    // 깜짝 이벤트(물어 오기·손님)가 고양이를 쥐고 있으면 걷기·주우러 가기는 쉰다
-    const evBusy = stepEvent(dt, now) || (!dragging && !lifted && stepHunt(dt, now));
-    if (dragging || lifted) sprite.setMove(0);
-    else if (!evBusy && !stepChase(dt, now)) stepStroll(dt, now);
-    updateFloorShadow();
-    sprite.frame();
-    drawField(now);
-    placeOverlays();
-    placeFriendOverlays();
+  // 창이 숨어 있으면 쉰다. 다시 보이면 visibilitychange 가 깨운다
+  if (document.hidden) return;
+  // [옵시디언] iframe 은 display:none 이어도 document.hidden 이 안 바뀐다. 안 보이면 그리기·물리는 쉬고 가끔 확인만 한다
+  if (offscreen()) {
+    loopTimer = setTimeout(loop, 160);
+    return;
   }
-  const moving = toy || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || dragging || catLift > 0;
-  const slow = off || (!moving && sprite.mood === 'sleeping');
-  setTimeout(loop, slow ? 160 : moving ? 33 : 55);
+  if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
+  if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
+  for (const o of treats) stepItem(o, dt);
+  for (const o of loot) {
+    stepItem(o, dt);
+    if (now - o.born > LOOT_KEEP_MS && !(held && held.o === o)) collectLoot(o);
+  }
+  stepBirds(dt);
+  stepRare(now);
+  stepFriend(dt, now);
+  stepField(dt, now);
+  stepFall(dt);
+  stepSwing(dt);
+  // 끌려가는 중이거나 들렸다 떨어지는 중이면 걷지 않는다
+  // 깜짝 이벤트(물어 오기·손님)가 고양이를 쥐고 있으면 걷기·주우러 가기는 쉰다
+  const evBusy = stepEvent(dt, now) || (!dragging && !lifted && stepHunt(dt, now));
+  if (dragging || lifted) sprite.setMove(0);
+  else if (!evBusy && !stepChase(dt, now)) stepStroll(dt, now);
+  updateFloorShadow();
+  sprite.frame();
+  drawField(now);
+  placeOverlays();
+  placeFriendOverlays();
+  // 커서는 가만있는데 고양이가 걸어 나갔거나 말풍선이 사라졌으면 창이 클릭을 계속 붙잡지 않게 다시 본다
+  if (over && now - lastHoverCheck > 120) {
+    lastHoverCheck = now;
+    recheckHover();
+  }
+  loopTimer = setTimeout(loop, loopDelay(now));
 }
+
+// 다음 장면까지 쉬는 시간. 움직이는 게 있으면 촘촘히, 가만히 있으면 성기게 그린다
+// 저전력 모드(lowPower)면 사람이 직접 만지는 중이 아닐 때 초당 8장 정도로 줄인다
+function loopDelay(now) {
+  const touching = dragging || held || press || toy || (friend && friend.held);
+  const moving = touching || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || catLift > 0;
+  if (lowPower && !touching) return 125;
+  if (moving) return 33;
+  if (sprite.mood === 'sleeping') return 160;
+  // 커서가 막 근처에서 움직였거나 말을 하는 중이면 눈·입이 따라가게 조금 더 자주
+  if (now - lastMouseMove < 1500 || current) return 55;
+  return 100; // 가만히 앉아 있을 때 (초당 10장)
+}
+
+function wakeLoop() {
+  if (loopTimer || document.hidden) return;
+  lastLoop = performance.now();
+  loop();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearTimeout(loopTimer);
+    loopTimer = null;
+  } else wakeLoop();
+});
 
 // ---------- 마우스 ----------
 // 창 전체가 클릭을 통과시키다가, 캐릭터·말풍선 위에 올라왔을 때만 마우스를 받는다.
@@ -2460,6 +2638,24 @@ function setOver(v) {
   if (v === over) return;
   over = v;
   pet.hover(v);
+}
+
+// 이 자리에서 창이 클릭을 받아야 하나 (고양이·말풍선·친구·바닥 물건·흔드는 장난감)
+function hoverTest(e) {
+  return isOverPet(e) || isOverBubble(e) || isOverFriendUi(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e));
+}
+
+// 마우스가 안 움직여도 마지막 자리로 다시 본다. 누르고 있는 중에는 건드리지 않는다
+function recheckHover() {
+  if (dragging || held || press || cursorDown || fcardDrag || (friend && friend.held) || mouseX == null) return;
+  setOver(hoverTest({ clientX: mouseX, clientY: mouseY }));
+}
+
+// 끌기가 끝났을 때: main 은 창을 다시 클릭 통과로 돌려놓는다. 커서가 아직 고양이 위면 바로 다시 받게
+// (over 를 비워 두지 않으면 '이미 위에 있음'으로 여겨 hover(true) 를 안 보내서, 커서가 나갔다 들어올 때까지 클릭이 샌다)
+function resyncHover() {
+  over = false;
+  recheckHover();
 }
 
 // 눈이 커서를 따라본다 (고양이 머리에서 이만큼 안이면)
@@ -2526,6 +2722,9 @@ function nearBody(e) {
 
 window.addEventListener('mousemove', (e) => {
   if (e.clientX !== mouseX || e.clientY !== mouseY) lastMouseMove = performance.now();
+  // 버튼을 뗀 걸 못 들었다 (작업표시줄처럼 창 밖에서 뗐다). 끌던 건 여기서 놓는다
+  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
+  else if (e.buttons === 0 && press) press = null; // 눌렀다가 창 밖에서 뗀 것. 끌기로 이어지지 않게
   // 흔드는 장난감(낚싯대·깃털·비눗방울·레이저)은 쥐지 않아도 마우스를 따라다닌다
   mouseX = e.clientX;
   mouseY = e.clientY;
@@ -2567,12 +2766,18 @@ window.addEventListener('mousemove', (e) => {
     return;
   }
   // 마우스로 흔드는 장난감을 든 동안은 창이 클릭을 받는다 (클릭·꾹 누르기로 장난감을 쓴다)
-  if (!dragging) setOver(isOverPet(e) || isOverBubble(e) || isOverFriendUi(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e)));
+  if (!dragging) setOver(hoverTest(e));
 });
 
-window.addEventListener('mouseleave', () => {
+window.addEventListener('mouseleave', (e) => {
   sprite.gaze = null;
+  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
   if (!dragging) setOver(false);
+});
+
+// 창이 포커스를 잃으면(다른 창 클릭·Alt+Tab) 버튼을 뗀 소식이 안 올 수 있다. 끌던 건 놓는다
+window.addEventListener('blur', () => {
+  if (dragging || held || cursorDown || fcardDrag || (friend && friend.held)) onMouseUp({ button: 0, buttons: 0, clientX: mouseX != null ? mouseX : 0, clientY: mouseY != null ? mouseY : 0 });
 });
 
 // 바닥 물건 집기 — 고양이 끌기보다 먼저 본다
@@ -2606,7 +2811,8 @@ canvas.addEventListener('mousedown', (e) => {
   press = { x: e.screenX, y: e.screenY, dx: e.clientX - catX, dy: window.innerHeight - e.clientY - catLift, noDrag: !!toy || catLift > 0 };
 });
 
-window.addEventListener('mouseup', (e) => {
+window.addEventListener('mouseup', (e) => onMouseUp(e));
+function onMouseUp(e) {
   if (dropCard()) return;
   if (dropFriend()) return;
   // 놓는 순간의 손목 속도를 그대로 물건에 넘긴다
@@ -2656,9 +2862,8 @@ window.addEventListener('mouseup', (e) => {
     fallFrom = catLift;
     document.body.classList.remove('dragging');
     pet.drag('end', { x: catX });
-    // [옵시디언] 놓으면 호스트가 클릭 통과로 돌린다. 마우스가 아직 고양이 위면 바로 다시 알려서, 그 자리 클릭이 밑의 노트로 새지 않게
-    over = isOverPet(e);
-    if (over) pet.hover(true);
+    press = null;
+    resyncHover();
     // 바닥에서 끌기만 했으면 바로 내려놓은 것
     if (catLift <= 0) {
       lifted = false;
@@ -2675,7 +2880,7 @@ window.addEventListener('mouseup', (e) => {
     }, 260);
   }
   press = null;
-});
+}
 let pokeTimer = null;
 
 canvas.addEventListener('dblclick', (e) => {

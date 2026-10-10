@@ -413,16 +413,29 @@
   const G = 48;
   const A = (v) => Math.max(0, Math.min(1, v)).toFixed(2);
 
-  // 음표 ♪ ♫
-  function fly(r, x, y, d, on) {
-    r.px(x, y, '#1c1c1c', false);
-    r.px(x - d, y, '#1c1c1c', false);
-    r.px(x + d, y, '#3a2a2a', false);
-    if (on) {
-      r.px(x, y - 1, 'rgba(225,235,255,0.95)', false);
-      r.px(x - d, y - 1, 'rgba(225,235,255,0.75)', false);
+  // 파리: 몸 3×2 에 빨간 겹눈, 반짝이는 날개. d = 보는 쪽(1 오른쪽). perched 면 앉아서 앞발을 싹싹 비빈다
+  function fly(r, x, y, d, t, i, perched) {
+    const flap = perched ? 2 : Math.floor(t * 22 + i * 3) % 2;
+    const WG = '#f2f9ff', WE = 'rgba(110,130,160,0.9)';
+    if (flap === 0) {
+      r.px(x - d, y - 2, WE, false); r.px(x, y - 2, WE, false);
+      r.px(x - d, y - 1, WG, false); r.px(x, y - 1, WG, false);
+      r.px(x - 2 * d, y - 1, WE, false);
+    } else if (flap === 1) {
+      r.px(x - 2 * d, y - 1, WG, false); r.px(x - 3 * d, y - 1, WE, false);
+      r.px(x - 2 * d, y, WG, false); r.px(x - 3 * d, y, WE, false);
     } else {
-      r.px(x - d, y - 1, 'rgba(225,235,255,0.5)', false);
+      r.px(x - 2 * d, y - 1, WG, false); r.px(x - 3 * d, y, WE, false); r.px(x - 2 * d, y, WG, false);
+    }
+    r.px(x - d, y, '#3f7d74', false); // 초록빛 도는 엉덩이
+    r.px(x, y, '#1c2026', false);
+    r.px(x - d, y + 1, '#1c2026', false);
+    r.px(x, y + 1, '#1c2026', false);
+    r.px(x + d, y, '#d8483a', false);
+    r.px(x + d, y + 1, '#1c2026', false);
+    if (perched) {
+      if (Math.floor(t * 8) % 2) r.px(x + 2 * d, y + 1, '#1c2026', false);
+      else r.px(x + 2 * d, y, '#1c2026', false);
     }
   }
 
@@ -430,73 +443,78 @@
 
   const ACC = {
     flytrio: {
-      // 파리 세 마리: 머리 둘레를 8자로 윙윙. 지나간 자리엔 점선 궤적이 잠깐 남는다
+      // 파리 세 마리 (2026-10-10 다시 그림): 한 마리는 오른쪽 귀 끝에 앉아 손을 싹싹,
+      // 두 마리는 머리 양옆에서 지그재그로 윙윙. 지나간 자리엔 점선 궤적이 잠깐 남는다
       front(g, a, c, t) {
-        const pos = (i, tt) => {
-          const w = 2.1 + i * 0.45;
-          const ang = tt * w + i * 2.1;
-          return [
-            a.hx + Math.sin(ang) * (8 + i * 2) + Math.sin(tt * 11 + i) * 0.8,
-            a.ey - 6 + Math.sin(ang * 2) * (2.5 + i) + Math.cos(tt * 9 + i) * 0.6,
-            Math.cos(ang) >= 0 ? 1 : -1,
-          ];
-        };
-        for (let i = 0; i < 3; i++) {
-          for (let k = 2; k <= 6; k += 2) {
-            const [tx, ty] = pos(i, t - k * 0.035);
-            this.px(tx, ty, `rgba(40,40,40,${A(0.35 - k * 0.04)})`, false);
+        fly(this, a.right - 2, a.earTop - 2, -1, t, 0, true);
+        for (let i = 0; i < 2; i++) {
+          const side = i ? 1 : -1;
+          const tt = t * (1.3 + i * 0.3) + i * 2;
+          const x = Math.round(a.hx + side * (a.hw + 6 + Math.sin(tt * 1.7) * 3));
+          const y = Math.round(a.ey - 3 + Math.sin(tt * 2.6) * 6);
+          const d = Math.cos(tt * 1.7) * side > 0 ? 1 : -1;
+          for (let k = 1; k <= 5; k++) {
+            const t2 = tt - k * 0.07;
+            const xx = a.hx + side * (a.hw + 6 + Math.sin(t2 * 1.7) * 3);
+            const yy = a.ey - 3 + Math.sin(t2 * 2.6) * 6 + (k % 2 ? 1 : -1) * 0.6;
+            this.px(xx, yy, `rgba(60,60,60,${A(0.5 - k * 0.08)})`, false);
           }
-          const [x, y, d] = pos(i, t);
-          fly(this, Math.round(x), Math.round(y), d, Math.floor(t * 24 + i) % 2 === 0);
+          fly(this, x, y, d, t, i + 1, false);
         }
       },
     },
     glitchfx: {
-      // 도트 깨짐: 가끔 치직 — 가로 줄 몇 개가 옆으로 밀리고 가장자리에 빨강/하늘 번짐, 죽은 픽셀이 튄다
+      // 치지직 (2026-10-10 다시 그림): 늘 RGB 번짐 — 실루엣 왼쪽 끝은 분홍, 오른쪽 끝은 하늘색으로 한 칸 어긋나 있고,
+      // 한 줄은 늘 한 칸 밀려 있다. 1.6초마다 0.3초 동안은 여러 줄이 크게 밀리고 죽은 픽셀이 더 튄다.
+      // 캔버스는 한 프레임에 한 번만 읽는다 (귀 끝 ~ 바닥 줄만)
       front(g, a, c, t) {
-        const P = 1.7;
-        const ph = (t + 0.4) % P;
-        const n = Math.floor((t + 0.4) / P);
-        const on = ph < 0.22 || (ph > 0.34 && ph < 0.46);
-        if (!on) {
-          // 평소엔 죽은 픽셀 하나만 가끔 깜빡
-          if (Math.floor(t * 3) % 4 === 0) this.px(a.right + 3, a.ey - 4 + (n % 3), '#ff3df0', false);
-          return;
-        }
-        const f = Math.floor(t * 20);
         const ctx = this.ctx;
-        const y0 = a.earTop, y1 = GROUND;
+        const f = Math.floor(t * 12);
+        const big = t % 1.6 < 0.3;
+        const y0 = Math.max(0, a.earTop - 1);
+        const H = Math.min(G - 1, GROUND) - y0 + 1;
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        const bands = 2 + (f % 2);
+        const img = ctx.getImageData(0, y0, G, H);
+        const d = img.data;
+        // 밀릴 줄 (평소엔 한 줄 한 칸, 가끔 크게)
+        const shift = new Array(H).fill(0);
+        const bands = big ? 3 : 1;
         for (let b = 0; b < bands; b++) {
-          const h = 1 + Math.floor(hash(f * 5 + b) * 3);
-          const y = Math.round(y0 + hash(f * 3 + b * 7 + n) * (y1 - y0 - h));
-          const sh = (hash(f + b * 11) > 0.5 ? 1 : -1) * (1 + Math.floor(hash(f * 7 + b) * 3));
-          const img = ctx.getImageData(0, y, G, h);
-          ctx.clearRect(0, y, G, h);
-          ctx.putImageData(img, sh, y);
-          // 밀린 줄 가장자리에 RGB 번짐
-          const d = img.data;
+          const h = big ? 1 + Math.floor(hash(f * 5 + b) * 3) : 1;
+          const y = Math.round(a.top + 2 + hash(f * 3 + b * 7) * (GROUND - a.top - 4));
+          const sh = (hash(f + b * 11) > 0.5 ? 1 : -1) * (big ? 2 + Math.floor(hash(f * 7 + b) * 2) : 1);
           for (let j = 0; j < h; j++) {
-            let lo = -1, hi = -1;
-            for (let x = 0; x < G; x++) if (d[(j * G + x) * 4 + 3] > 40) { if (lo < 0) lo = x; hi = x; }
-            if (lo < 0) continue;
-            ctx.fillStyle = 'rgba(255,40,80,0.85)';
-            ctx.fillRect(lo + sh - 1, y + j, 1, 1);
-            ctx.fillStyle = 'rgba(40,230,255,0.85)';
-            ctx.fillRect(hi + sh + 1, y + j, 1, 1);
+            const row = y + j - y0;
+            if (row < 0 || row >= H || shift[row]) continue;
+            shift[row] = sh;
+            ctx.clearRect(0, y + j, G, 1);
+            ctx.putImageData(img, sh, y0, 0, row, G, 1);
           }
         }
+        // 실루엣 양끝 RGB 번짐 (밀린 줄은 밀린 자리에)
+        for (let row = 0; row < H; row++) {
+          let lo = -1, hi = -1;
+          for (let x = 0; x < G; x++) if (d[(row * G + x) * 4 + 3] > 120) { if (lo < 0) lo = x; hi = x; }
+          if (lo < 0) continue;
+          const y = y0 + row;
+          const j = hash(f * 3 + y) > 0.8 ? 1 : 0;
+          ctx.fillStyle = 'rgba(255,50,200,0.85)';
+          ctx.fillRect(lo + shift[row] - 1 - j, y, 1 + j, 1);
+          ctx.fillStyle = 'rgba(40,220,255,0.85)';
+          ctx.fillRect(hi + shift[row] + 1, y, 1 + j, 1);
+        }
         ctx.restore();
-        // 튀는 죽은 픽셀
+        // 둘레에 늘 튀는 죽은 픽셀 (치직할 땐 더 많이)
         const NC = ['#ff3df0', '#3dfff0', '#b6ff3d', '#ffffff'];
-        for (let k = 0; k < 4; k++) {
-          const x = Math.round(a.cx - 13 + hash(f * 9 + k) * 26);
-          const y = Math.round(a.top - 4 + hash(f * 4 + k * 3) * (GROUND - a.top + 2));
-          const col = NC[(f + k) % NC.length];
+        const q = Math.floor(t * 6);
+        for (let k = 0; k < (big ? 5 : 2); k++) {
+          const side = k % 2 ? 1 : -1;
+          const x = Math.round(a.hx + side * (a.hw + 3 + hash(q * 9 + k) * 5));
+          const y = Math.round(a.top - 3 + hash(q * 4 + k * 3) * (GROUND - a.top));
+          const col = NC[(q + k) % NC.length];
           this.px(x, y, col, false);
-          if (k % 2) this.px(x + 1, y, col, false);
+          this.px(x + 1, y, col, false);
         }
       },
     },

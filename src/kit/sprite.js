@@ -24,7 +24,7 @@
     cheek: "#f7ab8c", eye: "#31200f", lash: "#31200f",
   };
 
-  // ---------- 털색 17종 (레벨로 해금: main/growth.js 의 FURS) ----------
+  // ---------- 털색 17종 + 별 전용 3종 (레벨 · 별로 해금: main/growth.js 의 FURS) ----------
   // pal = 팔레트, mask(i, j) = 몸 도트(15×13) 칸마다 색 바꾸기 (null 원래대로 · 'B' 바탕 · 'W' 흰 털 · 'K' 짙은 얼룩 · 'A' 주황 얼룩),
   // tail(j) = 꼬리 줄 (0 = 꼬리 끝), rainbow = 줄마다 무지갯빛, sparkle = 털이 가끔 반짝, stars = 별이 박힌 털
   const furPal = (o) => ({ ear: o.body, nose: o.outline, cheek: '#f7ab8c', eye: o.outline, lash: o.outline, white: '#fffaf3', K: '#2f2a2a', A: '#f0a050', ...o });
@@ -45,6 +45,14 @@
     gold: { pal: furPal({ body: '#f6c744', shade: '#dba623', light: '#ffe27c', belly: '#fcd965', stripe: '#c98f12', outline: '#4a3208' }), sparkle: '#fffbe0' },
     galaxy: { pal: furPal({ body: '#2b2b5c', shade: '#20204a', light: '#3e3e7c', belly: '#35356c', stripe: '#6a45a0', outline: '#0c0c22', eye: '#ffd65a', lash: '#0c0c22', cheek: '#c07ad8' }), stars: true },
     rainbow: { pal: furPal({ body: '#ffd43b', shade: '#fab005', light: '#fff3bf', belly: '#fff3bf', stripe: '#f59f00', outline: '#3a2a4a' }), rainbow: true },
+    // ---- 별 전용 털색 (8차, Lv80 뒤 별로 산다. main/growth.js 의 FURS 에 stars 가 붙은 것) ----
+    // 오로라: 청록·초록·보랏빛이 몸을 따라 천천히 흘러간다
+    aurora: { pal: furPal({ body: '#5fd4b0', shade: '#3fae92', light: '#a8f0da', belly: '#bdf5e3', stripe: '#7a6ad8', outline: '#122a2a', eye: '#0e1a2a', cheek: '#f0a0d0' }), aurora: true },
+    // 네온: 까만 털에 외곽선과 줄무늬가 네온사인처럼 색을 바꾸며 빛난다
+    neon: { pal: furPal({ body: '#1d1a2a', shade: '#15121f', light: '#2c2840', belly: '#26223a', stripe: '#ff3fd0', outline: '#38f0ff', eye: '#38f0ff', lash: '#1d1a2a', nose: '#ff3fd0', cheek: '#ff3fd0' }), neon: true },
+    // 홀로그램 (투영 홀로그램): 은빛 털에 굵은 무지개 결이 비스듬히 흐르고, 한 줄 건너 주사선 · 내려가는 밝은 주사 띠가 깔린다.
+    // 몸 양옆엔 자홍 · 청록 잔상이 어긋나 비치고(색 번짐) 가끔 지직 흔들린다. 색은 holoColor, 잔상은 drawMap
+    holo: { pal: furPal({ body: '#d6dbe7', shade: '#b6bdce', light: '#f0f3f9', belly: '#eaeef6', stripe: '#a6b0c6', outline: '#1d2a50', eye: '#1a2448', cheek: '#ff9ad8' }), holo: true },
     // 흰 양말: 치즈 고양이에 네 발만 하얗게
     socks: { pal: CAT, mask: (i, j) => (j === 11 ? 'W' : null) },
     // 삼색: 흰 바탕에 주황·검정 얼룩
@@ -59,6 +67,21 @@
     },
   };
   const RAINBOW = ['#ff6b6b', '#ff6b6b', '#ff6b6b', '#ffa94d', '#ffd43b', '#ffd43b', '#8ce99a', '#8ce99a', '#74c0fc', '#74c0fc', '#b197fc', '#b197fc', '#e599f7'];
+  // 홀로그램 털 색: 은빛 4칸 + 무지개 결 5칸이 비스듬히 번갈아 흐르고, 한 줄 건너 주사선이 깔리며 밝은 주사 띠가 위에서 아래로 훑는다.
+  // 외곽선(O)은 남빛으로 은은히 색이 돈다. x · y 는 캔버스 칸, sec 는 초. 눈 · 볼(E · C)처럼 표에 없는 글자는 null (원래 색)
+  const HOLO_L = { B: 74, P: 74, S: 62, L: 86, M: 84 };
+  function holoColor(ch, x, y, sec) {
+    const hsl = (h, sat, l) => `hsl(${Math.round(((h % 360) + 360) % 360)},${sat}%,${Math.round(l)}%)`;
+    if (ch === 'O') return hsl(215 + 40 * Math.sin(sec * 2 + y * 0.6), 60, 22);
+    if (HOLO_L[ch] == null) return null;
+    let l = HOLO_L[ch];
+    if ((y + Math.floor(sec * 3)) % 2) l -= 5; // 주사선
+    const scan = ((sec * 7) % 26) - 4;
+    if (Math.abs(y - (32 + scan)) < 0.6 || Math.abs(y - (6 + scan)) < 0.6) return hsl(185, 100, 90); // 주사 띠
+    const d = (((x - y * 0.7 + sec * 4) % 9) + 9) % 9;
+    if (d >= 5) return hsl(220, 22, l + 4);
+    return hsl((d / 5) * 300 - 10, 88, l);
+  }
 
   // 털색과 상관없는 색 (소품·입자)
   const P = {
@@ -145,6 +168,52 @@
       },
     },
   };
+
+  // ---------- 귀 모양 (2026-10-10) ----------
+  // 처음 시작할 때(그리고 옷장에서) 고르는 귀 13가지. 몸 테두리와 코스튬 기준점은 그대로 두고 맨 위 세 줄(귀 칸)만 바꾼다.
+  // 머리를 감싸는 코스튬(hood)은 도트 지도를 따라 칠해서 귀 모양을 저절로 따라간다.
+  //  rows  = 맨 위 세 줄 (15칸). sym() 은 왼쪽 8칸만 적으면 오른쪽을 거울로 채운다
+  //  above = 테두리 위로 더 올라가는 줄 (위에서부터, 왼쪽 8칸). 이 귀는 작은 모자 밖으로 조금 삐진다
+  //  paint = [열, 줄, 색] 덧칠 (W 흰 털)
+  // 이름은 i18n 'ear.<key>'. 고른 값은 settings.ears (main/growth.js 의 EAR_SHAPES 와 키가 같아야 한다)
+  const sym = (l) => l + l.slice(0, 7).split('').reverse().join('');
+  const syms = (a) => a.map(sym);
+  const EARS = {
+    perk: {},
+    round: { rows: syms(['........', '...OO...', '..OBBOOO']) },
+    pointy: { rows: syms(['...O....', '..OBO...', '..OBBOOO']) },
+    small: { rows: syms(['........', '...O....', '..OBOOOO']) },
+    fold: { rows: syms(['........', '..OOO...', '..OBBOOO']) },
+    outtilt: { rows: syms(['..O.....', '..OBO...', '..OBBOOO']) },
+    intilt: { rows: syms(['....O...', '...OBO..', '..OBBOOO']) },
+    darktip: { rows: syms(['..OSSO..', '..OBBO..', '..OBBOOO']) },
+    whitetip: { paint: [[3, 0, 'W'], [4, 0, 'W'], [10, 0, 'W'], [11, 0, 'W']] },
+    // 길고양이 중성화 표시처럼 오른쪽 귀 끝이 비스듬히 잘렸다
+    tnr: { rows: ['..OBBO...OO....', '..OBBO...OBO...', '..OBBOOOOOBBO..'] },
+    // 오른쪽 귀만 접혔다
+    mismatch: { rows: ['..OBBO.........', '..OBBO....OOO..', '..OBBOOOOOBBO..'] },
+    lynx: { above: ['..O.....', '...O....'] },
+    fox: { rows: syms(['..OBBO..', '..OCBO..', '..OCBOOO']), above: ['....O...', '...OBO..'] },
+  };
+  // 단계 + 귀를 합친 정의. 단계 · 귀마다 한 번만 만든다 (기본 귀는 단계 그대로)
+  const earStages = {};
+  function earStage(stage, ear) {
+    const s = STAGE[stage];
+    const E = EARS[ear];
+    if (!s || !E || (!E.rows && !E.above && !E.paint)) return s;
+    const key = stage + '|' + ear;
+    if (!earStages[key]) {
+      const R = E.rows;
+      earStages[key] = {
+        ...s,
+        ear: E,
+        map: { ...s.map, rows: R ? s.map.rows.map((r, j) => (j < 3 ? R[j] : r)) : s.map.rows, _meta: undefined },
+        // 잘 때는 귀가 한 줄 낮다 (맨 윗줄 = 귀 둘째 줄)
+        curl: { ...s.curl, rows: R ? s.curl.rows.map((r, j) => (j === 0 ? R[1] : j === 1 ? R[2] : r)) : s.curl.rows, _meta: undefined },
+      };
+    }
+    return earStages[key];
+  }
 
   // 코드로 짠 기본 동작의 길이(초). 모션(motions.js)은 각자 len 을 갖는다
   const ACTION_LEN = { happy: 0.9, levelup: 2.2, evolve: 1.5, wave: 1.8, eat: 7, stretch: 4, yawn: 2.5, achieve: 2.4, groom: 4.5, pounce: 0.8, perk: 1.1, nibble: 1.3, bored: 3.6 };
@@ -424,6 +493,7 @@
       this.off = off;
       this.offCtx = off.getContext('2d');
       this.stage = 'cat';
+      this.ears = 'perk'; // 귀 모양 (setEars)
       this.mood = 'idle';
       this.accessory = 'none';
       this.look = 0;
@@ -462,6 +532,10 @@
     }
 
     setStage(s) { if (STAGE[s]) this.stage = s; }
+    // 귀 모양 (EARS 의 키). 없는 키면 기본 귀
+    setEars(k) { this.ears = EARS[k] ? k : 'perk'; }
+    // 지금 단계에 귀 모양까지 입힌 정의
+    stageDef() { return earStage(this.stage, this.ears); }
     setMood(m) { this.mood = m; }
     // 입힐 코스튬. 'a,b,c' 처럼 쉼표로 여러 벌, 또는 배열. 앞에 있는 것부터(뒤쪽부터) 그린다
     setAccessory(a) {
@@ -516,7 +590,7 @@
       // fur 가 있으면 그 털색 (깜짝 이벤트의 손님 고양이)
       if (this.fur) return this.fur;
       if (this.furKey) return FURS[this.furKey].pal;
-      const s = STAGE[this.stage];
+      const s = this.stageDef();
       return (s && s.colors) || CAT;
     }
 
@@ -586,7 +660,7 @@
     }
 
     geom() {
-      const m = STAGE[this.stage].map;
+      const m = this.stageDef().map;
       const x0 = Math.round(G / 2 - m.ax);
       const y0 = GROUND - (m.rows.length - 1);
       return { cx: x0 + m.ax, cy: y0 + m.cy, rx: m.rx, ry: m.ry };
@@ -971,7 +1045,7 @@
       const p = this.pose(t);
       off.save();
       if (this.facing < 0) off.setTransform(-1, 0, 0, 1, G, 0);
-      const g = this.layout(STAGE[this.stage], p, t, p.curl);
+      const g = this.layout(this.stageDef(), p, t, p.curl);
       this._shadow = [g.cx, g.body.rx * 1.15, -p.dy];
       if (p.curl) this.drawCurled(g);
       else this.drawCat(g);
@@ -1051,11 +1125,23 @@
       const isBody = F && rows === g.m.rows;
       const isTail = F && !isBody && rows.length === 1 && g.m.tail && g.m.tail.rows.includes(rows[0]);
       const tj = isTail ? this._tj++ : -1;
-      const main = isBody && g.m === STAGE[this.stage].map;
-      const now = F && (F.sparkle || F.stars) ? performance.now() : 0;
-      const pick = (ch, i, j) => {
+      const main = isBody && g.m === this.stageDef().map;
+      const now = F && (F.sparkle || F.stars || F.aurora || F.neon || F.holo) ? performance.now() : 0;
+      const pick = (ch, i, j, x, y) => {
+        // 홀로그램: 캔버스 자리 · 시간으로 칸마다 색을 고른다 (몸 · 꼬리 · 귀 모두)
+        if (F && F.holo) {
+          const hc = holoColor(ch, x, y, now / 1000);
+          if (hc) return hc;
+        }
+        // 네온: 외곽선 · 줄무늬가 시간에 따라 색을 바꾼다 (몸 · 꼬리 · 귀 모두)
+        if (F && F.neon && (ch === 'O' || ch === 'S')) return `hsl(${Math.round((now / 18 + (ch === 'S' ? 120 : 0) + j * 6) % 360)},100%,${ch === 'O' ? 62 : 58}%)`;
         if (!F || ch === 'O' || ch === 'E' || ch === 'C') return map[ch] || c.body;
         if (F.rainbow && (isBody || isTail)) return RAINBOW[isBody ? j % RAINBOW.length : (tj + 3) % RAINBOW.length];
+        if (F.aurora && (isBody || isTail)) {
+          const w = Math.sin(now / 1400 + j * 0.45 + i * 0.12);
+          const lt = { B: 58, S: 50, L: 72, M: 76 }[ch] || 58;
+          return `hsl(${Math.round(170 + w * 70)},70%,${lt}%)`;
+        }
         const m = main && F.mask ? F.mask(i, j) : isTail && F.tail ? F.tail(tj) : null;
         if (m) return m === 'W' ? c.white : m === 'K' ? c.K : m === 'A' ? c.A : c.body;
         if (isBody && F.stars && (i * 11 + j * 7) % 13 === 0) return (Math.floor(now / 400) + i) % 3 ? c.light : '#ffffff';
@@ -1067,19 +1153,30 @@
       const times = (j) => (br != null && j === br ? (g.grow > 0 ? 2 : g.grow < 0 ? 0 : 1) : 1);
       const from = rowRange ? rowRange[0] : 0;
       const to = rowRange ? rowRange[1] : rows.length;
-      let y = g.y0 + dy;
-      for (let j = 0; j < from; j++) y += times(j); // 건너뛴 줄만큼 아래로 내려놓는다
-      for (let j = from; j < to; j++) {
-        const row = rows[j];
-        const a = cols ? cols[0] : 0;
-        const b = cols ? Math.min(cols[1], row.length - 1) : row.length - 1;
-        for (let k = 0; k < times(j); k++) {
-          for (let i = a; i <= b; i++) {
-            const ch = row[i];
-            if (!ch || ch === '.') continue;
-            this.px(g.x0 + dx + i, y, flash ? P.white : pick(ch, i, j));
+      let y0 = g.y0 + dy;
+      for (let j = 0; j < from; j++) y0 += times(j); // 건너뛴 줄만큼 아래로 내려놓는다
+      // 홀로그램 몸: 먼저 왼쪽에 자홍, 오른쪽에 청록 잔상을 반투명하게 깔고(색 번짐) 그 위에 몸을 찍는다. 3.1초마다 잠깐 지직 어긋난다
+      const passes = [[0, null]];
+      if (F && F.holo && isBody && !flash) {
+        const gl = now % 3100 < 140 ? (Math.floor(now / 25) % 2 ? 2 : -1) : 0;
+        passes.unshift([-1 - Math.max(0, gl), 'rgba(255,60,210,0.5)'], [1 + Math.max(0, -gl) + (gl > 0 ? 1 : 0), 'rgba(40,235,255,0.5)']);
+      }
+      for (const [gx, gc] of passes) {
+        let y = y0;
+        for (let j = from; j < to; j++) {
+          const row = rows[j];
+          const a = cols ? cols[0] : 0;
+          const b = cols ? Math.min(cols[1], row.length - 1) : row.length - 1;
+          for (let k = 0; k < times(j); k++) {
+            for (let i = a; i <= b; i++) {
+              const ch = row[i];
+              if (!ch || ch === '.') continue;
+              const x = g.x0 + dx + i;
+              if (gc) this.px(x + gx, y, gc, false);
+              else this.px(x, y, flash ? P.white : pick(ch, i, j, x, y));
+            }
+            y++;
           }
-          y++;
         }
       }
     }
@@ -1238,6 +1335,23 @@
         this.drawMap(g, m.rows, 0, dy, true, [0, er], run);
         // 쫑긋 세우면 귀뿌리가 한 칸 뜨니까 밑줄을 제자리에 한 번 더 채운다
         if (dy < 0) this.drawMap(g, m.rows, 0, 0, true, [er - 1, er], run);
+      });
+      if (g.s.ear && !g.flash) this.drawEarExtra(g);
+    }
+
+    // 귀 모양의 덧칠(흰 귀 끝)과 테두리 위로 올라가는 귀(스라소니 털 · 여우 귀). 귀가 씰룩이면 같이 움직인다
+    drawEarExtra(g) {
+      const { c, p } = g;
+      const E = g.s.ear;
+      const curled = g.m === g.s.curl;
+      const col = { O: c.outline, B: c.body, C: c.cheek, S: c.stripe || c.shade, W: c.white || '#fffaf3' };
+      const dyOf = (x) => ((p.earDy && p.earDy[x < 7 ? 0 : 1]) || 0) - (curled ? 1 : 0);
+      for (const [x, y, k] of E.paint || []) if (!(curled && y === 0)) this.px(g.x0 + x, g.y0 + y + dyOf(x), col[k]);
+      if (curled || !E.above) return;
+      E.above.forEach((l, i) => {
+        const row = sym(l);
+        const y = i - E.above.length;
+        for (let x = 0; x < row.length; x++) if (row[x] !== '.') this.px(g.x0 + x, g.y0 + y + dyOf(x), col[row[x]] || c.outline);
       });
     }
 
@@ -1576,7 +1690,11 @@
             y = GROUND - 2.5;
             break;
         }
-        this.ellipse(x, y, r, r * 0.8, skin(c.body), skin(c.outline));
+        // 홀로그램 털은 앞발도 몸과 같은 결로 칠한다
+        const holo = !flash && !this.fur && this.furKey && FURS[this.furKey].holo;
+        const sec = holo ? performance.now() / 1000 : 0;
+        if (holo) this.ellipse(x, y, r, r * 0.8, (px, py) => holoColor('B', px, py, sec), holoColor('O', 0, Math.round(y), sec));
+        else this.ellipse(x, y, r, r * 0.8, skin(c.body), skin(c.outline));
       }
     }
 
@@ -1864,6 +1982,7 @@
     GROUND,
     STAGE, // 도트 지도 자체. 디자인 시안 뷰어가 여기에 후보를 꽂아 본다
     STAGES: Object.keys(STAGE),
+    EAR_KEYS: Object.keys(EARS), // 귀 모양 13가지 (옷장 · 첫 실행의 귀 고르기)
     CAT,
     PAL,
     FX, // 효과 종류. 시안 페이지가 새 효과를 여기에 더해 본다

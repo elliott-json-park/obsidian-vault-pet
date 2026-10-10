@@ -244,8 +244,12 @@ test('host: 프리미엄 음식 — 고정·보물·업적 횟수, 먹이에 쓴
   host.shop.state.set({ walletBonus: 100000 });
   for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:buy', null, key)).ok, key);
   assert.ok(host.gamify.st.cnt.foodSpent > 0);
+  // 꺼내 준(바닥에 떨군) 먹이만 먹은 걸로 친다
   host.onSend('pet:treat-eaten', null, 'royalTable');
-  assert.ok(host.gauge.locked('food') && host.gauge.locked('energy'), '수라상은 배부름·기운 8시간 고정');
+  assert.ok(!host.gauge.locked(), '안 꺼낸 먹이는 못 먹는다');
+  for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:use', null, key)).ok, key);
+  host.onSend('pet:treat-eaten', null, 'royalTable');
+  assert.ok(host.gauge.locked(), '수라상은 배부름 8시간 고정');
   const before = host.treasures.summary().kinds;
   host.onSend('pet:treat-eaten', null, 'goldMouseChoco');
   assert.ok(host.treasures.summary().kinds >= before);
@@ -254,18 +258,28 @@ test('host: 프리미엄 음식 — 고정·보물·업적 횟수, 먹이에 쓴
   assert.strictEqual(host.gamify.st.cnt.pf_royalTable, 1);
 });
 
-test('host: 놀다가 기운이 10 이하로 떨어지면 한 번만 세고 놀이를 접는다', async () => {
-  const { host } = makeHost();
+test('host: 배고파도 놀고, 한참 쓰다 쉬는 틈에 권한 장난감을 누르면 「기다림의 달인」 횟수가 오른다', async () => {
+  const { host, sent, plugin } = makeHost();
   const toy = host.shop.summary().toy.find((x) => !x.locked);
   host.shop.state.set({ walletBonus: 100000 });
   assert.ok((await host.onInvoke('shop:buy', null, toy.key)).ok);
+  host.gauge.g.food = 0;
+  assert.ok((await host.onInvoke('house:play', null, toy.key)).on, '배고파도 논다 (기운 · 놀이 거부는 없어졌다)');
+  host.onSend('pet:caught');
+  host.onSend('pet:caught');
+  assert.ok(host.playing && !host.playing.ending);
+  host.stopPlay();
+  // 15분 쭉 쓰고 2분째 손을 놓았다
+  host.brain.streakMs = () => 15 * 60e3;
+  host.brain.mood = 'active';
+  plugin.idleSeconds = () => 120;
+  host.toyOfferTick();
+  const ask = sent.filter(([ch, x]) => ch === 'pet:bubble' && x.kind === 'toyAsk').pop();
+  assert.ok(ask && ask[1].link === 'play:' + toy.key, '장난감을 물고 와서 권한다');
   assert.ok((await host.onInvoke('house:play', null, toy.key)).on);
-  host.gauge.g.energy = 11;
-  host.gauge.g.food = 100;
-  host.onSend('pet:caught');
-  host.onSend('pet:caught');
-  assert.strictEqual(host.gamify.st.cnt.bored, 1, '지쳐서 그만둔 횟수는 한 번만');
-  assert.ok(host.playing && host.playing.ending);
+  assert.strictEqual(host.gamify.st.cnt.bored, 1);
+  host.toyOfferTick();
+  assert.strictEqual(sent.filter(([ch, x]) => ch === 'pet:bubble' && x.kind === 'toyAsk').length, 1, '노는 중 · 60분 안에는 또 안 권한다');
 });
 
 test('host: 쓰다듬기·들기·장난감 놀이 흐름', async () => {
@@ -530,16 +544,19 @@ test('gauge: 고정 음식을 먹고 오래 꺼 둬도, 고정이 끝난 뒤의 
   const { Gauge } = require(path.join(src, 'core/gauge'));
   const HOUR = 3600e3;
   const t0 = Date.UTC(2026, 9, 1);
+  // 1.3.0: 기운 게이지는 없어졌다 (예전 저장의 energy 값은 무시한다). tick(now)
   const st = new Store({ gauge: { food: 100, energy: 100, at: t0, foodLockUntil: t0 + 24 * HOUR, energyLockUntil: t0 + 24 * HOUR } }, {}, () => {});
   const g = new Gauge(st);
-  g.tick(false, t0 + 48 * HOUR);
+  g.tick(t0 + 48 * HOUR);
   assert.ok(g.get().food < 100, '고정이 끝난 24시간 동안은 줄어야 한다');
-  const free = new Gauge(new Store({ gauge: { food: 100, energy: 100, at: t0 } }, {}, () => {}));
-  free.tick(false, t0 + 24 * HOUR);
+  assert.strictEqual(g.get().energy, undefined, '기운은 없다');
+  const free = new Gauge(new Store({ gauge: { food: 100, at: t0 } }, {}, () => {}));
+  free.tick(t0 + 24 * HOUR);
   assert.strictEqual(g.get().food, free.get().food, '고정 뒤 24시간 = 고정 없이 24시간');
-  const locked = new Gauge(new Store({ gauge: { food: 100, energy: 100, at: t0, foodLockUntil: t0 + 24 * HOUR } }, {}, () => {}));
-  locked.tick(false, t0 + 10 * HOUR);
+  const locked = new Gauge(new Store({ gauge: { food: 100, at: t0, foodLockUntil: t0 + 24 * HOUR } }, {}, () => {}));
+  locked.tick(t0 + 10 * HOUR);
   assert.strictEqual(locked.get().food, 100, '고정 동안은 그대로');
+  assert.ok(locked.get().full, '고정 중이면 든든');
 });
 
 test('achievements: 보상 코스튬이 두 업적에 겹치지 않는다', () => {
@@ -555,6 +572,178 @@ test('styles: 테마가 iframe 에 칠하는 배경·테두리·그림자를 펫
   assert.ok(m, 'iframe.kitcommit-frame 규칙이 있어야 한다');
   for (const p of ['background: transparent', 'border: 0', 'border-radius: 0', 'box-shadow: none']) {
     assert.ok(m[1].includes(`${p} !important`), p);
+  }
+});
+
+/* ── 1.3.0 (킷커밋 데스크톱 0.3.0 ~ 0.4.0 반영) ── */
+
+test('growth: 레벨은 80에서 멈추고, 그 뒤 2,000 XP 마다 별 하나 (별마다 500코인은 한 번만)', () => {
+  assert.strictEqual(growth.levelOf(growth.XP_AT_MAX + 999999), 80);
+  assert.strictEqual(growth.STAR_XP, 2000);
+  const s = growth.starsOf(growth.XP_AT_MAX + 4500);
+  assert.strictEqual(s.stars, 2);
+  assert.strictEqual(s.starNext, 1500);
+  const { host } = makeHost();
+  const before = host.shop.wallet().balance;
+  const g = { ...host.growth, xp: growth.XP_AT_MAX + 4500, stars: 2, maxed: true };
+  assert.strictEqual(host.gamify.payStars(g), 2);
+  assert.strictEqual(host.gamify.payStars(g), 0, '이미 준 별은 다시 안 준다');
+  assert.strictEqual(host.shop.wallet().balance - before, 1000);
+});
+
+test('star shop: 별 코스튬 · 별 털색은 별로만 사고, 코스튬 개수 업적에는 안 들어간다', async () => {
+  const shop = require(path.join(src, 'core/shop'));
+  const stars = shop.ACCESSORIES.filter((x) => x.stars);
+  assert.strictEqual(stars.length, 56);
+  for (const lang of ['ko', 'en']) for (const it of stars) assert.ok(I18N.UI[lang]['item.' + it.key], `${lang} item.${it.key}`);
+  const { host } = makeHost();
+  const sum = host.shop.summary();
+  assert.ok(sum.star.length === 59 && !sum.acc.some((x) => x.stars), '별 물건은 코인 상점에 없다');
+  host.shop.state.set({ walletBonus: 1e6 });
+  const cheap = sum.star[0];
+  assert.strictEqual((await host.onInvoke('shop:buy', null, cheap.key)).reason, 'stars', 'Lv80 전에는 별이 없다');
+  // 별 5개를 땄다고 치고 털색(오로라, 별 3)을 산다
+  host.growth = { ...host.growth, stars: 5, maxed: true };
+  const r = await host.onInvoke('shop:buy', null, 'fur_aurora');
+  assert.ok(r.ok, r.reason);
+  assert.strictEqual(host.shop.starWallet().balance, 2);
+  assert.strictEqual((await host.onInvoke('house:set', null, { fur: 'aurora' })).settings.fur, 'aurora');
+  assert.strictEqual((await host.onInvoke('house:set', null, { fur: 'neon' })).settings.fur, 'aurora', '안 산 별 털색은 못 입는다');
+  assert.ok(!(host.state.get('purchases') || []).some((p) => p.key === 'fur_aurora'), '별 물건은 코인 장부에 안 적는다');
+  assert.ok(host.gamify.extra().totalAcc < shop.ACCESSORIES.length - 56);
+});
+
+test('ears: 귀 모양은 정해진 13가지만, 고르면 펫 판에 바로 간다', async () => {
+  const { host, sent } = makeHost();
+  assert.strictEqual(growth.EAR_SHAPES.length, 13);
+  for (const lang of ['ko', 'en']) for (const k of growth.EAR_SHAPES) assert.ok(I18N.UI[lang]['ear.' + k], `${lang} ear.${k}`);
+  assert.strictEqual((await host.onInvoke('house:set', null, { ears: 'fox' })).settings.ears, 'fox');
+  assert.strictEqual((await host.onInvoke('house:set', null, { ears: 'wings' })).settings.ears, 'fox');
+  assert.ok(sent.some(([ch, x]) => ch === 'pet:config' && x.ears === 'fox'));
+});
+
+test('house:set: 켜고 끄기는 true/false 만, 시각은 HH:MM 만, 테마 · 카드 설정은 아는 값만', async () => {
+  const { host } = makeHost();
+  let p = await host.onInvoke('house:set', null, { chatter: 'yes', lunchTime: '25:99', theme: 'neon', sleepyAfterMin: 999 });
+  assert.strictEqual(p.settings.chatter, true);
+  assert.strictEqual(p.settings.lunchTime, '11:50');
+  assert.strictEqual(p.settings.theme, 'auto');
+  assert.ok(p.settings.sleepyAfterMin <= p.settings.sleepAfterMin, '졸기 시작은 잠들기보다 늦을 수 없다');
+  p = await host.onInvoke('house:set', null, { theme: 'mint', cardPrefs: { period: 'last', cells: ['written', 'tokens', 'links', 'written'], theme: 'night', caption: 'a'.repeat(80), x: 1 } });
+  assert.strictEqual(p.settings.theme, 'mint');
+  assert.deepStrictEqual(p.settings.cardPrefs, { period: 'last', cells: ['written', 'links'], theme: 'night', caption: 'a'.repeat(40) });
+});
+
+test('recap: 이번 달 · 지난달 · 처음부터 글쓰기 카드 숫자 (뺀 폴더는 빼고)', () => {
+  const { recap, longestStreak } = require(path.join(src, 'core/recap'));
+  const usage = new UsageTracker();
+  const day = (d, h) => new Date(2026, 9, d, h);
+  usage.add('일기/a.md', day(1, 9), 1000, 3, 1, {});
+  usage.add('일기/a.md', day(2, 21), 300, 1, 0, {});
+  usage.add('일기/b.md', day(3, 21), 2500, 0, 1, {});
+  usage.add('비밀/c.md', day(3, 22), 9000, 9, 1, {});
+  usage.add('일기/a.md', new Date(2026, 8, 20, 10), 700, 0, 0, {});
+  usage.setExcluded([require(path.join(src, 'core/usage')).folderKey('비밀')]);
+  const now = new Date(2026, 9, 10, 12).getTime();
+  const R = recap(usage, 'month', { now, folderName: () => '일기' });
+  assert.strictEqual(R.written, 3800);
+  assert.strictEqual(R.links, 4);
+  assert.strictEqual(R.notes, 2);
+  assert.strictEqual(R.activeDays, 3);
+  assert.strictEqual(R.streak, 3);
+  assert.strictEqual(R.busiest.day, '2026-10-03');
+  assert.strictEqual(R.peakHour, 21);
+  assert.strictEqual(R.favFolder, '일기');
+  assert.strictEqual(R.folders, 1);
+  assert.strictEqual(recap(usage, 'last', { now }).written, 700);
+  assert.strictEqual(recap(usage, 'all', { now }).written, 4500);
+  assert.strictEqual(longestStreak(['2026-10-01', '2026-10-03', '2026-10-04']), 2);
+});
+
+test('host: 리캡 카드 숫자는 card:recap 으로, 카드에 Claude · 토큰 이야기는 없다', async () => {
+  const { host } = makeHost();
+  const r = await host.onInvoke('card:recap', null, 'all');
+  for (const k of ['written', 'links', 'notes', 'sessions', 'activeDays', 'streak', 'coins', 'daily', 'levelTo']) assert.ok(r[k] !== undefined, k);
+  for (const lang of ['ko', 'en']) {
+    for (const k of ['rc.headline', 'rc.shareText', 'rc.notes', 'rc.folders', 'card.headline', 'card.shareText', 'mgroup.claude', 'mgroup.sub.claude', 'set.themeSub', 'shop.starRoad', 'ach.bored_10.desc', 'wn.bubble.d', 'wn.streak.t', 'wn.streak.d']) {
+      const v = I18N.UI[lang][k];
+      assert.ok(v, `${lang} ${k}`);
+      assert.ok(!/claude|토큰|token|윈도우|windows|8,000|kitcommit/i.test(v.replace(/[{][a-zA-Z]+[}]/g, '')), `${lang} ${k}: ${v}`);
+    }
+    for (const kind of ['memory', 'toyOffer']) for (const s of I18N.LINE[lang][kind].angel) assert.ok(!/claude|메시지|message/i.test(s), `${lang} ${kind}: ${s}`);
+  }
+});
+
+test('craving: 오늘 먹고 싶은 것을 먹이면 값의 절반을 돌려받고, 밥 주기는 그것부터 꺼낸다', async () => {
+  const { host, sent } = makeHost();
+  host.shop.state.set({ walletBonus: 100000 });
+  const c = host.craving.today();
+  const meal = host.shop.summary().food.find((x) => x.key === c.meal);
+  const cheap = host.shop.summary().food.filter((x) => x.group === 'meal' && !x.premium && x.key !== c.meal)[0];
+  assert.ok((await host.onInvoke('shop:buy', null, cheap.key)).ok);
+  assert.ok((await host.onInvoke('shop:buy', null, c.meal)).ok);
+  const r = await host.onInvoke('pet:feed');
+  assert.strictEqual(r.key, c.meal, '먹고 싶은 밥부터');
+  const before = host.shop.wallet().balance;
+  host.onSend('pet:treat-eaten', null, c.meal);
+  assert.strictEqual(host.shop.wallet().balance - before, Math.floor(meal.price / 2));
+  assert.strictEqual(host.gamify.st.cnt.craving, 1);
+  assert.ok(host.craving.today().fed.includes(c.meal));
+  assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.link === 'home'));
+});
+
+test('bubbles: 수다는 한 시간에 한 번, 업적 · 보상은 한 말풍선 + 오늘의 소식', async () => {
+  const { host, sent } = makeHost();
+  const n0 = sent.filter(([ch]) => ch === 'pet:bubble').length;
+  host.bubble('수다 하나', 'chatter');
+  host.bubble('수다 둘', 'chatter');
+  assert.strictEqual(sent.filter(([ch]) => ch === 'pet:bubble').length - n0, 1);
+  host.queueNews({ achievement: { id: 'write_1', xp: 50 }, reward: { coins: 250 } });
+  host.queueNews({ achievement: { id: 'link_1', xp: 50 }, reward: { food: { churu: 2 } } });
+  host.flushNews();
+  const last = sent.filter(([ch]) => ch === 'pet:bubble').pop()[1];
+  assert.strictEqual(last.kind, 'achieve');
+  assert.ok(/2/.test(last.text) && last.text.includes('250'), last.text);
+  assert.ok((await host.onInvoke('house:get')).news.some((x) => x.kind === 'achieve'));
+});
+
+test('shop: 산 모션은 보던 상황 칸에 바로 들어간다', async () => {
+  const { host } = makeHost();
+  host.shop.state.set({ walletBonus: 100000 });
+  const m = host.shop.summary().motion.find((x) => !x.locked && !x.owned && x.slots.includes('levelup'));
+  const r = await host.onInvoke('shop:buy', null, m.key, 'levelup');
+  assert.strictEqual(r.placed, 'levelup');
+  assert.ok(host.motionList('levelup').includes(m.key));
+});
+
+test('whats new: 업데이트한 사람에게만 한 번 (처음 설치한 사람은 첫 실행 안내)', async () => {
+  const old = makeHost({ state: { onboarded: true, lastVersion: '1.2.5' } });
+  old.plugin.manifest = { version: '1.3.0' };
+  old.host.checkVersion();
+  assert.strictEqual((await old.host.onInvoke('house:get')).whatsNew, '1.3.0');
+  await old.host.onInvoke('house:whats-new-seen');
+  assert.strictEqual((await old.host.onInvoke('house:get')).whatsNew, null);
+  const fresh = makeHost();
+  fresh.plugin.manifest = { version: '1.3.0' };
+  fresh.host.checkVersion();
+  assert.strictEqual((await fresh.host.onInvoke('house:get')).whatsNew, null);
+});
+
+test('house.css: 빌드하면 중첩 · :has · !important 가 없다 (옵시디언 자동 리뷰)', () => {
+  const fs = require('fs');
+  const build = fs.readFileSync(path.join(__dirname, '..', 'scripts/build.js'), 'utf8');
+  const fn = build.match(/function flattenDark[\s\S]*?\n}\n/)[0];
+  const flattenDark = new Function(fn + '; return flattenDark;')();
+  const css = flattenDark(fs.readFileSync(path.join(src, 'kit/house.css'), 'utf8'));
+  assert.ok(!css.includes(':has('), ':has');
+  assert.ok(!css.includes('!important'), '!important');
+  let i = 0;
+  while ((i = css.indexOf(':root.dark', i)) >= 0) {
+    const open = css.indexOf('{', i);
+    const close = css.indexOf('}', open + 1);
+    const again = css.indexOf('{', open + 1);
+    assert.ok(!(again >= 0 && again < close), 'nested block at ' + css.slice(i, i + 60));
+    i = open + 1;
   }
 });
 

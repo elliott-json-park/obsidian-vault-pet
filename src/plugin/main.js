@@ -329,6 +329,8 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.flushTimer);
     window.clearTimeout(this.stopTimer);
     window.clearTimeout(this.emptyTimer);
+    // 바닥에 떨어진 채 안 먹은 먹이는 창고로 돌려 둔 뒤 저장한다
+    if (this.host) this.host.refundTreats();
     this.saveNow();
     this.unmountStage();
     if (this.host) this.host.destroy();

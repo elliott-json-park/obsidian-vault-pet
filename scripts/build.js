@@ -30,6 +30,7 @@ const COMMON = [
   'kit/accessories-head6.js',
   'kit/accessories-sets6.js',
   'kit/accessories-7.js',
+  'kit/accessories-star.js',
   'kit/motions.js',
   'kit/reactions.js',
   'kit/toys.js',
@@ -72,6 +73,42 @@ function themeCss(css) {
   return out + css.slice(i);
 }
 
+// 데스크톱판 0.4.0 의 house.css 는 테마(:root.dark)마다 규칙을 중첩으로 묶어 둔다 ( :root.dark { .panel { … } } ).
+// 옵시디언판은 펴서 한 줄 선택자로 바꾼다 ( :root.dark .panel { … } ). '& { … }' 은 ':root.dark { … }' 로
+function flattenDark(css) {
+  const head = ':root.dark {';
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const at = css.indexOf(head, i);
+    if (at < 0) break;
+    out += css.slice(i, at);
+    const open = at + head.length - 1;
+    let depth = 1;
+    let j = open + 1;
+    while (j < css.length && depth) {
+      if (css[j] === '{') depth++;
+      else if (css[j] === '}') depth--;
+      j++;
+    }
+    const inner = css.slice(open + 1, j - 1);
+    if (!inner.includes('{')) out += css.slice(at, j); // 중첩이 없으면 그대로
+    else
+      out += inner.replace(/([^{}]+)\{([^{}]*)\}/g, (_m, sel, body) => {
+        const list = sel
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .split(',')
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .map((x) => (x === '&' ? ':root.dark' : x.startsWith('&') ? ':root.dark' + x.slice(1) : ':root.dark ' + x))
+          .join(',\n');
+        return `\n${list} {${body}}`;
+      });
+    i = j;
+  }
+  return out + css.slice(i);
+}
+
 // pet.html · house.html 의 <body> 속 (스크립트 빼고)
 const PET_BODY = `
     <div id="bubble" class="bubble" hidden>
@@ -98,21 +135,21 @@ const HOUSE_BODY = `
         </div>
         <div class="hero-streak" id="h-streak"></div>
       </div>
-      <nav class="tabs" id="tabs">
-        <button data-tab="home" data-icon="home"><span class="tx"></span></button>
-        <button data-tab="achievements" data-icon="medal"><span class="tx"></span></button>
-        <button data-tab="wardrobe" data-icon="ribbon"><span class="tx"></span><span class="dot" id="dot-wardrobe" hidden></span></button>
-        <button data-tab="shop" data-icon="coin"><span class="tx"></span><span class="dot" id="dot-shop" hidden></span></button>
-        <button data-tab="friends" data-icon="paw"><span class="tx"></span><span class="dot" id="dot-friends" hidden></span></button>
-        <button data-tab="workshop" data-icon="gem"><span class="tx"></span></button>
-        <button data-tab="stats" data-icon="chart"><span class="tx"></span></button>
-        <button data-tab="settings" data-icon="gear"><span class="tx"></span></button>
+      <nav class="tabs" id="tabs" role="tablist">
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="home" data-icon="home"><span class="tx"></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="achievements" data-icon="medal"><span class="tx"></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="wardrobe" data-icon="ribbon"><span class="tx"></span><span class="dot" id="dot-wardrobe" hidden></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="shop" data-icon="coin"><span class="tx"></span><span class="dot" id="dot-shop" hidden></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="friends" data-icon="paw"><span class="tx"></span><span class="dot" id="dot-friends" hidden></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="workshop" data-icon="gem"><span class="tx"></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="stats" data-icon="chart"><span class="tx"></span></button>
+        <button role="tab" aria-selected="false" aria-controls="view" data-tab="settings" data-icon="gear"><span class="tx"></span></button>
       </nav>
     </header>
-    <main id="view"></main>
+    <main id="view" role="tabpanel"></main>
     <div id="welcome" class="welcome" hidden></div>
     <div id="modal" class="modal" hidden></div>
-    <div id="toast" class="toast" hidden></div>`;
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>`;
 
 // iframe 안에만 더하는 스타일 (옵시디언판)
 const FRAME_CSS = read('plugin/frame.css');
@@ -121,7 +158,7 @@ const assets = {
   petBody: PET_BODY,
   houseBody: HOUSE_BODY,
   petCss: read('kit/pet.css'),
-  houseCss: themeCss(read('kit/house.css')),
+  houseCss: flattenDark(themeCss(read('kit/house.css'))),
   frameCss: FRAME_CSS,
 };
 

@@ -30,6 +30,7 @@ const API = [
   ['friendBye', 'invoke', 'pet:friend-bye'],
   ['eventSay', 'send', 'pet:event-say'],
   ['onEvent', 'on', 'pet:event'],
+  ['eventSkip', 'send', 'pet:event-skip'], // 바빠서 못 보여 준 깜짝 이벤트 (오늘 횟수를 돌려받는다)
   ['slot', 'invoke', 'pet:slot'],
   ['onPlay', 'on', 'pet:play'],
   ['onTreat', 'on', 'pet:treat'],
@@ -38,6 +39,9 @@ const API = [
   ['onConfig', 'on', 'pet:config'],
   ['onState', 'on', 'pet:state'],
   ['onBubble', 'on', 'pet:bubble'],
+  ['bubbleEnd', 'send', 'pet:bubble-end'], // 수다 말풍선이 끝났다 (ms = 눌러 닫기까지, -1 = 저절로)
+  ['bubbleReply', 'send', 'pet:bubble-reply'], // 고양이 질문에 대답 (i = 0 · 1)
+  ['onBubbleClear', 'on', 'pet:bubble-clear'],
   ['onAction', 'on', 'pet:action'],
   ['onSound', 'on', 'pet:sound'],
   ['onLoading', 'on', 'pet:loading'],
@@ -47,18 +51,22 @@ const API = [
   ['get', 'invoke', 'house:get'],
   ['set', 'invoke', 'house:set'],
   ['onboarded', 'invoke', 'house:onboarded'],
+  ['whatsNewSeen', 'invoke', 'house:whats-new-seen'], // '새로 생긴 것' 창을 봤다
   ['refreshQuests', 'invoke', 'quest:refresh'],
   ['friendCall', 'invoke', 'house:friend-call'],
   ['friendGift', 'invoke', 'house:friend-gift'],
   ['devEvent', 'invoke', 'dev:event'],
   ['saveCard', 'invoke', 'card:save'],
   ['copyCard', 'invoke', 'card:copy'],
+  ['recap', 'invoke', 'card:recap'], // 리캡 카드 숫자 (core/recap.js)
   ['copyText', 'invoke', 'card:text'],
   ['resetAll', 'invoke', 'app:reset'],
   ['preview', 'invoke', 'house:preview'],
   ['feed', 'invoke', 'pet:feed'],
   ['buy', 'invoke', 'shop:buy'],
   ['craft', 'invoke', 'workshop:craft'],
+  ['exchange', 'invoke', 'workshop:exchange'], // 보물 교환소: 원하는 보물 하나 받기
+  ['fillRecipe', 'invoke', 'workshop:fill'], // 조합에 모자란 재료를 바꿔 채우기
   ['useFood', 'invoke', 'shop:use'],
   ['play', 'invoke', 'house:play'],
   ['setLogin', 'invoke', 'login:set'],
@@ -71,6 +79,7 @@ const API = [
   ['onData', 'on', 'house:data'],
   ['onMood', 'on', 'house:mood'],
   ['onTab', 'on', 'house:tab'],
+  ['onToast', 'on', 'house:toast'], // 호스트가 보내는 하우스 알림 (별 · 출석 선물 · 리캡 카드)
 ];
 
 class KitFrame {

@@ -7,6 +7,8 @@ const DEFAULT_SETTINGS = {
   personality: 'angel',
   scale: 3, // 1~5 다섯 단계 → 배율 1·1.5·2·2.5·3배
   fur: 'cheese',
+  ears: 'perk', // 귀 모양 (core/growth.js 의 EAR_SHAPES). 첫 실행 안내 · 옷장에서 고른다
+  theme: 'auto', // 하우스 테마: auto(옵시디언이 어두우면 cocoa) | cream | cocoa | mint | sakura | choco
   accessory: 'none',
   outfit: null,
   outfitSaves: [null, null, null],
@@ -16,6 +18,8 @@ const DEFAULT_SETTINGS = {
   bubblesEnabled: true,
   chatter: true,
   aiTips: true, // 가끔 옵시디언 활용 팁
+  lowPower: false, // 저전력 모드: 펫 판이 그림을 덜 그리고 덜 돌아다닌다 (kit/pet.js)
+  cardPrefs: null, // 자랑 · 리캡 카드에서 고른 것 (기간 · 칸 · 테마 · 자세 · 한 줄). null 이면 기본 (kit/house.js 의 CARD_DEFAULT)
 
   lunchEnabled: true,
   lunchTime: '11:50',

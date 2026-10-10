@@ -11,7 +11,8 @@
   // 일어나서는 아무 일 없었던 척 휘파람
   C.bananapeel = {
     start(o, side) {
-      Object.assign(o, spawnItem('bananapeel'));
+      // 바닥에 놓는 건 껍질 그림 (상점 그림은 반쯤 깐 바나나라 따로 둔다. pixelart.js 의 bananapeelFloor)
+      Object.assign(o, spawnItem('bananapeelFloor'));
       o.x = clamp(catX + side * petPx() * 1.2, o.half, window.innerWidth - o.half);
       o.y = H() - petPx() - 60;
     },

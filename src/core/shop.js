@@ -5,6 +5,7 @@
 
 // 코인 셈: 하루(로컬 날짜)마다 계단식으로 센다.
 //  그날 쓴 글자 앞 5,000자까지는 5자 = 1코인 (하루 최대 1,000코인), 그 뒤로는 25자 = 1코인
+const { FURS } = require('./growth');
 const DAILY_FIRST_TOKENS = 5_000; // 하루에 높은 비율로 쳐 주는 글자 수
 const FIRST_TOKENS_PER_COIN = 5; // 그 안에서는 5자 = 1코인
 const AFTER_TOKENS_PER_COIN = 25; // 그 뒤로는 25자 = 1코인
@@ -34,6 +35,8 @@ function coinsSince(usage, sinceMs = 0) {
 //  해금 시점 = Lv1 · 5 · 10 … 30 (5레벨마다) · 33 … 48 (3레벨마다) · 50 … 80 (2레벨마다). 보물 공방 제작품은 잠그지 않는다
 // slot = 입는 칸. 칸마다 하나씩, 여러 칸을 겹쳐 입는다 (COSTUME_SLOTS).
 // 세트(set)는 여러 부위를 한 번에 덮는다: covers 에 적힌 칸을 대신 차지한다 (람보 = 머리+목, 우주 헬멧 = 머리+얼굴+목)
+// 세트 가격 (2026-10-04): 레벨이 높을수록 비싸게 맞췄다 (Lv15 닌자 1,600 > Lv25 김대리 1,400 같은 역전). 내리기만 했다
+//  닌자 1600→1100 · 스파이더 1800→1200 · 꿀벌 1300→1250 · 월요일 1700→1300 · 김대리 1400→1300 · 사신 3100→2000 · 로보 4100→3500 · 마법소녀 5300→4100
 const ACCESSORIES = [
   { key: 'none', price: 0 },
   { key: 'sprout', price: 100, slot: 'head' },
@@ -87,12 +90,12 @@ const ACCESSORIES = [
   { key: 'spotlight', price: 4800, level: 78, slot: 'effect' },
 
   // --- 3차 (2026-09-22 확정): 칸마다 B급 감성, 비싼 건 화려하게 ---
-  { key: 'spidercat', price: 1800, level: 18, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
+  { key: 'spidercat', price: 1200, level: 18, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
   { key: 'ironcat', price: 2300, level: 35, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
   { key: 'aliencat', price: 2400, level: 38, slot: 'set', covers: ['head', 'face', 'neck'] },
-  { key: 'beesuit', price: 1300, level: 20, slot: 'set', covers: ['head', 'neck', 'back', 'hand'] },
-  { key: 'ninjaset', price: 1600, level: 15, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
-  { key: 'magicalgirl', price: 5300, level: 48, slot: 'set', covers: ['head', 'neck', 'hand', 'back'] },
+  { key: 'beesuit', price: 1250, level: 20, slot: 'set', covers: ['head', 'neck', 'back', 'hand'] },
+  { key: 'ninjaset', price: 1100, level: 15, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'magicalgirl', price: 4100, level: 48, slot: 'set', covers: ['head', 'neck', 'hand', 'back'] },
   { key: 'gungye', price: 1600, level: 60, slot: 'face' },
   { key: 'rudolph', price: 400, level: 15, slot: 'face' },
   { key: 'pinocchio', price: 450, level: 20, slot: 'face' },
@@ -146,8 +149,8 @@ const ACCESSORIES = [
   { key: 'piratehook', price: 500, level: 40, slot: 'hand' },
   { key: 'mummycat', price: 500, level: 35, slot: 'head' },
   { key: 'mummywrap', price: 600, level: 35, slot: 'neck' },
-  { key: 'reaper', price: 3100, level: 30, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
-  { key: 'robocat', price: 4100, level: 43, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
+  { key: 'reaper', price: 2000, level: 30, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
+  { key: 'robocat', price: 3500, level: 43, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
   { key: 'snotdrip', price: 250, level: 5, slot: 'face' },
   { key: 'hanbok', price: 1500, level: 58, slot: 'neck' },
   { key: 'tutu', price: 900, level: 45, slot: 'neck' },
@@ -236,13 +239,13 @@ const ACCESSORIES = [
   { key: 'caterbrows', price: 300, level: 10, slot: 'face' },
   { key: 'foggyglasses', price: 350, level: 15, slot: 'face' },
   { key: 'masquerade', price: 800, level: 39, slot: 'face' },
-  { key: 'overtimer', price: 1400, level: 25, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
-  { key: 'seonbi', price: 2100, level: 33, slot: 'set', covers: ['head', 'neck'] },
+  { key: 'overtimer', price: 1300, level: 25, slot: 'set', covers: ['head', 'face', 'neck', 'hand'] },
+  { key: 'seonbi', price: 2100, level: 33, slot: 'set', covers: ['head', 'neck', 'hand'] }, // 10-10: 합죽선을 들어서 손 칸도 덮는다
   { key: 'dinosuit', price: 1300, level: 28, slot: 'set', covers: ['head', 'neck', 'back'] },
   // 크리스마스트리는 2026-09-25 에 모자(머리)와 옷(몸)으로 나눴다
   { key: 'xmasstar', price: 600, level: 45, slot: 'head' },
   { key: 'xmastree', price: 900, level: 45, slot: 'neck' },
-  { key: 'mondaydev', price: 1700, level: 23, slot: 'set', covers: ['head', 'face', 'neck', 'back'] },
+  { key: 'mondaydev', price: 1300, level: 23, slot: 'set', covers: ['head', 'face', 'neck', 'back'] },
   { key: 'schoolwear', price: 800, level: 42, slot: 'neck' },
   { key: 'aloha', price: 700, level: 33, slot: 'neck' },
   { key: 'baseballuni', price: 800, level: 39, slot: 'neck' },
@@ -336,6 +339,64 @@ const ACCESSORIES = [
   { key: 'magiccircle', price: 3000, level: 70, slot: 'effect' },
   { key: 'heavenbeam', price: 4400, level: 78, slot: 'effect' },
   { key: 'dragonaura', price: 5200, level: 80, slot: 'effect' },
+  // ---- 별 상점 끝판왕 코스튬 (8차, 2026-10-09). 코인 값 없이 별(stars)로만 산다. 레벨 잠금 대신 Lv80 뒤 별이 있어야 한다 ----
+  // 별 값: 얼굴 1~2 · 몸 2 · 머리 2~3 · 손 3 · 등 3~4 · 효과 4 · 세트 5~6 (사용자 결정). 세트는 효과 칸만 남기고 다 덮는다. 그림은 renderer/accessories-star.js
+  { key: 'xcelestialemperor', price: 0, stars: 6, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xnebuladragoon', price: 0, stars: 5, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xsunguardian', price: 0, stars: 6, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xphoenixking', price: 0, stars: 5, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xfrostmonarch', price: 0, stars: 6, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xabyssking', price: 0, stars: 5, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xthunderlord', price: 0, stars: 6, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xforestking', price: 0, stars: 5, slot: 'set', covers: ['head', 'face', 'neck', 'hand', 'back'] },
+  { key: 'xcelestialcrown', price: 0, stars: 3, slot: 'head' },
+  { key: 'xnebulahorns', price: 0, stars: 2, slot: 'head' },
+  { key: 'xstarhalo', price: 0, stars: 3, slot: 'head' },
+  { key: 'xdragonhelm', price: 0, stars: 2, slot: 'head' },
+  { key: 'xdivinelaurel', price: 0, stars: 3, slot: 'head' },
+  { key: 'xstargoggles', price: 0, stars: 2, slot: 'face' },
+  { key: 'xstarsigil', price: 0, stars: 1, slot: 'face' },
+  { key: 'xholovisor', price: 0, stars: 2, slot: 'face' },
+  { key: 'xdivinemask', price: 0, stars: 1, slot: 'face' },
+  { key: 'xcosmicmonocle', price: 0, stars: 2, slot: 'face' },
+  { key: 'xphoenixcrest', price: 0, stars: 2, slot: 'head' },
+  { key: 'xvoidcrown', price: 0, stars: 3, slot: 'head' },
+  { key: 'xfrostcrown', price: 0, stars: 2, slot: 'head' },
+  { key: 'xsoulflare', price: 0, stars: 1, slot: 'face' },
+  { key: 'xprismcheeks', price: 0, stars: 2, slot: 'face' },
+  { key: 'xcometwhiskers', price: 0, stars: 1, slot: 'face' },
+  { key: 'xplatpauldron', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xnebulastole', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xdivinependant', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xobsidiandrake', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xastralcollar', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xseraphwings', price: 0, stars: 4, slot: 'back' },
+  { key: 'xvoidwings', price: 0, stars: 3, slot: 'back' },
+  { key: 'xnebulacloak', price: 0, stars: 4, slot: 'back' },
+  { key: 'xcelestialrings', price: 0, stars: 3, slot: 'back' },
+  { key: 'xstarthrone', price: 0, stars: 4, slot: 'back' },
+  { key: 'xfrostmantle', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xchronoplate', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xstormmantle', price: 0, stars: 2, slot: 'neck' },
+  { key: 'xworldtree', price: 0, stars: 3, slot: 'back' },
+  { key: 'xabyssveil', price: 0, stars: 4, slot: 'back' },
+  { key: 'xeclipse', price: 0, stars: 3, slot: 'back' },
+  { key: 'xastralblade', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xgalaxystaff', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xheavenspear', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xchronoglass', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xplanetorb', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xnebulaaura', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xsolarsystem', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xdivinepillar', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xblackhole', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xstarcrownfall', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xmoonscythe', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xcelestiallyre', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xphoenixplume', price: 0, stars: 3, slot: 'hand' },
+  { key: 'xdimensionrift', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xcrystalsanctum', price: 0, stars: 4, slot: 'effect' },
+  { key: 'xspiritkoi', price: 0, stars: 4, slot: 'effect' },
 ];
 
 // 코스튬 칸. 이 순서대로 겹쳐 그린다 (뒤에 있는 것부터: 효과 → 등 → 목 → 얼굴 → 세트 → 머리 → 손)
@@ -415,11 +476,11 @@ const FOODS = [
   { key: 'ramen', group: 'meal', price: 70 },
   { key: 'sushi', group: 'meal', price: 75 },
   { key: 'bento', group: 'meal', price: 90 },
-  // 3차 (2026-09-22): 기운 음식 — 배도 채우고 기운도 조금 채운다 (energy)
-  { key: 'tonkotsu', group: 'meal', price: 85, energy: 15 },
-  { key: 'truffleJjajang', group: 'meal', price: 95, energy: 12 },
-  { key: 'emberChicken', group: 'meal', price: 80, energy: 18 },
-  { key: 'grandmaKimchi', group: 'meal', price: 60, energy: 20 },
+  // 3차 (2026-09-22): 기운 음식이었다 (2026-10-10 기운이 없어져 지금은 그냥 밥)
+  { key: 'tonkotsu', group: 'meal', price: 85 },
+  { key: 'truffleJjajang', group: 'meal', price: 95 },
+  { key: 'emberChicken', group: 'meal', price: 80 },
+  { key: 'grandmaKimchi', group: 'meal', price: 60 },
   { key: 'churu', group: 'snack', price: 15 },
   { key: 'anchovy', group: 'snack', price: 15 },
   // 2차 (2026-09-22): 고양이 세계에만 있는 수상한 간식. fill = 배부름이 얼마나 차나 (없으면 간식 기본값)
@@ -446,23 +507,23 @@ const FOODS = [
   { key: 'goldmackerel', group: 'snack', price: 150 },
   // 4차 (2026-09-26): 프리미엄 — 코스튬 대신 먹는 데 코인을 쓰는 사람을 위한 비싼 밥·간식. 레벨 잠금 없음.
   // 상점 카드에서 움직인다 (renderer/pixelart.js FOOD_ANIM). 먹었을 때 특별한 일은 main.js 의 premiumEaten
-  { key: 'samgyetang', group: 'meal', price: 450, fill: 70, energy: 50, premium: true },
+  { key: 'samgyetang', group: 'meal', price: 450, fill: 70, premium: true },
   { key: 'otoroOmakase', group: 'meal', price: 600, fill: 100, premium: true }, // 배부름 4시간 고정
   { key: 'roomService', group: 'meal', price: 700, fill: 80, premium: true }, // 오늘의 메뉴가 매번 다르다
-  { key: 'firstClassMeal', group: 'meal', price: 800, fill: 80, energy: 60, premium: true },
+  { key: 'firstClassMeal', group: 'meal', price: 800, fill: 80, premium: true },
   { key: 'sushiTrain', group: 'meal', price: 800, fill: 100, premium: true },
-  { key: 'hanwooSteak', group: 'meal', price: 850, fill: 70, energy: 40, premium: true },
-  { key: 'spaceFood', group: 'meal', price: 750, fill: 70, energy: 30, premium: true }, // 2026-09-27 950 → 750 (한우·기내식보다 내용이 적어서)
-  { key: 'royalTable', group: 'meal', price: 1500, fill: 100, energy: 100, premium: true }, // 배부름·기운 8시간 고정
-  { key: 'dragonKingFeast', group: 'meal', price: 2000, fill: 100, energy: 100, premium: true }, // 배부름·기운 24시간 고정
+  { key: 'hanwooSteak', group: 'meal', price: 850, fill: 70, premium: true },
+  { key: 'spaceFood', group: 'meal', price: 750, fill: 70, premium: true }, // 2026-09-27 950 → 750 (한우·기내식보다 내용이 적어서)
+  { key: 'royalTable', group: 'meal', price: 1500, fill: 100, premium: true }, // 배부름 8시간 고정
+  { key: 'dragonKingFeast', group: 'meal', price: 2000, fill: 100, premium: true }, // 배부름 24시간 고정
   { key: 'fortuneCookie', group: 'snack', price: 200, fill: 12, premium: true }, // 운세 한마디 + 가끔 보물·코인
   { key: 'mysteryBox', group: 'snack', price: 250, fill: 12, premium: true }, // 열면 간식 하나가 창고로
-  { key: 'cloudMallow', group: 'snack', price: 400, fill: 12, energy: 50, premium: true }, // 구름 위 낮잠
+  { key: 'cloudMallow', group: 'snack', price: 400, fill: 12, premium: true }, // 먹고 잠깐 뒤 깜짝 이벤트 (2026-10-10, 예전엔 기운 +50)
   { key: 'tunaCone', group: 'snack', price: 450, fill: 40, premium: true }, // 5단이라 든든
   { key: 'macaronTower', group: 'snack', price: 500, fill: 50, premium: true }, // 10단
   { key: 'inviteCookie', group: 'snack', price: 500, fill: 12, premium: true }, // 30% 확률로 친구가 바로 놀러 온다
-  { key: 'afternoonTea', group: 'snack', price: 650, fill: 20, energy: 20, premium: true }, // 배부름·기운 2시간 고정
-  { key: 'dragonCandy', group: 'snack', price: 700, fill: 12, energy: 100, premium: true }, // 기운 가득
+  { key: 'afternoonTea', group: 'snack', price: 650, fill: 20, premium: true }, // 배부름 2시간 고정
+  { key: 'dragonCandy', group: 'snack', price: 700, fill: 12, premium: true }, // 배부름 6시간 고정 = 그동안 든든 (2026-10-10, 예전엔 기운 가득)
   { key: 'goldMouseChoco', group: 'snack', price: 800, fill: 20, premium: true }, // 보물 1개 확정 (흔함·드묾)
 ];
 // 상점·창고·우클릭 메뉴 모두 싼 것부터 (같은 값이면 적어 둔 순서). '밥 주기' 버튼도 그래서 싼 밥부터 꺼낸다
@@ -703,7 +764,7 @@ const MOTIONS = [
   { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
   { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
   { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
-  { key: 'bubbleplay', rec: ['idle'], price: 350 },
+  { key: 'bubbleplay', rec: ['idle'], price: 350 }, // 2026-10-04 'bubbles' → 'bubbleplay' (장난감 비눗방울과 키가 겹쳤다. migrateKeys)
   { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
   { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
   { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
@@ -748,7 +809,16 @@ const MOTIONS = [
 const WORK_SLOTS = ['work', 'workLong', 'workHour'];
 const slotsOf = (m) => (m.rec.some((s) => WORK_SLOTS.includes(s)) ? [...new Set([...m.rec, ...WORK_SLOTS])] : m.rec);
 
+// 별 상점 (8차): Lv80 뒤 쌓이는 별로만 사는 한정품. 코인 상점에는 안 나온다.
+//  코스튬은 ACCESSORIES 에 stars(별 값)를 붙여 둔다 (옷장 · 입히기는 다른 코스튬과 같다).
+//  털색은 growth.js 의 FURS 에 stars 가 붙은 것. 상점 키는 'fur_<털색 키>' 이고 옷장(items)에 그 키로 남는다
+//  별 물건은 코인 업적('모든 코스튬' 등)의 목표 · 개수에 안 들어간다 (별이 없는 사람에게 업적이 막히지 않게)
+const STAR_FURS = FURS.filter((f) => f.stars).map((f) => ({ key: 'fur_' + f.key, fur: f.key, stars: f.stars, price: 0 }));
+const isStar = (it) => !!(it && it.stars);
+const furItemKey = (fur) => 'fur_' + fur;
+
 const ALL = [
+  ...STAR_FURS.map((x) => ({ ...x, kind: 'fur' })),
   ...ACCESSORIES.map((x) => ({ ...x, kind: 'acc' })),
   ...FOODS.map((x) => ({ ...x, kind: 'food' })),
   ...TOYS.map((x) => ({ ...x, kind: 'toy' })),
@@ -756,6 +826,74 @@ const ALL = [
 ];
 const find = (key, kind) => ALL.find((x) => x.key === key && (!kind || x.kind === kind));
 const slotOf = (key) => MOTION_SLOTS.find((s) => s.key === key) || null;
+
+// 키 겹침 검사. 옷장(items)은 종류 없이 키만 적어 두므로 코스튬·장난감·모션 키가 겹치면 하나를 사면 둘 다 가진 셈이 된다
+// (2026-10-04 장난감 비눗방울 · 모션 비눗방울 놀이가 'bubbles' 로 겹쳤다). 상점에서 뺀 물건 키도 지금 키와 겹치면 안 된다
+// (migrate 가 그 키를 옷장에서 지운다). 먹이는 창고(pantry)가 따로라 먹이끼리만 본다
+function duplicateKeys() {
+  const seen = new Map();
+  const dupes = [];
+  const add = (key, where) => {
+    if (seen.has(key)) dupes.push(`${key} (${seen.get(key)} · ${where})`);
+    else seen.set(key, where);
+  };
+  for (const x of ALL) if (x.kind !== 'food') add(x.key, x.kind);
+  for (const x of [...RETIRED_ACCESSORIES, ...RETIRED_TOYS, ...RETIRED_MOTIONS]) add(x.key, 'retired');
+  const foods = new Set();
+  for (const x of FOODS) {
+    if (foods.has(x.key)) dupes.push(`${x.key} (food · food)`);
+    foods.add(x.key);
+  }
+  return dupes;
+}
+{
+  const dupes = duplicateKeys();
+  if (dupes.length) throw new Error('shop: 키가 겹친다 — ' + dupes.join(', '));
+}
+
+// 키가 바뀐 모션. 옛 키 → 새 키 (설정의 모션 목록과 옷장을 옮긴다. Shop.migrateKeys)
+const RENAMED_MOTIONS = { bubbles: 'bubbleplay' };
+
+// 평생 구매 기록 (2026-10-04). purchases 는 최근 300개만 남기는 표시용이라, 업적·가계부·코인 흐름은 이걸 쓴다
+//  count : 상점에서 산 횟수 (슬롯머신은 빼고) · spins : 슬롯머신 판 수 · spent : 쓴 코인 (슬롯머신 포함)
+//  kinds : 종류별 { n, spent } (acc·food·toy·motion·slot) · keys : 물건별 { n, spent, last } (가계부)
+//  days  : 날짜별 쓴 코인 (코인 흐름 도표. 최근 60일만) · untracked : 기록이 잘려서 어디 썼는지 모르는 코인
+const STATS_DAYS = 60;
+const blankStats = () => ({ v: 1, count: 0, spins: 0, spent: 0, kinds: {}, keys: {}, days: {}, untracked: 0 });
+const dayKey = (at) => {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// 기록 하나를 더한다 (stats 를 고쳐서 돌려준다)
+function addStat(stats, key, kind, price, at) {
+  if (kind === 'slot') stats.spins++;
+  else stats.count++;
+  stats.spent += price;
+  const k = (stats.kinds[kind || 'etc'] ||= { n: 0, spent: 0 });
+  k.n++;
+  k.spent += price;
+  const it = (stats.keys[key] ||= { n: 0, spent: 0, last: 0 });
+  it.n++;
+  it.spent += price;
+  it.last = Math.max(it.last, at);
+  const day = dayKey(at);
+  stats.days[day] = (stats.days[day] || 0) + price;
+  const keep = Object.keys(stats.days).sort().slice(-STATS_DAYS);
+  if (keep.length < Object.keys(stats.days).length) stats.days = Object.fromEntries(keep.map((d) => [d, stats.days[d]]));
+  return stats;
+}
+// 옛 구매 기록의 종류. 지금 상점에 없으면 상점에서 뺀 목록에서 찾는다
+const kindOfKey = (key) => {
+  if (key === 'slot') return 'slot';
+  const it = find(key);
+  if (it) return it.kind;
+  if (RETIRED_MOTIONS.some((r) => r.key === key)) return 'motion';
+  if (RETIRED_TOYS.some((r) => r.key === key)) return 'toy';
+  if (RETIRED_ACCESSORIES.some((r) => r.key === key)) return 'acc';
+  if (key in RETIRED_FOODS || key in RENAMED_FOODS) return 'food';
+  if (key in RENAMED_MOTIONS) return 'motion';
+  return null;
+};
 
 class Shop {
   // state 는 JsonFile, usage 는 UsageTracker, getSettings/getGrowth 는 함수
@@ -791,7 +929,16 @@ class Shop {
       rate: { first: FIRST_TOKENS_PER_COIN, cap: DAILY_FIRST_TOKENS, after: AFTER_TOKENS_PER_COIN }, // 계단식 비율 (상점·대시보드 안내문)
       tokens,
       since: this.since(), // 처음 만난 시각. 상점에서 "언제부터 세는지" 를 보여 준다
+      stars: this.starWallet(),
     };
+  }
+
+  // 별 지갑: 딴 별(경험치에서 바로 나온다) − 별 상점에서 쓴 별
+  starWallet() {
+    const g = this.getGrowth();
+    const total = g ? g.stars || 0 : 0;
+    const spent = this.state.get('starsSpent') || 0;
+    return { total, spent, balance: Math.max(0, total - spent), maxed: !!(g && g.maxed) };
   }
 
   owned(key) {
@@ -812,6 +959,7 @@ class Shop {
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
     if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
     if (this.dev()) return null;
+    if (isStar(it)) return this.starWallet().balance < it.stars ? 'stars' : null;
     if (it.level) {
       const g = this.getGrowth();
       if (!g || g.level < it.level) return 'level';
@@ -831,10 +979,17 @@ class Shop {
       this.state.set({ pantry: { ...(this.state.get('pantry') || {}), [key]: this.stock(key) + 1 } });
       return { ok: true, item: it };
     }
+    if (isStar(it)) {
+      // 별로 산다: 코인 장부(purchases · purchaseStats)에는 안 적고 별 장부(starLog)에 따로
+      this.state.set({
+        starsSpent: (this.state.get('starsSpent') || 0) + it.stars,
+        starLog: [...(this.state.get('starLog') || []), { at: Date.now(), key, stars: it.stars }].slice(-200),
+        items: [...(this.state.get('items') || []), key],
+      });
+      return { ok: true, item: it };
+    }
     this.state.set({ walletSpent: (this.state.get('walletSpent') || 0) + it.price });
-    // 코인 흐름 도표가 쓰는 구매 기록. 너무 쌓이지 않게 최근 것만 남긴다
-    const log = [...(this.state.get('purchases') || []), { at: Date.now(), key, price: it.price }];
-    this.state.set({ purchases: log.slice(-300) });
+    this.record(key, it.kind, it.price);
     if (it.kind === 'food') {
       const pantry = { ...(this.state.get('pantry') || {}) };
       pantry[key] = (pantry[key] || 0) + 1;
@@ -849,8 +1004,7 @@ class Shop {
   spin() {
     if (this.wallet().balance < SLOT_PRICE) return { ok: false, reason: 'coins' };
     this.state.set({ walletSpent: (this.state.get('walletSpent') || 0) + SLOT_PRICE });
-    const log = [...(this.state.get('purchases') || []), { at: Date.now(), key: 'slot', price: SLOT_PRICE }];
-    this.state.set({ purchases: log.slice(-300) });
+    this.record('slot', 'slot', SLOT_PRICE);
     const pick = () => Math.floor(Math.random() * SLOT_SYMBOLS);
     const win = Math.random() < 1 / 6;
     let reels;
@@ -903,7 +1057,8 @@ class Shop {
       this.state.set({ pantry });
       return { food: reward.food };
     }
-    const it = reward.item && find(reward.item);
+    // kind 를 적어 두면 그 종류에서만 찾는다 ({ item: 키, kind: 'motion' })
+    const it = reward.item && find(reward.item, reward.kind);
     if (!it) return null;
     const items = this.state.get('items') || [];
     if (items.includes(it.key)) {
@@ -912,6 +1067,112 @@ class Shop {
     }
     this.state.set({ items: [...items, it.key] });
     return { item: it.key, kind: it.kind };
+  }
+
+  // 구매 하나를 적는다: 최근 300개 목록(표시용)과 평생 기록(purchaseStats) 둘 다
+  record(key, kind, price, at = Date.now()) {
+    const log = [...(this.state.get('purchases') || []), { at, key, price }];
+    const stats = addStat(this.lifetime(), key, kind, price, at);
+    this.state.set({ purchases: log.slice(-300), purchaseStats: stats });
+  }
+
+  // 평생 구매 기록. 아직 없으면 지금 남은 목록으로 만든다 (migrateStats 가 먼저 만들어 둔다)
+  lifetime() {
+    const s = this.state.get('purchaseStats');
+    return s && s.v === 1 ? structuredClone(s) : this.buildStats();
+  }
+
+  // 남은 구매 목록 + walletSpent 로 평생 기록을 새로 만든다.
+  // 목록이 300개로 잘렸으면 목록에 없는 쓴 코인은 untracked 로 (어디 썼는지는 모르지만 총액은 맞게)
+  buildStats() {
+    const log = this.state.get('purchases') || [];
+    const stats = blankStats();
+    for (const p of log) addStat(stats, p.key, kindOfKey(p.key), p.price || 0, p.at || 0);
+    if (log.length >= 300) {
+      const gap = (this.state.get('walletSpent') || 0) - stats.spent;
+      if (gap > 0) {
+        stats.untracked = gap;
+        stats.spent += gap;
+      }
+    }
+    return stats;
+  }
+
+  // 평생 기록이 없으면 한 번 만들어 둔다 (main 이 시작할 때 migrate 와 같이 부른다)
+  migrateStats() {
+    const s = this.state.get('purchaseStats');
+    if (s && s.v === 1) return false;
+    this.state.set({ purchaseStats: this.buildStats() });
+    return true;
+  }
+
+  // 키가 바뀐 물건을 옮긴다 (2026-10-04 모션 'bubbles' → 'bubbleplay').
+  //  옷장: 고치기 전에는 옷장의 'bubbles' 하나로 장난감과 모션을 둘 다 가진 셈이었다(owned 가 키만 봐서).
+  //        그래서 'bubbles' 가 있으면 장난감은 그대로 두고 모션 'bubbleplay' 도 넣어 준다 (가진 걸 잃지 않게). 한 번만
+  //  설정: 모션 자리(motions)·심심할 때(idleMotions) 목록의 옛 키는 언제나 모션이었으니 새 키로 바꾼다
+  // settings 는 JsonFile (get/set). 무엇을 바꿨는지 돌려준다
+  migrateKeys(settings) {
+    const out = { items: [], settings: false };
+    if (!this.state.get('keyFix1004')) {
+      const items = this.state.get('items') || [];
+      const add = Object.entries(RENAMED_MOTIONS).filter(([from, to]) => items.includes(from) && !items.includes(to)).map(([, to]) => to);
+      this.state.set({ items: add.length ? [...items, ...add] : items, keyFix1004: true });
+      out.items = add;
+    }
+    if (settings) {
+      const ren = (k) => RENAMED_MOTIONS[k] || k;
+      const fixList = (v) => (Array.isArray(v) ? [...new Set(v.map(ren))] : typeof v === 'string' ? ren(v) : v);
+      const motions = settings.get('motions') || {};
+      const nextMotions = Object.fromEntries(Object.entries(motions).map(([slot, v]) => [slot, fixList(v)]));
+      const idle = settings.get('idleMotions');
+      const nextIdle = fixList(idle);
+      if (JSON.stringify(nextMotions) !== JSON.stringify(motions) || JSON.stringify(nextIdle) !== JSON.stringify(idle)) {
+        settings.set({ motions: nextMotions, idleMotions: nextIdle });
+        out.settings = true;
+      }
+    }
+    return out;
+  }
+
+  // 장부 고치기 (2026-10-09): 키가 바뀌기 전에 산 모션(옛 'bubbles', 350코인)이 장부에서 장난감 비눗방울로 보였다.
+  // 옛 키로 적힌 구매 중 값이 그 모션 값과 같은 건 새 모션 키로 옮긴다 (장난감 값으로 산 건 그대로). 한 번만
+  migrateLedgerKeys() {
+    if (this.state.get('keyFix1009')) return false;
+    const motionKey = (key, price) => {
+      const to = RENAMED_MOTIONS[key];
+      const m = to && find(to, 'motion');
+      return m && price === m.price ? to : key;
+    };
+    const purchases = (this.state.get('purchases') || []).map((p) => ({ ...p, key: motionKey(p.key, p.price) }));
+    const stats = this.state.get('purchaseStats');
+    if (stats && stats.v === 1 && stats.keys) {
+      for (const from of Object.keys(RENAMED_MOTIONS)) {
+        const x = stats.keys[from];
+        if (!x || !x.n || motionKey(from, x.spent / x.n) === from) continue;
+        stats.keys[RENAMED_MOTIONS[from]] = x;
+        delete stats.keys[from];
+        const toy = stats.kinds.toy;
+        if (toy) {
+          toy.n -= x.n;
+          toy.spent -= x.spent;
+        }
+        const mo = (stats.kinds.motion ||= { n: 0, spent: 0 });
+        mo.n += x.n;
+        mo.spent += x.spent;
+      }
+    }
+    this.state.set({ purchases, ...(stats ? { purchaseStats: stats } : {}), keyFix1009: true });
+    return true;
+  }
+
+  // 업적이 쓰는 갖고 있는 개수 { acc, motion, toy }. 키로 종류를 찾는다 (키가 안 겹치니 하나로 정해진다)
+  ownedCounts() {
+    const kinds = { acc: 0, motion: 0, toy: 0 };
+    for (const k of new Set(this.state.get('items') || [])) {
+      const it = find(k);
+      if (it && it.kind in kinds && k !== 'none' && !isStar(it)) kinds[it.kind]++;
+    }
+    return kinds;
   }
 
   // 예전 버전에서 넘어온 창고·옷장을 지금 목록에 맞춘다. 돌려준 코인 액수를 알려 준다
@@ -968,19 +1229,22 @@ class Shop {
       slot: it.slot || undefined,
       covers: it.covers || undefined,
       fill: it.kind === 'food' ? fillOf(it) : undefined,
-      energy: it.kind === 'food' ? it.energy || 0 : undefined,
       premium: it.premium || undefined,
       slots: it.kind === 'motion' ? slotsOf(it) : undefined,
       owned: it.kind === 'food' ? undefined : this.owned(it.key),
       stock: it.kind === 'food' ? this.stock(it.key) : undefined,
       locked: !!(it.level && level < it.level) && !this.dev(),
       blocker: this.blocker(it.key),
+      stars: it.stars || undefined,
+      fur: it.fur || undefined,
     });
     return {
       wallet: this.wallet(),
       dev: this.dev(),
       // 보물 공방 코스튬(workshop)은 상점에 안 나온다. 공방에서 보물로 만든다 (main/workshop.js)
-      acc: ACCESSORIES.filter((x) => !x.workshop && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
+      acc: ACCESSORIES.filter((x) => !x.workshop && !isStar(x) && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
+      // 별 상점: 털색 먼저, 그다음 코스튬. 별 값 순
+      star: [...STAR_FURS.map((x) => row({ ...x, kind: 'fur' })), ...ACCESSORIES.filter(isStar).map((x) => row({ ...x, kind: 'acc' }))].sort((a, b) => a.stars - b.stars),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
       motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })),
@@ -990,4 +1254,4 @@ class Shop {
   }
 }
 
-module.exports = { PREMIUM_FOODS: FOODS.filter((x) => x.premium).map((x) => x.key), SET_MOTIONS, COSTUME_SLOTS, COSTUME_TABS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, BASIC_POSES, FREE_MOTIONS, find, slotOf, slotsOf, coinsForDay, coinsSince, WELCOME_COINS, SLOT_PRICE };
+module.exports = { STAR_FURS, isStar, furItemKey, PREMIUM_FOODS: FOODS.filter((x) => x.premium).map((x) => x.key), SET_MOTIONS, RENAMED_MOTIONS, duplicateKeys, kindOfKey, blankStats, addStat, COSTUME_SLOTS, COSTUME_TABS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, BASIC_POSES, FREE_MOTIONS, find, slotOf, slotsOf, coinsForDay, coinsSince, WELCOME_COINS, SLOT_PRICE };

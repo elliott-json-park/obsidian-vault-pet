@@ -13,7 +13,9 @@ Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls 
 - **Writing feels rewarding.** Characters, links, new notes and writing sessions all turn into XP and coins, so every session has a small payoff.
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
-- **There's a lot to collect.** 264 costumes, 76 motions, 30 toys and mini-games, 18 premium dishes, 17 fur colors, 161 badges and a treasure workshop.
+- **It knows when to talk.** Small talk waits for your breaks instead of interrupting a sentence, and it remembers what happened: the late night you wrote until 1 AM, the snack it always gets, the friend who dropped by.
+- **There's a lot to collect.** 320 costumes (56 of them endgame star costumes), 76 motions, 30 toys and mini-games, 18 premium dishes, 20 fur colors, 13 ear shapes, 165 badges and a treasure workshop.
+- **It never runs out.** Levels stop at Lv.80, and from then on your writing earns stars for a shop of its own.
 - **It's fair.** Only real new writing counts. Deleting and retyping, undo, pasting or dragging text in, and restoring a deleted note earn nothing.
 - **It's private.** Your notes are only read, never stored or sent anywhere. No network access at all.
 
@@ -52,14 +54,15 @@ Clicks on the empty parts of the floor pass straight through to Obsidian, so you
 
 ```
 XP    = characters ÷ 10 + links × 10 + new notes × 20 + writing sessions × 30 + bonuses
-Level = √(XP / 25) + 1
+Level = √(XP / 25) + 1, up to Lv.80
+Stars = after Lv.80, one star for every 2,000 XP (each star also pays 500 coins)
 ```
 
 - **Characters**: new text, not counting spaces, Markdown symbols, URLs or frontmatter. Code counts too.
 - **Links**: `[[wikilinks]]`, `![[embeds]]` and `[markdown](links)`.
 - **New notes**: each note counts once, after its first 10 characters.
 - **Writing sessions**: starting to write again after a break of 30+ minutes.
-- **Bonuses**: daily quests, badges and your daily check-in streak.
+- **Bonuses**: daily quests, badges and your daily check-in streak. Long streaks also pay coins at 30, 50, 100, 200 and 365 days.
 
 Growth starts on the day you install. Vault Pet takes one quick look at your vault to remember how long each note already is, so writing you did before doesn't count (the welcome screen shows, just for fun, what level you'd be if it did).
 
@@ -71,22 +74,25 @@ Everything you write fills your wallet. The first 5,000 characters each day earn
 
 | Category | What you get |
 |---|---|
-| Meals and snacks | Fill your cat's fullness and energy. It walks over and eats them off the floor. Premium dishes do something extra: keep it full for hours, hide a treasure, tell a fortune or invite a friend over |
+| Meals and snacks | Fill your cat's fullness. It walks over and eats them off the floor. A full cat (50+) finds treasures and gets neighbor visits more often, and a hungry one still plays. Every day it craves one meal and one snack: feed those and you get half the price back. Premium dishes do something extra: keep it full for hours, hide a treasure, tell a fortune or invite a friend over |
 | Costumes | 264 pieces across head, face, body, back, hand, effect and full sets. Layer one per slot, save up to three outfits |
-| Motions | 76 moves for any moment: writing, finishing a stretch, leveling up, bedtime, idle time and more |
-| Toys | 30 toys and mini-games: balls, yarn, a laser pointer, bubbles, a cat wheel, a slot machine, whack-a-cat, rock-paper-scissors, tug of war, a trampoline… |
+| Motions | 76 moves for any moment: writing, finishing a stretch, leveling up, bedtime, idle time and more. A motion you buy goes straight into the situation you were browsing |
+| Toys | 30 toys and mini-games: balls, yarn, a laser pointer, bubbles, a cat wheel, a slot machine, whack-a-cat, rock-paper-scissors, tug of war, a trampoline… After a long stretch of writing, your cat sometimes brings one over during your break. Click the bubble to play |
+| Star shop | 56 endgame costumes (celestial crowns, six-winged angel wings, a cat that becomes the sun…) and 3 animated fur colors (aurora, neon, hologram), bought only with stars |
 
-New items unlock as you level up, all the way to Lv.80.
+New items unlock as you level up, all the way to Lv.80. Locked items show a faint preview, so you can see what you're working toward.
 
 ![The inventory: Mochi wears a wizard hat, an archmage robe, a star wand and fireflies, with the rest of the collection on the right.](docs/kitcommit-wardrobe.png)
 
 ## Quests, badges and more
 
 - **Three daily quests** (hard, normal, easy): write characters, add links, fill new notes, open notes, pet your cat, feed it, take a real break… They pay out the moment you finish.
-- **161 badges** across writing, links, new notes, sessions, streaks, daily rhythm, bonding, collecting and **using Obsidian**: tags, finished tasks, headings, embeds, callouts, daily notes, canvases and hub notes with lots of backlinks.
+- **Today's news** on the home tab keeps every badge, reward and visit from today, even the ones you missed while in quiet mode. Several badges at once arrive as a single bubble.
+- **165 badges** across writing, links, new notes, sessions, streaks, daily rhythm, bonding, collecting and **using Obsidian**: tags, finished tasks, headings, embeds, callouts, daily notes, canvases and hub notes with lots of backlinks.
 - **Neighbor cats** drop by every couple of hours. Trade treasures, share a snack and become best friends, then call them over or gift them costumes.
 - **Surprise events**: your cat might dash off screen and come back with a tiny treasure, or chase a bird across your workspace.
-- **Treasure workshop**: craft exclusive costumes out of the treasures you find.
+- **Treasure workshop**: craft exclusive costumes out of the treasures you find. The treasure exchange turns spare treasures into the ones you need, and every crafted costume remembers what it was made from.
+- **Once a day, your cat asks you something**: did you eat lunch, when are you going to bed, are you busy today. Say you're busy and it keeps the small talk to itself for two hours.
 
 ![The awards tab: writing badges like First letter, Warming up, One page and A short story, each with its reward and progress bar.](docs/kitcommit-achievements.png)
 
@@ -96,7 +102,7 @@ The Stats tab shows what you've written and the coins it earned, a weekday × ho
 
 ![A weekday by hour heatmap showing writing on weekday evenings and weekend mornings.](docs/kitcommit-stats.png)
 
-Make a show-off card with your cat in its current outfit, your level and your writing stats, then save it to your vault, copy the image or copy a ready-made caption.
+Make your own show-off card: pick this month, last month or all time, choose up to six stats (characters, links, new notes, sessions, days, longest streak, busiest day, busiest hour, favorite folder, coins, badges, level change, XP, folders), a color, your cat's pose, a one-line caption and a post (4:5) or story (9:16) size. Then save it to your vault, copy the image or copy a ready-made caption. In the first week of each month, the house lets you know last month's card is ready.
 
 ![A show-off card: Mochi at Lv.18 grew up on 32.4K characters, with sessions, characters, links, days together, busiest hour and favorite folder, plus a 20-week writing grid.](docs/kitcommit-card.png)
 
@@ -106,14 +112,16 @@ Using [Hearth](https://github.com/ondreu/Hearth)? Its **Vault Pet** card puts yo
 
 Open the house (cat face in the ribbon, or double-click the cat; your cat's name in the status bar opens a quick menu) and go to **Settings**:
 
-- Name, size (5 steps), fur color
+- Name, size (5 steps), fur color, ear shape (13 shapes, free from the start)
+- **Theme** for the house: Cream, Cocoa, Mint milk, Sakura, Milk choco, or Auto (follows your Obsidian light or dark theme)
 - **Mute**: turns off every sound effect. Also in Obsidian's plugin settings and the command palette
 - Language (English, 한국어). It starts in the language your Obsidian is set to
 - Speech bubbles, small talk, occasional Obsidian tips
 - Lunch and dinner times, break reminder, when to get sleepy, bedtime, late-night nagging
 - Motions for every situation, with a drag-and-drop editor
 - Folders that count toward growth (untick a top-level folder to leave it out)
-- Show or hide the cat on screen, reset its position, start over
+- **Low power mode**: fewer frames and less wandering, to save battery
+- Show or hide the cat on screen, reset its position, see what's new again, start over
 
 Obsidian's own plugin settings for Vault Pet have the everyday switches too: show the cat, open the house in the right sidebar instead of a tab, mute, language, reset position and **Send feedback**.
 
@@ -171,13 +179,15 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 **My cat disappeared or started over.** If the data file was damaged, Vault Pet restores your cat from the daily backup and tells you so. If that didn't happen, look in `.obsidian/plugins/vault-pet/` for `data.backup.json` and please [open an issue](../../issues/new/choose).
 
-**My cat won't play.** It is either hungry (fullness under 20) or worn out (energy 10 or lower). Feed it or let it nap, and it will play again.
+**What happens after Lv.80?** Your level stays at 80, and every 2,000 XP after that becomes a star (plus 500 coins). Stars buy the endgame costumes and animated fur colors in the star shop.
+
+**My cat talks too much.** Small talk waits for a pause in your writing and comes at most once an hour. If you close its chatter within two seconds three times in a row, it stays quiet for three hours. You can also turn small talk or all bubbles off in the settings.
 
 ---
 
 ### 한국어
 
-**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 264개, 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 일일 퀘스트, 업적 161개, 놀러 오는 동네 친구, 보물 공방까지. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
+**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 코스튬 320개(별로만 사는 끝판왕 코스튬 56개 포함), 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 귀 모양 13가지, 일일 퀘스트, 업적 165개, 놀러 오는 동네 친구, 보물 공방과 교환소까지. Lv80 다음에는 별이 쌓이고, 날마다 먹고 싶은 것을 조르고, 기간·칸·색을 골라 나만의 자랑 카드를 만들 수 있어요. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
 Claude Code·Codex 로 일한다면, AI 토큰 사용량을 코인으로 바꿔 주는 데스크톱판 **[킷커밋(Kit Commit)](https://elliott-json-park.github.io/kitcommit-releases/ko/)** 도 무료로 받을 수 있어요 (윈도우·맥).
 

@@ -10,6 +10,7 @@ const { ACCESSORIES: ITEMS } = require('./shop');
 
 // 업적 100여 개는 achievements.js 에 묶음·난이도·보상과 함께 있다
 const { ACHIEVEMENTS, CATS, TIERS } = require('./achievements');
+const { STAR_COINS, starsOf } = require('./growth');
 
 // 퀘스트 풀. 한 번에 3개가 나오는데 상(hard)·중(normal)·하(easy)가 하나씩이고 종류는 서로 다르다.
 //  metric(c) : 지금까지의 누적값. 퀘스트를 받은 순간 값을 적어 두고(base), 거기서 늘어난 만큼이 진행도다
@@ -38,6 +39,23 @@ const QUEST_TIERS = ['hard', 'normal', 'easy']; // 화면에 놓는 순서도 �
 const QUEST_REFRESH_MS = 3 * 60 * MIN; // 새 퀘스트로 바꿀 수 있기까지. 시간이 지나도 저절로 바뀌지는 않는다
 const ALL_CLEAR_XP = 100;
 
+// 누르기만 하면 오르는 횟수는 1분에 이만큼만 센다 (2026-10-04: 쓰다듬기·들어 올리기 연타로 업적·퀘스트를 깨는 걸 막는다)
+// 반응(말풍선·모션)은 그대로 하고, 업적·퀘스트용 숫자만 덜 오른다
+const RATE = { poke: 20, lift: 6 };
+const RATE_MS = MIN;
+// 업적 판정을 몰아서 한 번에 (연타할 때 매번 업적 160개를 다 보지 않게)
+const EVAL_DELAY_MS = 1500;
+
+// 연속 출석 기념 선물 (2026-10-04). 출석 보너스 경험치는 14일에서 멈추니 그 뒤로는 이 날들에 코인을 한 번씩 준다.
+// 보통 업적 코인이 250 · 어려움 700 · 전설 2,000 이라 그 사이로 잡았다. 준 날은 state.streakGifts 에 남아 다시 안 준다
+const STREAK_GIFTS = [
+  { days: 30, coins: 500 },
+  { days: 50, coins: 800 },
+  { days: 100, coins: 1500 },
+  { days: 200, coins: 2500 },
+  { days: 365, coins: 5000 },
+];
+
 const DEFAULT_STATE = {
   pokes: 0,
   pokesDay: null,
@@ -60,6 +78,8 @@ const DEFAULT_STATE = {
   rewarded: {}, // 업적 보상을 이미 준 것: id → true
   achRetro: {}, // 첫 실행 때 예전 기록으로 소급 달성한 업적: id → true. 경험치·물건은 주지만 코인 보상은 없다
   achNoCoins: {}, // 그래서 코인 보상을 실제로 건너뛴 업적: id → true (업적 탭 표시용)
+  streakGifts: {}, // 연속 출석 기념 선물을 준 날: 일수 → 준 시각
+  starsPaid: 0, // 코인을 준 별 수 (Lv80 뒤 별. payStars)
 };
 
 class Gamify extends EventEmitter {
@@ -88,11 +108,45 @@ class Gamify extends EventEmitter {
   }
 
   // 업적용 횟수 하나 올리기
+  // RATE 에 있는 것(lift)은 1분에 정해 둔 만큼만 센다. 셌으면 true
   count(key, by = 1) {
+    if (!this.allow(key)) return false;
     const cnt = { ...(this.st.cnt || {}) };
     cnt[key] = (cnt[key] || 0) + by;
     this.state.set({ cnt });
-    this.evaluate();
+    this.evaluateSoon();
+    return true;
+  }
+
+  // 업적용 최고 기록 (지금 값이 더 크면 바꾼다. 예: 소원 들어주기 연속 날짜)
+  best(key, v) {
+    const cnt = { ...(this.st.cnt || {}) };
+    if (!(v > (cnt[key] || 0))) return false;
+    cnt[key] = v;
+    this.state.set({ cnt });
+    this.evaluateSoon();
+    return true;
+  }
+
+  // 1분에 RATE[key] 번까지만 통과. 기록은 메모리에만 (껐다 켜면 처음부터)
+  allow(key, now = Date.now()) {
+    const max = RATE[key];
+    if (!max) return true;
+    const list = ((this.rate ||= {})[key] ||= []);
+    while (list.length && now - list[0] >= RATE_MS) list.shift();
+    if (list.length >= max) return false;
+    list.push(now);
+    return true;
+  }
+
+  // 업적 판정을 잠깐 뒤에 한 번만 (그 사이 여러 번 불려도 한 번)
+  evaluateSoon() {
+    if (this.evalTimer) return;
+    this.evalTimer = setTimeout(() => {
+      this.evalTimer = null;
+      this.evaluate();
+    }, EVAL_DELAY_MS);
+    if (this.evalTimer.unref) this.evalTimer.unref();
   }
 
   // sinceMs 이후에 받은 보너스 경험치 합계
@@ -130,11 +184,15 @@ class Gamify extends EventEmitter {
 
   // ---------- 이벤트 ----------
 
+  // 쓰다듬었다. 오늘 횟수는 다 세고, 업적·퀘스트가 보는 pokes 는 1분에 RATE.poke 번까지만. 셌으면 true
   poke() {
     const today = dayOf(new Date());
     if (this.st.pokesDay !== today) this.state.set({ pokesDay: today, pokesToday: 0 });
-    this.state.set({ pokes: this.st.pokes + 1, pokesToday: this.st.pokesToday + 1 });
-    this.evaluate();
+    this.state.set({ pokesToday: this.st.pokesToday + 1 });
+    if (!this.allow('poke')) return false;
+    this.state.set({ pokes: this.st.pokes + 1 });
+    this.evaluateSoon();
+    return true;
   }
 
   // 밥/휴식 말풍선이 뜨면, 그 뒤 실제로 쉬고 왔는지 지켜본다
@@ -173,8 +231,53 @@ class Gamify extends EventEmitter {
       if (new Date().getHours() < 10) this.state.set({ earlyDay: today });
       this.grant(xp, { k: 'bonus.attend', v: { d: current } });
       if (this.st.initialized) this.emit('attend', { streak: current, xp });
+      this.streakGift(current);
     }
     this.evaluate();
+  }
+
+  // 연속 출석 기념 선물. 오늘 이어진 연속 출석이 기념일을 넘었고 아직 안 준 것만 (여러 개면 다 준다). 준 것들을 돌려준다
+  streakGift(current) {
+    if (!this.rewarder) return [];
+    const given = { ...(this.st.streakGifts || {}) };
+    const out = [];
+    for (const g of STREAK_GIFTS) {
+      if (current < g.days || given[g.days]) continue;
+      given[g.days] = Date.now();
+      this.state.set({ streakGifts: given });
+      this.rewarder({ coins: g.coins });
+      out.push(g);
+      if (this.st.initialized) this.emit('streakGift', { days: g.days, coins: g.coins });
+    }
+    return out;
+  }
+
+  // 다음 기념일 (하우스 출석 칸에 '다음 선물까지 n일' 을 보여 줄 때)
+  streakGiftInfo() {
+    const given = this.st.streakGifts || {};
+    const { current } = this.streaks();
+    const next = STREAK_GIFTS.find((g) => !given[g.days]) || null;
+    return { list: STREAK_GIFTS.map((g) => ({ ...g, given: !!given[g.days] })), next, left: next ? Math.max(0, next.days - current) : 0 };
+  }
+
+  // ---------- 별 (Lv80 뒤) ----------
+
+  // 새로 딴 별만큼 코인을 준다. 별 수는 경험치에서 바로 나오고(growth.starsOf), 준 개수는 starsPaid 에 남긴다
+  payStars(growth) {
+    if (!growth || !this.rewarder) return 0;
+    const stars = growth.stars != null ? growth.stars : starsOf(growth.xp || 0).stars;
+    const paid = this.st.starsPaid || 0;
+    if (stars <= paid) return 0;
+    const n = stars - paid;
+    this.state.set({ starsPaid: stars });
+    this.rewarder({ coins: n * STAR_COINS });
+    this.emit('star', { stars, n, coins: n * STAR_COINS });
+    return n;
+  }
+
+  // 하우스 머리말에 쓸 별 정보 { stars, starProgress, starNext, starXp, coins }
+  starInfo(growth = this.lastGrowth) {
+    return { ...starsOf(growth ? growth.xp : 0), coins: STAR_COINS };
   }
 
   // ---------- 퀘스트 ----------
@@ -211,6 +314,31 @@ class Gamify extends EventEmitter {
     if (set && Date.now() - set.at < QUEST_REFRESH_MS) return false;
     this.newQuestSet();
     this.evaluate();
+    return true;
+  }
+
+  // 진행도는 그대로 두고 기준값만 옮긴다. 제외 프로젝트를 바꾸면 누적값이 한꺼번에 달라져서
+  // 퀘스트가 그 자리에서 깨지거나(다시 넣을 때) 뒤로 가니까(뺄 때), change() 앞뒤 차이만큼 base 를 민다.
+  //  change = 누적값을 바꾸는 일 (예: () => usage.setExcluded(list)). 경험치 퀘스트는 다음 evaluate 때 새 경험치로 맞춘다
+  rebaseQuests(change) {
+    const set = this.st.questSet;
+    if (!set || !Array.isArray(set.list)) {
+      if (change) change();
+      return false;
+    }
+    const before = this.questCtx();
+    const raw = set.list.map((q) => {
+      const def = QUEST_POOL.find((d) => d.type === q.type);
+      return def ? def.metric(before) - q.base : 0;
+    });
+    if (change) change();
+    const after = this.questCtx();
+    const list = set.list.map((q, i) => {
+      const def = QUEST_POOL.find((d) => d.type === q.type);
+      return def && q.type !== 'xp' ? { ...q, base: def.metric(after) - raw[i] } : q;
+    });
+    this.state.set({ questSet: { ...set, list } });
+    if (this.lastGrowth) this.xpRebase = this.lastGrowth.xp;
     return true;
   }
 
@@ -263,13 +391,33 @@ class Gamify extends EventEmitter {
       all: this.usage.totals(since), today, hours: this.usage.hours(since), bestStreak: st.best, best: st.best, days: st.total, weekend,
       use: this.usage.obsidianUse ? this.usage.obsidianUse(since) : {},
       st: this.st, owned: { acc: 0, motion: 0, toy: 0 }, totalAcc: 1, totalToy: 1, bought: 0, spent: 0, earned: 0, balance: 0,
-      ...shopSide, ...extra,
+      ...shopSide, ...this.lifetimeSide(), ...extra,
     };
+  }
+
+  // 업적이 보는 값 중 저장된 기록에서 바로 읽는 것 (main 의 extra 보다 앞선다)
+  //  bought : 평생 산 횟수 (슬롯머신 빼고. purchases 가 300개로 잘려도 줄지 않는다)
+  //  accEver: 한 번이라도 가졌던 코스튬 수 (공방 코스튬을 친구에게 선물해도 줄지 않는다. acc_all)
+  lifetimeSide() {
+    const ps = this.st.purchaseStats;
+    const out = {};
+    if (ps && ps.v === 1) out.bought = ps.count || 0;
+    else if (Array.isArray(this.st.purchases)) out.bought = this.st.purchases.filter((p) => p.key !== 'slot').length;
+    const keys = new Set([...(this.st.items || []), ...(this.st.workshopMade || []).map((x) => x.key)]);
+    out.accEver = ITEMS.filter((it) => it.key !== 'none' && !it.stars && !it.exclusive && keys.has(it.key)).length; // 별 코스튬 · [옵시디언] 기념 코스튬(exclusive)은 안 센다
+    return out;
   }
 
   // growth = { level, stageIndex }. silent 이면 알림 없이 조용히 달성만 기록한다 (첫 실행 소급 적용)
   evaluate(growth = this.lastGrowth, silent = !this.st.initialized) {
     if (!growth) return;
+    // rebaseQuests 뒤 첫 판정: 경험치 퀘스트 기준값을 바뀐 경험치만큼 민다
+    if (this.xpRebase != null) {
+      const d = growth.xp - this.xpRebase;
+      this.xpRebase = null;
+      const set = this.st.questSet;
+      if (d && set && Array.isArray(set.list)) this.state.set({ questSet: { ...set, list: set.list.map((q) => (q.type === 'xp' ? { ...q, base: q.base + d } : q)) } });
+    }
     this.lastGrowth = growth;
     const T = this.getStrings();
     const c = this.context({ level: growth.level, stageIndex: growth.stageIndex });
@@ -299,6 +447,7 @@ class Gamify extends EventEmitter {
       }
     }
 
+    if (!silent) this.payStars(growth);
     if (events.length) this.state.saveSoon();
     if (silent) {
       (this.retroEvents ||= []).push(...events);
@@ -347,6 +496,7 @@ class Gamify extends EventEmitter {
       achTiers: TIERS,
       achievements: ACHIEVEMENTS.map((a) => ({
         id: a.id, icon: a.icon, xp: a.xp, cat: a.cat, tier: a.tier, reward: a.reward,
+        claudeOnly: !!a.claudeOnly, // Codex 모드에서는 못 깨는 업적 (하우스가 Codex 모드면 숨긴다)
         name: T.t(`ach.${a.id}.name`),
         desc: T.t(`ach.${a.id}.desc`),
         unlockedAt: this.st.achievements[a.id] || null,
@@ -359,6 +509,7 @@ class Gamify extends EventEmitter {
         price: it.price,
         slot: it.slot || null,
         covers: it.covers || null,
+        workshop: !!it.workshop, // 보물 공방에서 만든 것 (인벤토리 카드의 '공방' 도장)
         name: T.t(`item.${it.key}`),
         unlocked: this.st.items.includes(it.key) || !!this.getSettings().devMode, // 개발자 모드면 전부 (배포 전에 지운다)
       })),
@@ -366,6 +517,8 @@ class Gamify extends EventEmitter {
       questInfo: this.questInfo(),
       allClearXp: ALL_CLEAR_XP,
       streak: this.streaks(),
+      streakGifts: this.streakGiftInfo(),
+      stars: this.starInfo(),
       pokes: this.st.pokes,
       questsDone: this.st.questsDone,
       recentBonus: this.st.bonus.slice(-8).reverse(),
@@ -373,4 +526,4 @@ class Gamify extends EventEmitter {
   }
 }
 
-module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS };
+module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS, STREAK_GIFTS, RATE };

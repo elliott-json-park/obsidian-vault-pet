@@ -37,6 +37,7 @@ const VISIT_MS = 10 * 60_000;
 const CALL_MS = 5 * 60_000;
 const CALL_COOLDOWN_MS = 30 * 60_000;
 const VISIT_GAP_MS = 2 * 60 * 60_000; // 두 시간쯤마다 한 마리
+const FULL_EARLY_MS = 30 * 60_000;
 const WANT_N = { common: [3, 6], rare: [1, 3], legend: [1, 1] };
 
 const levelOf = (pts) => FRIEND_STEPS.filter((n) => pts >= n).length - 1;
@@ -95,11 +96,14 @@ class Friends {
 
   // 1분마다 main 이 부른다. 새 손님이 올 때가 됐으면 방문 정보를 돌려준다
   //  ctx = { away, busy } — 자리를 비웠거나(키보드·마우스를 5분 넘게 안 만짐) 바쁘면 미룬다
+  // 시간이 다 된 친구를 여기서 보내면(펫 창이 인사를 못 했을 때) 두고 간 보물은 고양이가 챙겨 둔다(보물 상자로 바로).
+  // 그 결과 { id, gift, kept } 는 takeLeft() 로 한 번 꺼내 간다 (main 이 펫 창에 pet:friend-leave 를 보낸다)
   tick(ctx = {}) {
     const s = this.st();
     const now = Date.now();
-    if (s.visit && s.visit.until <= now) this.finish();
-    if (this.current() || now < s.nextAt || ctx.away || ctx.busy) return null;
+    if (s.visit && s.visit.until <= now) this.left = this.finish({ keep: true });
+    // 배가 든든하면(ctx.full) 30분 일찍 온다 = 1시간 반쯤마다 (2026-10-10, 배부름은 덤)
+    if (this.current() || now < s.nextAt - (ctx.full ? FULL_EARLY_MS : 0) || ctx.away || ctx.busy) return null;
     return this.start(pick(FRIENDS).id, 'visit');
   }
 
@@ -121,8 +125,10 @@ class Friends {
     return { ...visit, level: levelOf(this.one(id).pts), up: levelOf(this.one(id).pts) > before };
   }
 
-  // 돌아간다 (시간이 다 됐거나 앱이 보냈다). 가끔 보물을 두고 간다
-  finish() {
+  // 돌아간다 (시간이 다 됐거나 앱이 보냈다). 가끔 보물을 두고 간다.
+  //  keep = 바닥에 떨어뜨릴 펫 창이 없을 때(main 이 보낼 때): 보물을 상자에 바로 넣는다 (kept: true)
+  //  아니면 펫 창이 바닥에 떨어뜨리고, 주우면 pet:treasure 로 들어온다
+  finish(opts = {}) {
     const v = this.st().visit;
     if (!v) return null;
     const lv = levelOf(this.one(v.id).pts);
@@ -131,7 +137,25 @@ class Friends {
     const patch = { visit: null, nextAt: Date.now() + VISIT_GAP_MS + rint(-20, 20) * 60_000 };
     if (v.kind === 'call') patch.callReadyAt = Date.now() + CALL_COOLDOWN_MS;
     this.save(patch);
-    return { id: v.id, gift };
+    if (gift && opts.keep) this.keepGift(gift);
+    return { id: v.id, gift, kept: !!(gift && opts.keep) };
+  }
+
+  // tick 이 보낸 친구 (한 번만 꺼낸다). 없으면 null
+  takeLeft() {
+    const r = this.left || null;
+    this.left = null;
+    return r;
+  }
+
+  // 두고 간 보물을 상자에 바로 넣는다 (도감 기록 treasureSeen 도 같이. treasure.js 의 add 와 같다)
+  keepGift(key) {
+    if (!findTreasure(key)) return;
+    const box = { ...(this.state.get('treasures') || {}) };
+    box[key] = (box[key] || 0) + 1;
+    const seen = new Set(this.state.get('treasureSeen') || []);
+    seen.add(key);
+    this.state.set({ treasures: box, treasureSeen: [...seen] });
   }
 
   // 단짝 부르기: 단짝이고, 아무도 안 와 있고, 쿨타임이 지났으면

@@ -19,6 +19,24 @@
     rows.forEach((row, j) => r.pattern([row], x + (dxs ? dxs[j] || 0 : 0), y + j, map));
   }
 
+  // 글자 그림을 찍고 둘레(상하좌우)에 외곽선 K 를 자동으로 두른다. K 가 없으면 외곽선 없이 찍는다
+  // o.skip(i, j): 그 외곽선 칸은 건너뛴다 (i, j 는 그림 안 좌표, -1 이면 바깥 줄)   o.solid: false 면 머리 위 표시 높이에 안 친다
+  function outlined(r, rows, x0, y0, map, K, o = {}) {
+    x0 = Math.round(x0); y0 = Math.round(y0);
+    const H = rows.length;
+    const W = Math.max(...rows.map((s) => s.length));
+    const solid = o.solid !== false;
+    const at = (i, j) => (j >= 0 && j < H && i >= 0 && i < rows[j].length && rows[j][i] !== '.' ? rows[j][i] : null);
+    for (let j = -1; j <= H; j++) for (let i = -1; i <= W; i++) {
+      const ch = at(i, j);
+      if (ch) { const col = map[ch]; if (col) r.px(x0 + i, y0 + j, col, solid); }
+      else if (K && (at(i - 1, j) || at(i + 1, j) || at(i, j - 1) || at(i, j + 1))) {
+        if (o.skip && o.skip(i, j)) continue;
+        r.px(x0 + i, y0 + j, K, solid);
+      }
+    }
+  }
+
   const ACC = {
     // ================= 원래 있던 것 (다듬은 버전) =================
     sprout: {
@@ -847,21 +865,31 @@
       },
     },
     pinocchio: {
+      // 2026-10-10 다시 그림: 진한 갈색 외곽선의 나무 코가 쭉 자라면 코끝에 파랑새가 내려앉았다 날아간다 (6초마다)
       front(g, a, c, t) {
-        // 거짓말할수록 코가 쭉쭉 자란다 (4초마다 다시 짧아진다). 뿌리는 두툼하고 끝으로 갈수록 가늘다
-        const len = 3 + Math.floor((t % 4) * 1.6);
-        const W = '#fbe3bf', w = '#e0b47e', E = '#5a3418';
+        const K = '#5a3418';
+        const p = t % 6;
+        const len = p < 1.2 ? 3 + Math.round((p / 1.2) * 8) : p < 5.2 ? 11 : 11 - Math.round(((p - 5.2) / 0.8) * 8);
+        // 나무 코: 뿌리 두 칸은 세 줄로 두툼하고 끝으로 가며 두 줄. 윗외곽선은 오른눈 밑에선 뺀다
+        const rows = ['', '', ''];
         for (let i = 0; i < len; i++) {
-          const x = a.fx + 1 + i;
           const thick = i < 2;
-          this.px(x, a.my - 1, E);
-          this.px(x, a.my, i === len - 1 ? w : W);
-          if (thick) this.px(x, a.my + 1, w);
-          this.px(x, a.my + (thick ? 2 : 1), E);
+          rows[0] += 'W';
+          rows[1] += i === len - 1 ? 'w' : thick ? 'W' : 'w';
+          rows[2] += thick ? 'w' : '.';
         }
-        this.px(a.fx + 1 + len, a.my, E);
-        this.px(a.fx, a.my, W);
-        if (len > 8 && Math.floor(t * 4) % 2) this.pattern(['N.', 'Nn'], a.fx + len - 2, a.my - 3, { N: '#78c46a', n: '#4b8f43' });
+        outlined(this, rows, a.fx, a.my, { W: '#f6d29a', w: '#cf9452' }, K, { skip: (i, j) => j < 0 && i < 4 });
+        for (let i = 4; i < len - 1; i += 3) this.px(a.fx + i, a.my, '#e0b070'); // 나뭇결
+        if (p > 1.4 && p < 5.2) {
+          // 파랑새: 날아와서(1.4~2.0) 앉아 있다가(~4.6) 날아간다. 앉아 있을 땐 머리 위로 음표처럼 반짝
+          const land = p < 2 ? 1 - (p - 1.4) / 0.6 : p > 4.6 ? (p - 4.6) / 0.6 : 0;
+          const bx = a.fx + len - 5 + Math.round(land * 7);
+          const by = a.my - 4 - Math.round(land * 6);
+          const flap = land > 0 && Math.floor(t * 12) % 2;
+          outlined(this, ['.BB..', 'OkBBb', '.BBBb', flap ? 'b....' : '.y.y.'], bx, by,
+            { B: '#4f9be8', b: '#2f6cc0', k: '#1f1c1b', O: '#ffb02a', y: '#ff9a2a' }, '#1d3a6a', { skip: (i, j) => j === 4 });
+          if (land === 0 && Math.floor(t * 2) % 2) this.pattern(['W.W', '.W.'], bx + 1, by - 3, { W: '#ffffff' }, false);
+        }
       },
     },
     vampeyes: {
@@ -1606,29 +1634,47 @@
       },
     },
     fireworks: {
+      // 축하 불꽃 (2026-10-10 다시 그림): 줄기 불꽃 — 세 발이 왼쪽·가운데·오른쪽 자리를 돌아가며 엇갈려 터져서
+      // 언제 봐도 하나는 활짝 펴 있다. 줄기는 세 칸 길이(밝은 끝 → 진한 꼬리), 터지는 순간 하얀 섬광, 펴지면 안쪽에 하얀 반짝이
       back(g, a, c, t) {
+        const HUES = [330, 45, 190, 120, 275];
+        const ctx = this.ctx;
         for (let k = 0; k < 3; k++) {
           const P = 2.4;
           const tt = t + k * 0.8;
           const idx = Math.floor(tt / P);
           const ph = (tt % P) / P;
-          // 가장 크게 퍼져도(반지름 8) 창·카드 안에 들어오게 가운데 쪽에서 터뜨린다
-          const bx = Math.round(16 + hash(idx * 3 + k) * 16);
-          const by = Math.round(12 + hash(idx * 5 + k) * 8);
-          const hue = Math.floor(hash(idx * 7 + k) * 360);
-          if (ph < 0.25) {
-            const y = GROUND - (GROUND - by) * (ph / 0.25);
+          // 가장 크게 퍼져도(반지름 10) 창·카드 안에 들어오게 위쪽 세 자리에서 터뜨린다
+          const slot = (idx + k) % 3;
+          const bx = Math.round([12, 24, 36][slot] + (hash(idx * 3 + k) - 0.5) * 4);
+          const by = Math.round(10 + hash(idx * 5 + k) * 5);
+          const hue = HUES[(idx * 2 + k) % HUES.length];
+          if (ph < 0.18) {
+            // 쏘아 올리는 불씨
+            const y = GROUND - (GROUND - by) * (ph / 0.18);
             this.px(bx, y, '#fff3c0', false);
-            this.px(bx, y + 1, 'rgba(255,200,120,0.6)', false);
-          } else {
-            const q = (ph - 0.25) / 0.75;
-            const R = 2 + q * 6;
-            for (let i = 0; i < 12; i++) {
-              const ang = (i / 12) * Math.PI * 2;
-              this.px(bx + Math.cos(ang) * R, by + Math.sin(ang) * R + q * q * 3, `hsla(${hue},100%,70%,${(1 - q).toFixed(2)})`, false);
-              if (i % 2) this.px(bx + Math.cos(ang) * R * 0.5, by + Math.sin(ang) * R * 0.5 + q * q * 2, `rgba(255,255,255,${(0.9 * (1 - q)).toFixed(2)})`, false);
-            }
+            this.px(bx, y + 1, 'rgba(255,200,120,0.7)', false);
+            this.px(bx, y + 2, 'rgba(255,200,120,0.35)', false);
+            continue;
           }
+          const q = (ph - 0.18) / 0.82;
+          const e = Math.min(1, q * 1.6);
+          const R = 2 + (1 - (1 - e) * (1 - e)) * 8;
+          const drop = q * q * 3;
+          const prev = ctx.globalAlpha;
+          ctx.globalAlpha = prev * (q < 0.6 ? 1 : (1 - q) / 0.4);
+          if (q < 0.15) this.pattern(['.W.', 'WWW', '.W.'], bx - 1, by - 1, { W: '#ffffff' }, false);
+          for (let i = 0; i < 12; i++) {
+            const ang = (i / 12) * Math.PI * 2 + idx;
+            for (let s = 0; s < 3; s++) {
+              const rr = R - s * 1.2;
+              if (rr < 1) continue;
+              const col = s === 0 ? `hsl(${hue},100%,72%)` : s === 1 ? `hsl(${hue},95%,60%)` : `hsla(${hue},90%,55%,0.6)`;
+              this.px(bx + Math.cos(ang) * rr, by + Math.sin(ang) * rr + drop, col, false);
+            }
+            if (i % 3 === 0 && q > 0.3) this.px(bx + Math.cos(ang) * R * 0.45, by + Math.sin(ang) * R * 0.45 + drop, '#ffffff', false);
+          }
+          ctx.globalAlpha = prev;
         }
       },
     },
@@ -1784,11 +1830,36 @@
       },
     },
     mummycat: {
-      // 미라 붕대 두건 (2026-09-25 미라 세트에서 떼어 냈다): 눈만 뚫린 붕대 두건, 풀린 끝자락이 살랑
+      // 미라 붕대 두건 (2026-10-10 다시 그림: 얼굴을 다 덮던 두건 → 반쯤 풀린 붕대).
+      // 이마를 두른 띠 + 왼쪽 귀를 감은 붕대 + 오른 볼을 비스듬히 지나는 띠. 사이로 털이 보이고 얼굴은 그대로, 매듭 끝자락이 길게 펄럭
       front(g, a, c, t) {
-        const B = (y) => (y % 2 ? '#efe6cf' : '#d8cba8');
-        hood(this, g, a, (dx, y) => (y >= a.ey && y < a.ey + a.eh && Math.abs(dx) >= 1 && Math.abs(dx) <= 4 ? null : B(y)));
-        for (let i = 1; i <= 5; i++) this.px(a.right + i, a.top + 2 + Math.round(Math.sin(t * 4 + i * 0.8) * (i / 3)), B(i));
+        const L1 = '#f6eedb', L2 = '#e2d5b2', S = '#a8966c';
+        const inEye = (x, y) => y >= a.ey && y < a.ey + a.eh && ((x >= a.eyeL && x < a.eyeL + a.ew) || (x >= a.eyeR && x < a.eyeR + a.ew));
+        hood(this, g, a, (dx, y, x, j) => {
+          if (inEye(x, y)) return null;
+          const fy = y - a.top - Math.round(dx * 0.2);
+          if (fy === 0) return S;
+          if (fy === 1) return L1;
+          if (fy === 2) return L2;
+          if (j <= 1 && dx < 0) return j === 0 ? L1 : L2; // 왼쪽 귀
+          // 오른 볼 비스듬한 띠 (눈 아래에서 귀 쪽으로)
+          const d = dx + (y - a.my);
+          if (dx >= 2 && y > a.ey && (d === 5 || d === 6)) return d === 5 ? L1 : L2;
+          return null;
+        });
+        if (a.curled) return;
+        // 매듭 + 길게 풀린 끝자락 (왼쪽으로 펄럭)
+        const ky = a.top + 1;
+        this.pattern(['KKK', 'KWK', 'KKK'], a.left - 1, ky - 1, { K: c.K, W: L1 });
+        for (let i = 1; i <= 7; i++) {
+          const y = ky + Math.round(i * 0.45 + Math.sin(t * 3.6 - i * 0.8) * (i / 3.5));
+          this.px(a.left - 1 - i, y - 1, c.K);
+          this.px(a.left - 1 - i, y, i % 3 === 0 ? S : L1);
+          this.px(a.left - 1 - i, y + 1, L2);
+          this.px(a.left - 1 - i, y + 2, c.K);
+        }
+        // 옷핀 반짝
+        this.px(a.hx + 3, a.top + 1, every(t, 2.8, 0.25) ? '#ffffff' : '#c8d0dc');
       },
     },
     mummywrap: {
@@ -2077,14 +2148,18 @@
       },
     },
     hiphopbeanie: {
-      front(g, a, c) {
-        // 눈 바로 위까지 푹 눌러쓴 슬라우치 비니 (귀 사이 빈 곳 없이 꽉)
-        const k = '#1e1e26', g2 = '#34343e';
-        hood(this, g, a, (dx, y) => (y <= a.ey - 1 ? (y >= a.ey - 2 ? (Math.abs(dx) % 2 ? g2 : k) : k) : null));
-        this.pattern(['..KKKKKKKK...', '.KkkkkkkkkKK.', 'KkkkkkkkkkkkK', 'KkkkkkkkkkkkK', 'KkkkkkkkkkkkK', 'KkkkkkkkkkkkK'], a.hx - 6, a.earTop - 3, { K: c.K, k });
+      // 눈썹 바로 위까지 푹 눌러쓴 슬라우치 비니 (2026-10-10 다시 그림: 편의점 비니와 헷갈리지 않게).
+      // 뒤로 축 늘어진 꼭대기, 이마엔 금색 왕관 패치, 골지 접단, 왼쪽 볼 옆에 금 링 귀걸이
+      front(g, a, c, t) {
+        const k = '#1c1c24', k2 = '#30303c', gd = '#ffcf3a', gD = '#c8901a';
+        hood(this, g, a, (dx, y) => (y <= a.ey - 1 ? (y >= a.ey - 2 ? (Math.abs(dx) % 2 ? k2 : k) : k) : null));
+        this.pattern(['..KKKKKKKKK....', '.KkkkkkkkkkKKK.', 'KkkhkkkkkkkkkkK', 'KkkkkkkkkkkkkkK', 'KkkkkkkkkkkkKK.'], a.hx - 6, a.earTop - 3, { K: c.K, k, h: '#3e3e4c' });
         for (let x = a.left; x <= a.right; x++) this.px(x, a.ey - 3, c.K);
-        this.px(a.hx + 4, a.ey - 2, '#ffffff');
-        this.px(a.hx + 5, a.ey - 2, '#ffffff');
+        // 왕관 패치 (가끔 반짝)
+        this.pattern(['G.G.G', 'GGGGG', 'gGGGg'], a.hx - 2, a.ey - 7, { G: gd, g: gD });
+        if (t % 3 < 0.2) this.px(a.hx + 2, a.ey - 7, '#ffffff');
+        // 금 링 귀걸이
+        this.pattern(['.G.', 'G.G', '.G.'], a.left - 1, a.ey + 2, { G: gd });
       },
     },
     newsboy: {
@@ -2344,17 +2419,36 @@
       },
     },
     lifeburden: {
-      back(g, a, c) {
-        const cx = a.hx - 1, cy = a.top - 4;
-        this.ellipse(cx, cy, 11, 8, (x, y) => (hash(x * 7 + y * 3) < 0.12 ? '#6a6a72' : hash(x * 5 + y * 11) < 0.05 ? '#6f8f5a' : '#8a8a92'), c.K);
-        let x = cx - 7;
-        for (const ch of 'LIFE') { this.pattern(LETTER[ch], x, cy - 3, { X: '#2a2a30' }); x += 4; }
+      // 2026-10-10 다시 그림: 머리를 통째로 덮던 큰 바위 → 등에 멘 반만 한 돌덩이. 머리 뒤 오른쪽으로 기대 얹혀 LIFE 만 보인다.
+      // 이끼 한 점과 꿋꿋한 새싹, 돌을 감은 멜빵 끈, 가슴엔 멜빵 두 줄
+      back(g, a, c, t) {
+        const cx = a.hx + (a.curled ? 6 : 4), cy = a.top - (a.curled ? 3 : 4);
+        const base = (x, y) => {
+          const h = hash(x * 7 + y * 3);
+          if (x + y < cx + cy - 7) return '#b2b2ba'; // 빛 받는 왼쪽 위
+          if (x + y > cx + cy + 6) return h < 0.4 ? '#6f8f5a' : '#6c6c76'; // 그늘 + 이끼
+          return h < 0.12 ? '#78787f' : '#94949c';
+        };
+        this.ellipse(cx, cy, 8.5, 5.5, base, c.K);
+        // LIFE (I 는 한 칸 폭으로 좁혀 돌 안에 들어가게)
+        let x = cx - 6;
+        for (const ch of 'LIFE') {
+          const rows = ch === 'I' ? ['X', 'X', 'X', 'X', 'X'] : LETTER[ch];
+          this.pattern(rows, x, cy - 3, { X: '#33333b' });
+          x += rows[0].length + 1;
+        }
+        // 돌 위 새싹
+        const s = sway(t, 2.2, 0.6);
+        this.pattern(['KK.KK', 'KNKNK', '.KnK.'], cx - 5 + s, cy - 8, { K: c.K, N: '#78c46a', n: '#4b8f43' });
+        this.px(cx - 3, cy - 5, '#4b8f43');
+        // 멜빵 끈이 돌을 감는다
+        for (let y = cy - 2; y <= cy + 5; y++) this.px(cx + 6 - Math.round((y - cy) * 0.3), y, '#8a5a32');
       },
       front(g, a, c, t) {
         if (a.curled) return;
-        for (const dx of [-4, 4]) for (let y = a.my + 1; y <= a.my + 3; y++) this.px(a.hx + dx, y, '#8a5a32');
-        const p = (t % 2.5) / 1;
-        if (p < 1) this.pattern(['.U.', 'UUU', 'UWU', '.U.'], a.right + 1, a.top + 1 + Math.round(p * 3), { U: '#8fd0f5', W: '#fff' }, false);
+        for (const dx of [-4, 4]) for (let y = a.my + 1; y <= a.my + 3; y++) this.px(a.hx + dx, y, y === a.my + 2 ? '#6b3f1a' : '#8a5a32');
+        const p = t % 3;
+        if (p < 1) this.pattern(['.U.', 'UUU', 'UWU', '.U.'], a.left - 3, a.top + 1 + Math.round(p * 3), { U: '#8fd0f5', W: '#fff' }, false);
       },
     },
     // ---- 기존 코스튬 디자인 수정 ----
@@ -2503,31 +2597,41 @@
     },
     // 진짜 토끼 발 · 곰돌이 발 (손 인형을 다시 그림)
     bunnymitt: {
+      // 2026-10-10 다시 그림: 길쭉한 하얀 솜뭉치 토끼 발. 진한 외곽선, 발가락 골, 분홍 발바닥, 털 뭉치가 삐죽, 깡충
       hand: true,
       front(g, a, c, t) {
-        const P = ['.KKK.', 'KWWWK', 'KWWWK', 'KWPWK', 'KPWPK', '.KKK.'];
-        const m = { K: '#b8b0a8', W: '#ffffff', P: '#ffb3c7' };
         if (a.curled) return;
-        const bob = Math.round(Math.sin(t * 3));
-        this.pattern(P, a.right - 1, a.cy - 1 + bob, m);
-        this.pattern(P, a.left - 3, a.cy - 1 - bob, m);
+        const P = ['.WWWW.', 'WgWWgW', 'WgWWgW', 'WWWWWW', 'WWWWWW', 'WWPPWW', 'WWPPWW', '.WWWW.'];
+        const m = { W: '#ffffff', g: '#d6d0dc', P: '#ff8fae' };
+        const s = Math.sin(t * 4);
+        const hop = Math.max(0, Math.round(s * 1.5));
+        outlined(this, P, a.right - 2, a.cy - 3 - hop, m, c.K);
+        outlined(this, P, a.left - 4, a.cy - 3 - Math.max(0, -Math.round(s)), m, c.K);
+        for (const [x, y] of [[a.right + 4, a.cy - 1 - hop], [a.left - 5, a.cy]]) this.px(x, y, '#ffffff');
       },
     },
     bearmitt: {
+      // 2026-10-10 다시 그림: 큼직한 고동색 곰 발바닥. 분홍 발가락 젤리 넷에 큰 발바닥, 오른발엔 꿀이 뚝뚝
       hand: true,
       front(g, a, c, t) {
-        const P = ['W.W.W', 'KTTTK', 'KTTTK', 'KTPTK', 'KPPPK', '.KKK.'];
-        const m = { K: c.K, T: '#8a5a38', P: '#e8a0a0', W: '#fffaf0' };
         if (a.curled) return;
+        const P = ['.BBBBB.', 'BBpBpBB', 'BpBBBpB', 'BBPPPBB', 'BPPPPPB', 'BBPPPBB', '.BBBBB.'];
+        const m = { B: '#6b4226', p: '#ffc0cf', P: '#ff9fb4' };
         const bob = Math.round(Math.sin(t * 3 + 1));
-        this.pattern(P, a.right - 1, a.cy - 1 + bob, m);
-        this.pattern(P, a.left - 3, a.cy - 1 - bob, m);
+        outlined(this, P, a.right - 2, a.cy - 2 + bob, m, c.K);
+        outlined(this, P, a.left - 4, a.cy - 2 - bob, m, c.K);
+        // 꿀: 발 위에 얹혀 흘러내리고 한 방울씩 떨어진다
+        const hx = a.right - 1, hy = a.cy - 3 + bob;
+        this.pattern(['YYYYY', 'Y.YY.', '..Y..'], hx, hy, { Y: '#ffb81f' });
+        this.px(hx + 1, hy, '#fff0a0');
+        const d = (t % 2) / 2;
+        if (d < 0.7) this.px(hx + 2, hy + 3 + Math.round(d * 6), '#ffb81f', false);
       },
     },
   };
   Object.assign(ACC, ACC5);
 
-  root.PetSprite.costumeKit = { GROUND, sway, hash, mirror, heldPaw, rowsAt, cells, isBody, wear, hood, isFace, star, skirt };
+  root.PetSprite.costumeKit = { GROUND, sway, hash, mirror, heldPaw, rowsAt, outlined, cells, isBody, wear, hood, isFace, star, skirt };
 
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);

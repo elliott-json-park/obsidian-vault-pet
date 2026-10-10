@@ -1,9 +1,9 @@
 {
   "id": "vault-pet",
   "name": "Vault Pet",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "minAppVersion": "1.5.0",
-  "description": "Raise a pixel cat that grows as you write. Every word earns XP and coins for 260+ costumes, toys and mini-games, with daily quests, 161 badges and visiting neighbor cats.",
+  "description": "Raise a pixel cat that grows as you write. Every word earns XP and coins for 320 costumes, toys and mini-games, with daily quests, 165 badges, neighbor cats and a star shop after Lv.80.",
   "author": "Elliott Park",
   "authorUrl": "https://github.com/elliott-json-park",
   "isDesktopOnly": true

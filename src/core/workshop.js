@@ -41,6 +41,50 @@ const RECIPES = [
 ];
 
 const COMMON = TREASURES.filter((t) => t.rarity === 'common').map((t) => t.key);
+const RARE = TREASURES.filter((t) => t.rarity === 'rare').map((t) => t.key);
+const rarityOf = (key) => (TREASURES.find((t) => t.key === key) || {}).rarity || null;
+
+// 보물 교환소 (2026-10-10): 쌓인 보물을 원하는 보물로 바꾼다. 전설은 못 받는다(어려움 단계를 지킨다).
+// 받는 쪽 등급 → 내는 방법들 (앞에 있는 것부터). 낼 보물은 많이 쌓인 것부터 골고루 (pickAny 와 같은 방식)
+const RATES = {
+  common: [{ pay: 'common', n: 3 }],
+  rare: [{ pay: 'rare', n: 3 }, { pay: 'common', n: 8 }],
+};
+
+// pool 에서 n 개를 많이 쌓인 것부터 골고루 고른다. keep = { 키: 남겨 둘 개수 }. 모자라면 null
+function takeEven(box, pool, n, keep = {}) {
+  const have = Object.fromEntries(pool.map((k) => [k, Math.max(0, (box[k] || 0) - (keep[k] || 0))]));
+  const order = pool.filter((k) => have[k] > 0).sort((a, b) => have[b] - have[a]);
+  const out = {};
+  let left = n;
+  while (left > 0) {
+    let took = false;
+    for (const k of order) {
+      if (left <= 0) break;
+      if (have[k] > 0) {
+        have[k]--;
+        out[k] = (out[k] || 0) + 1;
+        left--;
+        took = true;
+      }
+    }
+    if (!took) return null;
+  }
+  return out;
+}
+
+// target 하나를 받으려면 무엇을 내야 하나. { pay: { 키: 개수 }, rate } 또는 null
+//  avoid = 내지 않을 키들 (받을 것 · 조합에 따로 적힌 재료), keep = 남겨 둘 개수
+function quote(box, target, { avoid = [], keep = {} } = {}) {
+  const rates = RATES[rarityOf(target)];
+  if (!rates) return null;
+  for (const r of rates) {
+    const pool = (r.pay === 'rare' ? RARE : COMMON).filter((k) => k !== target && !avoid.includes(k));
+    const pay = takeEven(box, pool, r.n, keep);
+    if (pay) return { pay, rate: r };
+  }
+  return null;
+}
 
 // 흔한 보물 아무거나 n 개를 고른다: 이 조합에 따로 적힌 재료는 빼고, 많이 쌓인 것부터. 모자라면 null
 function pickAny(box, recipe, n) {
@@ -92,11 +136,67 @@ class Workshop {
         const anyN = anyHave(box, r);
         const owned = this.hasMade(r.key);
         const ready = need.every((x) => x.have >= x.n) && anyN >= r.any;
-        return { key: r.key, slot: slotOf(r.key), tier: r.tier, need, any: r.any, anyHave: anyN, made: this.everMade(r.key), owned, ready };
+        const fillable = !ready && !owned && need.some((x) => x.have < x.n) && this.fill(r.key, { dry: true }).ok;
+        const made = (this.state.get('workshopMade') || []).filter((x) => x.key === r.key).pop() || null;
+        return { key: r.key, slot: slotOf(r.key), tier: r.tier, need, any: r.any, anyHave: anyN, made: this.everMade(r.key), madeAt: made ? made.at : 0, used: made ? made.used || null : null, owned, ready, fillable };
+      }),
+      // 교환소: 받을 수 있는 보물과 지금 바꿀 수 있나
+      exchange: TREASURES.filter((t) => RATES[t.rarity]).map((t) => {
+        const q = quote(box, t.key);
+        return { key: t.key, rarity: t.rarity, have: box[t.key] || 0, ok: !!q, pay: q ? q.rate : RATES[t.rarity][0] };
       }),
       made: RECIPES.filter((r) => this.everMade(r.key)).length,
       total: RECIPES.length,
     };
+  }
+
+  // 보물 하나를 바꿔 받는다. { ok, reason?, key, paid? }
+  exchange(target) {
+    if (!RATES[rarityOf(target)]) return { ok: false, reason: rarityOf(target) ? 'legend' : 'missing' };
+    const q = quote(this.treasures.box(), target);
+    if (!q || !this.treasures.spend(q.pay)) return { ok: false, reason: 'short' };
+    this.treasures.gain(target);
+    return { ok: true, key: target, paid: q.pay };
+  }
+
+  // 이 조합에 모자란 재료(따로 적힌 것)를 한 번에 바꿔 채운다.
+  // 조합 재료와 '아무 보물' 몫은 남겨 두고 나머지에서 낸다. 전설 재료가 모자라면 못 채운다.
+  // dry = true 면 바꾸지 않고 되는지만 본다. { ok, reason?, got?: { 키: 개수 }, paid? }
+  fill(key, { dry = false } = {}) {
+    const r = RECIPES.find((x) => x.key === key);
+    if (!r) return { ok: false, reason: 'missing' };
+    const box = { ...this.treasures.box() };
+    const short = Object.entries(r.need).filter(([k, n]) => (box[k] || 0) < n);
+    if (!short.length) return { ok: false, reason: 'enough' };
+    if (short.some(([k]) => rarityOf(k) === 'legend')) return { ok: false, reason: 'legend' };
+    const avoid = Object.keys(r.need);
+    const got = {};
+    const paid = {};
+    for (const [k, n] of short) {
+      for (let i = box[k] || 0; i < n; i++) {
+        // '아무 보물' 몫(흔한 것 r.any 개)은 남긴다: 흔한 보물로 낼 때 그만큼은 빼고 센다
+        const spare = anyHave(box, r) - r.any;
+        const q = quote(box, k, { avoid });
+        if (!q) return { ok: false, reason: 'short' };
+        const commonsPaid = Object.entries(q.pay).filter(([pk]) => COMMON.includes(pk)).reduce((a, [, v]) => a + v, 0);
+        if (commonsPaid > spare) {
+          // 흔한 보물로는 '아무 보물' 몫을 깎으니, 드문 보물로만 낼 수 있나 다시 본다
+          const rareOnly = rarityOf(k) === 'rare' ? takeEven(box, RARE.filter((x) => x !== k && !avoid.includes(x)), 3) : null;
+          if (!rareOnly) return { ok: false, reason: 'short' };
+          q.pay = rareOnly;
+        }
+        for (const [pk, pv] of Object.entries(q.pay)) {
+          box[pk] -= pv;
+          paid[pk] = (paid[pk] || 0) + pv;
+        }
+        box[k] = (box[k] || 0) + 1;
+        got[k] = (got[k] || 0) + 1;
+      }
+    }
+    if (dry) return { ok: true, got, paid };
+    if (!this.treasures.spend(paid)) return { ok: false, reason: 'short' };
+    for (const [k, n] of Object.entries(got)) this.treasures.gain(k, n);
+    return { ok: true, got, paid };
   }
 
   // 만든다. { ok, reason?, key, used? }
@@ -113,10 +213,10 @@ class Workshop {
     if (!this.treasures.spend(used)) return { ok: false, reason: 'short' };
     this.state.set({
       items: [...(this.state.get('items') || []), key],
-      workshopMade: [...(this.state.get('workshopMade') || []), { key, at: Date.now() }],
+      workshopMade: [...(this.state.get('workshopMade') || []), { key, at: Date.now(), used }], // used = 쓴 재료 (카드의 '재료' 꼬리표)
     });
     return { ok: true, key, used };
   }
 }
 
-module.exports = { Workshop, RECIPES };
+module.exports = { Workshop, RECIPES, RATES, quote };

@@ -7,6 +7,9 @@
   --soft: #efe4d6;
   --accent: #d97757;
   --accent-2: #e89a7c;
+  --accent-line: #7a3a24; /* 주 버튼 테두리 */
+  --accent-hover: #c9674a;
+  --top-tint: #f6e3d3; /* 맨 위 영역 그러데이션 */
   --good: #3fa37a;
   --gold: #e9b93a;
   --shadow: rgba(58, 33, 24, 0.22);
@@ -16,8 +19,8 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root.dark {
+  & {
     --bg: #1e1814;
     --panel: #29211c;
     --ink: #f4e9df;
@@ -25,8 +28,55 @@
     --line: #6a5446;
     --soft: #3a2f28;
     --shadow: rgba(0, 0, 0, 0.45);
+    --top-tint: #3a2a21;
     color-scheme: dark;
   }
+}
+
+/* ---------- 테마 (8차 후속, settings.theme) ----------
+   house.js 의 applyTheme 이 <html data-theme> 를 단다. 크림이 기본(:root), 코코아는 위 :root.dark,
+   'auto' 는 윈도우가 다크면 코코아 · 아니면 크림. 아래 셋은 밝은 테마라 토큰만 바꾼다 */
+:root[data-theme='mint'] {
+  --bg: #eef7f2;
+  --panel: #fbfffd;
+  --ink: #1f3b33;
+  --muted: #5e7f74;
+  --line: #1f3b33;
+  --soft: #d8ece2;
+  --accent: #2f9e7e;
+  --accent-2: #6cc3a6;
+  --accent-line: #17604c;
+  --accent-hover: #278a6d;
+  --top-tint: #d6ede1;
+  --shadow: rgba(31, 59, 51, 0.2);
+}
+:root[data-theme='sakura'] {
+  --bg: #fdf2f4;
+  --panel: #fffafb;
+  --ink: #4a2330;
+  --muted: #9a6b79;
+  --line: #4a2330;
+  --soft: #f7dfe5;
+  --accent: #e0708c;
+  --accent-2: #f0a3b6;
+  --accent-line: #8e3550;
+  --accent-hover: #cf5f7b;
+  --top-tint: #f9dce3;
+  --shadow: rgba(74, 35, 48, 0.2);
+}
+:root[data-theme='choco'] {
+  --bg: #f3e7da;
+  --panel: #fbf4ec;
+  --ink: #3b2416;
+  --muted: #86664f;
+  --line: #3b2416;
+  --soft: #e4d0bb;
+  --accent: #8b4f2c;
+  --accent-2: #b57a52;
+  --accent-line: #4d2a14;
+  --accent-hover: #7a4424;
+  --top-tint: #e6cfb7;
+  --shadow: rgba(59, 36, 22, 0.25);
 }
 
 * {
@@ -110,11 +160,11 @@ button {
 }
 .btn.primary {
   background: var(--accent);
-  border-color: #7a3a24;
+  border-color: var(--accent-line);
   color: #fff;
 }
 .btn.primary:hover {
-  background: #c9674a;
+  background: var(--accent-hover);
 }
 /* 보조 버튼: 그림자 없이 옅은 실선 (예전 점선은 꺼진 버튼처럼 보였다) */
 .btn.ghost {
@@ -143,14 +193,9 @@ button {
 .top {
   position: relative;
   flex: none;
-  background: linear-gradient(180deg, #f6e3d3, var(--bg));
+  background: linear-gradient(180deg, var(--top-tint), var(--bg));
   border-bottom: 2px solid var(--line);
   padding: 14px 16px 0;
-}
-@media (prefers-color-scheme: dark) {
-  .top {
-    background: linear-gradient(180deg, #3a2a21, var(--bg));
-  }
 }
 
 .hero {
@@ -162,7 +207,7 @@ button {
   width: 96px;
   height: 96px;
   flex: none;
-  background: radial-gradient(circle at 50% 70%, rgba(217, 119, 87, 0.18), transparent 65%);
+  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%);
   border-radius: 8px;
 }
 .hero-info {
@@ -175,6 +220,14 @@ button {
 }
 .lv {
   color: var(--accent);
+}
+/* 만렙 뒤 별 (house.js renderTop) */
+.lv-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--pixel);
+  vertical-align: -1px;
 }
 .mood {
   display: flex;
@@ -296,7 +349,7 @@ main {
   border-radius: 4px;
   color: #6b4a10;
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .banner {
     background: #3b2f18;
     color: #f2d9a4;
@@ -362,7 +415,7 @@ main {
 .road .step.locked canvas {
   filter: brightness(0) opacity(0.35);
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .road .step.locked canvas {
     filter: brightness(0) invert(1) opacity(0.25);
   }
@@ -440,7 +493,7 @@ main {
 .quest.done {
   background: #eaf7ef;
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .quest.done {
     background: #1f3329;
   }
@@ -459,7 +512,7 @@ main {
 .allclear.done {
   background: #fff4c7;
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .allclear.done {
     background: #3d3417;
   }
@@ -572,13 +625,30 @@ main {
 }
 .item.locked canvas,
 canvas.lv-locked {
-  filter: brightness(0) opacity(0.25);
+  /* 10-10: 검은 실루엣 대신 반투명. 무엇인지는 보이되 아직 내 것이 아닌 느낌 (레벨이 되면 열릴 걸 미리 보고 갖고 싶어지게) */
+  filter: grayscale(0.4) opacity(0.42);
 }
-@media (prefers-color-scheme: dark) {
-  .item.locked canvas,
-  canvas.lv-locked {
-    filter: brightness(0) invert(1) opacity(0.2);
-  }
+/* 별 카드는 짙은 보라 바탕이라 같은 값이면 너무 어둡다. 조금 덜 흐리게 */
+.panel.item.k-star.locked canvas {
+  filter: grayscale(0.25) opacity(0.62);
+}
+/* 잠긴 카드 오른쪽 위 자물쇠 딱지 (몇 레벨에 열리는지) */
+.lv-tag {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  /* 자물쇠 그림의 고리가 짙은 색이라, 어두운 테마에서도 딱지는 밝게 둔다 */
+  border: 1px solid #3a2118;
+  background: #fffaf3;
+  color: #3a2118;
 }
 /* 설정의 모션 미리보기: 캔버스 바탕까지 그림자가 되지 않게, 바탕은 감싼 상자가 대신 깐다
    [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 감싼 상자에 lv-locked-box 를 붙인다 */
@@ -983,6 +1053,26 @@ h3.sub small {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: none;
+  white-space: nowrap;
+}
+/* 이름표는 남는 폭을 쓰고, 오른쪽 조작부(값·스위치·버튼)는 줄지 않게. 안 그러면 '2 단계' 가 한 글자씩 세로로 꺾인다 */
+.field .lbl {
+  flex: 1;
+  min-width: 0;
+}
+.field > select,
+.field > .btn,
+.field > input {
+  flex: none;
+}
+.field.motion-row .lbl {
+  flex: none;
+}
+#scale-v {
+  white-space: nowrap;
+  flex: none;
+  min-width: 3.5em;
 }
 
 /* 도트 스위치 */
@@ -1399,7 +1489,7 @@ input {
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px dashed var(--line-soft, #e3d6c4);
+  border-bottom: 1px dashed color-mix(in srgb, var(--line) 18%, transparent);
 }
 .dash-row:last-child {
   border-bottom: 0;
@@ -1505,7 +1595,7 @@ input {
 }
 
 /* 어두운 화면에서도 가계부·안내 상자가 읽히게 */
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .ledger {
     background:
       repeating-linear-gradient(180deg, transparent 0 27px, #3a2f28 27px 28px),
@@ -1926,7 +2016,7 @@ input {
 .mzone.over,
 .mpool.over {
   border-color: var(--accent);
-  background: rgba(217, 119, 87, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .mzone-empty {
   margin: auto;
@@ -2027,7 +2117,7 @@ input {
   padding-top: 0;
   border-top: none;
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   #view > h2,
   #view > .h2-row,
   #view > section > h2:first-child,
@@ -2067,7 +2157,7 @@ input {
   border-color: var(--accent);
 }
 .btn.head-act.alert:hover {
-  background: #c9674a;
+  background: var(--accent-hover);
 }
 
 /* ---------- 상점: 먹이 카드의 배부름·기운 ---------- */
@@ -2137,8 +2227,24 @@ input {
 /* ---------- 자랑 카드 ---------- */
 
 .modal-card .modal-box {
-  max-width: 460px;
+  max-width: 820px;
 }
+/* 8차: 왼쪽 미리보기 · 오른쪽 고르기. 창이 좁으면 위아래로 */
+.card-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .card-edit { grid-template-columns: 1fr; }
+}
+.card-opts .copt { margin-bottom: 10px; }
+.card-opts .copt > b { display: block; font-size: 12px; margin-bottom: 4px; }
+.card-opts .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.card-opts .chip { font-size: 12px; }
+.card-opts .chip.swatch i { display: inline-block; width: 10px; height: 10px; border: 2px solid; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.card-opts input[type='text'] { width: 100%; }
 .card-img {
   display: block;
   width: 100%;
@@ -2285,7 +2391,7 @@ input {
 .temper.t-grumpy {
   background: #f9d9d2;
 }
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .temper.t-playful,
   .temper.t-grumpy {
     color: #3a2118;
@@ -2576,10 +2682,10 @@ input {
 /* 7차: 세트 전용 모션 · 장난감 시연 */
 .btn.setmo { margin: 4px auto 0; display: inline-flex; }
 .setmo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-.setmo-cell { background: var(--panel2, #f6efe5); border-radius: 10px; padding: 8px; text-align: center; }
+.setmo-cell { background: var(--soft); border-radius: 10px; padding: 8px; text-align: center; }
 .setmo-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
 .setmo-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }
-.setmo-cell.locked canvas { filter: brightness(0) opacity(0.25); }
+.setmo-cell.locked canvas { filter: grayscale(0.4) opacity(0.42); }
 /* 친구에게 선물하기 */
 .gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; max-height: 52vh; overflow: auto; }
 .gift-cell { position: relative; background: var(--soft); border: 2px solid transparent; border-radius: 10px; padding: 8px; text-align: center; cursor: pointer; font: inherit; color: inherit; }
@@ -2587,9 +2693,6 @@ input {
 .gift-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
 .gift-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }
 .gift-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
-@media (prefers-color-scheme: dark) {
-  .setmo-cell.locked canvas { filter: brightness(0) invert(1) opacity(0.2); }
-}
 /* 장난감 사용법 (글로만 설명) */
 .toy-guide-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; }
 .toy-guide-head svg { flex: none; image-rendering: pixelated; }
@@ -2606,14 +2709,24 @@ input {
 
 /* 7차: 털색 고르기 */
 .fur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; max-height: 60vh; overflow: auto; }
-.fur-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #fffaf3; border: 2px solid #e6d6c4; border-radius: 10px; padding: 6px; cursor: pointer; font: inherit; color: inherit; }
+.fur-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--panel); border: 2px solid color-mix(in srgb, var(--line) 20%, transparent); border-radius: 10px; padding: 6px; cursor: pointer; font: inherit; color: inherit; }
 /* 48칸 캔버스에서 고양이 둘레(가운데 아래 24칸)만 두 배로 보여 준다 */
 .fur-cell .fur-view { display: block; width: 100%; aspect-ratio: 1; overflow: hidden; }
 .fur-cell canvas { display: block; width: 200%; margin: -104% 0 0 -50%; image-rendering: pixelated; }
-.fur-cell.on { border-color: #d97757; background: #fff1e6; }
+.fur-cell.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
 .fur-cell.locked { cursor: default; opacity: 0.55; filter: grayscale(0.6); }
 .fur-cell .nm { font-weight: 700; font-size: 12px; }
-.fur-cell .lv { font-size: 10px; color: #8b6f60; display: inline-flex; gap: 2px; align-items: center; min-height: 12px; }
+.fur-cell .lv { font-size: 10px; color: var(--muted); display: inline-flex; gap: 2px; align-items: center; min-height: 12px; }
+/* 첫 실행 안내의 귀 고르기 (2026-10-10): 이름 칸 밑에 작게, 넘치면 안에서 스크롤 */
+/* 새로 생긴 것 (업데이트 뒤 처음 한 번, 2026-10-10) */
+.wn-list { list-style: none; margin: 6px 0 12px; padding: 0; display: grid; gap: 6px; max-height: 58vh; overflow: auto; }
+.wn-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; background: var(--soft); }
+.wn-row b { font-size: 13px; }
+.wn-row .muted { font-size: 11px; line-height: 1.4; word-break: keep-all; }
+.wn-row .btn { white-space: nowrap; }
+.fur-grid.w-ears { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 4px; max-height: 236px; }
+.w-ears .fur-cell { padding: 4px; }
+.w-ears .fur-cell .nm { font-size: 10px; line-height: 1.2; word-break: keep-all; }
 
 /* 7차: 동네 친구 */
 .gcell { cursor: pointer; }
@@ -2849,7 +2962,7 @@ input:focus-visible {
 }
 
 /* 어두운 화면: 밝은 색을 박아 둔 곳들 */
-@media (prefers-color-scheme: dark) {
+:root.dark {
   .badge .ach-tip {
     background: #3a3120;
     color: #e8cf9a;
@@ -3014,6 +3127,529 @@ input:focus-visible {
 }
 .ws-grid > .ws-card .btn.buy {
   margin: 0;
+}
+
+/* 별 상점 (8차): Lv80 뒤 별로만 사는 한정품. 남색 판 · 금빛 테두리로 코인 상점과 구별한다 */
+.panel.star-wallet { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 14px; background: linear-gradient(135deg, #241c4a, #3b2a7a); color: #fff3c4; border-color: #c9a227; }
+.panel.star-wallet .pix { font-size: 20px; color: #ffd84a; }
+.panel.star-wallet .muted { color: #d8cff5; }
+.panel.item.k-star { border-color: #c9a227; background: linear-gradient(180deg, #fffaf0, #f3ecff); }
+.panel.item.k-star .pv { background: radial-gradient(circle at 50% 40%, #3b2a7a, #1a1338); border-radius: 8px; }
+.star-price { display: inline-flex; align-items: center; gap: 3px; color: #8a6a00; }
+.star-price b { font-weight: 800; }
+:root.dark {
+  .panel.item.k-star { background: linear-gradient(180deg, #2a2440, #1f1a33); }
+  .star-price { color: #ffd84a; }
+}
+
+/* ---------- 정돈 (8차 후속): 굵은 선 · 도장 그림자를 덜어 내고, 큰 분류와 작은 거르기를 다르게 ----------
+   위 규칙은 그대로 두고 여기서 덮는다 (되돌리려면 이 묶음만 지우면 된다) */
+:root {
+  --edge: color-mix(in srgb, var(--line) 18%, transparent);
+  --edge-strong: color-mix(in srgb, var(--line) 34%, transparent);
+  --lift: 0 1px 0 color-mix(in srgb, var(--line) 6%, transparent), 0 6px 16px -10px var(--shadow);
+  --r: 12px;
+  --r-sm: 8px;
+}
+:root.dark {
+  --edge: rgba(244, 233, 223, 0.12);
+  --edge-strong: rgba(244, 233, 223, 0.24);
+}
+.panel {
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  box-shadow: var(--lift);
+}
+.btn {
+  border: 1.5px solid var(--edge-strong);
+  border-radius: var(--r-sm);
+  box-shadow: none;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn.primary {
+  border-color: transparent;
+}
+.btn.ghost {
+  border-width: 1px;
+  border-color: var(--edge-strong);
+}
+.btn.ghost:hover,
+.btn.head-act:hover {
+  border-color: var(--edge-strong);
+}
+.xp-bar,
+.bar {
+  border: 0;
+  border-radius: 99px;
+  height: 8px;
+}
+.xp-bar i,
+.bar i {
+  border-radius: 99px;
+  background: var(--accent);
+}
+.bar.good i {
+  background: var(--good);
+}
+.bar.gold i {
+  background: var(--gold);
+}
+/* 맨 위: 탭 8개가 창 폭에 다 들어가게 그림 위 · 글씨 아래, 고른 탭은 밑줄 */
+.top {
+  border-bottom: 1px solid var(--edge);
+}
+.tabs {
+  gap: 0;
+  margin-top: 10px;
+}
+.tabs button {
+  flex: 1 1 0;
+  min-width: 50px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  padding: 5px 2px 7px;
+  border: 0;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+.tabs button.on {
+  background: none;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: inset 0 -2.5px 0 var(--accent);
+}
+.tabs .dot {
+  top: 3px;
+  right: calc(50% - 16px);
+  border-radius: 50%;
+  border: 0;
+}
+/* 칩: 작은 거르기는 알약, 고르면 진하게 */
+.chip {
+  border: 1px solid var(--edge-strong);
+  border-radius: 99px;
+  padding: 4px 10px;
+}
+.chip:hover {
+  background: var(--soft);
+}
+.chip.on {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+  box-shadow: none;
+}
+.chip.on small {
+  color: inherit;
+  opacity: 0.7;
+}
+.chip.locked,
+.chip.empty {
+  border-style: dashed;
+}
+/* 큰 분류 줄(상점 · 인벤토리 · 업적)은 하나로 묶인 버튼 */
+.shop-jump:not(.costume-tabs):not(.ward-tabs) {
+  gap: 2px;
+}
+.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip {
+  border-color: transparent;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+}
+.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip:hover {
+  background: var(--soft);
+}
+.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--edge);
+  box-shadow: 0 1px 4px var(--shadow);
+  font-weight: 700;
+}
+.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on small {
+  color: var(--muted);
+  opacity: 1;
+}
+.shop-sticky {
+  border-bottom: 1px solid var(--edge);
+}
+.shop-sticky .shop-jump + .costume-tabs {
+  border-top-color: var(--edge);
+}
+/* 카드 */
+.item.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent), var(--lift);
+}
+.item.locked {
+  border: 1px dashed var(--edge-strong);
+  box-shadow: none;
+}
+.item .new {
+  border-radius: 99px;
+  padding: 0 6px;
+}
+.ws-card.ready {
+  box-shadow: 0 0 0 1.5px var(--good), var(--lift);
+}
+.tier-legend:not(.locked) {
+  box-shadow: 0 0 0 1.5px var(--gold), var(--lift);
+}
+/* 입력 · 고르기 · 토글 */
+.field select,
+.jump-select,
+.msearch,
+input[type='text'],
+input[type='number'],
+input[type='time'],
+.field input[type='text'],
+.field input[type='time'],
+.field input[type='number'] {
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--r-sm);
+}
+.switch span {
+  border: 0;
+  border-radius: 99px;
+  background: var(--edge-strong);
+}
+.switch span::after {
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 0.15s ease;
+}
+.switch input:checked + span::after {
+  left: 21px;
+}
+.radio {
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--r-sm);
+}
+.mchip {
+  border: 1px solid var(--edge-strong);
+  border-radius: 99px;
+}
+.mzone {
+  border: 1.5px dashed var(--edge-strong);
+  border-radius: var(--r-sm);
+}
+.motion-peek {
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  box-shadow: 0 12px 30px -8px var(--shadow);
+}
+.toast,
+.tip,
+.card-img {
+  border-radius: var(--r-sm);
+  box-shadow: var(--lift);
+}
+.modal-box {
+  border-radius: var(--r);
+}
+.chart .b {
+  border: 0;
+  border-radius: 3px 3px 0 0;
+}
+.chart .lab {
+  border-top: 1px solid var(--edge-strong);
+}
+.welcome .steps i {
+  border: 1px solid var(--edge-strong);
+}
+.dev-toggle {
+  border-radius: var(--r-sm);
+}
+.banner {
+  border-radius: var(--r);
+}
+.fur-cell {
+  border-width: 1px;
+}
+/* 섹션 사이 구분선은 실선 한 줄로 */
+#view > h2,
+#view > .h2-row,
+#view > section > h2:first-child,
+#view > section > .h2-row:first-child,
+#view > section > .quest-head:first-child,
+#view > .ach-cat {
+  border-top: 1px solid var(--edge);
+}
+/* 설정: 테마 고르기 */
+.theme-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.theme-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.theme-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  font-size: 12px;
+  background: var(--panel);
+  border: 1px solid var(--edge-strong);
+  border-radius: 99px;
+  cursor: pointer;
+}
+.theme-pick:hover {
+  background: var(--soft);
+}
+.theme-pick.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+  font-weight: 700;
+}
+.theme-pick .sw {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.theme-pick .sw b {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50% 0 0 0;
+}
+.theme-pick .sw-auto {
+  background: linear-gradient(135deg, #faf6ef 50%, #1e1814 50%);
+}
+/* 오늘 먹고 싶은 것 (홈) */
+.crave-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.crave-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--soft);
+  border-radius: var(--r-sm);
+  min-width: 0;
+}
+.crave-cell.done {
+  opacity: 0.7;
+}
+.crave-txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.crave-txt small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.crave-txt b {
+  font-size: 13px;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.crave-txt span {
+  color: var(--accent);
+  font-size: 11px;
+}
+.crave-done {
+  color: var(--good);
+  font-size: 12px;
+  font-weight: 700;
+}
+.crave-sub {
+  margin: 8px 0 0;
+}
+.wtag.crave-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--accent);
+  color: #fff;
+}
+@media (max-width: 500px) {
+  .crave-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 보물 교환소 · 공방 코스튬 이야기 */
+.ws-exchange {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.ws-exchange select {
+  flex: 1 1 180px;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--r-sm);
+}
+.ws-story {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  margin: 2px 4px 4px;
+}
+.ws-fill {
+  margin-top: 4px;
+}
+.ws-stamp {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 99px;
+  color: var(--good);
+  border: 1px solid color-mix(in srgb, var(--good) 50%, transparent);
+}
+
+/* 오늘의 소식 (홈) */
+.news-list {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.news-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 2px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--edge);
+}
+.news-list li:last-child {
+  border-bottom: 0;
+}
+.news-list li[data-news-link] {
+  cursor: pointer;
+}
+.news-list li[data-news-link]:hover .nx {
+  color: var(--accent);
+}
+.news-list .nt {
+  flex: none;
+  width: 58px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.news-list .nx {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* 설정: 모션 4묶음 */
+.mgroups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mgroup {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  box-shadow: var(--lift);
+}
+.mgroup > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.mgroup > summary::-webkit-details-marker {
+  display: none;
+}
+.mgroup > summary::before {
+  content: '▸';
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.mgroup[open] > summary::before {
+  transform: rotate(90deg);
+}
+.mgroup > summary .mtag {
+  margin-left: auto;
+}
+.mgroup > .mcards {
+  padding: 0 12px 12px;
+}
+
+/* 별 상점 카드 (2026-10-10): 그림 영역을 카드 위쪽 가장자리까지 꽉 채우고 3배(144px) 통째로 그린다.
+   날개 · 후광처럼 넓은 효과도 잘리지 않게. 카드가 좁으면(150px 미만) 2배로 */
+.shop-grid > .panel.item.k-star {
+  padding-top: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+.panel.item.k-star .pv {
+  justify-self: stretch;
+  align-self: stretch;
+  margin: 0 -8px 4px;
+  height: 156px;
+  border-radius: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.panel.item.k-star .acc-view,
+.panel.item.k-star .acc-view canvas {
+  width: 144px;
+  height: 144px;
+  margin: 0;
+}
+.panel.item.k-star .wtag {
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.85);
+  color: #3b2a7a;
+}
+@container (max-width: 150px) {
+  .panel.item.k-star .pv {
+    height: 108px;
+  }
+  .panel.item.k-star .acc-view,
+  .panel.item.k-star .acc-view canvas {
+    width: 96px;
+    height: 96px;
+  }
 }
 
 /* [옵시디언] 오른쪽 사이드바처럼 좁은 폭: 탭은 지금 탭만 이름을 보이고 나머지는 아이콘만, 머리의 상태 글은 줄을 바꾼다 */

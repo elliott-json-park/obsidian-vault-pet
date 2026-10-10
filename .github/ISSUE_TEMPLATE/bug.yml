@@ -14,7 +14,7 @@ body:
     attributes:
       label: Vault Pet version
       description: Settings → Community plugins → Vault Pet
-      placeholder: "1.2.4"
+      placeholder: "1.3.0"
     validations:
       required: true
   - type: input

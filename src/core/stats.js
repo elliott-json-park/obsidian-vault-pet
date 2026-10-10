@@ -85,11 +85,14 @@ function focus(usage) {
   return { bins, longest: runs.length ? Math.max(...runs) : 0, count: runs.length };
 }
 
-// 최근 n일 코인 흐름. 번 코인은 그날 쓴 글자에서, 쓴 코인은 구매 기록에서
-function coinFlow(usage, purchases, n = 14) {
+// 최근 n일 코인 흐름. 번 코인은 그날 쓴 글자에서, 쓴 코인은 구매 기록에서.
+// stats(평생 기록 purchaseStats)가 있으면 날짜별 합계(days)를 쓴다 (최근 300개 목록은 바쁜 날이 많으면 14일을 못 채운다)
+function coinFlow(usage, purchases, n = 14, stats = null) {
   const rows = usage.daily(n).map((d) => ({ day: d.day, earned: coinsForDay(d.c), spent: 0 }));
   const index = Object.fromEntries(rows.map((r) => [r.day, r]));
-  for (const p of purchases || []) {
+  if (stats && stats.days) {
+    for (const [day, v] of Object.entries(stats.days)) if (index[day]) index[day].spent += v;
+  } else for (const p of purchases || []) {
     const d = new Date(p.at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (index[key]) index[key].spent += p.price;
@@ -138,10 +141,23 @@ function dashboard(usage, wallet) {
 // 고양이의 가계부: 지금까지 산 것을 항목별로 묶는다.
 //  식비 = 밥·간식 / 품위 유지비 = 악세사리 / 유흥비 = 모션·장난감 / 기타 = 지금은 상점에 없는 물건
 // kindOf(key) → 'food' | 'acc' | 'motion' | 'toy' | null
-function ledger(purchases, kindOf) {
+// stats(평생 기록 purchaseStats)가 있으면 그걸로 (최근 300개로 잘린 목록 대신). 기록이 잘려 어디 썼는지 모르는 코인은 기타로
+function ledger(purchases, kindOf, stats = null) {
   const CAT = { food: 'food', acc: 'dignity', motion: 'fun', toy: 'fun' };
   const cats = {};
-  for (const p of purchases || []) {
+  if (stats && stats.keys) {
+    for (const [key, x] of Object.entries(stats.keys)) {
+      const cat = CAT[kindOf(key)] || 'etc';
+      const c = (cats[cat] ||= { cat, total: 0, items: {} });
+      c.items[key] = { key, kind: kindOf(key), count: x.n, total: x.spent, last: x.last };
+      c.total += x.spent;
+    }
+    if (stats.untracked > 0) {
+      const c = (cats.etc ||= { cat: 'etc', total: 0, items: {} });
+      c.items['?'] = { key: '?', kind: null, count: 0, total: stats.untracked, last: 0 };
+      c.total += stats.untracked;
+    }
+  } else for (const p of purchases || []) {
     const cat = CAT[kindOf(p.key)] || 'etc';
     const c = (cats[cat] ||= { cat, total: 0, items: {} });
     const it = (c.items[p.key] ||= { key: p.key, kind: kindOf(p.key), count: 0, total: 0, last: 0 });
@@ -152,10 +168,13 @@ function ledger(purchases, kindOf) {
   }
   const order = ['food', 'dignity', 'fun', 'etc'];
   const list = order.filter((k) => cats[k]).map((k) => ({ ...cats[k], items: Object.values(cats[k].items).sort((a, b) => b.total - a.total) }));
-  return { cats: list, total: list.reduce((n, c) => n + c.total, 0), count: (purchases || []).length };
+  const count = stats && stats.keys ? (stats.count || 0) + (stats.spins || 0) : (purchases || []).length;
+  return { cats: list, total: list.reduce((n, c) => n + c.total, 0), count };
 }
 
 function summary(usage, state, wallet, kindOf) {
+  const ps = state.get('purchaseStats');
+  const lifetime = ps && ps.v === 1 ? ps : null; // 평생 구매 기록 (shop.js 의 record)
   const heat = heatmap(usage);
   const week = weekly(usage);
   const focusInfo = focus(usage);
@@ -163,10 +182,10 @@ function summary(usage, state, wallet, kindOf) {
     heat,
     week,
     focus: focusInfo,
-    flow: coinFlow(usage, state.get('purchases')),
+    flow: coinFlow(usage, state.get('purchases'), 14, lifetime),
     insight: insight({ heat, week, focusInfo, wallet }),
     dash: dashboard(usage, wallet),
-    ledger: ledger(state.get('purchases'), kindOf || (() => null)),
+    ledger: ledger(state.get('purchases'), kindOf || (() => null), lifetime),
   };
 }
 

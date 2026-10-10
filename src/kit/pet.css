@@ -64,17 +64,23 @@ body.dragging #pet {
   cursor: pointer;
 }
 
+/* 홍보 모드 연출 패널에서 띄운 말풍선은 줄바꿈을 그대로 */
+.bubble.promo .text {
+  white-space: pre-line;
+}
+
 .bubble.show {
   transform: translateX(-50%) scale(1);
   opacity: 1;
 }
 
 /* 꼬리: 도트 계단 모양 */
+/* --tail-x: 말풍선이 화면 끝에 붙었을 때 꼬리를 고양이 쪽으로 옮기는 값 (pet.js placeOverlays) */
 .bubble::before,
 .bubble::after {
   content: '';
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--tail-x, 0px));
   width: 0;
   height: 0;
   border: solid transparent;
@@ -90,6 +96,25 @@ body.dragging #pet {
   margin-left: -4px;
   border-width: 5px 4px 0;
   border-top-color: var(--paper);
+}
+
+/* 머리 위에 자리가 없어 발 밑에 뜬 말풍선: 꼬리가 위로 */
+.bubble.below {
+  transform-origin: 50% 0;
+}
+.bubble.below::before {
+  bottom: auto;
+  top: -10px;
+  border-width: 0 7px 8px;
+  border-top-color: transparent;
+  border-bottom-color: var(--ink);
+}
+.bubble.below::after {
+  bottom: auto;
+  top: -6px;
+  border-width: 0 4px 5px;
+  border-top-color: transparent;
+  border-bottom-color: var(--paper);
 }
 
 .bubble.reward {
@@ -423,4 +448,29 @@ body.no-cursor #pet {
 }
 .rps-result.lose {
   background: #b0413a;
+}
+
+/* 고양이 질문의 고를 것 두 개 (2026-10-10) */
+.bubble .choices {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.bubble .choices:empty {
+  display: none;
+}
+.bubble .choices button {
+  flex: 1 0 auto;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 3px 10px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 99px;
+  cursor: pointer;
+}
+.bubble .choices button:hover {
+  background: #ffe9c7;
 }

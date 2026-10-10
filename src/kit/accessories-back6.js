@@ -155,40 +155,35 @@
       },
     },
     surfboard: {
-      // 등에 비스듬히 멘 서핑보드: 뾰족한 코, 네모난 꼬리. 가운데 나무 결(스트링어) 양옆에 빨강·민트 띠,
-      // 한쪽 가장자리는 그늘, 반대쪽은 반짝. 꼬리엔 핀과 발목 줄, 코 쪽엔 히비스커스 스티커. 물이 뚝뚝
+      // 2026-10-10 다시 그림: 비스듬히 왼쪽 절반을 덮던 보드 → 등 뒤에 거의 세워 멨다. 코만 머리 오른쪽 위로 솟고 나머지는 몸 뒤에 숨는다.
+      // 뾰족한 코, 가운데 빨간 줄과 민트 띠, 한쪽 가장자리는 그늘·반대쪽은 반짝. 히비스커스 스티커, 코끝에서 물이 뚝뚝
       back(g, a, c, t) {
         const cu = a.curled;
-        const x0 = cu ? a.cx - 14 : a.hx - 12, y0 = cu ? GROUND : GROUND + 1;
-        const x1 = cu ? a.cx + 11 : a.hx + 10, y1 = cu ? a.top - 12 : a.top - 14;
+        const x0 = cu ? a.cx - 9 : a.hx + 3, y0 = cu ? GROUND - 1 : a.cy;
+        const x1 = cu ? a.cx + 12 : a.hx + 10, y1 = cu ? a.top - 6 : a.top - 13;
         const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
         const nx = -dy / len, ny = dx / len; // 보드 옆 방향
-        // 핀: 꼬리 옆으로 삐죽 (보드 뒤)
-        const fu = 0.16;
-        tube(this, [[x0 + dx * fu + nx * 1.5, y0 + dy * fu + ny * 1.5], [x0 + dx * (fu - 0.04) + nx * 3.6, y0 + dy * (fu - 0.04) + ny * 3.6]], (u) => 0.9 - u * 0.4, () => '#2a4a80', c.K);
         tube(
           this, [[x0, y0], [x1, y1]],
-          (u) => 0.6 + 2.2 * Math.pow(Math.sin(Math.PI * Math.min(0.98, Math.max(0.12, u * 0.9 + 0.1))), 0.55),
+          (u) => 1.2 * (0.6 + 2.0 * Math.pow(Math.sin(Math.PI * Math.min(0.98, Math.max(0.12, u * 0.9 + 0.1))), 0.55)),
           (L) => {
             const s = L.side;
-            if (L.u > 0.22 && L.u < 0.3) return s > 1.3 ? '#1f8a86' : '#2fb5b0'; // 민트 띠
+            if (L.u > 0.22 && L.u < 0.3) return s > 1.1 ? '#1f8a86' : '#2fb5b0'; // 민트 띠
             if (L.u > 0.9) return s > 0.6 ? '#c43a34' : '#e8534a'; // 빨간 코
             if (Math.abs(s) < 0.5) return '#e8534a'; // 가운데 빨간 줄
-            if (s > 1.6) return '#d6ccb0';
-            if (s < -1.6) return '#ffffff';
+            if (s > 1.4) return '#d6ccb0';
+            if (s < -1.4) return '#ffffff';
             return s > 0 ? '#efe8d4' : '#fbf8ee';
           },
           c.K,
         );
         // 히비스커스 스티커
-        const su = 0.74;
-        const sx = Math.round(x0 + dx * su - nx * 1.2), sy = Math.round(y0 + dy * su - ny * 1.2);
+        const su = 0.7;
+        const sx = Math.round(x0 + dx * su - nx), sy = Math.round(y0 + dy * su - ny);
         this.pattern(['.PP.', 'PpYP', 'PYpP', '.PP.'], sx - 1, sy - 1, { P: '#ff5fa2', p: '#d8307a', Y: '#ffd65a' });
-        // 물방울
+        // 코끝에서 물방울
         const p = (t * 0.8) % 1;
-        this.px(x0 + 1, y0 - 2 + Math.round(p * 3), `rgba(120,200,255,${(1 - p).toFixed(2)})`, false);
-        const q = (t * 0.8 + 0.5) % 1;
-        this.px(x0 + 3, y0 - 3 + Math.round(q * 3), `rgba(120,200,255,${(0.8 * (1 - q)).toFixed(2)})`, false);
+        this.px(x1 + 2, y1 + 3 + Math.round(p * 4), `rgba(120,200,255,${(1 - p).toFixed(2)})`, false);
       },
     },
     ninetails: {

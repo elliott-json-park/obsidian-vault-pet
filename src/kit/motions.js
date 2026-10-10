@@ -75,6 +75,76 @@
   }
   root.PetSprite.motionFx = { tintUnder, flashCat, steam, tintArea, limb }; // 뒤쪽 묶음(세트 전용·6차)도 같이 쓴다
 
+  // ---------- 디자인 개선 (2026-10-10) 에서 쓰는 것 ----------
+  const INK = '#2b1a10';
+  // 캔버스에 바로 찍는 그림 · 점 (이번 프레임에만)
+  const spr = (r, rows, x, y, map) => r.emit({ type: 'sprite', rows, x: Math.round(x), y: Math.round(y), map, perFrame: true, fade: false });
+  const dot = (r, x, y, c) => r.emit({ type: 'spray', x: Math.round(x), y: Math.round(y), c, perFrame: true, fade: false });
+  const mirror = (rows) => rows.map((s) => s.split('').reverse().join(''));
+  // 천천히 깜빡: 눈 감는 박자 (뜸 → 반쯤 → 꼬옥 → 반쯤 → 반짝) · 말풍선 속 큰 눈
+  const blinkEyes = (k) => (k < 0.12 ? 'open' : k < 0.26 ? 'half' : k < 0.68 ? 'closed' : k < 0.8 ? 'half' : 'sparkle');
+  const BIG_EYE = { open: ['.KK.', 'KWKK', 'KKKK', '.KK.'], half: ['....', 'KKKK', 'KWKK', '.KK.'], closed: ['....', '....', 'K..K', '.KK.'], sparkle: ['.KK.', 'KWKK', 'KKWK', '.KK.'] };
+  // 털 윤기 반짝: 반짝이 (작게 → 크게 → 중간 → 사라짐, 0.4초)
+  const TW = [
+    ['.Y.', 'YHY', '.Y.'],
+    ['..Y..', '..Y..', 'YYHYY', '..Y..', '..Y..'],
+    ['...Y...', '...Y...', '..YHY..', 'YYHHHYY', '..YHY..', '...Y...', '...Y...'],
+  ];
+  const TWM = { Y: '#ffd35c', H: '#ffffff' };
+  const twinkle = (r, x, y, age) => {
+    if (age < 0 || age > 0.4) return;
+    const rows = TW[age < 0.07 ? 0 : age < 0.24 ? 2 : age < 0.33 ? 1 : 0];
+    spr(r, rows, x - (rows[0].length >> 1), y - (rows.length >> 1), TWM);
+  };
+  // 뜨개질: 털실 뭉치 (큰·중간·작은) · 대바늘 두 개 (X 자, L = 길이 반쯤) · 처지는 실 · 목도리 줄무늬
+  const BALL = [
+    ['..KKKKK..', '.KPPpPPK.', 'KPpPPPpPK', 'KPPPpPPPK', 'KpPPPPPpK', 'KPPpPPPPK', 'KPPPPpPPK', '.KPpPPPK.', '..KKKKK..'],
+    ['.KKKKK.', 'KPpPPpK', 'KPPpPPK', 'KpPPPpK', 'KPPpPPK', 'KPpPPPK', '.KKKKK.'],
+    ['.KKK.', 'KPpPK', 'KpPPK', 'KPPpK', '.KKK.'],
+  ];
+  const yarnBall = function (c, cx, by, size, roll) {
+    const rows = roll ? mirror(BALL[size]) : BALL[size];
+    this.pattern(rows, cx - (rows[0].length >> 1), by - rows.length + 1, c);
+    return by - rows.length + 1;
+  };
+  const needles = function (cx, y, click, L = 4) {
+    const needle = (x0, y0, x1, y1) => {
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+      for (let i = 0; i <= n; i++) {
+        const x = Math.round(x0 + ((x1 - x0) * i) / n), yy = Math.round(y0 + ((y1 - y0) * i) / n);
+        this.px(x, yy, i >= n - 1 ? '#ffd65a' : '#dfe5ec');
+        if (i < n - 1) this.px(x, yy + 1, '#8f95a0');
+      }
+    };
+    if (click) { needle(cx + L, y + 5, cx - L, y + 1); needle(cx - L, y + 5, cx + L, y); }
+    else { needle(cx - L, y + 5, cx + L, y + 1); needle(cx + L, y + 5, cx - L, y); }
+  };
+  const thread = function (x0, y0, x1, y1, sag = 3) {
+    const n = Math.max(6, Math.round(Math.hypot(x1 - x0, y1 - y0)));
+    for (let i = 1; i < n; i++) { const t = i / n; this.px(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * sag), '#ff9bb8', false); }
+  };
+  const SCARF_STRIPE = (c, i) => [c.P, c.P, c.W][i % 3];
+  // 종이비행기 (큰·중간·작은). dir = 화면에서 날아가는 쪽 (1 오른쪽)
+  const PLANE = ['K........', 'KWKK.....', 'KWWWKK...', 'KWWWWWKKK', 'KwwwKK...', 'KwwKK....', 'KKK......'];
+  const PLANE_M = ['K....', 'KWKK.', 'KWWWK', 'KwKK.', 'KK...'];
+  const PLANE_S = ['KK.', 'KwK'];
+  const PM = { K: INK, W: '#ffffff', w: '#bcd0e6' };
+  const planeAt = (r, rows, x, y, dir) => {
+    // dir = 화면에서 날아가는 쪽 (1 오른쪽)
+    const R = dir < 0 ? mirror(rows) : rows;
+    spr(r, R, Math.round(x) - (R[0].length >> 1), Math.round(y) - (R.length >> 1), PM);
+  };
+  // 영혼 가출: 분신 높이 (0 = 몸, 1 = 꼭대기). 빠져나감 → 둥실 → 쏙 돌아옴
+  const soulUp = (k) => (k < 0.14 ? 0 : k < 0.46 ? ease(seg(k, 0.14, 0.46)) : k < 0.78 ? 1 : 1 - ease(seg(k, 0.78, 0.84)));
+  const soulPose = (p, k) => {
+    if (k < 0.14) { p.eyes = 'half'; p.mouth = 'o'; return; }
+    if (k < 0.84) { p.eyes = 'dot'; p.mouth = 'o'; p.ear = -1; p.tail = 'slow'; p.xf = { sy: 0.88, sx: 1.06 }; p.dy = 1; return; }
+    p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; p.dy = k < 0.88 ? -2 : 0;
+  };
+  // 뿡: 초록 연기 색 · 로켓 높이
+  const GREEN = '#8fae4a', GREEN_L = '#c4dc7a';
+  const rocketH = (k) => (k < 0.3 || k > 0.6 ? 0 : k < 0.42 ? 11 * (1 - (1 - seg(k, 0.3, 0.42)) ** 2) : 11 * (1 - seg(k, 0.42, 0.6) ** 2));
+
   const M = {
     stretch: {
       // 기지개 — 앞발을 쭉 내밀며 상체를 낮추고(엉덩이·꼬리는 번쩍) 쩌억 하품, 이번엔 몸을 위로 쭉 늘인 뒤
@@ -659,27 +729,75 @@
       step(r, k, at, dt, a) { if (every(r, 'd', at, 1.2)) r.emit({ type: 'drop', x: r.scr(a.hx - 1), y: a.my, vy: 5, life: 0.6, c: '#bfe6ff' }); } },
     slowblink: {
       // 고양이 키스 (천천히 깜빡) — 눈을 아주 천천히 감았다 뜬다. 고양이 말로 "사랑해"
+      // (2026-10-10 디자인 개선: 2칸짜리 눈만 바뀌어 안 보이던 걸, 머리 옆 말풍선에 큰 눈을 띄워 천천히 감았다 뜨는 게 보이게. 다 뜨면 하트 뿅)
       len: 3,
-      pose(p, k) { p.eyes = k > 0.3 && k < 0.7 ? 'closed' : k > 0.2 && k < 0.8 ? 'half' : 'open'; p.blush = k > 0.3; p.mouth = 'smile'; },
-      step(r, k, at, dt, a) { if (once(r, 's', k > 0.75)) r.emit({ type: 'spark', x: r.scr(a.eyeR + 2), y: a.ey - 1, life: 0.6 }); } },
+      pose(p, k) {
+        p.eyes = blinkEyes(k); p.mouth = 'smile'; p.tail = 'slow'; p.lookX = 1;
+        p.blush = k > 0.2;
+        if (k > 0.26 && k < 0.68) p.ear = -1;
+      },
+      step(r, k, at, dt, a) {
+        if (k > 0.94) return;
+        const pop = k < 0.04 ? 0.6 : 1; // 처음 한 박자는 작게 떴다가 퐁
+        const W = Math.round(19 * pop), H = Math.round(13 * pop);
+        const x0 = r.scr(a.hx + 13) - (W >> 1), y0 = a.top - 6 - H;
+        const rows = [];
+        for (let j = 0; j < H; j++) {
+          let s = '';
+          for (let i = 0; i < W; i++) {
+            const cx = Math.min(i, W - 1 - i), cy = Math.min(j, H - 1 - j);
+            const out = cx + cy < 2; // 둥근 모서리
+            const edge = !out && (i === 0 || j === 0 || i === W - 1 || j === H - 1 || cx + cy === 2);
+            s += out ? '.' : edge ? 'K' : 'W';
+          }
+          rows.push(s);
+        }
+        spr(r, rows, x0, y0, { K: INK, W: '#fffaf3' });
+        // 꼬리: 말풍선 왼쪽 아래 → 고양이 머리
+        spr(r, ['KWK', 'KK.', 'K..'], x0 + 2, y0 + H - 1, { K: INK, W: '#fffaf3' });
+        if (pop < 1) return;
+        const e = BIG_EYE[blinkEyes(k)];
+        const cx = x0 + (W >> 1);
+        spr(r, e, cx - 6, y0 + 3, { K: INK, W: '#ffffff' });
+        spr(r, e, cx + 3, y0 + 3, { K: INK, W: '#ffffff' });
+        // 코 · 입 · 볼
+        spr(r, ['.P.', 'K.K', '.K.'], cx - 1, y0 + 7, { P: '#ff8fa3', K: INK });
+        if (k > 0.2) for (const dx of [-8, 6]) spr(r, ['PP'], cx + dx, y0 + 9, { P: '#ff8fa3' });
+        if (once(r, 'h', k > 0.82)) {
+          r.emit({ type: 'heart', big: true, x: x0 + W - 6, y: y0 - 2, vx: 3, vy: -8, life: 1.1 });
+          r.emit({ type: 'spark', x: x0 + 2, y: y0, life: 0.5 });
+        }
+      },
+    },
     shinyfur: {
-      // 털 윤기 반짝 — 쓰다듬을수록 털에서 광이 난다. 샴푸 광고 고양이. 빛줄기가 털 위를 비스듬히 쓸고 지나간다
+      // 털 윤기 반짝 — 쓰다듬을수록 털에서 광이 난다. 샴푸 광고 고양이
+      // (2026-10-10 디자인 개선: 흐리던 빛띠를 굵고 하얗게, 두 번 스윽 지나간 자리마다 큰 반짝이 + "SHINY")
       len: 2.4, reveal: 0.5,
-      pose(p, k) { p.eyes = 'closed'; p.mouth = 'smile'; p.tail = 'up'; p.xf = { sy: 1.04 }; p.blush = k > 0.3; p.ear = 1; },
+      pose(p, k) {
+        if (k < 0.08) { p.eyes = 'open'; p.ear = 1; return; }
+        p.eyes = 'closed'; p.mouth = 'smile'; p.tail = 'up'; p.lookY = -1; p.xf = { sy: 1.04 }; p.blush = true; p.ear = 1;
+      },
       front(g, a, k) {
-        // 광택 띠: 왼쪽 위 → 오른쪽 아래로 두 번 스윽 (고양이 털 위에만)
-        for (const [t0, t1] of [[0.1, 0.45], [0.5, 0.85]]) {
+        for (const [t0, t1] of [[0.06, 0.38], [0.48, 0.8]]) {
           const s = seg(k, t0, t1);
           if (s <= 0 || s >= 1) continue;
-          const x0 = a.left - 8 + Math.round(s * (a.hw * 2 + 16));
-          for (let y = a.earTop; y <= GROUND; y++) {
-            const x = x0 + Math.round((y - a.earTop) * 0.5);
-            tintArea.call(this, x, y, 2, 1, 'rgba(255,255,255,0.75)');
-            tintArea.call(this, x + 2, y, 1, 1, 'rgba(255,255,255,0.35)');
+          const x0 = a.left - 12 + Math.round(ease(s) * (a.hw * 2 + 18));
+          for (let y = a.earTop - 2; y <= GROUND; y++) {
+            const x = x0 + Math.round((y - a.earTop) * 0.6);
+            tintArea.call(this, x, y, 4, 1, 'rgba(255,255,255,0.95)');
+            tintArea.call(this, x - 2, y, 2, 1, 'rgba(255,255,255,0.5)');
+            tintArea.call(this, x + 4, y, 2, 1, 'rgba(255,255,255,0.5)');
           }
         }
       },
-      step(r, k, at, dt, a) { tintUnder(r, '#ffffff', 0.22 * bump(k, 0, 1)); if (every(r, 's', at, 0.2)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-7, 7)), y: a.cy + rand(-6, 4), life: 0.4 }); } },
+      step(r, k, at, dt, a) {
+        tintUnder(r, '#ffffff', 0.15 * bump(k, 0.05, 1));
+        const L = 2.4;
+        // 띠 끝마다 큰 반짝이 둘, 사이사이 작은 것
+        for (const [t, dx, dy] of [[0.28, 6, -2], [0.38, -6, 5], [0.7, -6, -1], [0.8, 7, 6], [0.9, 1, -4]]) twinkle(r, r.scr(a.hx + dx), a.top + dy, at - t * L);
+        if (once(r, 't', k > 0.38)) txt(r, 'SHINY', r.scr(a.hx) - 9, a.top - 12, '#fff6a0', 0.9, -4);
+      },
+    },
     donebanner: {
       // "DONE" 현수막 — 두 앞발로 장대 두 개를 번쩍 들면 그 사이로 "DONE!" 현수막이 촤악 펼쳐진다. 폴짝 뛰고 좌우로 흔들흔들
       // (7차: 글자만 귀 위에 겹쳐 있던 걸 진짜 현수막으로)
@@ -833,59 +951,90 @@
       front(g, a, k, at, c) { const up = Math.round(bump(k, 0, 0.5) * 4); this.pattern(['KKKKKKKKKKKKKKKKK', 'KWWWWWWWWWWWWWWWK', 'KWWWWWWWWWWWWWWWK', 'KWWWWWWWWWWWWWWWK', 'KWWWWWWWWWWWWWWWK', 'KWWWWWWWWWWWWWWWK', 'KKKKKKKKKKKKKKKKK'], a.hx - 8, a.top - 12 - up, c); },
       step(r, k, at, dt, a) { const up = Math.round(bump(k, 0, 0.5) * 4); r.emit({ type: 'text', s: 'FOOD', x: r.scr(a.hx) - 7, y: a.top - 11 - up, perFrame: true, fade: false, c: '#e8534a' }); } },
     paperplane: {
-      // 종이비행기 — 종이비행기를 접어서 슝 날린다. 멀리 날아가는 걸 눈으로 좇음
-      len: 3,
-      pose(p, k) { p.armR = k < 0.3 ? 'hold' : 'out'; p.lookX = k > 0.3 ? 1 : 0; p.eyes = 'wide'; },
-      front(g, a, k, at, c) { if (k < 0.3) this.pattern(['K...', 'KWK.', 'KWWK'], a.fx - 1, a.my, c); },
-      step(r, k, at, dt, a) { if (k > 0.3 && k < 0.95) r.emit({ type: 'sprite', rows: ['W...', 'WWW.', 'WWWW'], map: { W: '#fffaf3' }, x: r.scr(a.hx + 4 + (k - 0.3) * 40), y: a.top - (k - 0.3) * 20, perFrame: true, fade: false }); } },
+      // 종이비행기 — 앞발 사이에서 종이를 탁·탁 접어 비행기로 → 힘껏 "SWISH". 파란 자국을 그으며 오른쪽 위 하늘로 작아지다 반짝,
+      // 이마에 앞발 얹고 멀리 바라본다 (2026-10-10 디자인 개선: 4칸짜리 흰 비행기가 바탕에 묻히던 걸)
+      len: 3.2,
+      pose(p, k) {
+        if (k < 0.3) { p.armL = p.armR = 'hold'; p.lookY = 1; p.eyes = 'open'; p.mouth = 'blep'; return; }
+        if (k < 0.4) { p.armR = 'up'; p.eyes = 'squint'; p.mouth = 'flat'; p.brow = 'angry'; p.xf = { ox: -1, sx: 0.97, sy: 1.03 }; return; }
+        if (k < 0.48) { p.armR = 'out'; p.eyes = 'wide'; p.mouth = 'open'; p.xf = { ox: 1 }; return; }
+        p.armR = 'out'; p.lookX = 1; p.lookY = -1; p.eyes = k > 0.78 ? 'sparkle' : 'open'; p.mouth = k > 0.78 ? 'open' : 'o'; p.tail = 'wag'; p.ear = 1;
+      },
+      front(g, a, k, at, c) {
+        const m = { K: c.K, W: '#ffffff', w: '#bcd0e6' };
+        if (k < 0.1) this.pattern(['KKKKKKK', 'KWWWWWK', 'KWWWWWK', 'KWWWWWK', 'KWWWWWK', 'KKKKKKK'], a.hx - 3, a.my, m);
+        else if (k < 0.2) this.pattern(['KKKKKKK', 'KWWwWWK', '.KWwWK.', '..KwK..', '...K...'], a.hx - 3, a.my + 1, m);
+        else if (k < 0.3) this.pattern(PLANE_M, a.hx - 2, a.my, m);
+        else if (k < 0.4) this.pattern(PLANE_M, a.right - 1, a.top - 3, m);
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'f1', k > 0.1)) r.emit({ type: 'spark', x: r.scr(a.hx + 4), y: a.my, life: 0.3 });
+        if (once(r, 'f2', k > 0.2)) r.emit({ type: 'spark', x: r.scr(a.hx - 4), y: a.my, life: 0.3 });
+        if (once(r, 's', k > 0.4)) txt(r, 'SWISH', r.scr(a.hx) - 12, a.top - 8, '#ffffff', 0.8, -4);
+        const t = seg(k, 0.4, 0.76);
+        if (t > 0 && t < 1) {
+          const x = a.right + 1 + (44 - a.right - 1) * t, y = a.top - 2 - (a.top - 2 - 5) * Math.sin(t * Math.PI * 0.5);
+          planeAt(r, t < 0.35 ? PLANE : t < 0.7 ? PLANE_M : PLANE_S, r.scr(x), y, r.facing);
+          if (every(r, 'tr', at, 0.025)) r.emit({ type: 'spray', x: r.scr(Math.round(x - 3)), y: Math.round(y) + 1, life: 0.7, c: '#7cc4f2' });
+        }
+        if (once(r, 'v', k > 0.76)) { r.emit({ type: 'spark', x: r.scr(44), y: 5, life: 0.6 }); r.emit({ type: 'star', x: r.scr(42), y: 7, vx: -3, vy: -3, life: 0.5 }); }
+      },
+    },
     airpunch: {
       // 허공에 냥펀치 — 아무것도 없는 허공을 노려보다 갑자기 냥냥펀치. 뭐가 보이는 걸까
       len: 2.4,
       pose(p, k, at) { if (k < 0.4) { p.eyes = 'wide'; p.lookY = -1; p.ear = 1; } else { p.armL = Math.floor(at * 10) % 2 ? 'cheer' : 'up'; p.armR = Math.floor(at * 10) % 2 ? 'up' : 'cheer'; p.eyes = 'squint'; p.brow = 'angry'; } },
       step(r, k, at, dt, a) { if (k > 0.4 && every(r, 'l', at, 0.1)) r.emit({ type: 'line', x: r.scr(a.hx + rand(-8, 8)), y: a.top - rand(2, 6), len: 3, life: 0.1 }); } },
     knitting: {
-      // 뜨개질 — 두 앞발로 대바늘을 쥐고 딸깍딸깍. 바늘 밑으로 분홍 목도리가 한 단씩 길어지고, 털실 뭉치가 실을 풀며 들썩
-      // (7차: 입에서 빨간 줄이 흘러내리는 것처럼 보이던 걸, 바늘·목도리·털실로)
+      // 뜨개질 — 두 앞발로 대바늘을 쥐고 딸깍딸깍. 왼쪽 털실 뭉치가 줄어드는 만큼 오른쪽에 개킨 목도리가 쌓이고,
+      // 다 뜨면 번쩍 들어 "TA-DA" — 목에 칭칭 두르고 뿌듯 (2026-10-10 디자인 개선: 발밑 몇 줄에 몰려 너무 작던 걸)
       len: 4.8, loop: true,
       pose(p, k, at) {
-        p.armL = p.armR = 'hold';
-        p.lookY = 1; p.mouth = 'smile'; p.tail = 'slow';
-        p.eyes = k > 0.86 ? 'happy' : Math.floor(at * 0.8) % 4 === 3 ? 'blink' : 'half';
-        if (k > 0.86) { p.blush = true; p.lookY = 0; }
+        p.tail = 'slow'; p.mouth = 'smile';
+        if (k < 0.7) {
+          p.armL = p.armR = 'hold'; p.lookY = 1;
+          p.eyes = Math.floor(at * 0.8) % 4 === 3 ? 'blink' : 'half';
+        } else if (k < 0.8) { p.armL = p.armR = 'lift'; p.liftUp = 1; p.eyes = 'star'; p.mouth = 'open'; p.ear = 1; p.dy = -Math.round(bump(k, 0.7, 0.8) * 2); }
+        else { p.eyes = 'happy'; p.blush = true; p.tail = 'wag'; p.ear = 1; }
       },
       mid(g, a, k, at, c) {
-        const cx = a.hx, y0 = a.my + 3;
-        // 목도리: 바늘 밑으로 한 단씩 (두 줄마다 무늬가 엇갈린다)
-        // 바닥에 닿을 만큼만 길어진다 (땅 밑으로 파고들지 않게)
-        const room = Math.max(2, GROUND - (y0 + 2) + 1);
-        const len = Math.min(room, 2 + Math.floor(Math.min(1, k / 0.86) * 6));
-        for (let i = 0; i < len; i++) this.pattern([i === len - 1 ? 'KKKKK' : i % 2 ? 'KpPpK' : 'KPpPK'], cx - 2, y0 + 2 + i, c);
-        // 털실: 목도리 끝 → 바닥의 털실 뭉치
-        const bx = a.hx + 10, by = GROUND - 2;
-        const n = 10;
-        for (let i = 1; i < n; i++) {
-          const t = i / n;
-          const x = cx + 2 + (bx - cx - 2) * t, y = y0 + 2 + (by - y0 - 2) * t + Math.sin(t * Math.PI) * 2;
-          this.px(Math.round(x), Math.round(y), '#ff9bb8');
+        if (k >= 0.7) return;
+        const prog = seg(k, 0, 0.7);
+        // 왼쪽 털실 뭉치
+        const bx = a.hx - 13;
+        const top = yarnBall.call(this, c, bx, GROUND, prog < 0.35 ? 0 : prog < 0.7 ? 1 : 2, Math.floor(at * 2) % 2);
+        thread.call(this, bx + 2, top + 1, a.hx - 3, a.my + 3, 2);
+        // 오른쪽: 바늘에서 내려온 목도리가 바닥에 개켜져 쌓인다
+        const layers = 1 + Math.floor(prog * 4);
+        const x0 = a.hx + 5;
+        for (let y = a.my + 3; y <= GROUND; y++) { this.px(a.hx + 2, y, c.K); this.px(a.hx + 3, y, SCARF_STRIPE(c, y)); this.px(a.hx + 4, y, SCARF_STRIPE(c, y + 1)); this.px(a.hx + 5, y, c.K); }
+        for (let l = 0; l < layers; l++) {
+          const y = GROUND - 1 - l * 2;
+          for (let x = x0; x <= x0 + 10; x++) { this.px(x, y - 1, c.K); this.px(x, y, SCARF_STRIPE(c, Math.floor((x - x0) / 2) + l)); }
+          this.px(x0 + 11, y, c.K); this.px(x0 + 11, y - 1, c.K);
         }
-        const roll = Math.floor(at * 3) % 2;
-        this.pattern(roll ? ['.KKK.', 'KPpPK', 'KpPpK', '.KKK.'] : ['.KKK.', 'KpPpK', 'KPpPK', '.KKK.'], bx - 2, by - 1, c);
+        for (let x = x0; x <= x0 + 11; x++) this.px(x, GROUND, c.K);
       },
       front(g, a, k, at, c) {
-        // 대바늘 두 개가 X 자로 엇갈린다. 딸깍할 때마다 위아래가 바뀐다
-        const click = Math.floor(at * 4) % 2;
-        const cx = a.hx, y = a.my;
-        const needle = (x0, y0, x1, y1) => {
-          const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-          for (let i = 0; i <= n; i++) this.px(Math.round(x0 + ((x1 - x0) * i) / n), Math.round(y0 + ((y1 - y0) * i) / n), i === n ? '#ffd65a' : '#c3ccd6');
-        };
-        // 바늘 끝은 입 아래까지만 (얼굴을 가리지 않게)
-        if (click) { needle(cx + 4, y + 6, cx - 3, y + 3); needle(cx - 4, y + 6, cx + 3, y + 2); }
-        else { needle(cx - 4, y + 6, cx + 3, y + 3); needle(cx + 4, y + 6, cx - 3, y + 2); }
+        if (k < 0.7) { needles.call(this, a.hx, a.my, Math.floor(at * 4) % 2, 4); return; }
+        if (k < 0.8) {
+          // 다 뜬 목도리를 머리 위로 번쩍 (두 앞발 사이에 펼쳐진다)
+          const y = a.top - 6;
+          for (let x = a.hx - 9; x <= a.hx + 9; x++) { this.px(x, y - 1, c.K); this.px(x, y + 2, c.K); const col = SCARF_STRIPE(c, Math.floor((x + 20) / 2)); this.px(x, y, col); this.px(x, y + 1, col); }
+          for (const x of [a.hx - 10, a.hx + 10]) for (let yy = y; yy <= y + 3; yy += 1) if (yy % 2 === 0) this.px(x, yy, c.p);
+          return;
+        }
+        // 목에 칭칭: 목 둘레 두 줄 + 오른쪽으로 늘어진 끝
+        const y = a.neck - 2;
+        for (let x = a.left; x <= a.right; x++) { this.px(x, y - 1, c.K); this.px(x, y + 2, c.K); const col = SCARF_STRIPE(c, Math.floor((x + 20) / 2)); this.px(x, y, col); this.px(x, y + 1, col); }
+        this.px(a.left - 1, y, c.K); this.px(a.left - 1, y + 1, c.K); this.px(a.right + 1, y, c.K); this.px(a.right + 1, y + 1, c.K);
+        const sway = Math.floor(at * 3) % 2;
+        for (let j = 0; j < 4; j++) { const x = a.right - 4 + (j > 1 ? sway : 0); this.px(x - 1, y + 2 + j, c.K); this.px(x, y + 2 + j, SCARF_STRIPE(c, j)); this.px(x + 1, y + 2 + j, SCARF_STRIPE(c, j + 1)); this.px(x + 2, y + 2 + j, c.K); }
       },
       step(r, k, at, dt, a) {
-        if (k < 0.86 && every(r, 'c', at, 0.5)) r.emit({ type: 'spray', x: r.scr(a.hx + (Math.floor(at * 2) % 2 ? 3 : -3)), y: a.my, vy: -4, life: 0.25, c: '#ffffff' });
-        if (once(r, 'h', k > 0.87)) r.emit({ type: 'heart', x: r.scr(a.hx + 7), y: a.top - 3, vy: -6, life: 1.1 });
+        if (k < 0.7 && every(r, 'c', at, 0.5)) r.emit({ type: 'spark', x: r.scr(a.hx + (Math.floor(at * 2) % 2 ? 4 : -4)), y: a.my - 1, life: 0.2 });
+        if (once(r, 't', k > 0.71)) { txt(r, 'TA-DA', r.scr(a.hx) - 9, a.top - 16, '#ff9bb8', 0.9, -3); for (let i = 0; i < 6; i++) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top - 6 + rand(-3, 3), life: 0.5 }); }
+        if (once(r, 'h', k > 0.82)) r.emit({ type: 'heart', x: r.scr(a.hx + 7), y: a.top - 3, vy: -6, life: 1.1 });
       },
     },
     blowkiss: {
@@ -989,14 +1138,21 @@
       },
     },
     hiccup: {
-      // 딸꾹질 — 딸꾹! 할 때마다 몸이 튀어 오르고 눈이 동그래진다
+      // 딸꾹질 — 딸꾹! 할 때마다 몸이 움찔 눌렸다 높이 튀어 오르고, 머리 둘레에 충격선 + 노란 "HIC!"
+      // (2026-10-10 디자인 개선: 흰 HIC 글자만 잠깐 떠서 흐릿하던 걸)
       len: 3.3, loop: true,
       pose(p, k, at) {
-        if (at % 1.1 < 0.14) { p.dy = -3; p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; }
-        else { p.eyes = 'half'; p.mouth = 'wavy'; p.brow = 'sad'; }
+        const ph = at % 1.1;
+        if (ph < 0.05) { p.xf = { sy: 0.9, sx: 1.08 }; p.eyes = 'wide'; p.mouth = 'o'; return; }
+        if (ph < 0.22) { p.dy = ph < 0.15 ? -5 : -2; p.xf = { sy: 1.08, sx: 0.95 }; p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; p.tail = 'up'; return; }
+        if (ph < 0.3) { p.xf = { sy: 0.92, sx: 1.06 }; p.eyes = 'wide'; p.mouth = 'o'; return; }
+        p.eyes = 'half'; p.mouth = 'wavy'; p.brow = 'sad'; p.tail = 'slow';
       },
       step(r, k, at, dt, a) {
-        if (every(r, 'h', at, 1.1)) r.emit({ type: 'text', s: 'HIC', x: r.scr(a.hx) + 5, y: a.top - 6, vy: -6, life: 0.9, c: '#fff' });
+        if (every(r, 'h', at, 1.1)) {
+          txt(r, 'HIC!', r.scr(a.hx) + 5, a.top - 10, '#ffd65a', 0.8, -7);
+          r.emit({ type: 'shock', x: r.scr(a.hx), y: a.ey - 5, r: 7, life: 0.25 });
+        }
       },
     },
     snot: {
@@ -1020,32 +1176,46 @@
       },
     },
     fart: {
-      // 뿡 — …뿡. 얼어붙었다가 아무 일 없었던 척 눈알만 굴린다
+      // 뿡 — 끙… 힘주다가 "PUUU!" 초록 연기를 뿜으며 로켓처럼 쑥 떠올랐다 쿵 착지. 그러고는 시치미 떼고 휘파람
+      // (2026-10-10 디자인 개선: 연한 초록 연기 세 알이 바탕에 묻히던 걸)
       len: 3,
       pose(p, k, at, r) {
-        if (k < 0.25) p.eyes = r.blinkAt(at) ? 'blink' : 'open';
-        else if (k < 0.4) { p.eyes = 'wide'; p.ear = 1; p.tail = 'up'; p.mouth = 'o'; p.dy = k < 0.3 ? -1 : 0; }
-        else { p.eyes = 'side'; p.sideDir = Math.floor(at * 2.5) % 2 ? 1 : -1; p.sweat = true; p.mouth = 'wavy'; p.tail = 'up'; }
+        if (k < 0.16) { p.eyes = r.blinkAt(at) ? 'blink' : 'open'; return; }
+        if (k < 0.3) { p.eyes = 'squint'; p.mouth = 'flat'; p.blush = true; p.xf = { sy: 0.92, sx: 1.06, ox: Math.floor(at * 20) % 2 ? 1 : 0 }; p.ear = -1; return; }
+        if (k < 0.6) { const h = rocketH(k); p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; p.tail = 'up'; p.xf = { oy: -Math.round(h), sy: k < 0.42 ? 1.06 : 1, sx: k < 0.42 ? 0.96 : 1 }; return; }
+        if (k < 0.66) { p.eyes = 'squint'; p.mouth = 'o'; p.xf = { sx: 1.1, sy: 0.9 }; return; }
+        p.eyes = 'side'; p.sideDir = Math.floor(at * 2) % 2 ? 1 : -1; p.mouth = 'o'; p.sweat = true; p.tail = 'slow';
       },
       step(r, k, at, dt, a) {
-        if (once(r, 'p', k > 0.25)) {
-          for (let i = 0; i < 3; i++) r.emit({ type: 'stink', x: r.scr(a.hx + 9 + i * 2), y: GROUND - 3 - i, vx: 3 + i, vy: -3, life: 1.6 + i * 0.3 });
-          r.emit({ type: 'text', s: 'PUU', x: r.scr(a.hx + 9), y: GROUND - 12, vy: -3, life: 1.2, c: '#dfe8b5' });
+        const h = rocketH(k);
+        if (once(r, 'p', k > 0.3)) {
+          txt(r, 'PUUU!', r.scr(a.hx) + 3, GROUND - 22, '#c4dc7a', 1, -2);
+          for (let i = 0; i < 6; i++) r.emit({ type: 'puff', x: r.scr(a.hx) + rand(-6, 6), y: GROUND - 1, vx: rand(-14, 14), vy: rand(-3, 0), life: 0.9, c: GREEN_L });
         }
+        if (k > 0.3 && k < 0.5 && every(r, 'j', at, 0.04)) r.emit({ type: 'puff', x: r.scr(a.hx) + rand(-3, 3), y: GROUND + 1 - h, vx: rand(-4, 4), vy: 10, life: 0.55, c: Math.random() < 0.5 ? GREEN_L : GREEN });
+        if (once(r, 'd', k > 0.6)) for (let i = 0; i < 4; i++) r.emit({ type: 'dust', x: r.scr(a.hx) + rand(-8, 8), y: GROUND, vx: rand(-8, 8), life: 0.4 });
+        if (k > 0.68 && every(r, 'n', at, 0.45)) r.emit({ type: 'note', x: r.scr(a.fx + 4), y: a.my - 4, vx: 4, vy: -6, life: 0.8 });
       },
     },
     soul: {
-      // 영혼 가출 — 너무 지쳐서 ×_× 입으로 영혼이 빠져나간다… 퍼뜩 정신 차림
+      // 영혼 가출 — 너무 지쳐서 멍… 몸에서 고양이와 똑같이 생긴 반투명 분신이 천사 고리를 달고 둥실 떠오른다.
+      // 몸은 잿빛, 분신이 쏙 내려와 합쳐지면 퍼뜩 "!" (2026-10-10 디자인 개선: 5칸짜리 영혼이 작고 금방 흐려지던 걸)
       len: 3.8,
-      pose(p, k) {
-        if (k < 0.12) p.eyes = 'half';
-        else if (k < 0.85) { p.eyes = 'x'; p.mouth = 'o'; p.ear = -1; p.tail = 'slow'; p.xf = { sy: 0.88, sx: 1.06 }; p.dy = 1; }
-        else { p.eyes = 'wide'; p.mouth = 'o'; p.ear = 1; }
-      },
+      pose(p, k) { soulPose(p, k); },
       step(r, k, at, dt, a) {
-        if (once(r, 's', k > 0.15)) r.emit({ type: 'soul', x: r.scr(a.fx), y: a.my - 2, vy: -9, vx: 1.5, life: 2.4 });
-        if (k > 0.15 && k < 0.85 && every(r, 'g', at, 0.2)) r.emit({ type: 'vline', x: r.scr(a.hx + Math.floor(rand(-6, 7))), y: a.top - 7, len: 3, life: 0.5 });
-        if (once(r, 'w', k > 0.85)) r.emit({ type: 'text', s: '!', x: r.scr(a.hx + 6), y: a.top - 8, vy: -4, life: 0.6, c: '#ffd35c' });
+        const up = soulUp(k);
+        if (k > 0.14 && k < 0.84) tintUnder(r, '#8f99a6', 0.62 * Math.min(1, seg(k, 0.14, 0.24)));
+        if (k > 0.14 && k < 0.84 && up > 0.02) {
+          const rise = Math.round(up * 15 + (up > 0.95 ? Math.sin(at * 3) : 0));
+          const dx = Math.round(Math.sin(at * 2.4) * 2 * up);
+          // 분신 → 몸 사이 영혼 꼬리
+          for (let i = 0; i < rise; i++) dot(r, r.scr(a.hx) + Math.round(Math.sin(i * 0.8 + at * 5) * 1 + (dx * i) / Math.max(1, rise)), a.top - 1 - i + 2, 'rgba(190,215,240,0.8)');
+          r.emit({ type: 'clone', dx, dy: -rise, a: 0.72, perFrame: true, fade: false });
+          // 천사 고리
+          if (up > 0.5) spr(r, ['.YYYYY.', 'Y.....Y', '.YYYYY.'], r.scr(a.hx) - 3 + dx, a.earTop - rise - 4, { Y: '#ffd35c' });
+        }
+        if (once(r, 'w', k > 0.84)) { txt(r, '!', r.scr(a.hx + 6), a.top - 9, '#ffd35c', 0.6, -4); for (let i = 0; i < 4; i++) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-6, 6)), y: a.top + rand(-3, 2), life: 0.3 }); }
+        if (once(r, 'h', k > 0.16)) txt(r, 'HUU', r.scr(a.hx) - 5, a.top - 6, '#c9d6e3', 0.8, -3);
       },
     },
     workout: {
@@ -1815,6 +1985,8 @@
 
   const blob = (r, cx, cy, rx, ry, c) => root.PetSprite.motionBlob(r, cx, cy, rx, ry, c);
   const { limb, tintUnder, flashCat } = root.PetSprite.motionFx;
+  // 무대 커튼 (위에서 내려오는 막) 색
+  const DROP = { V: '#6a3fb0', v: '#4e2a8a', k: '#2e1756', Y: '#ffd65a', y: '#d9a21f', g: '#8f95a0' };
   // 줄넘기 줄: 두 앞발 사이로 둥글게. ph 0 = 발밑(바닥), 0.5 = 머리 위
   function ropeArc(a, ph) {
     const hy = a.my + 1, L = a.hx - 6, R = a.hx + 6;
@@ -1965,21 +2137,44 @@
       },
     },
     curtainreveal: {
-      // 무대 커튼: 빨간 커튼이 촥! 닫혀 고양이를 가렸다가 촥! 열리면 새 코스튬으로 짠.
-      // 커튼은 봉부터 바닥까지 — 키 큰 모자·날개가 커튼 위로 삐져나오지 않게 한다
-      len: 3.2, reveal: 0.24,
-      pose(p, k) { if (k > 0.45) { p.armL = p.armR = 'cheer'; p.eyes = 'star'; p.mouth = 'open'; } },
-      step(r, k) {
-        // 닫힘(0~0.1) → 가림(0.1~0.38, 이 사이에 갈아입는다) → 열림(0.38~0.48)
-        const close = k < 0.1 ? ease(seg(k, 0, 0.1)) : k < 0.38 ? 1 : 1 - ease(seg(k, 0.38, 0.48));
-        const w = Math.round(close * 22);
-        if (w > 0) {
-          const panel = (flip) => Array.from({ length: GROUND - 1 }, (_, j) => Array.from({ length: w }, (_, i) => { const x = flip ? w - 1 - i : i; return x === w - 1 ? 'k' : (x + j) % 4 === 0 ? 'r' : 'R'; }).join(''));
-          spr(r, panel(false), 2, 3, { R: '#c8242c', r: '#8a1a22', k: '#5a0a12' });
-          spr(r, panel(true), 46 - w, 3, { R: '#c8242c', r: '#8a1a22', k: '#5a0a12' });
+      // 무대 커튼: 머리 위 봉에서 별무늬 보라 막이 스르르 내려와 고양이만 가리고(이 사이에 갈아입는다), 두구두구 → 휙 말려 올라가면 짠.
+      // 막은 봉부터 바닥까지 — 키 큰 모자·날개가 위로 삐져나오지 않게 (2026-10-10 디자인 개선: 첫 장면부터 캔버스 전체를 덮던 빨간 커튼을, 고양이 둘레만)
+      len: 3.2, reveal: 0.3,
+      pose(p, k) {
+        if (k > 0.5) { p.armL = p.armR = 'cheer'; p.eyes = 'star'; p.mouth = 'open'; }
+        else if (k < 0.08) { p.lookY = -1; p.eyes = 'wide'; }
+      },
+      step(r, k, at) {
+        if (k > 0.86) return;
+        const X0 = 12, X1 = 36, rodY = 15;
+        const down = k < 0.06 ? 0 : k < 0.18 ? ease(seg(k, 0.06, 0.18)) : k < 0.42 ? 1 : 1 - ease(seg(k, 0.42, 0.5));
+        const pop = k < 0.05 ? seg(k, 0, 0.05) : k > 0.78 ? 1 - seg(k, 0.78, 0.86) : 1;
+        if (pop <= 0) return;
+        const W = X1 - X0 + 1;
+        const H = Math.round(down * (GROUND - rodY - 1));
+        if (H > 0) {
+          const sway = k > 0.18 && k < 0.42 ? Math.round(Math.sin(at * 8)) : 0;
+          const rows = [];
+          for (let j = 0; j < H; j++) {
+            let s = '';
+            for (let i = 0; i < W; i++) {
+              if (i === 0 || i === W - 1) s += 'k';
+              else if (j === H - 1) s += i % 2 ? 'Y' : 'y';
+              else if ((i * 7 + j * 5) % 23 === 0 && j > 1 && j < H - 2) s += 'Y'; // 금빛 별 점
+              else s += i % 4 === 1 ? 'v' : 'V';
+            }
+            rows.push(s);
+          }
+          spr(r, rows, X0, rodY + 2, DROP);
+          // 밑단 술 (흔들흔들)
+          spr(r, [Array.from({ length: W }, (_, i) => (i % 3 === 1 ? 'Y' : '.')).join('')], X0 + sway, rodY + 2 + H, DROP);
         }
-        spr(r, ['Y'.repeat(44), 'y'.repeat(44)], 2, 1, { Y: '#e8b83a', y: '#b8862a' });
-        if (once(r, 't', k > 0.48)) { txt(r, 'TA-DA', 14, 14, '#ffd65a', 1); for (let i = 0; i < 12; i++) r.emit({ type: 'confetti', x: 24 + rand(-12, 12), y: rand(10, 18), vx: rand(-6, 6), vy: 2, ay: 12, life: 1.5, c: CONF[i % 6] }); }
+        // 봉 + 말린 막 (말린 부분은 아래쪽 끝에 붙어 다닌다)
+        const rw = Math.round(W * pop);
+        const rx = 24 - (rw >> 1);
+        spr(r, ['g' + 'y'.repeat(Math.max(0, rw)) + 'g', '.' + 'V'.repeat(Math.max(0, rw)) + '.', '.' + 'k'.repeat(Math.max(0, rw)) + '.'], rx - 1, rodY - 1, DROP);
+        if (k > 0.18 && k < 0.4 && every(r, 'd', at, 0.3)) txt(r, 'DRRR', 16, 6, '#ffffff', 0.4, -2);
+        if (once(r, 't', k > 0.49)) { txt(r, 'TA-DA', 14, 5, '#ffd65a', 1, -1); for (let i = 0; i < 10; i++) r.emit({ type: 'spark', x: 24 + rand(-12, 12), y: rand(20, 40), life: 0.6 }); }
       },
     },
 

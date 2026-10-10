@@ -23,10 +23,27 @@
     lose: [['G5', 0.1], ['F5', 0.1], ['E5', 0.1], ['C5', 0.26]], // 꽝
   };
 
+  // 소리가 끝나고 잠시 조용하면 오디오 장치를 쉬게 한다 (켜 두면 CPU·배터리를 계속 쓴다)
+  const IDLE_MS = 2000;
+  let idleTimer = null;
+  let endsAt = 0; // 마지막 소리가 끝나는 시각 (performance.now 기준)
+  function sleepLater() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (!ctx || ctx.state !== 'running') return;
+      if (performance.now() < endsAt) return sleepLater();
+      ctx.suspend().catch(() => {});
+    }, Math.max(IDLE_MS, endsAt - performance.now() + IDLE_MS));
+  }
+
   function play(name, volume = 0.05) {
     const song = SONGS[name];
     if (!song) return;
     ctx = ctx || new AudioContext();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    const total = song.reduce((s, [, len]) => s + len * 0.9, 0) + 0.1;
+    endsAt = Math.max(endsAt, performance.now() + total * 1000);
+    sleepLater();
     let t = ctx.currentTime + 0.02;
     for (const [note, len] of song) {
       const osc = ctx.createOscillator();

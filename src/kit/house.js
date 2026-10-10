@@ -17,13 +17,10 @@ const why = (b) => (b.why && typeof b.why === 'object' ? t(b.why.k, b.why.v) : S
 const scaleStep = (v) => Math.max(1, Math.min(5, Math.round(Number(v) || 5)));
 // 아이콘은 전부 도트다 (renderer/pixelart.js). 이모지는 기기마다 모양이 달라서 안 쓴다
 const icon = (name, px = 16) => PixelArt.svg(name, px);
-// 먹이 카드의 배부름·기운: 도트 아이콘 + 숫자 한 줄 (글자로 쓰면 좁은 카드에서 두 줄로 쪼개진다). 뜻은 마우스를 올리면
-const foodGain = (it) => {
-  const tip = `${t('shop.gainFood', { n: it.fill })}${it.energy ? ` · ${t('shop.gainEnergy', { n: it.energy })}` : ''}`;
-  return `<div class="food-gain" title="${esc(tip)}"><span>${icon('ricebowl', 11)}+${it.fill}</span>${it.energy ? `<span>${icon('fire', 11)}+${it.energy}</span>` : ''}</div>`;
-};
+// 먹이 카드의 배부름: 도트 아이콘 + 숫자 한 줄. 뜻은 마우스를 올리면
+const foodGain = (it) => `<div class="food-gain" title="${esc(t('shop.gainFood', { n: it.fill }))}"><span>${icon('ricebowl', 11)}+${it.fill}</span></div>`;
 // 먹었을 때 특별한 일이 있는 먹이(프리미엄)는 그 밑에 효과를 짧게 한 줄 (i18n 'foodFx.<키>', 긴 설명은 'foodFxTip.<키>'. 없으면 줄도 없다)
-const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift', inviteCookie: 'paw' };
+const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift', inviteCookie: 'paw' };
 const foodFx = (key) => {
   const k = 'foodFx.' + key;
   const s = t(k);
@@ -169,6 +166,9 @@ function mini(canvas) {
   // 내 고양이 털색. data-furkey 로 따로 정하거나(털색 고르기), data-plain 이면 기본 치즈(장난감 시연)
   else if (canvas.dataset.furkey) r.setFur(canvas.dataset.furkey);
   else if (!canvas.dataset.plain && D && D.settings) r.setFur(D.settings.fur);
+  // 내 고양이 귀 모양. data-ears 로 따로 정하거나(귀 고르기). 손님 고양이 · 장난감 시연(data-plain)은 기본 귀
+  if (canvas.dataset.ears) r.setEars(canvas.dataset.ears);
+  else if (canvas.dataset.fur == null && !canvas.dataset.plain && D && D.settings) r.setEars(D.settings.ears);
   r.setMood(canvas.dataset.mood || 'idle');
   r.demo = canvas.dataset.motion || null;
   r.demoGap = 0;
@@ -252,12 +252,76 @@ function guestBox() {
     <div class="gbox">${cards}</div>`;
 }
 
-// ---------- 자랑 카드 ----------
-// 지금 입은 꾸미기·이름·레벨과 [옵시디언] 글쓰기 통계(세션·쓴 글자·링크·함께한 날·가장 많이 쓴 시간·가장 많이 쓴 폴더)를
-// 1080×1350 PNG 한 장으로 그린다. 저장·이미지 복사·자랑 문구 복사로 퍼뜨린다
-function drawCard() {
+// ---------- 자랑 카드 · 리캡 카드 ----------
+// 데스크톱판 8차 (2026-10-09): 한 장짜리 자랑 카드를 '내가 고르는 카드'로 바꿨다.
+//  기간(이번 달 · 지난달 · 처음부터) · 넣을 칸(최대 6) · 색 테마 · 고양이 자세 · 이름/레벨/잔디 · 한 줄 문구를 고른다.
+//  고른 것은 settings.cardPrefs 에 남아 다음에 열어도 그대로다 (호스트가 core/recap.js 의 cleanCardPrefs 로 거른다).
+//  [옵시디언] 숫자는 core/recap.js 가 글쓰기 기록(쓴 글자 · 링크 · 새 노트 · 세션 · 폴더)으로 센다.
+//  1080×1350 (게시물 4:5) · 1080×1920 (스토리 9:16) PNG
+const CARD_CELLS = ['written', 'links', 'notes', 'sessions', 'days', 'streak', 'busiest', 'peak', 'folder', 'coins', 'achievements', 'level', 'xp', 'folders'];
+const CARD_MAX = 6;
+const CARD_DEFAULT = { format: 'post', period: 'month', cells: ['written', 'days', 'streak', 'busiest', 'peak', 'links'], theme: 'cream', pose: 'idle', grass: true, name: true, level: true, caption: '' };
+const CARD_THEMES = {
+  cream: { bg: '#fbf5ec', band: '#f3e3d1', ink: '#3a2118', muted: '#8b6f60', accent: '#d97757', cell: '#f1e6d6', off: '#ece1d2', on: [217, 119, 87], frame: '#3a2118' },
+  night: { bg: '#1c1a33', band: '#2a2550', ink: '#f4ecff', muted: '#a99cc9', accent: '#ffd84a', cell: '#2f2a55', off: '#2a2648', on: [255, 216, 74], frame: '#0d0b20' },
+  mint: { bg: '#f1fbf6', band: '#d7f2e5', ink: '#1f3a30', muted: '#5f8a79', accent: '#2f9e75', cell: '#e2f5ec', off: '#dcefe6', on: [47, 158, 117], frame: '#1f3a30' },
+  sakura: { bg: '#fff5f7', band: '#ffe0e8', ink: '#4a2430', muted: '#a06a7a', accent: '#e8638a', cell: '#ffe9ef', off: '#f7e3e8', on: [232, 99, 138], frame: '#4a2430' },
+};
+const CARD_POSES = ['idle', 'thinking', 'waiting', 'sleeping'];
+let cardPrefs = null; // 지금 편집 중인 카드 설정
+let cardData = {}; // 기간별 recap 숫자 (열 때마다 새로 받는다)
+
+function cardPrefsNow() {
+  const p = { ...CARD_DEFAULT, ...(D.settings.cardPrefs || {}) };
+  if (!Array.isArray(p.cells)) p.cells = CARD_DEFAULT.cells.slice();
+  return p;
+}
+
+// 기간 이름: '2026년 10월' · 'October 2026' · '지금까지'
+function cardPeriodName(R) {
+  if (R.kind === 'all') return t('rc.periodAll');
+  return new Date(R.year, R.month - 1, 1).toLocaleDateString(locale(), { year: 'numeric', month: 'long' });
+}
+
+// [옵시디언] 데스크톱판은 '처음부터'를 Claude Code 통계 화면 숫자로 덮었다. 옵시디언판은 recap 숫자 그대로
+function cardNumbers(R) {
+  return R;
+}
+
+// 칸 하나 → [이름, 값]
+function cardCell(id, R) {
+  const day = (k) => {
+    if (!k) return '-';
+    const [y, m, d] = k.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+  };
+  switch (id) {
+    case 'written': return [t('vc.written'), compact(R.written || 0)];
+    case 'links': return [t('vc.links'), fmt(R.links)];
+    case 'notes': return [t('rc.notes'), fmt(R.notes)];
+    case 'sessions': return [t('vc.sessions'), fmt(R.sessions)];
+    case 'days': return [t('cc.days'), t('rc.nDays', { n: fmt(R.activeDays) })];
+    case 'streak': return [t('rc.streak'), t('rc.nDays', { n: fmt(R.streak) })];
+    case 'busiest': return [t('rc.busiest'), R.busiest ? day(R.busiest.day) : '-'];
+    case 'peak': return [t('cc.peak'), hourName(R.peakHour)];
+    case 'folder': return [t('vc.folder'), R.favFolder || '-'];
+    case 'coins': return [t('rc.coins'), fmt(R.coins)];
+    case 'achievements': return [t('rc.achievements'), fmt(R.achievements)];
+    case 'level': return [t('rc.level'), R.levelFrom === R.levelTo ? `Lv.${R.levelTo}` : `Lv.${R.levelFrom} → ${R.levelTo}`];
+    case 'xp': return [t('rc.xp'), '+' + fmt(R.xp)];
+    case 'folders': return [t('rc.folders'), fmt(R.folders)];
+  }
+  return [id, '-'];
+}
+
+function drawCard(P = cardPrefsNow(), raw = cardData[P.period]) {
+  const R = cardNumbers(raw || { kind: P.period, daily: {}, year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const TH = CARD_THEMES[P.theme] || CARD_THEMES.cream;
+  // post = 1080×1350 (인스타 게시물 4:5), story = 1080×1920 (스토리 9:16). 스토리는 고양이 띠와 고양이를 키운다
+  const story = P.format === 'story';
   const W = 540;
-  const Hh = 675;
+  const Hh = story ? 960 : 675;
+  const BAND = story ? 400 : 250;
   const S = 2;
   const cv = document.createElement('canvas');
   cv.width = W * S;
@@ -265,97 +329,142 @@ function drawCard() {
   const g = cv.getContext('2d');
   g.scale(S, S);
   g.imageSmoothingEnabled = false;
-  const C = D.vault;
-  const ink = '#3a2118';
-  const muted = '#8b6f60';
-  const accent = '#d97757';
   const font = (w, px) => `${w} ${px}px Pretendard, 'Malgun Gothic', sans-serif`;
-  const text = (s, x, y, f, color = ink, align = 'center') => {
+  const text = (s, x, y, f, color = TH.ink, align = 'center') => {
     g.font = f;
     g.fillStyle = color;
     g.textAlign = align;
     g.fillText(s, x, y);
   };
+  // 너무 긴 글은 줄여서 넣는다
+  const fit = (s, max, f) => {
+    g.font = f;
+    let v = String(s);
+    while (v.length > 1 && g.measureText(v).width > max) v = v.slice(0, -2) + '…';
+    return v;
+  };
 
   // 바탕과 도트 테두리
-  g.fillStyle = '#fbf5ec';
+  g.fillStyle = TH.bg;
   g.fillRect(0, 0, W, Hh);
-  g.fillStyle = '#f3e3d1';
-  g.fillRect(0, 0, W, 250);
-  g.fillStyle = ink;
+  g.fillStyle = TH.band;
+  g.fillRect(0, 0, W, BAND);
+  g.fillStyle = TH.frame;
   for (const [x, y, w, h] of [[12, 12, W - 24, 4], [12, Hh - 16, W - 24, 4], [12, 12, 4, Hh - 24], [W - 16, 12, 4, Hh - 24]]) g.fillRect(x, y, w, h);
-  g.fillStyle = 'rgba(58,33,24,0.18)';
+  g.fillStyle = 'rgba(0,0,0,0.18)';
   g.fillRect(16, Hh - 12, W - 24, 4);
   g.fillRect(W - 12, 16, 4, Hh - 24);
+  // 밤 테마는 띠에 별을 몇 개 뿌린다
+  if (P.theme === 'night') {
+    g.fillStyle = 'rgba(255,246,200,0.8)';
+    for (let i = 0; i < 26; i++) g.fillRect(24 + ((i * 97) % (W - 48)), 24 + ((i * 53) % (BAND - 40)), i % 4 ? 2 : 3, i % 4 ? 2 : 3);
+  }
 
-  text('VAULT PET', 36, 48, font(700, 14), accent, 'left');
-  text(new Date().toLocaleDateString(locale()), W - 36, 48, font(400, 12), muted, 'right');
+  text('VAULT PET', 36, 48, font(700, 14), TH.accent, 'left');
+  text(cardPeriodName(R), W - 36, 48, font(700, 13), TH.muted, 'right');
 
-  // 고양이 (지금 입은 꾸미기 그대로)
+  // 고양이 (지금 입은 꾸미기 · 털색 그대로, 고른 자세로)
   const cat = document.createElement('canvas');
   const r = new PetSprite.PetRenderer(cat);
   r.setStage(D.growth ? D.growth.stageKey : 'cat');
   r.setAccessory(D.settings.accessory || 'none');
   r.setFur(D.settings.fur);
-  r.setMood('idle');
+  r.setEars(D.settings.ears);
+  r.setMood(CARD_POSES.includes(P.pose) ? P.pose : 'idle');
   r.frame();
-  // 고양이는 48칸 캔버스 아래쪽 절반에 서 있다. 크게 키워 윗부분(빈칸)은 위로 밀어 낸다
-  const CAT = 320;
-  g.drawImage(cat, (W - CAT) / 2, -92, CAT, CAT);
+  const CAT = story ? 480 : 320;
+  g.drawImage(cat, (W - CAT) / 2, story ? -90 : -92, CAT, CAT);
 
-  const lv = D.growth ? D.growth.level : 1;
-  text(D.settings.petName, W / 2, 288, font(700, 30));
-  text(`Lv.${lv}`, W / 2, 314, font(700, 16), accent);
-  text(t('card.headline', { tokens: compact(C.written) }), W / 2, 346, font(400, 15), ink);
+  // 이름 · 레벨 · 한 줄
+  let y = BAND + 38;
+  if (P.name) {
+    text(fit(D.settings.petName, W - 80, font(700, 30)), W / 2, y, font(700, 30));
+    y += 26;
+  }
+  if (P.level) {
+    const gr = D.growth;
+    const lvText = gr && gr.maxed && gr.stars ? `Lv.${gr.level} ★${fmt(gr.stars)}` : `Lv.${gr ? gr.level : 1}`;
+    text(lvText, W / 2, y, font(700, 16), TH.accent);
+    y += 30;
+  } else y += 6;
+  const head = P.caption && P.caption.trim()
+    ? P.caption.trim()
+    : R.kind === 'all'
+      ? t('card.headline', { tokens: compact(R.written || 0) })
+      : t('rc.headline', { period: cardPeriodName(R), tokens: compact(R.written || 0) });
+  text(fit(head, W - 70, font(400, 15)), W / 2, y, font(400, 15), TH.ink);
 
-  // 통계 여섯 칸
-  const cells = [
-    [t('vc.sessions'), fmt(C.sessions)],
-    [t('vc.written'), compact(C.written)],
-    [t('vc.links'), fmt(C.links)],
-    [t('cc.days'), fmt(C.activeDays)],
-    [t('cc.peak'), hourName(C.peakHour)],
-    [t('vc.folder'), C.favFolder || '-'],
-  ];
+  // 고른 칸 (최대 6). 셋씩 한 줄, 모자라면 가운데로
+  const ids = (P.cells || []).slice(0, CARD_MAX);
   const cw = 150;
   const ch = 58;
-  const gx = (W - cw * 3 - 12 * 2) / 2;
-  cells.forEach(([k, v], i) => {
+  const top = y + 20;
+  ids.forEach((id, i) => {
+    const row = Math.floor(i / 3);
+    const inRow = Math.min(3, ids.length - row * 3);
+    const gx = (W - cw * inRow - 12 * (inRow - 1)) / 2;
     const x = gx + (i % 3) * (cw + 12);
-    const y = 366 + Math.floor(i / 3) * (ch + 10);
-    g.fillStyle = '#f1e6d6';
-    g.fillRect(x, y, cw, ch);
-    text(k, x + 12, y + 22, font(400, 11), muted, 'left');
-    text(v, x + 12, y + 46, font(700, 18), ink, 'left');
+    const yy = top + row * (ch + 10);
+    const [k, v] = cardCell(id, R);
+    g.fillStyle = TH.cell;
+    g.fillRect(x, yy, cw, ch);
+    text(fit(k, cw - 20, font(400, 11)), x + 12, yy + 22, font(400, 11), TH.muted, 'left');
+    text(fit(v, cw - 20, font(700, 18)), x + 12, yy + 46, font(700, 18), TH.ink, 'left');
   });
+  const afterCells = top + Math.ceil(ids.length / 3) * (ch + 10) + (ids.length ? 6 : 0);
 
-  // 잔디: 최근 20주, 날마다 쓴 글자 수
-  const WEEKS = 20;
-  const cell = 10;
-  const gap = 2;
-  const today = new Date();
-  // 칸 줄 = 요일(일~토), 칸 열 = 주. 맨 오른쪽 열이 이번 주
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay() - (WEEKS - 1) * 7);
-  const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const vals = [];
-  for (let i = 0; i < WEEKS * 7; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    vals.push(d > today ? null : C.daily[key(d)] || 0);
+  // 잔디: 달 카드는 그달 달력(요일 × 주), 처음부터 카드는 최근 20주
+  if (P.grass) {
+    const daily = R.daily || {};
+    const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    const cellsArr = [];
+    let cols;
+    if (R.kind === 'all') {
+      cols = 20;
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay() - (cols - 1) * 7);
+      for (let i = 0; i < cols * 7; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        cellsArr.push(d > today ? null : daily[key(d)] || 0);
+      }
+    } else {
+      const first = new Date(R.year, R.month - 1, 1);
+      const lastDay = new Date(R.year, R.month, 0).getDate();
+      const lead = first.getDay();
+      cols = Math.ceil((lead + lastDay) / 7);
+      // 달력은 열 = 주, 줄 = 요일 (잔디와 같은 방향)
+      for (let i = 0; i < cols * 7; i++) cellsArr.push(null);
+      for (let dn = 1; dn <= lastDay; dn++) {
+        const idx = lead + dn - 1;
+        const col = Math.floor(idx / 7);
+        const row = idx % 7;
+        const d = new Date(R.year, R.month - 1, dn);
+        cellsArr[col * 7 + row] = d > today ? -1 : daily[key(d)] || 0; // -1 = 아직 안 온 날 (흐린 칸)
+      }
+    }
+    const room = Hh - 66 - afterCells;
+    const cell = Math.max(8, Math.min(R.kind === 'all' ? (story ? 18 : 13) : story ? 26 : 18, Math.floor((room - 6 * 3) / 7)));
+    const gap = 3;
+    const max = Math.max(1, ...cellsArr.filter((v) => v != null && v >= 0));
+    const hx = (W - cols * (cell + gap) + gap) / 2;
+    const hy = afterCells + Math.max(0, (room - 7 * (cell + gap)) / 2);
+    cellsArr.forEach((v, i) => {
+      if (v == null) return;
+      const col = Math.floor(i / 7);
+      const row = i % 7;
+      g.globalAlpha = v < 0 ? 0.4 : 1;
+      g.fillStyle = v > 0 ? `rgba(${TH.on.join(',')},${(0.25 + (v / max) * 0.75).toFixed(2)})` : TH.off;
+      g.fillRect(hx + col * (cell + gap), hy + row * (cell + gap), cell, cell);
+    });
+    g.globalAlpha = 1;
   }
-  const max = Math.max(1, ...vals.filter((v) => v != null));
-  const hx = (W - WEEKS * (cell + gap) + gap) / 2;
-  vals.forEach((v, i) => {
-    if (v == null) return;
-    const col = Math.floor(i / 7);
-    const row = i % 7;
-    g.fillStyle = v ? `rgba(217,119,87,${(0.25 + (v / max) * 0.75).toFixed(2)})` : '#ece1d2';
-    g.fillRect(hx + col * (cell + gap), 508 + row * (cell + gap), cell, cell);
-  });
 
-  // 책에 빗대기 + 퍼뜨리는 한 줄
-  const bookLine = cardBook(C.written);
-  if (bookLine) text(bookLine, W / 2, 614, font(400, 12), muted);
-  text(t('card.footer'), W / 2, 638, font(700, 12), accent);
+  // 처음부터 카드는 책에 빗대기 한 줄을 남긴다
+  if (R.kind === 'all') {
+    const bookLine = cardBook(R.written || 0);
+    if (bookLine) text(bookLine, W / 2, Hh - 61, font(400, 12), TH.muted);
+  }
+  text(t('card.footer'), W / 2, Hh - 37, font(700, 12), TH.accent);
   return cv;
 }
 
@@ -366,15 +475,26 @@ function cardBook(tokens) {
   return x >= 1 ? t('card.book', { book: t('book.' + b.key), x: fmt(x) }) : '';
 }
 
-function openCard() {
-  const cv = drawCard();
-  const url = cv.toDataURL('image/png');
-  const C = D.vault;
-  const share = t('card.shareText', { name: D.settings.petName, lv: D.growth ? D.growth.level : 1, tokens: fmt(C.written), days: fmt(C.activeDays) });
+// 자랑 문구: 기간에 맞춰
+function cardShareText(P, raw) {
+  const R = cardNumbers(raw || {});
+  const lv = D.growth ? D.growth.level : 1;
+  if (P.period === 'all' || !raw) return t('card.shareText', { name: D.settings.petName, lv, tokens: fmt(D.vault.written), days: fmt(D.vault.activeDays) });
+  return t('rc.shareText', { name: D.settings.petName, lv, period: cardPeriodName(R), tokens: fmt(R.written || 0), days: fmt(R.activeDays) });
+}
+
+async function openCard() {
+  cardPrefs = cardPrefsNow();
+  cardData = {};
+  cardData[cardPrefs.period] = await pet.recap(cardPrefs.period);
+  const chip = (attr, v, on, label) => `<button class="chip ${on ? 'on' : ''}" ${attr}="${v}">${label}</button>`;
   const el = openModal(
     `<div class="modal-top"><h2>${t('card.title')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
     <p class="muted" style="margin:0 0 10px;font-size:12px">${t('card.sub')}</p>
-    <div class="card-slot"></div>
+    <div class="card-edit">
+      <div class="card-slot"></div>
+      <div class="card-opts"></div>
+    </div>
     <div class="modal-foot card-actions">
       <button class="btn" id="card-text">${t('card.copyText')}</button>
       <button class="btn" id="card-copy">${t('card.copyImage')}</button>
@@ -382,18 +502,85 @@ function openCard() {
     </div>`,
     'modal-card',
   );
-  // 미리보기는 그린 캔버스를 그대로 붙인다 (창의 보안 정책이 data: 이미지를 막아서 <img> 로는 안 보인다)
-  cv.className = 'card-img';
-  $('.card-slot', el).replaceWith(cv);
+  let saveTimer = null;
+  const remember = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => pet.set({ cardPrefs }).then(apply), 500);
+  };
+  const paint = () => {
+    const cv = drawCard(cardPrefs);
+    cv.className = 'card-img';
+    // 미리보기는 그린 캔버스를 그대로 붙인다 (창의 보안 정책이 data: 이미지를 막아서 <img> 로는 안 보인다)
+    $('.card-slot', el).replaceChildren(cv);
+    return cv;
+  };
+  const opts = () => {
+    const P = cardPrefs;
+    const n = P.cells.length;
+    $('.card-opts', el).innerHTML = `
+      <div class="copt"><b>${t('rc.optFormat')}</b><div class="chips">${['post', 'story'].map((k) => chip('data-cp-format', k, (P.format || 'post') === k, t('rc.format.' + k))).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optPeriod')}</b><div class="chips">${['month', 'last', 'all'].map((k) => chip('data-cp-period', k, P.period === k, t('rc.period.' + k))).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optCells', { n, max: CARD_MAX })}</b><div class="chips">${CARD_CELLS.map((k) => chip('data-cp-cell', k, P.cells.includes(k), cardCell(k, {}).at(0))).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optTheme')}</b><div class="chips">${Object.keys(CARD_THEMES).map((k) => `<button class="chip swatch ${P.theme === k ? 'on' : ''}" data-cp-theme="${k}"><i style="background:${CARD_THEMES[k].band};border-color:${CARD_THEMES[k].accent}"></i>${t('rc.theme.' + k)}</button>`).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optPose')}</b><div class="chips">${CARD_POSES.map((k) => chip('data-cp-pose', k, P.pose === k, t('rc.pose.' + k))).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optShow')}</b><div class="chips">${['name', 'level', 'grass'].map((k) => chip('data-cp-show', k, P[k], t('rc.show.' + k))).join('')}</div></div>
+      <div class="copt"><b>${t('rc.optCaption')}</b><input type="text" id="cp-caption" maxlength="40" value="${esc(P.caption || '')}" placeholder="${esc(t('rc.captionPh'))}"></div>`;
+    $$('[data-cp-period]', el).forEach((b) =>
+      b.addEventListener('click', async () => {
+        P.period = b.dataset.cpPeriod;
+        if (!cardData[P.period]) cardData[P.period] = await pet.recap(P.period);
+        opts();
+        paint();
+        remember();
+      }),
+    );
+    $$('[data-cp-cell]', el).forEach((b) =>
+      b.addEventListener('click', () => {
+        const k = b.dataset.cpCell;
+        if (P.cells.includes(k)) P.cells = P.cells.filter((x) => x !== k);
+        else if (P.cells.length < CARD_MAX) P.cells = [...P.cells, k];
+        else return toast(t('rc.cellsFull', { max: CARD_MAX }), 'bang');
+        opts();
+        paint();
+        remember();
+      }),
+    );
+    for (const [attr, key] of [['data-cp-theme', 'theme'], ['data-cp-pose', 'pose'], ['data-cp-format', 'format']])
+      $$(`[${attr}]`, el).forEach((b) =>
+        b.addEventListener('click', () => {
+          P[key] = b.getAttribute(attr);
+          opts();
+          paint();
+          remember();
+        }),
+      );
+    $$('[data-cp-show]', el).forEach((b) =>
+      b.addEventListener('click', () => {
+        P[b.dataset.cpShow] = !P[b.dataset.cpShow];
+        opts();
+        paint();
+        remember();
+      }),
+    );
+    const cap = $('#cp-caption', el);
+    cap.addEventListener('input', () => {
+      P.caption = cap.value.slice(0, 40);
+      paint();
+      remember();
+    });
+  };
+  opts();
+  paint();
+  const url = () => drawCard(cardPrefs).toDataURL('image/png');
   $('#card-save', el).onclick = async () => {
-    if (await pet.saveCard(url, D.settings.petName)) toast(t('card.saved'), 'check');
+    if (await pet.saveCard(url(), D.settings.petName)) toast(t('card.saved'), 'check');
   };
   $('#card-copy', el).onclick = async () => {
-    await pet.copyCard(url);
+    await pet.copyCard(url());
     toast(t('card.copied'), 'check');
   };
   $('#card-text', el).onclick = async () => {
-    await pet.copyText(share);
+    await pet.copyText(cardShareText(cardPrefs, cardData[cardPrefs.period]));
     toast(t('card.textCopied'), 'check');
   };
 }
@@ -432,6 +619,25 @@ function motionCard(sl) {
     <div class="mstrip">${thumbs}</div>
     <button class="btn ghost small mcard-btn" data-medit="${sl.key}">${icon('gear', 12)}${t('mot.edit')}</button>
   </div>`;
+}
+
+// 설정의 모션 칸 12개를 4묶음으로 보여 준다 (2026-10-10). 안쪽 칸 구조는 그대로 (main/shop.js MOTION_SLOTS)
+const MOTION_GROUPS = [
+  ['work', ['work', 'workLong', 'workHour']],
+  ['claude', ['waiting', 'done']],
+  ['rest', ['idle', 'hungry', 'rest', 'sleep']],
+  ['joy', ['levelup', 'wear', 'poke']],
+];
+const mgroupOpen = new Set(); // 펼쳐 둔 묶음 (창을 다시 그려도 그대로)
+function motionGroups() {
+  return MOTION_GROUPS.map(([g, keys]) => {
+    const slots = keys.map((k) => D.shop.slots.find((x) => x.key === k)).filter(Boolean);
+    const n = new Set(slots.flatMap((sl) => motionsIn(sl))).size;
+    return `<details class="mgroup" data-mgroup="${g}" ${mgroupOpen.has(g) ? 'open' : ''}>
+      <summary><b>${t('mgroup.' + g)}</b><span class="muted small">${t('mgroup.sub.' + g)}</span><span class="mtag">${t('mgroup.count', { s: slots.length, n })}</span></summary>
+      <div class="mcards">${slots.map(motionCard).join('')}</div>
+    </details>`;
+  }).join('');
 }
 
 // 끌어다 놓는 모션 편집 창.
@@ -771,11 +977,13 @@ function openFurPicker() {
   const stage = D.growth ? D.growth.stageKey : 'cat';
   const cells = (D.furs || [])
     .map((f) => {
-      const open = lv >= f.level || D.settings.devMode;
+      // 별 전용 털색은 별 상점에서 산 것만 (8차)
+      const starRow = f.stars ? (D.shop.star || []).find((x) => x.key === 'fur_' + f.key) : null;
+      const open = f.stars ? !!(starRow && starRow.owned) : lv >= f.level || D.settings.devMode;
       return `<button class="fur-cell ${f.key === now ? 'on' : ''} ${open ? '' : 'locked'}" ${open ? `data-fur-pick="${f.key}"` : 'disabled'}>
         <span class="fur-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-furkey="${f.key}"></canvas></span>
         <span class="nm">${esc(t('fur.' + f.key))}</span>
-        <span class="lv">${f.key === now ? t('ward.wearing') : open ? '' : icon('lock', 10) + t('ward.furLocked', { n: f.level })}</span>
+        <span class="lv">${f.key === now ? t('ward.wearing') : open ? '' : f.stars ? icon('star', 10) + t('ward.furStar', { n: f.stars }) : icon('lock', 10) + t('ward.furLocked', { n: f.level })}</span>
       </button>`;
     })
     .join('');
@@ -789,6 +997,35 @@ function openFurPicker() {
   $$('[data-fur-pick]', el).forEach((b) =>
     b.addEventListener('click', async () => {
       await apply(await pet.set({ fur: b.dataset.furPick }));
+      closeModal();
+      renderView();
+      toast(t('toast.saved'));
+    }),
+  );
+}
+
+// ---------- 귀 모양 고르기 (2026-10-10) ----------
+// 레벨과 상관없이 13가지가 다 열려 있다. 첫 실행 안내(이름 짓기)와 옷장이 같은 칸을 쓴다
+function earCells(now) {
+  const stage = D.growth ? D.growth.stageKey : 'cat';
+  return PetSprite.EAR_KEYS.map(
+    (k) => `<button class="fur-cell ${k === now ? 'on' : ''}" data-ear-pick="${k}">
+        <span class="fur-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-ears="${k}"></canvas></span>
+        <span class="nm">${esc(t('ear.' + k))}</span>
+      </button>`,
+  ).join('');
+}
+function openEarPicker() {
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('ward.ears')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('ward.earsSub')}</p>
+    <div class="fur-grid">${earCells(D.settings.ears || 'perk')}</div>`,
+    'fur-modal',
+  );
+  minis.push(...$$('canvas[data-stage]', el).map(mini));
+  $$('[data-ear-pick]', el).forEach((b) =>
+    b.addEventListener('click', async () => {
+      await apply(await pet.set({ ears: b.dataset.earPick }));
       closeModal();
       renderView();
       toast(t('toast.saved'));
@@ -969,24 +1206,58 @@ function hideToast() {
 }
 $('#toast').addEventListener('click', hideToast);
 
+// 앱 테마 (데스크톱판 8차 후속): auto = 어두우면 코코아, 아니면 크림. 색은 house.css 의 토큰.
+// [옵시디언] auto 는 옵시디언 테마의 밝기를 따른다 (plugin/frame.js 가 <html> 에 theme-dark · theme-light 를 단다)
+const THEMES = ['auto', 'cream', 'cocoa', 'mint', 'sakura', 'choco'];
+const THEME_SWATCH = { cream: ['#faf6ef', '#d97757'], cocoa: ['#1e1814', '#d97757'], mint: ['#eef7f2', '#2f9e7e'], sakura: ['#fdf2f4', '#e0708c'], choco: ['#f3e7da', '#8b4f2c'] };
+const darkMq = matchMedia('(prefers-color-scheme: dark)');
+const themeOf = (k) => (THEMES.includes(k) ? k : 'auto');
+function applyTheme() {
+  const k = themeOf(D && D.settings.theme);
+  const dark = window.KC_OBSIDIAN ? document.documentElement.classList.contains('theme-dark') : darkMq.matches;
+  const eff = k === 'auto' ? (dark ? 'cocoa' : 'cream') : k;
+  document.documentElement.dataset.theme = eff;
+  document.documentElement.classList.toggle('dark', eff === 'cocoa');
+}
+darkMq.addEventListener('change', () => D && applyTheme());
+// [옵시디언] 옵시디언 테마를 바꾸면 frame.js 가 <html> 의 theme-dark 를 바꾼다. 그때 다시 칠한다
+if (window.KC_OBSIDIAN && window.MutationObserver) {
+  let wasDark = document.documentElement.classList.contains('theme-dark');
+  new MutationObserver(() => {
+    const now = document.documentElement.classList.contains('theme-dark');
+    if (now === wasDark) return;
+    wasDark = now;
+    if (D) applyTheme();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+}
+
 function renderTop() {
   const g = D.growth;
   const s = D.settings;
+  applyTheme();
   T.set(s.language, s.personality);
   document.documentElement.lang = T.lang;
   document.title = t('top.title', { name: s.petName });
   $('#h-name').textContent = s.petName;
   hero.setAccessory(s.accessory);
   hero.setFur(s.fur);
+  hero.setEars(s.ears);
   hero.setMood(D.mood);
   hero.setMoodMotions(D.motion ? D.motion.mood : {});
   if (g) {
     hero.setStage(g.stageKey);
-    $('#h-lv').textContent = oneStage() ? `Lv.${g.level}` : `Lv.${g.level} · ${stageName(g.stageKey)}`;
+    // 만렙(Lv80) 뒤 별: 레벨 옆에 별 도트와 개수 (main/growth.js 의 stars · starNext · maxed)
+    const stars = Number(g.stars) > 0 ? Math.floor(Number(g.stars)) : 0;
+    $('#h-lv').innerHTML =
+      esc(oneStage() ? `Lv.${g.level}` : `Lv.${g.level} · ${stageName(g.stageKey)}`) +
+      (stars ? ` <span class="lv-stars" title="${esc(t('top.stars', { n: stars }))}">${icon('star', 11)}${stars}</span>` : '');
+    // 만렙이면 levelFloor~levelCeil 이 다음 별까지의 구간이라 막대는 그대로 그리면 된다
     const into = g.xp - g.levelFloor;
     const need = g.levelCeil - g.levelFloor;
-    $('#h-xpbar').style.width = `${(into / need) * 100}%`;
+    $('#h-xpbar').style.width = `${need > 0 ? (into / need) * 100 : 100}%`;
     $('#h-xptext').textContent = `${fmt(into)} / ${fmt(need)} XP`;
+    if (g.maxed) $('.xp').title = t('top.starTip', { left: fmt(g.starNext), n: stars });
+    else $('.xp').removeAttribute('title');
   } else {
     $('#h-lv').textContent = '';
     $('#h-xptext').textContent = t('top.reading');
@@ -1018,6 +1289,9 @@ function renderTop() {
   $('#dot-shop').hidden = !newUnlocks().length;
   $$('#tabs button').forEach((b) => {
     b.classList.toggle('on', b.dataset.tab === tab);
+    b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+    b.tabIndex = b.dataset.tab === tab ? 0 : -1;
+    if (b.dataset.tab === tab) $('#view').setAttribute('aria-label', $('.tx', b).textContent);
     // 영어처럼 글이 길어지면 탭 줄이 넘치니, 고른 탭은 항상 보이게 끌어온다
     if (b.dataset.tab === tab) b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
@@ -1025,17 +1299,51 @@ function renderTop() {
 
 // ---------- 탭 ----------
 
-// 배부름·기운 게이지. 20 밑이면 장난감 놀이를 거부한다
+// 배부름 게이지. 벌이 아니라 덤: 든든하면(50 이상) 보물 · 친구가 더 자주 온다 (main/gauge.js)
 const gaugeRow = (key, v, ic) =>
-  `<div class="gauge ${v < 20 ? 'low' : ''}"><span class="gl">${icon(ic, 16)}${t('gauge.' + key)}</span><div class="bar"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
-const gaugeNote = (g) => (g.food < 20 ? t('gauge.hungryNote') : g.energy < 20 ? t('gauge.tiredNote') : t('gauge.okNote'));
+  `<div class="gauge ${v < 25 ? 'low' : ''}"><span class="gl">${icon(ic, 16)}${t('gauge.' + key)}</span><div class="bar"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
+const gaugeNote = (g) => (g.full ? t('gauge.fullNote') : g.food < 25 ? t('gauge.hungryNote') : t('gauge.okNote'));
 function gaugePanel() {
-  const g = D.gauge || { food: 100, energy: 100 };
+  const g = D.gauge || { food: 100, full: true };
   const row = gaugeRow;
   const note = gaugeNote(g);
   // 배고프면 여기서 바로 밥을 준다 (창고에 밥이 없으면 act('feed') 가 상점 밥 페이지로 보낸다)
   return `<div class="h2-row"><h2>${t('gauge.title')}</h2><button class="btn head-act ${g.food < 50 ? 'alert' : ''}" data-act="feed">${icon('ricebowl', 12)}${t('home.feed')}</button></div>
-      <div class="panel">${row('food', g.food, 'ricebowl')}${row('energy', g.energy, 'fire')}<p class="muted gauge-note">${note}</p></div>`;
+      <div class="panel">${row('food', g.food, 'ricebowl')}<p class="muted gauge-note">${g.full ? icon('sparkle', 12) + ' ' : ''}${note}</p></div>`;
+}
+
+// 오늘 먹고 싶은 것 (main/craving.js): 밥 하나 · 간식 하나. 먹이면 산 값의 절반을 돌려받는다
+const craving = (key) => !!D.craving && [D.craving.meal, D.craving.snack].includes(key) && !D.craving.fed.includes(key);
+function cravingPanel() {
+  const c = D.craving;
+  if (!c) return '';
+  const cell = (key, kind) => {
+    const it = D.shop.food.find((x) => x.key === key);
+    if (!it) return '';
+    const done = c.fed.includes(key);
+    const act = done
+      ? `<span class="crave-done ico-row">${icon('check', 12)}${t('crave.done')}</span>`
+      : `<button class="btn small ${it.stock ? 'primary' : ''}" data-crave="${key}">${t(it.stock ? 'crave.feed' : 'crave.buyFeed')}</button>`;
+    return `<div class="crave-cell ${done ? 'done' : ''}">${icon(key, 32)}
+      <div class="crave-txt"><small>${t('crave.' + kind)}</small><b>${esc(t('item.' + key))}</b><span>${done ? '' : t('crave.back', { n: fmt(Math.floor(it.price / 2)) })}</span></div>${act}</div>`;
+  };
+  return `<h2>${t('crave.title')}</h2>
+      <div class="panel crave"><div class="crave-row">${cell(c.meal, 'meal')}${cell(c.snack, 'snack')}</div><p class="muted small crave-sub">${t('crave.sub')}</p></div>`;
+}
+
+// 오늘의 소식 (2026-10-10): 업적 · 보상 · 레벨 · 친구 · 보물. 방해 금지 등으로 못 띄운 말풍선도 여기 남는다
+let newsOpen = false;
+const NEWS_ICON = { grow: 'star', achieve: 'medal', item: 'gift', quest: 'check', attend: 'fire', retro: 'medal', event: 'paw' };
+function newsPanel() {
+  const list = [...(D.news || [])].reverse();
+  const show = newsOpen ? list : list.slice(0, 4);
+  const time = (at) => new Date(at).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
+  const rows = show
+    .map((x) => `<li ${x.link ? `data-news-link="${x.link}"` : ''}><span class="nt">${time(x.at)}</span>${icon(NEWS_ICON[x.kind] || 'sparkle', 13)}<span class="nx">${esc(x.text)}</span></li>`)
+    .join('');
+  const more = list.length > 4 ? `<button class="btn ghost small" data-act="newsMore">${newsOpen ? t('news.less') : t('news.more', { n: list.length - 4 })}</button>` : '';
+  return `<h2>${t('news.title')} <span class="muted">${list.length || ''}</span></h2>
+      <div class="panel news">${list.length ? `<ul class="news-list">${rows}</ul>${more}` : `<p class="muted small">${t('news.empty')}</p>`}</div>`;
 }
 
 // 업적 탭 거르기 (all · todo · done)
@@ -1052,9 +1360,20 @@ const INV_PAGES = ['costume', 'meal', 'snack', 'toy', 'treasure'];
 let invPage = 'costume';
 // 보물 공방 탭 안의 페이지: 공방(코스튬 만들기) · 보물 상자(주운 보물 도감)
 let wsPage = 'workshop';
+let exPick = null; // 보물 교환소에서 고른 보물
+// 공방 코스튬의 이야기: "재료: 병뚜껑 2 · 아무 보물 4 · 10월 9일 제작" (예전 기록은 쓴 재료가 없어서 조합표로)
+function wsStory(r) {
+  const used = r.used || Object.fromEntries(r.need.map((m) => [m.key, m.n]));
+  const parts = Object.entries(used).slice(0, 4).map(([k, n]) => `${t('treasure.' + k)} ${n}`);
+  if (!r.used && r.any) parts.push(`${t('workshop.any')} ${r.any}`);
+  if (r.used && Object.keys(used).length > 4) parts.push('…');
+  const date = new Date(r.madeAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+  return t('workshop.story', { mats: parts.join(' · '), date });
+}
 let shopCostumeTab = 'set'; // 처음 열면 세트부터 (2026-09-29)
 // 상점 모션 페이지에서 고른 상황 ('all' | MOTION_SLOTS 키. 일할 때 셋은 'work' 하나로 묶는다)
 let shopMotionTab = 'work'; // 처음 열면 일할 때부터 (2026-09-29)
+let shopStarTab = 'set'; // 별 상점도 코스튬처럼 칸으로 거른다. 처음 열면 세트부터 (2026-10-09). 털색은 맨 끝 '털색' 칩
 const WORK_SLOTS = ['work', 'workLong', 'workHour'];
 // 모션이 그 상황 칩에 들어가나 (일할 때 칩은 30분·1시간 넘게 일할 때까지 포함)
 const motionInTab = (it, k) => (k === 'work' ? it.slots.some((x) => WORK_SLOTS.includes(x)) : it.slots.includes(k));
@@ -1080,7 +1399,7 @@ const TABS = {
       ? `<div class="panel lvline">
         <b class="lvtag">Lv.${g ? g.level : 1}</b>
         <div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
-        <span class="muted">${g ? t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) }) : t('home.reading')}</span>
+        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span>
       </div>`
       : `<h2>${t('home.roadmap')}</h2>
       <div class="panel">
@@ -1105,10 +1424,14 @@ const TABS = {
         <div class="panel stat"><div class="k">${t('home.todayLinks')}${info('links')}</div><div class="v">${fmt(u.l)}</div><div class="d">+${fmt(u.l * D.formula.XP_PER_LINK)} XP</div></div>
         <div class="panel stat"><div class="k">${t('home.todayNotes')}${info('notes')}</div><div class="v">${fmt(u.n)}</div><div class="d">+${fmt(u.n * D.formula.XP_PER_NOTE)} XP</div></div>
         <div class="panel stat"><div class="k">${t('home.todaySessions')}${info('sessions')}</div><div class="v">${fmt(u.s)}</div><div class="d">+${fmt(u.s * D.formula.XP_PER_SESSION)} XP</div></div>
-        <div class="panel stat"><div class="k">${t('home.attendance')}</div><div class="v ico-row">${icon('fire', 18)}${st.current}</div><div class="d">${t('home.streakSub', { best: st.best, total: st.total })}</div></div>
+        <div class="panel stat"><div class="k">${t('home.attendance')}</div><div class="v ico-row">${icon('fire', 18)}${st.current}</div><div class="d">${t('home.streakSub', { best: st.best, total: st.total })}${D.game.streakGifts && D.game.streakGifts.next ? `<br>${t('streak.nextGift', { n: D.game.streakGifts.left })}` : ''}</div></div>
       </div>
 
       ${gaugePanel()}
+
+      ${cravingPanel()}
+
+      ${newsPanel()}
 
       <section id="quests">${TABS.__questsBody()}</section>
 
@@ -1157,7 +1480,8 @@ const TABS = {
   },
 
   achievements() {
-    const list = D.game.achievements;
+    // Codex 모드에서는 Claude Code 에서만 되는 업적(claudeOnly)을 빼고 센다
+    const list = D.mode === 'codex' ? D.game.achievements.filter((a) => !a.claudeOnly) : D.game.achievements;
     const got = list.filter((a) => a.unlockedAt).length;
     const cats = D.game.achCats || [...new Set(list.map((a) => a.cat))];
     const TIER_ORDER = { easy: 0, normal: 1, hard: 2, legend: 3 };
@@ -1247,13 +1571,18 @@ const TABS = {
       const foot = r.owned
         ? `<span class="own">${icon('check', 11)}${t('workshop.made')}</span><button class="btn buy ${on ? '' : 'primary'}" data-ws-wear="${r.key}" data-slot="${r.slot}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`
         : `<button class="btn buy ${r.ready ? 'primary' : ''}" data-craft="${r.key}" ${r.ready ? '' : 'disabled'}>${t(r.ready ? (r.made ? 'workshop.remake' : 'workshop.make') : 'workshop.collecting')}</button>`;
+      // 모자란 재료를 교환소에서 바꿔 채울 수 있으면 버튼 하나 더
+      const fill = r.fillable ? `<button class="btn ghost buy ws-fill" data-ws-fill="${r.key}">${icon('sparkle', 11)}${t('workshop.fill')}</button>` : '';
+      // 만든 건 '주워 온 잡동사니로 만든 것'이라는 이야기: 쓴 재료 · 만든 날
+      const story = r.made && r.madeAt ? `<div class="ws-story">${esc(wsStory(r))}</div>` : '';
       // 카드는 늘 네 줄 (그림 · 이름 · 재료 · 버튼). 같은 줄 카드끼리 줄 높이를 맞춘다 (house.css .ws-grid)
       return `<div class="panel item ws-card ${r.owned ? 'on' : ''} ${r.ready && !r.owned ? 'ready' : ''}">
         ${r.slot ? `<span class="wtag">${t('cslot.' + r.slot)}</span>` : ''}
         <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${D.growth ? D.growth.stageKey : 'cat'}" data-acc="${r.key}"></canvas></span></div>
         <div class="nm">${esc(t('item.' + r.key))}</div>
+        ${story}
         <ul class="ws-mats">${mats}${any}</ul>
-        <div class="hint">${foot}</div>
+        <div class="hint">${foot}${fill}</div>
       </div>`;
     };
     const tier = (k) => {
@@ -1262,8 +1591,24 @@ const TABS = {
         <p class="muted" style="margin-top:-4px">${t('workshop.tierSub.' + k)}</p>
         <div class="wardrobe ws-grid">${list.map(card).join('')}</div>`;
     };
+    // 보물 교환소: 받을 보물을 고르면 내는 것이 보이고, 바꾸기
+    const ex = W.exchange || [];
+    const exOpt = (rar) => ex.filter((x) => x.rarity === rar)
+      .map((x) => `<option value="${x.key}" ${x.key === exPick ? 'selected' : ''} ${x.ok ? '' : 'data-no="1"'}>${tr(x.key)} (${t('workshop.exHave', { n: x.have })})${x.ok ? '' : ' · ' + t('workshop.exShort')}</option>`)
+      .join('');
+    const cur = ex.find((x) => x.key === exPick) || ex.find((x) => x.ok) || ex[0];
+    const exchange = cur
+      ? `<h2>${t('workshop.exTitle')}</h2>
+      <p class="muted" style="margin-top:-4px">${t('workshop.exSub')}</p>
+      <div class="panel ws-exchange">
+        <select id="ex-pick"><optgroup label="${esc(t('rarity.common'))}">${exOpt('common')}</optgroup><optgroup label="${esc(t('rarity.rare'))}">${exOpt('rare')}</optgroup></select>
+        <span class="muted small ex-cost">${t('workshop.exCost.' + cur.rarity)}</span>
+        <button class="btn primary" data-act="exchange" ${cur.ok ? '' : 'disabled'}>${t('workshop.exDo')}</button>
+      </div>`
+      : '';
     return `${nav}<h2>${t('workshop.title')} <span class="muted">${W.made} / ${W.total}</span></h2>
       <p class="muted" style="margin-top:-4px">${t('workshop.sub')}</p>
+      ${exchange}
       ${tier('easy')}${tier('normal')}${tier('hard')}`;
   },
 
@@ -1305,7 +1650,7 @@ const TABS = {
         const on = worn.has(it.key);
         const isNew = !seenItems.has(it.key);
         return `<div class="panel item witem ${on ? 'on' : ''}" data-item="${it.key}" title="${esc(it.name)}">
-          <span class="wtag">${t('cslot.' + it.slot)}</span>
+          <span class="wtag">${t('cslot.' + it.slot)}</span>${it.workshop ? `<span class="ws-stamp">${t('workshop.stamp')}</span>` : ''}
           <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span></div>
           <div class="nm">${esc(it.name)} ${isNew ? '<span class="new">NEW</span>' : ''}</div>
           <div class="fx">${setMoBtn(it.key)}</div>
@@ -1342,20 +1687,21 @@ const TABS = {
         <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
         <div class="tnm">${esc(t('treasure.' + x.key))}</div><div class="tcnt">×${x.count}</div></div>`;
     const cat = `<canvas class="pixel closet-cat" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" data-mood="active"></canvas>`;
-    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름·기운 게이지, 보물은 공방 가기
-    const gg = D.gauge || { food: 100, energy: 100 };
+    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지, 보물은 공방 가기
+    const gg = D.gauge || { food: 100, full: true };
     const left =
       page === 'costume'
         ? `${cat}
           <div class="wslots">${slotRows}</div>
           <button class="btn small wide" data-act="furPick">${icon('paw', 12)}${t('ward.fur')} · ${esc(t('fur.' + (D.settings.fur || 'cheese')))}</button>
+          <button class="btn small wide" data-act="earPick">${icon('heart', 12)}${t('ward.ears')} · ${esc(t('ear.' + (D.settings.ears || 'perk')))}</button>
           <button class="btn ghost small wide" data-act="undress" ${worn.size ? '' : 'disabled'}>${t('ward.undress')}</button>
           <div class="wsaves-title">${t('ward.saves')}</div>
           <div class="wsaves">${saves}</div>`
         : page === 'treasure'
           ? `${cat}<p class="muted inv-note">${t('inv.treasureNote')}</p>
             <button class="btn small wide" data-act="toWorkshop">${icon('gem', 12)}${t('inv.toWorkshop')}</button>`
-          : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}${gaugeRow('energy', gg.energy, 'fire')}</div>
+          : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
             <p class="muted inv-note">${gaugeNote(gg)}</p>`;
     const right =
       page === 'costume'
@@ -1393,14 +1739,16 @@ const TABS = {
     // 악세사리는 고양이가 쓴 모습으로, 모션은 고양이가 직접 해 보이고, 먹이·장난감은 물건 도트 그대로 보여 준다
     const stage = D.growth ? D.growth.stageKey : 'cat';
     const card = (it) => {
-      const name = it.kind === 'motion' ? t('motion.' + it.key) : t('item.' + it.key);
+      const name = it.kind === 'motion' ? t('motion.' + it.key) : it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + it.key);
       const fresh = freshKeys.has(it.key) ? '<span class="new">NEW</span>' : '';
       const preview =
         it.kind === 'acc'
           ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span>`
           : it.kind === 'motion'
             ? `<canvas class="pixel" data-stage="${stage}" data-motion="${it.key}"></canvas>`
-            : it.kind === 'food'
+            : it.kind === 'fur'
+              ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-furkey="${it.fur}"></canvas></span>`
+              : it.kind === 'food'
               ? foodArt(it.key, 62)
               : `<div class="art">${icon(it.key, 62)}</div>`;
       let foot;
@@ -1410,8 +1758,14 @@ const TABS = {
         const on = (D.settings.outfit || {})[it.slot] === it.key;
         foot = `<button class="btn ${on ? '' : 'primary'} buy" data-shop-wear="${it.key}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`;
       }
+      // 별 털색은 산 뒤 여기서 바로 입는다
+      else if (it.kind === 'fur' && it.owned) {
+        const on = (D.settings.fur || 'cheese') === it.fur;
+        foot = `<button class="btn ${on ? '' : 'primary'} buy" data-star-fur="${on ? 'cheese' : it.fur}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`;
+      }
       // 가진 건 가격 자리에 '가짐' 표시가 대신 들어간다 (아래 price)
       else if (it.kind !== 'food' && it.owned) foot = '';
+      else if (it.blocker === 'stars') foot = `<span class="need">${t(D.shop.wallet.stars.maxed ? 'shop.needStars' : 'shop.needMax')}</span>`;
       else if (it.locked) foot = `<span class="need">${t('shop.needLevel', { n: it.level })}</span>`;
       else if (it.blocker === 'coins') foot = `<span class="need">${t('shop.needCoins')}</span>`;
       else foot = `<button class="btn buy" data-buy="${it.key}">${t('shop.buy')}</button>`;
@@ -1428,22 +1782,28 @@ const TABS = {
           : it.kind === 'toy'
             ? toyTags(it, true)
             : '';
-      // 먹이는 하나 먹으면 배부름·기운이 얼마나 차는지. 기운 음식은 왼쪽 위에 '기운' 딱지
+      // 먹이는 하나 먹으면 배부름이 얼마나 차는지
       const gauge = it.kind === 'food'
         ? `${foodGain(it)}${foodFx(it.key)}`
         : '';
-      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : '';
+      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : it.kind === 'food' && craving(it.key) ? `<span class="wtag crave-tag">${icon('heart', 9)}${t('crave.tag')}</span>` : '';
       // 이미 가진 물건(먹이 빼고)은 가격 대신 '가짐'. 버튼 줄은 한 줄로 (사기·입기·적용 | 사용법)
       const price =
         it.kind !== 'food' && it.owned
           ? `<span class="own">${icon('check', 11)}${t('shop.owned')}</span>`
           : D.shop.dev
             ? `${icon('coin', 13)}<span>${t('shop.free')}</span>`
-            : coins(it.price, 13);
+            : it.stars
+              ? `<span class="star-price">${icon('star', 13)}<b>${fmt(it.stars)}</b></span>`
+              : coins(it.price, 13);
       // 업적 보상으로 레벨보다 먼저 받은 건 잠김 그림자로 보이지 않게 (가진 건 가진 것)
       // 카드는 늘 다섯 줄 (그림 · 이름 · 효과 · 가격 · 버튼). 같은 줄의 카드끼리 줄 높이를 맞춰서 간격이 똑같다 (house.css .shop-grid)
-      return `<div class="panel item k-${it.kind} ${it.owned || it.stock ? 'on' : ''} ${it.locked && !it.owned ? 'locked' : ''} ${it.premium ? 'premium' : ''}" ${it.kind === 'toy' ? `data-toy-card="${it.key}" title="${esc(t('shop.toyPeekHint'))}"` : ''}>
-        ${slotTag}<div class="pv">${preview}</div>
+      // 아직 못 여는 것(레벨이 모자람 · Lv80 전의 별 물건)은 반투명 그림 + 자물쇠 딱지 (10-10)
+      const starShut = !!it.stars && !it.owned && !D.shop.dev && !(D.shop.wallet.stars || {}).maxed;
+      const shut = (it.locked && !it.owned) || starShut;
+      const lvTag = shut ? `<span class="lv-tag">${icon('lock', 9)}Lv.${starShut ? 80 : it.level}</span>` : '';
+      return `<div class="panel item k-${it.kind} ${it.stars ? 'k-star' : ''} ${it.owned || it.stock ? 'on' : ''} ${shut ? 'locked' : ''} ${it.premium ? 'premium' : ''}" ${it.kind === 'toy' ? `data-toy-card="${it.key}" title="${esc(t('shop.toyPeekHint'))}"` : ''}>
+        ${slotTag}${lvTag}<div class="pv">${preview}</div>
         <div class="nm">${esc(name)} ${have}${fresh}</div>
         <div class="fx">${slot}${gauge}${setMoBtn(it.key)}</div>
         <div class="price ico-row">${price}</div>
@@ -1456,7 +1816,7 @@ const TABS = {
     const ordered = (list) => list.map((x, i) => [x, i]).sort((a, b) => lockRank(a[0]) - lockRank(b[0]) || a[1] - b[1]).map(([x]) => x);
     const grid = (list) => `<div class="wardrobe shop-grid">${ordered(list.filter((x) => x.key !== 'none')).map(card).join('')}</div>`;
     // 상점은 밥·간식·악세사리·모션·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
-    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, motion: D.shop.motion, toy: D.shop.toy };
+    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, motion: D.shop.motion, toy: D.shop.toy, star: D.shop.star || [] };
     if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.motion, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
     const page = pageList[shopPage] ? shopPage : 'meal';
     // 코스튬 페이지는 옷장과 같은 분류(세트·머리·얼굴·목·등·손·효과)로 거를 수 있다
@@ -1465,6 +1825,17 @@ const TABS = {
       page === 'acc'
         ? `<nav class="shop-jump costume-tabs">${['all', ...COSTUME_TABS]
             .map((k) => `<button class="chip ${k === costumeTab ? 'on' : ''}" data-shop-costume="${k}">${t(k === 'all' ? 'ward.all' : 'cslot.' + k)}<small>${k === 'all' ? D.shop.acc.length - 1 : D.shop.acc.filter((x) => x.slot === k).length}</small></button>`)
+            .join('')}</nav>`
+        : '';
+    // 별 상점도 같은 칸으로 거른다. 털색은 맨 끝 '털색' 칩
+    const starList = pageList.star;
+    const STAR_TABS = [...COSTUME_TABS, 'fur'];
+    const starIn = (x, k) => (k === 'fur' ? x.kind === 'fur' : x.kind === 'acc' && x.slot === k);
+    const starTab = STAR_TABS.includes(shopStarTab) ? shopStarTab : 'all';
+    const starChips =
+      page === 'star'
+        ? `<nav class="shop-jump costume-tabs">${['all', ...STAR_TABS]
+            .map((k) => `<button class="chip ${k === starTab ? 'on' : ''}" data-shop-star="${k}">${t(k === 'all' ? 'ward.all' : k === 'fur' ? 'ward.fur' : 'cslot.' + k)}<small>${k === 'all' ? starList.length : starList.filter((x) => starIn(x, k)).length}</small></button>`)
             .join('')}</nav>`
         : '';
     // 모션 페이지는 상황별로 거를 수 있다 (일할 때 셋은 하나로 묶는다)
@@ -1479,9 +1850,19 @@ const TABS = {
     const pageItems =
       page === 'acc' && costumeTab !== 'all' ? pageList.acc.filter((x) => x.slot === costumeTab)
       : page === 'motion' && motionTab !== 'all' ? pageList.motion.filter((x) => motionInTab(x, motionTab))
+      : page === 'star' && starTab !== 'all' ? starList.filter((x) => starIn(x, starTab))
       : pageList[page];
+    // 별 상점: Lv80 뒤 별로만 산다. 별이 아직 없으면 무엇을 향해 가는지 보여 주는 진열장이 된다
+    const sw = w.stars || { total: 0, balance: 0, maxed: false };
+    const g = D.growth;
+    const starHead =
+      page === 'star'
+        ? `<div class="panel star-wallet ico-row">${icon('star', 22)}<b class="pix">${fmt(sw.balance)}</b>
+          <span class="muted small">${sw.maxed ? t('shop.starHave', { total: fmt(sw.total), next: fmt(g ? g.starNext : 0) }) : t('shop.starRoad', { lv: g ? g.level : 1 })}</span></div>`
+        : '';
     const pageBody = `
       <p class="muted shop-page-sub">${t('shop.' + page + 'Sub')}</p>
+      ${starHead}
       ${grid(pageItems)}`;
 
     // 처음 만난 날. 코인은 이 순간부터 앞으로 일한 만큼만 쌓인다
@@ -1496,7 +1877,7 @@ const TABS = {
     // 맨 위 페이지 버튼 (스크롤해도 따라 붙는다). 개수도 같이
     const count = (k) => (k === 'new' ? (freshSnap ? freshSnap.length : freshNow.length) : pageList[k].filter((x) => x.key !== 'none').length);
     // '새로 열림' 은 새로 열린 게 있을 때만 맨 앞에
-    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'motion', 'toy']
+    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'motion', 'toy', ...(pageList.star.length ? ['star'] : [])]
       .map((k) => `<button class="chip ${k === page ? 'on' : ''} ${k === 'new' ? 'chip-new' : ''}" data-shop-page="${k}">${t('shop.' + k)}<small>${count(k)}</small></button>`)
       .join('');
     // 이 페이지에 보인 새로 열린 것은 잠깐 뒤 본 걸로 (다음에 그릴 때 NEW 가 꺼진다)
@@ -1518,7 +1899,7 @@ const TABS = {
       </div>
       <div class="shop-sticky">
         <nav class="shop-jump">${jumps}<span class="jump-coins ico-row" title="${esc(t('shop.balanceNow'))}">${coins(w.balance, 13)}</span></nav>
-        ${costumeChips}${motionChips}
+        ${costumeChips}${motionChips}${starChips}
       </div>
 
       ${pageBody}`;
@@ -1541,7 +1922,8 @@ const TABS = {
     // 고양이의 가계부: 식비 · 품위 유지비 · 유흥비 (· 기타)
     const L = S.ledger;
     const CAT_ICON = { food: 'ricebowl', dignity: 'ribbon', fun: 'paw', etc: 'gift' };
-    const itemName = (it) => (it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key }));
+    // '?' = 구매 목록이 잘려 어디 썼는지 모르는 예전 코인 (main/stats.js 의 untracked)
+    const itemName = (it) => (it.key === '?' ? t('ledger.untracked') : it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key }));
     // 통계 화면에는 항목마다 LEDGER_SHOWN 줄까지만 보이고 나머지는 '… 외 N개'. 전부는 '자세히 보기' 팝업에서
     const ledgerLi = (it) => `<li><span class="ledger-nm">${esc(itemName(it))}</span>${it.count > 1 ? `<span class="ledger-x">×${it.count}</span>` : ''}<span class="ledger-dots"></span><span class="ledger-amt">${fmt(it.total)}</span></li>`;
     const ledgerCatsOf = (all) => L.cats
@@ -1647,7 +2029,7 @@ const TABS = {
       : `<p class="muted">${t('set.noProjects')}</p>`;
     // 모션: 상황마다 카드 한 장. 지금 고른 모션이 움직이는 그림으로 보이고(여러 개면 옆으로 넘겨 본다),
     // 아래 '모션 설정하기' 로 끌어다 놓는 편집 창을 연다 (openMotionEditor)
-    const motionCards = D.shop.slots.map(motionCard).join('');
+    const motionCards = motionGroups();
     // 순서: 자주 만지는 것(캐릭터·말·생활 알림) → 모션 → 연결·프로젝트 → 가끔 쓰는 것·되돌릴 수 없는 것(초기화).
     // 설정이 길어서 맨 위에 섹션 바로 가기를 둔다
     const toc = [['set-voice', 'set.voice'], ['set-life', 'set.life'], ['set-motions', 'set.motions'], ['set-projects', 'set.projects'], ['set-misc', 'set.misc'], ['set-reset', 'set.reset']]
@@ -1662,6 +2044,8 @@ const TABS = {
           <div class="inline"><input type="range" list="scale-ticks" min="1" max="5" step="1" data-key="scale" value="${scaleStep(s.scale)}"><b class="pix" id="scale-v">${t('set.sizeStep', { n: scaleStep(s.scale) })}</b></div>
           <datalist id="scale-ticks"><option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option></datalist></div>
         <div class="field"><div class="lbl">${t('set.mute')}<small>${t('set.muteSub')}</small></div>${sw('__mute', !s.soundEnabled)}</div>
+        <div class="field theme-field"><div class="lbl">${t('set.theme')}<small>${t('set.themeSub')}</small></div>
+          <div class="theme-picks">${THEMES.map((k) => `<button class="theme-pick ${themeOf(s.theme) === k ? 'on' : ''}" data-theme-pick="${k}" aria-pressed="${themeOf(s.theme) === k}">${k === 'auto' ? `<i class="sw sw-auto"></i>` : `<i class="sw" style="background:${THEME_SWATCH[k][0]}"><b style="background:${THEME_SWATCH[k][1]}"></b></i>`}${t('theme.' + k)}</button>`).join('')}</div></div>
         <div class="field"><div class="lbl">${t('obs.showPet')}<small>${t('obs.showPetDesc')}</small></div>${sw('showPet', s.showPet !== false)}</div>
       </div>
 
@@ -1690,7 +2074,7 @@ const TABS = {
 
       <h2 id="set-motions">${t('set.motions')}</h2>
       <p class="muted" style="margin-top:-4px">${t('set.motionsSub')}</p>
-      <div class="mcards">${motionCards}</div>
+      <div class="mgroups">${motionCards}</div>
 
       <h2 id="set-projects">${t('set.projects')}</h2>
       <div class="panel">
@@ -1701,7 +2085,9 @@ const TABS = {
       <h2 id="set-misc">${t('set.misc')}</h2>
       <div class="panel">
         <div class="field"><div class="lbl">${t('tray.resetPos')}</div><button class="btn ghost" data-act="position">${t('obs.resetPosBtn')}</button></div>
+        ${'lowPower' in s ? `<div class="field"><div class="lbl">${t('set.lowPower')}<small>${t('set.lowPowerSub')}</small></div>${sw('lowPower', s.lowPower)}</div>` : ''}
         <div class="field"><div class="lbl">${t('set.showWelcome')}</div><button class="btn ghost" data-act="welcome">${t('set.open')}</button></div>
+        <div class="field"><div class="lbl">${t('set.showNews')}</div><button class="btn ghost" data-act="whatsNew">${t('set.open')}</button></div>
         <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
 
@@ -1732,19 +2118,73 @@ function progressOf(a) {
 }
 
 function renderView() {
-  const view = $('#view');
-  view.innerHTML = isTab(tab) ? TABS[tab]() : '';
-  view.dataset.tab = tab;
-  const welcome = $('#welcome');
-  minis = [...$$('canvas[data-stage]', view).map(mini), ...minis.filter((m) => welcome.contains(m.canvas))];
+  paintView(isTab(tab) ? TABS[tab]() : '');
+}
 
+// 지금 화면에 그려 둔 탭과 그 글. 데이터가 와도 이 탭이 보여 주는 게 그대로면 다시 그리지 않는다
+let viewHtml = null;
+let viewTab = null;
+let viewStale = false; // 입력하는 중이라 미뤄 둔 다시 그리기가 있다
+
+function paintView(html) {
+  const view = $('#view');
+  view.innerHTML = html;
+  view.dataset.tab = tab;
+  viewHtml = html;
+  viewTab = tab;
+  viewStale = false;
+  // 팝업·미리보기·첫 화면처럼 #view 밖에서 아직 붙어 있는 그림은 계속 움직이게 둔다 (방금 지운 탭 그림만 뺀다)
+  minis = [...$$('canvas[data-stage]', view).map(mini), ...minis.filter((m) => m.canvas.isConnected && !view.contains(m.canvas))];
   bindView(view);
+  labelFields(view);
+}
+
+const typingIn = (root) => {
+  const a = document.activeElement;
+  return !!a && ['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName) && (!root || root.contains(a));
+};
+
+// 새 데이터가 왔을 때: 지금 탭의 글이 바뀌었을 때만 다시 그린다 (깜빡임·움직이던 그림·떠 있던 설명을 지키려고)
+function refreshView() {
+  if (!isTab(tab)) return;
+  const html = TABS[tab]();
+  if (html === viewHtml && viewTab === tab) {
+    viewStale = false;
+    return;
+  }
+  // 무언가 입력하는 중이면 끝날 때(포커스가 빠질 때)까지 미룬다
+  if (typingIn()) {
+    viewStale = true;
+    return;
+  }
+  const y = $('#view').scrollTop;
+  paintView(html);
+  $('#view').scrollTop = y;
+}
+$('#view').addEventListener('focusout', () => {
+  setTimeout(() => viewStale && !typingIn() && D && refreshView(), 0);
+});
+
+// 설정 줄(.field)의 이름표를 그 줄의 입력칸·스위치·슬라이더 이름으로 이어 준다 (화면 읽기 프로그램용)
+let fieldSeq = 0;
+function labelFields(root) {
+  for (const f of $$('.field', root)) {
+    const lbl = $('.lbl', f);
+    if (!lbl) continue;
+    if (!lbl.id) lbl.id = 'fl-' + ++fieldSeq;
+    for (const el of $$('input, select', f)) if (!el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby')) el.setAttribute('aria-labelledby', lbl.id);
+  }
 }
 
 // 탭이 아닌 속 함수 (__ 로 시작) 는 탭으로 치지 않는다
 const isTab = (t) => typeof TABS[t] === 'function' && !t.startsWith('__');
 
 function setTab(t) {
+  // '새로 생긴 것' 말풍선 링크: 홈을 열고 창을 띄운다
+  if (t === 'whatsnew') {
+    setTab('home');
+    return showWhatsNew();
+  }
   // 퀘스트는 홈 안으로 들어갔다 (트레이 메뉴·말풍선 링크가 'quests' 로 부른다)
   const jump = t === 'quests' ? 'quests' : null;
   if (jump) t = 'home';
@@ -1769,6 +2209,24 @@ async function apply(p) {
   if (p && p.error) toast(p.error, 'bang');
   if (p) D = p;
   renderTop();
+}
+
+// 설정 숫자 칸 값 고르기. 못 쓰는 값이면 null (칸은 저장된 값으로 되돌린다)
+// 졸림은 잠보다 늦을 수 없다: 졸림을 잠보다 길게 치면 잠 시간으로, 잠을 졸림보다 짧게 치면 졸림 시간으로 맞춘다
+function checkNumber(el, key) {
+  const raw = String(el.value).trim();
+  const n = Number(raw);
+  if (!raw || !isFinite(n)) {
+    el.value = D.settings[key];
+    return null;
+  }
+  const min = el.min !== '' ? Number(el.min) : -Infinity;
+  const max = el.max !== '' ? Number(el.max) : Infinity;
+  let v = Math.round(Math.max(min, Math.min(max, n)));
+  if (key === 'sleepyAfterMin' && isFinite(D.settings.sleepAfterMin)) v = Math.min(v, D.settings.sleepAfterMin);
+  if (key === 'sleepAfterMin' && isFinite(D.settings.sleepyAfterMin)) v = Math.max(v, D.settings.sleepyAfterMin);
+  el.value = v;
+  return v === D.settings[key] ? null : v;
 }
 
 function bindView(view) {
@@ -1919,6 +2377,20 @@ function bindView(view) {
       keepShopTop();
     }),
   );
+  $$('[data-theme-pick]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      D.settings.theme = el.dataset.themePick;
+      applyTheme();
+      await apply(await pet.set({ theme: el.dataset.themePick }));
+      refreshView(); // 고른 테마 단추를 바로 칠한다
+    }),
+  );
+  $$('[data-shop-star]', view).forEach((el) =>
+    el.addEventListener('click', () => {
+      shopStarTab = el.dataset.shopStar;
+      keepShopTop();
+    }),
+  );
 
   $$('input[data-key]', view).forEach((el) => {
     const key = el.dataset.key;
@@ -1932,6 +2404,16 @@ function bindView(view) {
       }
       let value = el.type === 'checkbox' ? el.checked : el.type === 'number' || el.type === 'range' ? Number(el.value) : el.value;
       if (key === 'petName' && !String(value).trim()) return;
+      // 숫자 칸: 비웠거나 숫자가 아니면 원래 값으로 되돌리고, 칸의 최소·최대 안으로 맞춘다
+      if (el.type === 'number') {
+        value = checkNumber(el, key);
+        if (value == null) return;
+      }
+      // 시각 칸: 'HH:MM' 이 아니면(지웠거나 덜 쳤으면) 원래 값으로
+      if (el.type === 'time' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+        el.value = D.settings[key] || '';
+        return;
+      }
       // 슬라이더는 끄는 동안 계속 바뀌니까 조금 모았다가 보낸다 (창 크기까지 따라 바뀐다)
       const wait = el.type === 'text' ? 400 : el.type === 'range' ? 150 : 0;
       clearTimeout(el._t);
@@ -1942,17 +2424,28 @@ function bindView(view) {
     });
   });
 
+  $$('[data-star-fur]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      await apply(await pet.set({ fur: el.dataset.starFur }));
+      renderView();
+      toast(t('toast.saved'));
+    }),
+  );
   $$('[data-buy]', view).forEach((el) =>
     el.addEventListener('click', async () => {
       const key = el.dataset.buy;
-      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...D.shop.motion].find((x) => x.key === key);
-      const r = await pet.buy(key);
+      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...D.shop.motion, ...(D.shop.star || [])].find((x) => x.key === key);
+      // 모션은 지금 보고 있는 상황 칸에 바로 들어간다 ('전체'면 첫 번째 추천 상황)
+      const r = await pet.buy(key, it && it.kind === 'motion' && shopPage === 'motion' ? shopMotionTab : null);
       if (r.payload) await apply(r.payload);
       if (r.ok) {
         hero.play('happy');
-        toast(t('toast.bought', { name: it && it.kind === 'motion' ? t('motion.' + key) : t('item.' + key) }), key);
+        const name = it && it.kind === 'motion' ? t('motion.' + key) : it && it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + key);
+        if (r.placed) toast(t('toast.motionPlaced', { name, slot: t('slot.' + r.placed) }), 'sparkle');
+        else toast(t('toast.bought', { name }), it && it.stars ? 'star' : key);
       } else if (r.reason === 'level') toast(t('toast.needLevel', { n: it.level }), 'lock');
       else if (r.reason === 'coins') toast(t('toast.needCoins'), 'coin');
+      else if (r.reason === 'stars') toast(t('toast.needStars'), 'star');
       renderView();
     }),
   );
@@ -2008,6 +2501,43 @@ function bindView(view) {
     }),
   );
 
+  // 오늘 먹고 싶은 것: 창고에 있으면 바로, 없으면 사서 바로 먹인다
+  $$('[data-crave]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const key = el.dataset.crave;
+      const it = D.shop.food.find((x) => x.key === key);
+      if (it && !it.stock) {
+        const b = await pet.buy(key);
+        if (b.payload) await apply(b.payload);
+        if (!b.ok) return toast(t('toast.needCoins'), 'coin');
+      }
+      const r = await pet.useFood(key);
+      if (r.payload) await apply(r.payload);
+      if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
+      renderView();
+    }),
+  );
+  // 소식을 누르면 그 탭으로
+  $$('[data-news-link]', view).forEach((el) => el.addEventListener('click', () => setTab(el.dataset.newsLink === 'quests' ? 'home' : el.dataset.newsLink)));
+  // 모션 묶음을 펼치고 접은 걸 기억한다
+  $$('details[data-mgroup]', view).forEach((el) =>
+    el.addEventListener('toggle', () => (el.open ? mgroupOpen.add(el.dataset.mgroup) : mgroupOpen.delete(el.dataset.mgroup))),
+  );
+  // 보물 교환소
+  const exSel = $('#ex-pick', view);
+  if (exSel)
+    exSel.addEventListener('change', () => {
+      exPick = exSel.value;
+      renderView();
+    });
+  $$('[data-ws-fill]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const r = await pet.fillRecipe(el.dataset.wsFill);
+      if (r.payload) await apply(r.payload);
+      toast(r.ok ? t('workshop.filled', { what: Object.entries(r.got).map(([k, n]) => `${t('treasure.' + k)} ${n}`).join(', ') }) : t('workshop.exShort'), 'gem');
+      renderView();
+    }),
+  );
   $$('[data-give]', view).forEach((el) =>
     el.addEventListener('click', async () => {
       const key = el.dataset.give;
@@ -2106,6 +2636,21 @@ async function act(name) {
       pet.poke();
       hero.play('happy');
       break;
+    case 'newsMore':
+      newsOpen = !newsOpen;
+      renderView();
+      break;
+    case 'exchange': {
+      const sel = $('#ex-pick');
+      const key = sel ? sel.value : exPick;
+      if (!key) break;
+      exPick = key;
+      const r = await pet.exchange(key);
+      if (r.payload) await apply(r.payload);
+      toast(r.ok ? t('workshop.exDone', { name: t('treasure.' + key) }) : t('workshop.exShort'), key);
+      renderView();
+      break;
+    }
     case 'feed': {
       const r = await pet.feed();
       if (r && r.payload) await apply(r.payload);
@@ -2132,7 +2677,7 @@ async function act(name) {
     case 'toMotions':
       setTab('settings');
       setTimeout(() => {
-        const el = $('.mcards');
+        const el = $('.mgroups');
         if (el) el.scrollIntoView({ block: 'center' });
       }, 30);
       break;
@@ -2176,6 +2721,9 @@ async function act(name) {
       break;
     case 'furPick':
       openFurPicker();
+      break;
+    case 'earPick':
+      openEarPicker();
       break;
     case 'undress': {
       await apply(await pet.set({ outfit: {}, replace: true }));
@@ -2231,6 +2779,9 @@ async function act(name) {
     case 'feedback': // [옵시디언]
       pet.feedback();
       break;
+    case 'whatsNew':
+      showWhatsNew();
+      break;
   }
 }
 
@@ -2264,6 +2815,8 @@ function renderWelcome() {
     () => `
       <h2>${t('w.title2')}</h2>
       <div class="field"><div class="lbl">${t('set.name')}</div><input type="text" id="w-name" value="${esc(wChoice.name)}" maxlength="12"></div>
+      <div class="lbl" style="margin-top:8px">${t('ward.ears')}<small class="muted"> · ${t('w.earsNote')}</small></div>
+      <div class="fur-grid w-ears">${earCells(D.settings.ears || 'perk')}</div>
       <p>${t('w.fresh')}</p>
       <p class="muted" style="font-size:12px">${D.loading ? t('w.loading') : t('w.past', { lv: fmt(D.pastLevel || 1) })}</p>`,
     () => `
@@ -2294,6 +2847,7 @@ function renderWelcome() {
 
   minis = minis.filter((m) => document.body.contains(m.canvas));
   minis.push(...$$('canvas[data-stage]', el).map(mini));
+  labelFields(el);
 
   const save = () => {
     const n = $('#w-name');
@@ -2305,6 +2859,14 @@ function renderWelcome() {
   if (hk) hk.onclick = async () => { await apply(await pet.installHooks()); renderWelcome(); };
   const lg = $('#w-login');
   if (lg) lg.onchange = async () => apply(await pet.setLogin(lg.checked));
+  // 귀 고르기: 누르는 즉시 바탕화면 고양이도 바뀐다
+  $$('[data-ear-pick]', el).forEach((b) =>
+    b.addEventListener('click', async () => {
+      save();
+      await apply(await pet.set({ ears: b.dataset.earPick }));
+      $$('[data-ear-pick]', el).forEach((x) => x.classList.toggle('on', x === b));
+    }),
+  );
   $('#w-next').onclick = async () => {
     save();
     if (wStep === 2) await apply(await pet.set({ petName: wChoice.name }));
@@ -2319,6 +2881,48 @@ function renderWelcome() {
   };
 }
 
+// ---------- 새로 생긴 것 (업데이트 뒤 처음 열 때 한 번) ----------
+// 기존 사용자가 눈치채기 어려운 새 기능을 한 장으로. 줄마다 그 기능이 있는 곳으로 가는 단추가 붙는다.
+// 버전이 바뀌면 이 목록과 i18n 'wn.<id>.t/.d' 를 새로 쓴다 (호스트가 state.whatsNew 에 버전을 넣는다).
+// [옵시디언] 글은 i18n-obsidian.js 에서 Vault Pet 1.3.0 기준으로 덮는다 (기록 옮기기 대신 연속 출석 선물)
+const WHATS_NEW = [
+  ['star', 'star', 'shop'],
+  ['ears', 'heart', 'ears'],
+  ['crave', 'ricebowl', 'home'],
+  ['exchange', 'gem', 'workshop'],
+  ['card', 'sparkle', 'card'],
+  ['theme', 'gear', 'settings'],
+  ['bubble', 'chat', 'home'],
+  ['art', 'gift', 'shop'],
+  ['streak', 'fire', 'home'],
+];
+function showWhatsNew() {
+  const v = D.version || '';
+  const rows = WHATS_NEW.map(
+    ([id, ic, go]) => `<li class="wn-row">${icon(ic, 18)}<div><b>${t('wn.' + id + '.t')}</b><div class="muted">${t('wn.' + id + '.d')}</div></div>
+      <button class="btn ghost small" data-wn-go="${go}">${t('wn.go')}</button></li>`,
+  ).join('');
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('wn.title', { v: esc(v) })}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('wn.sub')}</p>
+    <ul class="wn-list">${rows}</ul>
+    <div class="center"><button class="btn primary" data-close>${t('wn.ok')}</button></div>`,
+    'wn-modal',
+  );
+  $$('[data-wn-go]', el).forEach((b) =>
+    b.addEventListener('click', () => {
+      const go = b.dataset.wnGo;
+      closeModal();
+      if (go === 'ears') {
+        setTab('wardrobe');
+        openEarPicker();
+      } else if (go === 'card') openCard();
+      else setTab(go);
+    }),
+  );
+  if (D.whatsNew) pet.whatsNewSeen().then((d) => d && (D = d));
+}
+
 // ---------- 시작 ----------
 
 $('#dev').addEventListener('click', () => act('dev'));
@@ -2326,17 +2930,24 @@ $$('#tabs button').forEach((b) => {
   b.insertAdjacentHTML('afterbegin', icon(b.dataset.icon, 15));
   b.addEventListener('click', () => setTab(b.dataset.tab));
 });
+// 탭 줄은 Tab 키로 한 번만 들어가고, 안에서는 화살표·Home·End 로 옮긴다
+$('#tabs').addEventListener('keydown', (e) => {
+  const list = $$('#tabs button');
+  const i = list.indexOf(document.activeElement);
+  if (i < 0) return;
+  const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: list.length - 1 }[e.key];
+  if (to == null) return;
+  e.preventDefault();
+  const b = list[(to + list.length) % list.length];
+  setTab(b.dataset.tab);
+  b.focus();
+});
 
 pet.onData((d) => {
-  const typing = document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName);
   D = d;
   renderTop();
-  // 설정을 고치는 중이면 화면을 다시 그리지 않는다
-  if (tab !== 'settings' && !typing) {
-    const y = $('#view').scrollTop;
-    renderView();
-    $('#view').scrollTop = y;
-  }
+  // 머리 부분만 늘 고치고, 탭은 보여 주는 내용이 바뀌었을 때만 다시 그린다 (입력 중이면 미룬다)
+  refreshView();
 });
 pet.onMood((m) => {
   if (!D) return;
@@ -2345,11 +2956,14 @@ pet.onMood((m) => {
 });
 // [옵시디언] 탭이 열리자마자 탭 이름이 먼저 올 수 있다. 데이터를 받기 전이면 적어 두기만 한다
 pet.onTab((t) => (D ? setTab(t) : (tab = t)));
+// 호스트가 보내는 알림 (별 · 출석 선물 · 리캡 카드)
+if (pet.onToast) pet.onToast((x) => x && toast(x.text, x.icon));
 
 (async () => {
   D = await pet.get();
   if (tab === 'welcome') tab = 'home';
   setTab(tab);
   if (D.firstRun) showWelcome();
+  else if (D.whatsNew) showWhatsNew();
   animate();
 })();

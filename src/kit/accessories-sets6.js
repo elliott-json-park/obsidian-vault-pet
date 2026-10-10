@@ -80,6 +80,11 @@
     }, c.K);
   }
 
+  // n 초마다 len 초 동안 참
+  const every = (t, n, len, ph = 0) => (t + ph) % n < len;
+  // 오른손에 든 소품 자리. 앞발 쓰는 모션 동안은 null (소품을 숨긴다)
+  const setHand = (r, a) => (r.pawsBusy ? null : a.curled ? { x: a.right + 2, y: GROUND - 2, curled: true } : { x: a.right + 1, y: a.cy + 1 });
+
   const ACC = {
     // ======================= 세트 =======================
     overtimer: {
@@ -140,9 +145,11 @@
     },
 
     seonbi: {
-      // 과거 낙방 7수 선비: 말총으로 엮어 비치는 흑립(갓), 옥색 도포에 흰 동정과 붉은 세조대, 귀 뒤에 꽂은 붓
+      // 과거 낙방 7수 선비 (2026-10-10 다시 그림: 다른 세트보다 밋밋해서 더 또렷하게).
+      // 반듯한 흑립(비치는 모정 + 넓은 챙, 호박 구슬 갓끈), 옥색 도포에 흰 동정과 굵은 붉은 세조대, 왼쪽 귀 뒤에 꽂은 붓,
+      // 앞발엔 합죽선: 3초마다 촤락 펼쳐 매화가 보이고 부채질 (앞발 쓰는 모션 동안은 부채만 숨긴다)
       front(g, a, c, t) {
-        const P = '#e8f1ea', p = '#bcd3c4', pd = '#98b6a4', W = '#ffffff', Sash = '#c23a4a', sash = '#7e2230';
+        const P = '#e3f0e6', p = '#b6d3c0', pd = '#8fb29d', W = '#ffffff';
         wear(this, g, a, (dx, dy, x, y, leg) => {
           const adx = Math.abs(dx);
           if (leg) return '#f7f4ea'; // 버선
@@ -159,45 +166,52 @@
           return d >= 7 ? pd : d >= 5 ? p : k === 1 && x === a.hx - 1 ? W : P;
         });
         if (!a.curled) {
-          // 세조대: 오른쪽 가슴에서 매듭, 술이 늘어진다
-          this.px(a.hx + 2, a.my + 3, Sash);
-          this.px(a.hx + 3, a.my + 3, sash);
-          this.px(a.hx + 2, a.my + 4, Sash);
-          this.px(a.hx + 3, a.my + 5, Sash);
-          this.px(a.hx + 2, a.my + 5, sash);
+          // 굵은 세조대: 가슴을 가로지르는 붉은 띠 + 오른쪽 매듭에서 술 두 가닥
+          for (let x = a.left + 1; x <= a.right - 1; x++) this.px(x, a.my + 4, x === a.hx + 3 ? '#7e2230' : '#c23a4a');
+          this.pattern(['KRK', 'RrR'], a.hx + 2, a.my + 3, { K: '#7e2230', R: '#c23a4a', r: '#ff7a8a' });
         }
-        // 붓: 오른쪽 귀 뒤에 비스듬히 꽂았다 (대나무 자루 · 흰 털 · 먹 묻은 끝)
-        this.pattern(['......k', '.....kW', '....WW.', '...Kt..', '..tT...', '.t.....'], a.right - 4, a.earTop - 4, { k: '#15151a', W: '#f4f1e6', t: '#b88a4a', T: '#7a5528', K: '#3a3a44' });
-        // 갓: 말총이라 속이 비친다 (반투명 몸통·챙), 테두리만 진하게
-        const O = '#0e0e12', F = 'rgba(20,20,28,0.45)', Fh = 'rgba(150,150,170,0.45)', Fb = 'rgba(20,20,28,0.6)';
+        // 붓: 왼쪽 귀 뒤에 비스듬히 꽂았다 (먹 묻은 끝 · 흰 털 · 대나무 자루)
+        this.pattern(['k......', 'Wk.....', '.WW....', '..tK...', '...Tt..', '.....t.'], a.left - 2, a.earTop - 4, { k: '#15151a', W: '#f4f1e6', t: '#b88a4a', T: '#7a5528', K: '#3a3a44' });
+        // 갓: 말총이라 속이 비친다. 모정(원통)은 테두리만 진하게, 챙은 양끝으로 갈수록 진하고 아래에 옅은 그늘
+        const O = '#0e0e12', F = 'rgba(20,20,28,0.62)', Fh = 'rgba(170,170,190,0.55)';
         const brimY = a.earTop + 1;
-        const halves = [2, 2, 2, 3];
-        halves.forEach((half, i) => {
-          const y = brimY - halves.length + i;
+        for (let i = 0; i < 5; i++) {
+          const y = brimY - 5 + i, half = i === 0 ? 2 : 3;
           for (let x = a.hx - half; x <= a.hx + half; x++) {
             const edge = Math.abs(x - a.hx) === half || i === 0;
-            this.px(x, y, edge ? O : x === a.hx - half + 1 ? Fh : F, false);
+            this.px(x, y, edge ? O : x === a.hx - half + 1 ? Fh : F, edge);
           }
-        });
-        // 윗단 비단 띠 (양태 위 검은 띠)
-        for (let x = a.hx - 3; x <= a.hx + 3; x++) this.px(x, brimY - 1, x === a.hx - 3 || x === a.hx + 3 ? O : '#2a2a34');
-        // 챙: 가운데는 비치고, 양끝으로 갈수록 진해진다
+        }
+        // 윗단 비단 띠
+        for (let x = a.hx - 3; x <= a.hx + 3; x++) this.px(x, brimY - 1, x === a.hx - 3 || x === a.hx + 3 ? O : '#3a3048');
         for (let x = a.hx - 10; x <= a.hx + 10; x++) {
           const d = Math.abs(x - a.hx);
-          this.px(x, brimY, d >= 10 ? O : d >= 8 ? 'rgba(20,20,28,0.8)' : Fb, false);
+          this.px(x, brimY, d >= 10 ? O : d >= 7 ? '#2a2a34' : 'rgba(20,20,28,0.7)', d >= 7);
+          if (d <= 9) this.px(x, brimY + 1, d >= 9 ? O : 'rgba(10,10,16,0.25)', false);
         }
         // 챙에 스치는 빛
         const ph = (t % 3.4) / 0.8;
-        if (ph < 1) this.px(a.hx - 9 + Math.round(ph * 18), brimY, 'rgba(255,255,255,0.8)', false);
-        // 갓끈: 호박 구슬이 볼을 타고 내려와 턱 밑에서 모여 가슴까지 늘어진다
+        if (ph < 1) this.px(a.hx - 9 + Math.round(ph * 18), brimY, 'rgba(255,255,255,0.85)', false);
+        // 갓끈: 호박 구슬이 볼을 타고 내려와 턱 밑에서 모인다
         const bead = (i) => (i % 2 ? '#8a5a20' : '#f0b050');
         let i = 0;
         const yEnd = a.curled ? a.my : a.my - 1;
-        for (let y = brimY + 1; y <= yEnd; y++, i++) { this.px(a.left + 1, y, bead(i)); this.px(a.right - 1, y, bead(i)); }
-        if (!a.curled) {
-          for (let k = 1; k <= 3; k++, i++) { this.px(a.left + 1 + k, a.my - 1 + k, bead(i)); this.px(a.right - 1 - k, a.my - 1 + k, bead(i)); }
-          this.px(a.left + 5, a.my + 3, '#7fc8a8'); // 옥구슬
-        }
+        for (let y = brimY + 2; y <= yEnd; y++, i++) { this.px(a.left + 1, y, bead(i)); this.px(a.right - 1, y, bead(i)); }
+        if (!a.curled) for (let k = 1; k <= 3; k++, i++) { this.px(a.left + 1 + k, a.my - 1 + k, bead(i)); this.px(a.right - 1 - k, a.my - 1 + k, bead(i)); }
+        // 합죽선
+        const h = setHand(this, a);
+        if (!h) return;
+        const m = { K: c.K, W: '#fbf3e0', w: '#e6d8b8', P: '#ff7aa8', p: '#d83a78', t: '#8a5a32', n: '#4a3020' };
+        if (h.curled) { this.pattern(['KKKKKKK', 'KtttttK', 'KKKKKKK'], a.right + 1, GROUND - 2, m); return; }
+        const open = t % 3 < 1.8;
+        const fan = open
+          ? ['...KKKKKK...', '.KKWWWWPPKK.', 'KWWnWWWPpWWK', 'KWWWnnWWnWWK', 'KWPWWWnnWPWK', '.KKWWWWWWKK.', '...KKKtKK...', '.....KtK....']
+          : ['....KK.....', '....KwK....', '....KwK....', '....KWK....', '....KwK....', '....KtK....', '....KtK....'];
+        const flap = open ? Math.round(Math.sin(t * 9)) : 0;
+        this.pattern(fan, h.x - 4, h.y - 8 + flap, m);
+        heldPaw(this, g, h.x + 1, h.y);
+        // 부채 바람 한 줄
+        if (open && every(t, 0.6, 0.25)) for (let k = 0; k < 3; k++) this.px(h.x - 6 - k, h.y - 6 + (k % 2), 'rgba(255,255,255,0.7)', false);
       },
     },
 
@@ -281,27 +295,29 @@
     // ======================= 몸 =======================
 
     schoolwear: {
-      // 매점 달리기 1등 교복: 남색 가디건 V넥, 흰 셔츠 깃 사이로 빨간 넥타이, 금색 단추, 가슴에 흰 명찰
+      // 매점 달리기 1등 교복 (2026-10-10 다시 그림: 남색이 세일러복과 겹쳐서 초록 블레이저로)
+      // 초록 블레이저에 흰 셔츠 깃, 빨강·남색 줄 넥타이, 왼가슴 금색 교표, 오른가슴 흰 명찰
       front(g, a, c) {
-        const Nv = '#2e3a6a', nv = '#1f2850', Nh = '#44528a', Wt = '#ffffff', wt = '#d6dcea';
+        const Gb = '#2f6b4c', gb = '#1f4d36', Gh = '#56997a', W = '#ffffff';
         wear(this, g, a, (dx, dy, x, y, leg) => {
           const adx = Math.abs(dx);
-          if (leg) return '#4a4f5c';
-          if (dy === -3) return null;
-          if (a.curled) return adx >= 5 ? nv : Nv;
-          if (dy <= -1 && adx <= 3) return adx === 3 && dy === -1 ? Nh : Wt; // 셔츠 깃
-          if (dy >= 0 && adx <= 1) return dy >= 1 ? wt : Wt; // V넥 사이 셔츠
-          if (adx === 2) return Nh; // V넥 테두리
-          return adx >= 5 ? nv : Nv;
+          if (leg) return '#5a5f6c';
+          if (a.curled) return adx >= 5 ? gb : Gb;
+          if (dy === -3) return gb;
+          if (dy <= -1 && adx <= 3) return W; // 셔츠 깃
+          if (dy === 0 && adx <= 1) return W; // 깃 사이 셔츠
+          if (dy === 0 && adx === 2) return Gh; // 옷깃 테두리
+          return adx >= 5 ? gb : Gb;
         });
         if (a.curled) return;
-        // 넥타이: 매듭 + 아래로 넓어지는 끝
-        this.px(a.hx, a.my + 2, '#c8242c');
-        this.px(a.hx, a.my + 3, '#e8303a');
-        this.px(a.hx, a.my + 4, '#a01c24');
-        // 명찰 (이름 줄 한 칸) + 금색 단추
-        this.pattern(['WWW', 'WkW'], a.hx + 3, a.my + 3, { W: '#ffffff', k: '#3d6fb0' });
-        this.px(a.hx - 2, a.my + 4, '#f0c850');
+        // 넥타이: 매듭 + 줄무늬
+        this.px(a.hx, a.my + 2, '#d8242c');
+        this.px(a.hx, a.my + 3, '#23306a');
+        this.px(a.hx, a.my + 4, '#d8242c');
+        // 교표 · 명찰
+        this.pattern(['YY', 'yY'], a.hx - 4, a.my + 3, { Y: '#ffd23a', y: '#d9a21f' });
+        this.pattern(['WWW'], a.hx + 2, a.my + 3, { W: '#ffffff' });
+        this.px(a.hx + 3, a.my + 3, '#3d6fb0');
       },
     },
 
@@ -336,7 +352,7 @@
 // ---- 이전 디자인으로 되돌린 것 (2026-09-24 피드백: 다듬은 것보다 이전 게 낫다) ----
 // 도우미 이름이 위쪽 새 그림과 겹쳐서 따로 묶는다
 (function (root) {
-  const { GROUND, wear, hood, isFace, hash } = root.PetSprite.costumeKit;
+  const { GROUND, wear, hood, isFace, hash, outlined } = root.PetSprite.costumeKit;
   function bigHood(r, a, c, col) {
     const bottom = a.curled ? GROUND - 1 : a.my + 2;
     for (let y = a.top; y <= bottom; y++) {
@@ -428,19 +444,22 @@
     },
 
     baseballuni: {
-      // 야구 유니폼: 흰 바탕 핀 스트라이프, 남색 래글런 어깨, 가슴에 빨간 필기체 팀 이름
+      // 야구 유니폼 (2026-10-10 다시 그림: 흰 셔츠라 사원증 셔츠와 헷갈려서)
+      // 흰 바탕 핀 스트라이프, 어깨 밖으로 삐져나온 빨간 래글런 소매, 가운데 단추 줄, 가슴에 남색 등번호 7, 왼가슴 빨간 필기체
       front(g, a, c) {
-        const Nv = '#223a78';
+        const R = '#d8303b', Nv = '#223a78';
         wear(this, g, a, (dx, dy, x, y, leg) => {
           const adx = Math.abs(dx);
           if (leg) return '#f4f4f0';
-          if (adx >= 5) return Nv;
-          if (dy === -2 && adx === 2) return Nv;
-          return (x + 100) % 2 === 0 ? '#b8c4e4' : '#fbfbf6';
+          if (adx >= 5 || (dy === -2 && adx === 3) || (dy === -1 && adx === 4)) return R;
+          if (dx === 0 && dy >= 0) return dy === 0 ? '#9aa6c8' : '#fbfbf6';
+          return (x + 100) % 2 === 0 ? '#c2cce8' : '#fbfbf6';
         });
         if (a.curled) return;
-        const R = '#d8303b';
-        for (const [dx, dy] of [[-4, 2], [-3, 1], [-2, 2], [2, 2], [3, 1], [4, 2], [3, 3]]) this.px(a.hx + dx, a.my + dy, R);
+        outlined(this, ['R', 'R'], a.left - 1, a.my + 1, { R }, c.K);
+        outlined(this, ['R', 'R'], a.right + 1, a.my + 1, { R }, c.K);
+        this.pattern(['NNN', '..N', 'NN.'], a.hx + 2, a.my + 2, { N: Nv });
+        for (const [dx, dy] of [[-4, 3], [-3, 2], [-2, 3]]) this.px(a.hx + dx, a.my + dy, R);
       },
     },
   };

@@ -137,6 +137,11 @@ const RAW = [
   ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbleplay' }],
   ['box_10', 'bond', 'normal', 'gift', (c) => n(c, 'box'), 10, { item: 'snot' }],
   ['bored_10', 'bond', 'normal', 'doze', (c) => n(c, 'bored'), 10, { item: 'gum' }],
+  // 2026-10-10: 오늘 먹고 싶은 것 들어주기 (main/craving.js)
+  ['craving_1', 'bond', 'easy', 'ricebowl', (c) => n(c, 'craving'), 1, { food: { churu: 2 } }],
+  ['craving_30', 'bond', 'normal', 'ricebowl', (c) => n(c, 'craving'), 30, COIN.normal],
+  ['craving_100', 'bond', 'hard', 'ricebowl', (c) => n(c, 'craving'), 100, { food: { royalTable: 1 } }],
+  ['cravingRun_7', 'bond', 'hard', 'heart', (c) => n(c, 'cravingRun'), 7, COIN.hard],
 
   // ---------- 쇼핑·수집 ----------
   ['buy_1', 'collect', 'easy', 'coin', (c) => c.bought, 1, { food: { tempura: 1 } }],
@@ -144,7 +149,8 @@ const RAW = [
   ['buy_100', 'collect', 'hard', 'moneybag', (c) => c.bought, 100, { item: 'soju' }],
   ['spend_10k', 'collect', 'hard', 'moneybag', (c) => c.spent, 10000, { item: 'party' }],
   ['acc_5', 'collect', 'normal', 'ribbon', (c) => c.owned.acc, 5, { item: 'dealwithit' }],
-  ['acc_all', 'collect', 'legend', 'ribbon', (c) => c.owned.acc, (c) => c.totalAcc, { item: 'electricjam' }],
+  // 한 번이라도 가졌던 코스튬 수 (공방 코스튬을 친구에게 선물해도 줄지 않는다. gamify.js 의 lifetimeSide)
+  ['acc_all', 'collect', 'legend', 'ribbon', (c) => (c.accEver != null ? c.accEver : c.owned.acc), (c) => c.totalAcc, { item: 'electricjam' }],
   ['motion_10', 'collect', 'normal', 'sparkle', (c) => c.owned.motion, 10, { item: 'eyepatch' }],
   ['motion_30', 'collect', 'hard', 'sparkle', (c) => c.owned.motion, 30, { item: 'lightning' }],
   ['toy_5', 'collect', 'normal', 'paw', (c) => c.owned.toy, 5, { item: 'bearhood' }],
@@ -207,6 +213,9 @@ const RAW = [
   ['smoke_break', 'secret', 'normal', 'pillow', (c) => n(c, 'lift') >= 1 && c.st.restsTaken >= 3 ? 1 : 0, 1, { item: 'smoke' }],
 ];
 
+// 데스크톱판의 'Claude Code 에서만 깰 수 있는 업적' 표. 옵시디언판에는 그런 업적이 없다
+const CLAUDE_ONLY = new Set();
+
 const CATS = ['write', 'link', 'note', 'session', 'obsidian', 'project', 'token', 'streak', 'rhythm', 'bond', 'collect', 'growth', 'secret'];
 const TIERS = ['easy', 'normal', 'hard', 'legend'];
 
@@ -214,9 +223,10 @@ const ACHIEVEMENTS = RAW.map(([id, cat, tier, icon, value, goal, reward]) => {
   const target = (c) => (typeof goal === 'function' ? goal(c) : goal);
   return {
     id, cat, tier, icon, reward, xp: XP[tier],
+    claudeOnly: CLAUDE_ONLY.has(id),
     check: (c) => value(c) >= Math.max(1, target(c)),
     progress: (c) => [Math.min(value(c), target(c)), target(c)],
   };
 });
 
-module.exports = { ACHIEVEMENTS, CATS, TIERS };
+module.exports = { ACHIEVEMENTS, CATS, TIERS, CLAUDE_ONLY };
