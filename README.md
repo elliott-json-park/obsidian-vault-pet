@@ -6,7 +6,7 @@ Vault Pet turns writing into a cozy little game. A hand-drawn pixel cat strolls 
 
 ![Mochi the cat pulls out a tiny laptop and types along, a thought bubble over its head, while a paragraph of a novel is being written in the note above.](docs/typing.gif)
 
-![Mochi the cat types along on its laptop while you write a novel draft. The cat's house is open on the right with today's writing, its fullness and energy, and daily quests.](docs/kitcommit-hero.png)
+![Mochi the cat types along on its laptop while you write a novel draft. The cat's house is open on the right with today's writing, a 19-day check-in streak, its fullness and today's craving.](docs/kitcommit-hero.png)
 
 ## Why you'll love it
 
@@ -34,9 +34,9 @@ Your cat lives on the floor of your workspace, just above the status bar. It nap
 
 Clicks on the empty parts of the floor pass straight through to Obsidian, so your cat never gets in the way.
 
-![Mochi in a wizard hat plays with a red ball while Dust, a gray neighbor cat, drops by for a visit.](docs/kitcommit-floor.png)
+![Mochi in a wizard hat catches a red ball and cheers "Hunt successful!!" while Dust, a gray neighbor cat, drops by for a visit.](docs/kitcommit-floor.png)
 
-![Right-clicking the cat opens a menu with its fullness and energy, today's writing, feeding, snacks, toys, quiet mode and more, each with its own pixel icon.](docs/kitcommit-menu.png)
+![Right-clicking the cat opens a menu with its fullness, today's writing, feeding, snacks, toys, size, mute, quiet mode and more, each with its own pixel icon.](docs/kitcommit-menu.png)
 
 ### Moods
 
@@ -70,7 +70,7 @@ Growth starts on the day you install. Vault Pet takes one quick look at your vau
 
 Everything you write fills your wallet. The first 5,000 characters each day earn 1 coin per 5 characters, and after that 1 coin per 25. You also get 1,000 coins as a welcome gift.
 
-![The shop: 18,577 coins in the wallet and costume cards for a sprout pin, a gentleman mustache, a face mask, a bell collar and bunny ears.](docs/kitcommit-shop.png)
+![The shop: 14,772 coins in the wallet, pages for meals, snacks, costumes, motions, toys and the star shop, and costume cards for a sprout pin, a gentleman mustache, a face mask and a bell collar.](docs/kitcommit-shop.png)
 
 | Category | What you get |
 |---|---|
@@ -82,7 +82,9 @@ Everything you write fills your wallet. The first 5,000 characters each day earn
 
 New items unlock as you level up, all the way to Lv.80. Locked items show a faint preview, so you can see what you're working toward.
 
-![The inventory: Mochi wears a wizard hat, an archmage robe, a star wand and fireflies, with the rest of the collection on the right.](docs/kitcommit-wardrobe.png)
+![The star shop before Lv.80: endgame sets like Nebula Dragoon, Phoenix King, Lord of the Deep and World Tree Warden shown as faint locked previews, each priced in stars.](docs/kitcommit-starshop.png)
+
+![The inventory: Mochi wears a wizard hat, an ancient archmage robe, a star wand and fireflies, with fur and ear-shape buttons below and the rest of the collection on the right.](docs/kitcommit-wardrobe.png)
 
 ## Quests, badges and more
 
@@ -94,7 +96,7 @@ New items unlock as you level up, all the way to Lv.80. Locked items show a fain
 - **Treasure workshop**: craft exclusive costumes out of the treasures you find. The treasure exchange turns spare treasures into the ones you need, and every crafted costume remembers what it was made from.
 - **Once a day, your cat asks you something**: did you eat lunch, when are you going to bed, are you busy today. Say you're busy and it keeps the small talk to itself for two hours.
 
-![The awards tab: writing badges like First letter, Warming up, One page and A short story, each with its reward and progress bar.](docs/kitcommit-achievements.png)
+![The awards tab: 33 of 165 badges, with writing badges like First letter, Warming up, One page and A short story, each with its reward and the date it was earned.](docs/kitcommit-achievements.png)
 
 ## Stats and a card to show off
 
@@ -104,7 +106,7 @@ The Stats tab shows what you've written and the coins it earned, a weekday × ho
 
 Make your own show-off card: pick this month, last month or all time, choose up to six stats (characters, links, new notes, sessions, days, longest streak, busiest day, busiest hour, favorite folder, coins, badges, level change, XP, folders), a color, your cat's pose, a one-line caption and a post (4:5) or story (9:16) size. Then save it to your vault, copy the image or copy a ready-made caption. In the first week of each month, the house lets you know last month's card is ready.
 
-![A show-off card: Mochi at Lv.18 grew up on 32.4K characters, with sessions, characters, links, days together, busiest hour and favorite folder, plus a 20-week writing grid.](docs/kitcommit-card.png)
+![A September recap card in the night theme: Mochi at Lv.27 wrote 70.1K characters, with days together, longest streak, busiest day, busiest hour and favorite folder, plus a calendar of the days it wrote.](docs/kitcommit-card.png)
 
 Using [Hearth](https://github.com/ondreu/Hearth)? Its **Vault Pet** card puts your cat, or its whole house, on your Hearth dashboard.
 
