@@ -1214,6 +1214,7 @@ class KitHost {
       daily: usage.daily(14),
       hours: usage.hours(),
       projects: usage.projects(this.plugin.topFolders()),
+      subfolders: this.plugin.subFolders ? this.plugin.subFolders() : {}, // 1.6.0
       stages: STAGES,
       furs: FURS,
       formula: { CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK, TASK_COINS },

@@ -1494,6 +1494,7 @@ const motionInTab = (it, k) => (k === 'work' ? it.slots.some((x) => WORK_SLOTS.i
 // 설정의 '경험치에 넣을 프로젝트' 목록을 처음에 몇 줄만 보여 줄지
 const PROJECTS_SHOWN = 6;
 let projectsOpen = false;
+const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6.0)
 
 const TABS = {
   home() {
@@ -2142,7 +2143,25 @@ const TABS = {
     const sw = (key, on) => `<label class="switch"><input type="checkbox" data-key="${key}" ${on ? 'checked' : ''}><span></span></label>`;
     // 프로젝트가 많으면 처음 몇 개만 보이고 나머지는 '더보기'로 접어 둔다
     // [옵시디언] 프로젝트 = 볼트 맨 윗단 폴더 (맨 위에 있는 노트는 '볼트 맨 위')
-    const projRow = (p) => `<label><input type="checkbox" data-project="${esc(p.id)}" ${p.excluded ? '' : 'checked'}><span>${esc(p.root ? t('set.rootFolder') : p.label || t('set.goneFolder'))}</span><small>${t('set.projectItem', { n: fmt(p.chars), date: p.last ? new Date(p.last).toLocaleDateString(locale()) : '-' })}</small></label>`;
+    // [옵시디언] 하위 폴더는 펼쳐서 따로 뺄 수 있다 (1.6.0). 위 폴더가 빠져 있으면 아래는 손댈 수 없게 둔다
+    const ex = new Set(s.excludedProjects || []);
+    const subRows = (p) => {
+      const off = [p.excluded];
+      return ((D.subfolders && D.subfolders[p.id]) || [])
+        .map((f) => {
+          const parentOff = off[f.depth];
+          off[f.depth + 1] = parentOff || ex.has(f.id);
+          return `<label class="sub" style="padding-left:${14 + f.depth * 14}px"><input type="checkbox" data-project="${esc(f.id)}" ${ex.has(f.id) ? '' : 'checked'} ${parentOff ? 'disabled' : ''}><span>${esc(f.name)}</span></label>`;
+        })
+        .join('');
+    };
+    const subToggle = (p) => {
+      const n = ((D.subfolders && D.subfolders[p.id]) || []).length;
+      if (!n) return '';
+      const open = subOpen.has(p.id);
+      return `<button class="btn ghost sub-toggle" data-act="subfolders" data-id="${esc(p.id)}">${open ? t('set.subLess') : t('set.subMore', { n: fmt(n) })}</button>` + (open ? subRows(p) : '');
+    };
+    const projRow = (p) => `<label><input type="checkbox" data-project="${esc(p.id)}" ${p.excluded ? '' : 'checked'}><span>${esc(p.root ? t('set.rootFolder') : p.label || t('set.goneFolder'))}</span><small>${t('set.projectItem', { n: fmt(p.chars), date: p.last ? new Date(p.last).toLocaleDateString(locale()) : '-' })}</small></label>` + subToggle(p);
     const shown = projectsOpen ? D.projects : D.projects.slice(0, PROJECTS_SHOWN);
     const more = D.projects.length - PROJECTS_SHOWN;
     const projects = D.projects.length
@@ -2785,14 +2804,26 @@ function bindView(view) {
 
   $$('input[data-project]', view).forEach((el) =>
     el.addEventListener('change', async () => {
-      const excluded = $$('input[data-project]', view).filter((x) => !x.checked).map((x) => x.dataset.project);
+      // 화면에 없는 폴더(접어 둔 프로젝트·하위 폴더)와 손댈 수 없는 칸은 지금 설정을 그대로 둔다
+      const shown = $$('input[data-project]', view).filter((x) => !x.disabled);
+      const ids = new Set(shown.map((x) => x.dataset.project));
+      const excluded = [...(D.settings.excludedProjects || []).filter((id) => !ids.has(id)), ...shown.filter((x) => !x.checked).map((x) => x.dataset.project)];
       await apply(await pet.set({ excludedProjects: excluded }));
       toast(t('toast.applied'));
     }),
   );
 }
 
-async function act(name) {
+async function act(name, el) {
+  if (name === 'subfolders') {
+    const id = el && el.dataset.id;
+    if (subOpen.has(id)) subOpen.delete(id);
+    else subOpen.add(id);
+    const y = $('#view').scrollTop;
+    renderView();
+    $('#view').scrollTop = y;
+    return;
+  }
   if (name === 'projectsMore') {
     projectsOpen = !projectsOpen;
     const y = $('#view').scrollTop;

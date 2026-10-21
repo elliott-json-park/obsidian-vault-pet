@@ -137,6 +137,19 @@ function folderOf(path) {
   return i < 0 ? ROOT : path.slice(0, i);
 }
 const folderKey = (name) => (name === ROOT ? ROOT : hashSeg(name));
+// 뺀 폴더 안에 있는 노트인가. ids = 맨 윗단 폴더(folderKey) 또는 하위 폴더(pathKey) 해시 (1.6.0). 볼트 맨 위 노트는 ROOT 로 본다
+function inFolders(path, ids) {
+  if (!ids || !ids.size) return false;
+  const segs = path.split('/');
+  segs.pop();
+  if (!segs.length) return ids.has(ROOT);
+  let k = '';
+  for (const s of segs) {
+    k = k ? k + '/' + hashSeg(s) : hashSeg(s);
+    if (ids.has(k)) return true;
+  }
+  return false;
+}
 
 // 데일리 노트처럼 보이는가 (파일 이름이 날짜)
 const DAILY_RE = /(^|\/)\d{4}-\d{2}-\d{2}(\.md)?$/;
@@ -481,6 +494,6 @@ class UsageTracker extends EventEmitter {
 }
 
 module.exports = {
-  UsageTracker, measure, countWords, pathKey, folderKey, folderOf, dayOf, hourKey, hourKeyToMs,
+  UsageTracker, measure, countWords, pathKey, folderKey, folderOf, inFolders, dayOf, hourKey, hourKeyToMs,
   LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET, NOTE_MIN_CHARS, SESSION_GAP, ROOT,
 };

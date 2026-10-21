@@ -1479,6 +1479,19 @@ input {
   font-size: 13px;
   line-height: 1.55;
 }
+/* 하위 폴더 (1.6.0) */
+.projects .sub-toggle {
+  display: block;
+  margin: 2px 0 2px 26px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.projects label.sub {
+  font-size: 12px;
+}
+.projects label.sub input:disabled + span {
+  color: var(--muted);
+}
 /* 프로젝트 더보기 */
 .projects .more {
   margin-top: 6px;

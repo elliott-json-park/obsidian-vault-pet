@@ -1,7 +1,7 @@
 {
   "id": "vault-pet",
   "name": "Vault Pet",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "minAppVersion": "1.5.0",
   "description": "A virtual desktop pet for gamification: a pixel cat levels up as you write toward a daily word count goal, check off tasks and finish pomodoro focus sessions. 320 costumes, streaks, badges.",
   "author": "Elliott Park",

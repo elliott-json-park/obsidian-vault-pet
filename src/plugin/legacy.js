@@ -2,7 +2,7 @@
 // 0.x 의 data.json 은 { schema, settings, state: { party, partner, bonus, … }, ledger: { tot, … } } 모양이고 version 이 없다.
 // 새 판(1.1+)은 { version, settings, state, usage, meta } 다. 예전 성장은 새 고양이로 잇지 않고, 쌓은 만큼 코인과 기념 코스튬으로 돌려준다.
 
-const { folderKey } = require('../core/usage');
+const { pathKey } = require('../core/usage');
 
 const DAY = 86_400_000;
 // 0.x 의 경험치 공식 (특기 배율은 빼고 센다)
@@ -80,7 +80,6 @@ function legacySummary(raw, now = Date.now()) {
     petName: String(name).slice(0, 40),
     coins: coinsFor(xp.total),
     costume: LEGACY_COSTUME,
-    partialFolders: partialExcluded(raw.settings || {}), // 폴더 이름은 남기지 않고 개수만
   };
 }
 
@@ -90,19 +89,12 @@ function legacySettings(raw) {
   const out = {};
   for (const k of CARRY_SETTINGS) if (old[k] !== undefined) out[k] = old[k];
   if (['ko', 'en', 'zh'].includes(old.language)) out.language = old.language;
-  // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 맨 윗단 폴더 이름의 해시를 쓴다.
-  // 하위 폴더만 뺐던 것('Projects/Archive')은 옮기지 않는다. 맨 윗단으로 넓히면 그 폴더 전체가 빠져 버린다 (안내 창에서 알린다)
-  const tops = topExcluded(old);
-  if (tops.length) out.excludedProjects = [...new Set(tops.map(folderKey))];
+  // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 경로의 해시를 쓴다. 하위 폴더('Projects/Archive')도 그대로 옮긴다 (1.6.0)
+  const folders = cleanFolders(old);
+  if (folders.length) out.excludedProjects = [...new Set(folders.map(pathKey))];
   return out;
 }
 
 const cleanFolders = (old) => (Array.isArray(old.excludedFolders) ? old.excludedFolders.map((f) => String(f).replace(/^\/+|\/+$/g, '')).filter(Boolean) : []);
-const topExcluded = (old) => cleanFolders(old).filter((f) => !f.includes('/'));
-// 옮기지 못한 하위 폴더 수 (맨 윗단이 통째로 빠진 경우는 빼고)
-function partialExcluded(old) {
-  const tops = new Set(topExcluded(old));
-  return cleanFolders(old).filter((f) => f.includes('/') && !tops.has(f.split('/')[0])).length;
-}
 
 module.exports = { isLegacy, legacyXp, legacySummary, legacySettings, coinsFor, LEGACY_COSTUME };

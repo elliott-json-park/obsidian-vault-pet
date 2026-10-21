@@ -21,7 +21,7 @@ const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./l
 const { loadSafe, backupDaily, readJson } = require('./safedata');
 const { SyncBook } = require('./sync');
 const PixelArt = require('../kit/pixelart');
-const { UsageTracker, measure, folderKey, folderOf, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
+const { UsageTracker, measure, folderKey, pathKey, inFolders, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 const { goalConfig, GOAL_PRESETS, GOAL_RANGE, FOCUS_LENGTHS } = require('../core/goals');
 
 const VIEW_TYPE = 'kitcommit-house';
@@ -37,6 +37,7 @@ const EMPTY_WAIT = 25_000; // 새로 만든 빈 노트가 이만큼 비어 있�
 const FOREIGN_WAIT = 30_000;
 const LOCAL_EDIT = 2 * MIN; // 이 안에 이 기기 편집기에서 손댄 노트는 이 기기에서 쓴 글
 const PREMERGE_EVERY = 10 * MIN; // 합치기 전 자료(data.premerge.json)를 남기는 간격
+const SUB_MAX = 500; // 설정에 보이는 하위 폴더 수 상한 (1.6.0)
 
 // 사용자가 옵시디언에 설정해 둔 언어 ('ko', 'en', 'ja'…). 처음 설치할 때 고양이 언어를 이걸로 고른다.
 // getLanguage() 는 옵시디언 1.8.7 부터 있다. 그 전에는 옵시디언이 화면 언어에 맞춰 둔 moment 로케일을 본다
@@ -285,7 +286,6 @@ class LegacyModal extends Modal {
     };
     row('coin', t('legacy.coins', { coins: fmt(L.coins) }));
     row(LEGACY_COSTUME, t('legacy.costume'));
-    if (L.partialFolders) el.createEl('p', { text: t('legacy.folders', { n: L.partialFolders }), cls: 'setting-item-description' });
     el.createEl('p', { text: t('legacy.note'), cls: 'setting-item-description' });
     new Setting(el)
       .addButton((b) => b.setButtonText(t('legacy.ok')).onClick(() => this.close()))
@@ -548,11 +548,15 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 볼트 읽기 ── */
 
-  // 숨김 폴더와, 설정에서 뺀 폴더(맨 윗단)는 읽지도 세지도 않는다
+  // 숨김 폴더와, 설정에서 뺀 폴더(맨 윗단 또는 하위 폴더, 1.6.0)는 읽지도 세지도 않는다
   isExcludedPath(path) {
     if (path.startsWith('.') || path.split('/').some((x) => x.startsWith('.'))) return true;
     const ex = this.settings.get('excludedProjects') || [];
-    return ex.length > 0 && ex.includes(folderKey(folderOf(path)));
+    if (this._exList !== ex) {
+      this._exList = ex;
+      this._exSet = new Set(ex);
+    }
+    return inFolders(path, this._exSet);
   }
 
   // 이 기기 편집기에서 손댄 노트 (FOREIGN_WAIT 없이 바로 센다)
@@ -586,7 +590,8 @@ class KitCommitPlugin extends Plugin {
   async rebaseline(ids) {
     const want = new Set(ids);
     for (const f of this.app.vault.getMarkdownFiles()) {
-      if (!want.has(folderKey(folderOf(f.path)))) continue;
+      // 하위 폴더만 다시 넣었는데 위 폴더가 아직 빠져 있으면 그대로 둔다
+      if (!inFolders(f.path, want) || this.isExcludedPath(f.path)) continue;
       try {
         this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
       } catch {
@@ -812,6 +817,28 @@ class KitCommitPlugin extends Plugin {
   // 볼트 맨 윗단 폴더 이름들 (설정의 '경험치에 넣을 폴더')
   topFolders() {
     return this.app.vault.getRoot().children.filter((x) => x instanceof TFolder && !x.name.startsWith('.')).map((x) => x.name);
+  }
+
+  // 맨 윗단 폴더마다 그 아래 하위 폴더들, 위에서부터 차례로 (설정에서 하위 폴더만 뺄 수 있게, 1.6.0).
+  // { 맨 윗단 해시: [{ id: 경로 해시, name, depth }] }. 폴더가 아주 많은 볼트를 위해 SUB_MAX 개까지만
+  subFolders() {
+    const out = {};
+    let n = 0;
+    const kids = (folder) => folder.children.filter((x) => x instanceof TFolder && !x.name.startsWith('.')).sort((a, b) => a.name.localeCompare(b.name));
+    const walk = (folder, list, depth) => {
+      for (const x of kids(folder)) {
+        if (n >= SUB_MAX) return;
+        n++;
+        list.push({ id: pathKey(x.path), name: x.name, depth });
+        walk(x, list, depth + 1);
+      }
+    };
+    for (const top of kids(this.app.vault.getRoot())) {
+      const list = [];
+      walk(top, list, 0);
+      if (list.length) out[folderKey(top.name)] = list;
+    }
+    return out;
   }
 
   // 백링크가 가장 많은 노트의 백링크 수. 2분 동안 기억한다

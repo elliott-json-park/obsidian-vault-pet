@@ -384,17 +384,58 @@ test('legacy: 0.x data.json 만 알아보고, 경험치·레벨·함께한 날·
   assert.strictEqual(legacyMod.coinsFor(0), 500);
 });
 
-test('legacy: 뜻이 같은 설정만 옮기고, 뺀 폴더는 맨 윗단 해시로', () => {
+test('usage: 하위 폴더만 뺄 수 있다 (1.6.0, 이슈 #5)', () => {
+  const { inFolders, pathKey, folderKey, ROOT } = require(path.join(src, 'core/usage'));
+  const ids = new Set([pathKey('Story/Planning')]);
+  assert.ok(inFolders('Story/Planning/outline.md', ids));
+  assert.ok(inFolders('Story/Planning/Old/a.md', ids), '더 아래 폴더도 빠진다');
+  assert.ok(!inFolders('Story/Chapters/ch1.md', ids), '옆 폴더는 그대로 센다');
+  assert.ok(!inFolders('Story/plan.md', ids), '위 폴더에 바로 있는 노트도 센다');
+  assert.ok(!inFolders('Story/Planning.md', ids), '이름만 같은 노트는 폴더가 아니다');
+  assert.ok(!inFolders('Planning/a.md', ids), '다른 맨 윗단 폴더의 같은 이름');
+  // 예전 설정(맨 윗단 해시)과 볼트 맨 위도 그대로
+  assert.strictEqual(folderKey('Story'), pathKey('Story'));
+  assert.ok(inFolders('Story/Chapters/ch1.md', new Set([folderKey('Story')])));
+  assert.ok(inFolders('a.md', new Set([ROOT])) && !inFolders('Story/a.md', new Set([ROOT])));
+  assert.ok(!inFolders('Story/a.md', new Set()));
+});
+
+test('plugin: 뺀 하위 폴더의 노트는 읽지도 세지도 않고, 설정에는 하위 폴더가 차례로 보인다 (1.6.0, 이슈 #5)', () => {
+  const KitCommitPlugin = require(path.join(src, 'plugin/main'));
+  const { pathKey, folderKey } = require(path.join(src, 'core/usage'));
+  const P = KitCommitPlugin.prototype;
+  let ex = [pathKey('Story/Planning')];
+  const self = { settings: { get: () => ex } };
+  assert.ok(P.isExcludedPath.call(self, 'Story/Planning/outline.md'));
+  assert.ok(!P.isExcludedPath.call(self, 'Story/Chapters/ch1.md'));
+  assert.ok(P.isExcludedPath.call(self, '.trash/a.md'));
+  ex = [folderKey('Story')]; // 설정이 바뀌면 바로 따른다
+  assert.ok(P.isExcludedPath.call(self, 'Story/Chapters/ch1.md'));
+  const dir = (name, p, children = []) => Object.assign(new fakeObsidian.TFolder(), { name, path: p, children });
+  const root = dir('', '/', [dir('Story', 'Story', [dir('Planning', 'Story/Planning'), dir('Chapters', 'Story/Chapters', [dir('Part 1', 'Story/Chapters/Part 1')])]), dir('Inbox', 'Inbox'), dir('.obsidian', '.obsidian', [dir('x', '.obsidian/x')])]);
+  const subs = P.subFolders.call({ app: { vault: { getRoot: () => root } } });
+  assert.deepStrictEqual(Object.keys(subs), [folderKey('Story')], '하위 폴더 없는 폴더 · 숨김 폴더는 빠진다');
+  assert.deepStrictEqual(subs[folderKey('Story')].map((f) => [f.name, f.depth]), [['Chapters', 0], ['Part 1', 1], ['Planning', 0]]);
+  assert.strictEqual(subs[folderKey('Story')][1].id, pathKey('Story/Chapters/Part 1'));
+});
+
+test('host: 설정 화면에 하위 폴더 목록이 간다 (1.6.0)', () => {
+  const { host } = makeHost();
+  host.plugin.subFolders = () => ({ x: [{ id: 'x/y', name: 'Chapters', depth: 0 }] });
+  assert.deepStrictEqual(host.housePayload().subfolders, { x: [{ id: 'x/y', name: 'Chapters', depth: 0 }] });
+  for (const lang of I18N.LANGS) assert.ok(I18N.UI[lang]['set.subMore'].includes('{n}') && I18N.UI[lang]['set.subLess'], lang);
+});
+
+test('legacy: 뜻이 같은 설정만 옮기고, 뺀 폴더는 경로 해시로', () => {
   const s = legacyMod.legacySettings(oldData(Date.now()));
   assert.strictEqual(s.language, 'en');
   assert.strictEqual(s.soundEnabled, false);
   assert.strictEqual(s.lunchTime, '12:10');
   assert.ok(!('theme' in s) && !('showWidget' in s));
+  const { pathKey } = require(path.join(src, 'core/usage'));
   const u = new UsageTracker();
-  const ids = u.projects(['Templates']).map((p) => p.id);
-  assert.deepStrictEqual([...s.excludedProjects].sort(), [...ids].sort(), '하위 폴더(Journal/Private)만 뺀 것은 맨 윗단 전체로 넓히지 않는다');
-  assert.strictEqual(legacyMod.legacySummary(oldData(Date.now())).partialFolders, 1);
-  for (const lang of I18N.LANGS) assert.ok(I18N.UI[lang]['legacy.folders'].includes('{n}'), lang);
+  const ids = [...u.projects(['Templates']).map((p) => p.id), pathKey('Journal/Private')];
+  assert.deepStrictEqual([...s.excludedProjects].sort(), [...ids].sort(), '하위 폴더(Journal/Private)는 그 폴더만 (1.6.0)');
   assert.ok(!('language' in legacyMod.legacySettings({ settings: { language: 'auto' }, state: {} })));
 });
 

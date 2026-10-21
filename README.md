@@ -133,7 +133,7 @@ Open the house (cat face in the ribbon, or double-click the cat; your cat's name
 - Speech bubbles, small talk, occasional Obsidian tips
 - Lunch and dinner times, break reminder, when to get sleepy, bedtime, late-night nagging
 - Motions for every situation, with a drag-and-drop editor
-- Folders that count toward growth (untick a top-level folder to leave it out)
+- Folders that count toward growth (untick a folder to leave it out, or open its subfolders to leave out just one, like a planning folder next to your chapters)
 - **Low power mode**: fewer frames and less wandering, to save battery
 - Show or hide the cat on screen, reset its position, see what's new again, start over
 
