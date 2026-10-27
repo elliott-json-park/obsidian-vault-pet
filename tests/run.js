@@ -468,6 +468,34 @@ test('host: 처음 만난 날은 쓰다듬기 싫은 날이 아니다', () => {
   }
 });
 
+test('host: 쓰다듬기 싫은 날은 이틀 이어지지 않는다', () => {
+  const orig = Math.random;
+  Math.random = () => 0.999; // 평소라면 맨 끝(grumpy)을 뽑는 값
+  try {
+    const { host, state } = makeHost();
+    state.data.temper = { day: 'Mon Jan 01 2001', key: 'grumpy', said: true };
+    assert.notStrictEqual(host.temper(), 'grumpy');
+  } finally {
+    Math.random = orig;
+  }
+});
+
+test('stage: 떠 있는 작은 상태 표시줄 위가 아니라 작업 영역 맨 아래가 바닥이다', () => {
+  const { PetStage } = require(path.join(src, 'plugin/stage'));
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
+  const prev = globalThis.document;
+  const run = (sb) => {
+    globalThis.document = { querySelector: (q) => (q === '.workspace' ? { getBoundingClientRect: () => box(0, 0, 1024, 800) } : { offsetParent: {}, getBoundingClientRect: () => sb }) };
+    return new PetStage({}, {}).rect().bottom;
+  };
+  try {
+    assert.strictEqual(run(box(685, 771, 1024, 800)), 800); // 1.14 기본: 오른쪽 아래 알약
+    assert.strictEqual(run(box(0, 771, 1024, 800)), 771);   // 가로로 꽉 찬 상태 표시줄 (테마)
+  } finally {
+    globalThis.document = prev;
+  }
+});
+
 /* ── 저장 파일 ── */
 
 const safe = require(path.join(src, 'plugin/safedata'));

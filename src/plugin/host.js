@@ -81,9 +81,9 @@ const LOOT_TTL = 24 * HOUR_MS;
 const LOOT_KEEP = 20;
 const THEMES = ['auto', 'cream', 'cocoa', 'mint', 'sakura', 'choco'];
 const TEMPERS = [
-  { key: 'calm', w: 35 },
-  { key: 'playful', w: 35 },
-  { key: 'grumpy', w: 30 },
+  { key: 'calm', w: 45 },
+  { key: 'playful', w: 40 },
+  { key: 'grumpy', w: 15 },
 ];
 const EVENT_LINES = new Set(['eventFetchOut', 'eventFetchBack', 'eventBird', 'eventGuest', 'eventGuestBye', 'eventRare', 'heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
 const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline']);
@@ -865,8 +865,9 @@ class KitHost {
     const today = new Date().toDateString();
     let t = this.state.get('temper');
     if (!t || t.day !== today) {
-      // 처음 만난 날은 쓰다듬기 싫은 날을 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘다)
-      const pool = t ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
+      // 처음 만난 날, 그리고 어제가 쓰다듬기 싫은 날이었으면 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘고,
+      // 며칠씩 이어지면 고양이가 고장 난 것 같다 — 이슈 #7)
+      const pool = t && t.key !== 'grumpy' ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
       let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
       const key = (pool.find((x) => (r -= x.w) < 0) || pool[0]).key;
       t = { day: today, key, said: false };

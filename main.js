@@ -1,5 +1,5 @@
 /*
- * Vault Pet 1.6.0 — Obsidian plugin (built 2026-10-21)
+ * Vault Pet 1.6.1 — Obsidian plugin (built 2026-10-27)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -4950,9 +4950,9 @@ const LOOT_TTL = 24 * HOUR_MS;
 const LOOT_KEEP = 20;
 const THEMES = ['auto', 'cream', 'cocoa', 'mint', 'sakura', 'choco'];
 const TEMPERS = [
-  { key: 'calm', w: 35 },
-  { key: 'playful', w: 35 },
-  { key: 'grumpy', w: 30 },
+  { key: 'calm', w: 45 },
+  { key: 'playful', w: 40 },
+  { key: 'grumpy', w: 15 },
 ];
 const EVENT_LINES = new Set(['eventFetchOut', 'eventFetchBack', 'eventBird', 'eventGuest', 'eventGuestBye', 'eventRare', 'heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
 const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline']);
@@ -5734,8 +5734,9 @@ class KitHost {
     const today = new Date().toDateString();
     let t = this.state.get('temper');
     if (!t || t.day !== today) {
-      // 처음 만난 날은 쓰다듬기 싫은 날을 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘다)
-      const pool = t ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
+      // 처음 만난 날, 그리고 어제가 쓰다듬기 싫은 날이었으면 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘고,
+      // 며칠씩 이어지면 고양이가 고장 난 것 같다 — 이슈 #7)
+      const pool = t && t.key !== 'grumpy' ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
       let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
       const key = (pool.find((x) => (r -= x.w) < 0) || pool[0]).key;
       t = { day: today, key, said: false };
@@ -8250,7 +8251,10 @@ class PetStage {
       if (r.width > 50 && r.height > 50) {
         const sb = document.querySelector('.status-bar');
         const sr = sb && sb.offsetParent ? sb.getBoundingClientRect() : null;
-        const bottom = sr && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
+        // 상태 표시줄이 작업 영역 폭을 거의 다 덮을 때만 그 위가 바닥이다. 요즘 옵시디언은 작업 영역이 창 맨 아래까지 오고
+        // 상태 표시줄은 오른쪽 아래에 떠 있는 작은 알약이라, 그 윗변을 바닥으로 삼으면 화면 전체에서 고양이가 뜬다 (이슈 #6)
+        const spans = sr && sr.width >= r.width * 0.6;
+        const bottom = spans && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
         const top = Math.min(r.top + this.dragInset, bottom - 50);
         return { left: r.left, top, width: r.width, height: bottom - top, right: r.right, bottom };
       }

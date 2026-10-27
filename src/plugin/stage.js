@@ -97,7 +97,10 @@ class PetStage {
       if (r.width > 50 && r.height > 50) {
         const sb = document.querySelector('.status-bar');
         const sr = sb && sb.offsetParent ? sb.getBoundingClientRect() : null;
-        const bottom = sr && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
+        // 상태 표시줄이 작업 영역 폭을 거의 다 덮을 때만 그 위가 바닥이다. 요즘 옵시디언은 작업 영역이 창 맨 아래까지 오고
+        // 상태 표시줄은 오른쪽 아래에 떠 있는 작은 알약이라, 그 윗변을 바닥으로 삼으면 화면 전체에서 고양이가 뜬다 (이슈 #6)
+        const spans = sr && sr.width >= r.width * 0.6;
+        const bottom = spans && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
         const top = Math.min(r.top + this.dragInset, bottom - 50);
         return { left: r.left, top, width: r.width, height: bottom - top, right: r.right, bottom };
       }
