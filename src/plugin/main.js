@@ -3,12 +3,14 @@
  * Kit Commit (킷커밋) — Obsidian plugin
  *
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 데스크톱 앱 킷커밋의 옵시디언판이다.
- * 고양이·모션·코스튬·장난감·상점·퀘스트·업적·동네 친구·보물 공방은 데스크톱판과 같은 코드(src/kit, src/core)를 쓰고,
+ * 고양이·모션·코스튬·장난감·상점·퀘스트·업적은 데스크톱판과 같은 코드(src/kit, src/core)를 쓰고,
  * Claude Code 토큰 대신 옵시디언 사용량(쓴 글자·링크·새 노트·글쓰기 세션)으로 자라고 코인을 번다.
+ * 2.0.0: 옵시디언을 잘 쓰게 돕는 고양이. 홈에 집중 타이머 · 할 일 · 노트 지도 · 최근 노트, 퀘스트 · 업적은 옵시디언 습관으로.
+ * 동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식은 없앴다.
  *
  * 구조
  *  - src/kit   : 데스크톱판 화면 코드 (펫 창·하우스 창). iframe 안에서 돈다 (plugin/frame.js)
- *  - src/core  : 데스크톱판 로직 (성장·상점·퀘스트·업적·친구·보물·게이지·기분) + 옵시디언 사용량 집계(usage.js)
+ *  - src/core  : 데스크톱판 로직 (성장·상점·퀘스트·업적·게이지) + 옵시디언 사용량 집계(usage.js) · 할 일(todos.js)
  *  - src/plugin: 데스크톱판 main.js·preload.js 자리 (host.js·frame.js·stage.js) 와 옵시디언 연결(이 파일)
  */
 const obsidian = require('obsidian');
@@ -20,6 +22,8 @@ const { PetStage } = require('./stage');
 const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
 const { loadSafe, backupDaily, readJson } = require('./safedata');
 const { SyncBook } = require('./sync');
+const vaultmap = require('./vaultmap');
+const { VIEWS } = require('../core/skills');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, pathKey, inFolders, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 const { goalConfig, GOAL_PRESETS, GOAL_RANGE, FOCUS_LENGTHS } = require('../core/goals');
@@ -38,6 +42,8 @@ const FOREIGN_WAIT = 30_000;
 const LOCAL_EDIT = 2 * MIN; // 이 안에 이 기기 편집기에서 손댄 노트는 이 기기에서 쓴 글
 const PREMERGE_EVERY = 10 * MIN; // 합치기 전 자료(data.premerge.json)를 남기는 간격
 const SUB_MAX = 500; // 설정에 보이는 하위 폴더 수 상한 (1.6.0)
+const ORPHAN_FIXED_KEEP = 2000; // 외톨이에서 벗어난 노트를 이만큼 기억한다 (같은 노트로 두 번 세지 않게, 2.0.0)
+const HOME_PUSH_WAIT = 1500; // 노트를 열거나 링크가 바뀌면 이만큼 모아서 홈(노트 지도 · 최근 노트)을 다시 그린다
 
 // 사용자가 옵시디언에 설정해 둔 언어 ('ko', 'en', 'ja'…). 처음 설치할 때 고양이 언어를 이걸로 고른다.
 // getLanguage() 는 옵시디언 1.8.7 부터 있다. 그 전에는 옵시디언이 화면 언어에 맞춰 둔 moment 로케일을 본다
@@ -390,6 +396,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.flushTimer);
     window.clearTimeout(this.stopTimer);
     window.clearTimeout(this.emptyTimer);
+    window.clearTimeout(this.homeTimer);
     window.clearInterval(this.focusTimer);
     // 바닥에 떨어진 채 안 먹은 먹이는 창고로 돌려 둔 뒤 저장한다
     if (this.host) this.host.refundTreats();
@@ -449,6 +456,7 @@ class KitCommitPlugin extends Plugin {
         .filter((x) => x instanceof TFile && x.extension === 'md' && !this.usage.known(old + x.path.slice(f.path.length)));
       this.usage.rename(old, f.path);
       for (const x of fresh) this.baselineFile(x);
+      this.noteRename(f, old);
       this.saveSoon();
     }));
     // 붙여넣기·끌어다 놓기로 들어온 글은 경험치·코인이 되지 않는다 (README '공정하게')
@@ -461,9 +469,21 @@ class KitCommitPlugin extends Plugin {
       this.onType();
     }));
     this.registerEvent(workspace.on('file-open', (f) => f && this.onOpen(f)));
+    // 옵시디언 화면(그래프 · 검색 · 백링크 · 개요 …)을 열어 본 것 (2.0.0 퀘스트 · 업적 · 다음 단계 안내)
+    this.registerEvent(workspace.on('active-leaf-change', (leaf) => this.noteView(leaf)));
+    // 링크가 바뀌면 외톨이 노트 · 노트 지도를 다시 본다
+    this.registerEvent(this.app.metadataCache.on('resolved', () => {
+      this.linksDirty = true;
+      this._links = null;
+      this.homeSoon();
+    }));
+    this.usage.dailyTest = vaultmap.dailyMatcher(this.app);
     this.registerInterval(window.setInterval(() => this.host.fastTick(), 5000));
     this.registerInterval(window.setInterval(() => {
       this.host.minuteTick();
+      this.orphanTick();
+      // 데일리 노트 설정을 바꿨을 수 있다
+      this.usage.dailyTest = vaultmap.dailyMatcher(this.app);
       this.saveSoon();
     }, MIN));
 
@@ -793,6 +813,8 @@ class KitCommitPlugin extends Plugin {
   onOpen(f) {
     const brain = this.host.brain;
     brain.activity(Date.now());
+    if (f.extension === 'md') this.lastNote = f.path;
+    this.homeSoon();
     // 다른 노트로 가면 빈 노트를 기다리던 건 그만
     if (this.emptyNote && f.path !== this.emptyNote) {
       this.emptyNote = null;
@@ -856,6 +878,110 @@ class KitCommitPlugin extends Plugin {
     }
     this._links = { at: now, max: Math.max(0, ...Object.values(counts)), total };
     return this._links;
+  }
+
+  /* ── 홈 (2.0.0): 노트 지도 · 최근 노트 · 외톨이 노트. 읽고 열기만 한다 ── */
+
+  // 노트 지도의 가운데: 지금 연 노트, 없으면 마지막으로 연 노트, 그것도 없으면(막 켰을 때) 옵시디언이 기억하는 최근 노트
+  graphCenter() {
+    const { workspace, vault } = this.app;
+    const f = workspace.getActiveFile && workspace.getActiveFile();
+    if (f && f.extension === 'md') return f.path;
+    if (this.lastNote && vault.getAbstractFileByPath(this.lastNote)) return this.lastNote;
+    const recent = typeof workspace.getLastOpenFiles === 'function' ? workspace.getLastOpenFiles() : [];
+    return recent.find((p) => p.endsWith('.md') && vault.getAbstractFileByPath(p) && !this.isExcludedPath(p)) || null;
+  }
+
+  homeData() {
+    const ex = (p) => this.isExcludedPath(p);
+    const orphans = this.orphanList();
+    return {
+      graph: vaultmap.localGraph(this.app, this.graphCenter(), ex),
+      recent: vaultmap.recentNotes(this.app, ex),
+      orphans: vaultmap.orphanSummary(this.app, orphans),
+      editedToday: vaultmap.editedToday(this.app, ex),
+      notes: this.app.vault.getMarkdownFiles().length,
+      links: this.linkStats().total,
+    };
+  }
+
+  // 노트를 열거나 링크가 바뀌면 열린 홈을 조금 뒤에 한 번 다시 그린다
+  homeSoon() {
+    if (!this.host || !this.host.houses.size) return;
+    window.clearTimeout(this.homeTimer);
+    this.homeTimer = window.setTimeout(() => this.host.pushHouse(), HOME_PUSH_WAIT);
+  }
+
+  // 이미 있는 노트만 연다 (없는 경로를 openLinkText 로 열면 새 노트가 생기니 쓰지 않는다).
+  // 하우스 탭을 덮지 않게 편집기 탭에서 연다: 그 노트가 열린 탭 → 아무 편집기 탭 → 새 탭
+  async openNote(path) {
+    const f = typeof path === 'string' && this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return false;
+    const { workspace } = this.app;
+    const editors = typeof workspace.getLeavesOfType === 'function' ? workspace.getLeavesOfType('markdown') : [];
+    const leaf = editors.find((l) => l.view && l.view.file && l.view.file.path === f.path) || editors[0] || workspace.getLeaf('tab');
+    if (!(leaf.view && leaf.view.file && leaf.view.file.path === f.path)) await leaf.openFile(f);
+    if (typeof workspace.setActiveLeaf === 'function') workspace.setActiveLeaf(leaf, { focus: true });
+    return true;
+  }
+
+  // 옵시디언 그래프 뷰 · 로컬 그래프 열기 (코어 그래프 플러그인의 명령. 꺼져 있으면 false)
+  async openGraph(local) {
+    const id = local ? 'graph:open-local' : 'graph:open';
+    const cmds = this.app.commands;
+    if (!cmds || !cmds.commands || !cmds.commands[id]) return false;
+    // 로컬 그래프는 지금 노트가 있어야 열린다. 하우스가 앞에 있으면 노트 지도의 가운데 노트를 먼저 앞으로
+    if (local && !(this.app.workspace.getActiveFile && this.app.workspace.getActiveFile())) {
+      const center = this.graphCenter();
+      if (!center || !(await this.openNote(center))) return false;
+    }
+    return cmds.executeCommandById(id);
+  }
+
+  // 외톨이 노트 (링크가 바뀐 뒤에만 다시 센다)
+  orphanList() {
+    if (!this._orphans || this.linksDirty) {
+      this._orphans = vaultmap.orphanNotes(this.app, (p) => this.isExcludedPath(p));
+      this.linksDirty = false;
+    }
+    return this._orphans;
+  }
+
+  // 1분마다: 외톨이였던 노트가 링크를 얻었으면 '외톨이 노트 이어 주기'. 한 노트는 한 번만 센다 (state.orphanFixed 에 경로 해시)
+  orphanTick() {
+    if (!this.host || this.host.loading) return;
+    const before = this._orphanSeen;
+    const now = new Set(this.orphanList());
+    this._orphanSeen = now;
+    if (!before) return;
+    const fixed = new Set(this.state.get('orphanFixed') || []);
+    let n = 0;
+    for (const p of before) {
+      if (now.has(p) || !this.app.vault.getAbstractFileByPath(p)) continue;
+      const k = pathKey(p);
+      if (fixed.has(k)) continue;
+      fixed.add(k);
+      n++;
+    }
+    if (!n) return;
+    this.state.set({ orphanFixed: [...fixed].slice(-ORPHAN_FIXED_KEEP) });
+    this.host.noteSkill('orphanFix', n);
+  }
+
+  // 노트 이름 바꾸기 · 다른 폴더로 옮기기 (뺀 폴더 · 숨김 폴더는 안 센다). 폴더째 옮기면 한 번
+  noteRename(f, old) {
+    if (!this.host || this.host.loading || this.isExcludedPath(f.path)) return;
+    if (f instanceof TFile && !['md', 'canvas'].includes(f.extension)) return;
+    const dir = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+    this.host.noteSkill(dir(old) !== dir(f.path) ? 'move' : 'retitle');
+  }
+
+  // 옵시디언 화면을 열어 봤다 (VIEWS 에 있는 것만. 같은 화면을 다시 누른 건 안 센다)
+  noteView(leaf) {
+    const type = leaf && leaf.view && typeof leaf.view.getViewType === 'function' ? leaf.view.getViewType() : null;
+    if (!type || type === this._lastView) return;
+    this._lastView = type;
+    if (this.host && !this.host.loading && VIEWS.includes(type)) this.host.noteSkill('view_' + type);
   }
 
   // 볼트 전체 숫자 (통계의 누적 기록 · 자랑 카드)

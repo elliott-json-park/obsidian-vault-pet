@@ -260,31 +260,31 @@ const ACCESSORIES = [
   { key: 'surfboard', price: 1200, level: 52, slot: 'back' },
   { key: 'ninetails', price: 3600, level: 74, slot: 'back' },
   { key: 'monkeytail', price: 700, level: 36, slot: 'back' },
-  // 보물 공방 전용 (2026-09-24): 상점에서는 안 판다. 조합표는 main/workshop.js, 그림은 renderer/accessories-workshop-*.js
-  { key: 'capcrown', price: 0, slot: 'head', workshop: true },
-  { key: 'rubberslingshot', price: 0, slot: 'hand', workshop: true },
-  { key: 'receiptcape', price: 0, slot: 'back', workshop: true },
-  { key: 'bubblearmor', price: 0, slot: 'neck', workshop: true },
-  { key: 'dustscarf', price: 0, slot: 'neck', workshop: true },
-  { key: 'strawglasses', price: 0, slot: 'face', workshop: true },
-  { key: 'leafwreath', price: 0, slot: 'head', workshop: true },
-  { key: 'buttonnecklace', price: 0, slot: 'neck', workshop: true },
-  { key: 'toothpickrapier', price: 0, slot: 'hand', workshop: true },
-  { key: 'pigeonhat', price: 0, slot: 'head', workshop: true },
-  { key: 'candysparkle', price: 0, slot: 'effect', workshop: true },
-  { key: 'socksock', price: 0, slot: 'hand', workshop: true },
-  { key: 'esckeycap', price: 0, slot: 'neck', workshop: true },
-  { key: 'legohelm', price: 0, slot: 'head', workshop: true },
-  { key: 'coinmedal', price: 0, slot: 'neck', workshop: true },
-  { key: 'crayondoodle', price: 0, slot: 'effect', workshop: true },
-  { key: 'ddakjicape', price: 0, slot: 'back', workshop: true },
-  { key: 'staticshock', price: 0, slot: 'effect', workshop: true },
-  { key: 'cicadasuit', price: 0, slot: 'set', covers: ['head', 'neck'], workshop: true },
-  { key: 'acorncheeks', price: 0, slot: 'face', workshop: true },
-  { key: 'legendcapcrown', price: 0, slot: 'head', workshop: true },
-  { key: 'lotteryfan', price: 0, slot: 'hand', workshop: true },
-  { key: 'usbantenna', price: 0, slot: 'head', workshop: true },
-  { key: 'gatekeeper', price: 0, slot: 'set', covers: ['head', 'neck', 'back'], workshop: true },
+  // 예전 보물 공방 코스튬 (2026-09-24). 2.0.0 에 공방을 없애면서 상점 코스튬으로 옮겼다. 그림은 kit/accessories-workshop-*.js
+  { key: 'capcrown', price: 450, level: 12, slot: 'head' },
+  { key: 'rubberslingshot', price: 450, level: 12, slot: 'hand' },
+  { key: 'receiptcape', price: 450, level: 12, slot: 'back' },
+  { key: 'bubblearmor', price: 450, level: 12, slot: 'neck' },
+  { key: 'dustscarf', price: 450, level: 12, slot: 'neck' },
+  { key: 'strawglasses', price: 450, level: 12, slot: 'face' },
+  { key: 'leafwreath', price: 450, level: 12, slot: 'head' },
+  { key: 'buttonnecklace', price: 450, level: 12, slot: 'neck' },
+  { key: 'toothpickrapier', price: 450, level: 12, slot: 'hand' },
+  { key: 'pigeonhat', price: 450, level: 12, slot: 'head' },
+  { key: 'candysparkle', price: 450, level: 12, slot: 'effect' },
+  { key: 'socksock', price: 900, level: 30, slot: 'hand' },
+  { key: 'esckeycap', price: 900, level: 30, slot: 'neck' },
+  { key: 'legohelm', price: 900, level: 30, slot: 'head' },
+  { key: 'coinmedal', price: 900, level: 30, slot: 'neck' },
+  { key: 'crayondoodle', price: 900, level: 30, slot: 'effect' },
+  { key: 'ddakjicape', price: 900, level: 30, slot: 'back' },
+  { key: 'staticshock', price: 900, level: 30, slot: 'effect' },
+  { key: 'cicadasuit', price: 900, level: 30, slot: 'set', covers: ['head', 'neck'] },
+  { key: 'acorncheeks', price: 900, level: 30, slot: 'face' },
+  { key: 'legendcapcrown', price: 1600, level: 50, slot: 'head' },
+  { key: 'lotteryfan', price: 1600, level: 50, slot: 'hand' },
+  { key: 'usbantenna', price: 1600, level: 50, slot: 'head' },
+  { key: 'gatekeeper', price: 1600, level: 50, slot: 'set', covers: ['head', 'neck', 'back'] },
   // --- 7차 (2026-09-24 확정): 세트 6 · 얼굴 22 · 몸 11 · 손 6 · 효과 14. 그림은 renderer/accessories-7.js ---
   { key: 'nyangwarts', price: 2800, level: 40, slot: 'set', covers: ['head', 'neck', 'hand'] },
   { key: 'cyberhacker', price: 3800, level: 45, slot: 'set', covers: ['head', 'face', 'neck'] },
@@ -527,7 +527,6 @@ const FOODS = [
   { key: 'cloudMallow', group: 'snack', price: 400, fill: 12, premium: true }, // 먹고 잠깐 뒤 깜짝 이벤트 (2026-10-10, 예전엔 기운 +50)
   { key: 'tunaCone', group: 'snack', price: 450, fill: 40, premium: true }, // 5단이라 든든
   { key: 'macaronTower', group: 'snack', price: 500, fill: 50, premium: true }, // 10단
-  { key: 'inviteCookie', group: 'snack', price: 500, fill: 12, premium: true }, // 30% 확률로 친구가 바로 놀러 온다
   { key: 'afternoonTea', group: 'snack', price: 650, fill: 20, premium: true }, // 배부름 2시간 고정
   { key: 'dragonCandy', group: 'snack', price: 700, fill: 12, premium: true }, // 배부름 6시간 고정 = 그동안 든든 (2026-10-10, 예전엔 기운 가득)
   { key: 'goldMouseChoco', group: 'snack', price: 800, fill: 20, premium: true }, // 보물 1개 확정 (흔함·드묾)
@@ -537,7 +536,8 @@ FOODS.sort((a, b) => a.price - b.price);
 
 // 상점에서 뺀 간식 (2026-09-21 개편: 츄르·멸치·아이스크림만 남겼다). 창고에 남은 건 산 값만큼 코인으로 돌려준다
 // 2026-09-22 에 뺀 간식도 같은 식으로 (아이스크림·생쥐 앞다리·도마뱀 떡볶이·테이프 캔디·쥐돌이 크림빵)
-const RETIRED_FOODS = {'icecream': 100, 'mouseleg': 30, 'lizardtteok': 45, 'tapecandy': 20, 'goldfishjelly': 50, 'fishcookie': 40, 'strawberry': 45, 'cheese': 50, 'jerky': 60, 'yogurt': 65, 'taiyaki': 70, 'dango': 75, 'watermelon': 80, 'pudding': 90, 'croissant': 95, 'macaron': 100, 'catjelly': 110, 'catnip': 120, 'donut': 130, 'cake': 180};
+// 2.0.0: 초대장 쿠키(친구를 부르던 간식)는 동네 친구를 없애면서 뺐다
+const RETIRED_FOODS = {'inviteCookie': 500, 'icecream': 100, 'mouseleg': 30, 'lizardtteok': 45, 'tapecandy': 20, 'goldfishjelly': 50, 'fishcookie': 40, 'strawberry': 45, 'cheese': 50, 'jerky': 60, 'yogurt': 65, 'taiyaki': 70, 'dango': 75, 'watermelon': 80, 'pudding': 90, 'croissant': 95, 'macaron': 100, 'catjelly': 110, 'catnip': 120, 'donut': 130, 'cake': 180};
 
 // 이름이 바뀐 옛 간식. 창고에 남은 건 새 이름으로 옮긴다
 const RENAMED_FOODS = { cookie: 'fishcookie', fish: 'fishgrill', shrimp: 'tempura' };
@@ -577,6 +577,13 @@ const TOYS = [
   { key: 'whackcat', price: 850, level: 30 },
   { key: 'domino', price: 950, level: 39 },
   { key: 'trampoline', price: 1100, level: 48 },
+  // 4차 (2026-10-17): 지켜보는 것 둘 + 같이 하는 놀이 넷. 동작은 kit/toyplay5.js
+  { key: 'sunbeam', price: 200, level: 3 },
+  { key: 'quilt', price: 550, level: 12 },
+  { key: 'fishbowl', price: 700, level: 22 },
+  { key: 'shellgame', price: 900, level: 34 },
+  { key: 'volley', price: 1250, level: 54 },
+  { key: 'simon', price: 1600, level: 64 },
 ];
 
 // 상점에서 뺀 장난감 (2026-09-22: 종이봉투·방울공·요요). 산 사람에게는 코인을 돌려준다 (migrate)
@@ -658,7 +665,6 @@ const SET_MOTIONS = {
     'reboot'
   ],
   'overtimer': [
-    'sojushot',
     'nightcall',
     'fighting'
   ],
@@ -727,88 +733,88 @@ const RETIRED_MOTIONS = [
   { key: 'cry', price: 550 },
   { key: 'spider', price: 1300 },
   { key: 'ninja', price: 900 },
+  // 2.0.0: 옵시디언에서 하는 일과 상관없거나 어색한 모션 (술 · 담배 · 주식 · 개발 도구 · 과격한 것 · 맥락 없는 것)
+  { key: 'sojuchug', price: 900 },
+  { key: 'stockdown', price: 800 },
+  { key: 'stockup', price: 1000 },
+  { key: 'callbell', price: 550 },
+  { key: 'enterwait', price: 650 },
+  { key: 'cicheck', price: 600 },
+  { key: 'deployrocket', price: 1050 },
+  { key: 'giantfist', price: 1100 },
+  { key: 'laptoptoss', price: 1050 },
+  { key: 'drums', price: 1050 },
+  { key: 'piano', price: 1050 },
+  { key: 'electricjam', price: 1100 },
+  { key: 'ropeskip', price: 800 },
+  { key: 'fart', price: 350 },
+  { key: 'soul', price: 1150 },
+  { key: 'karaoke', price: 450 },
+  { key: 'gum', price: 400 },
+  { key: 'ghost', price: 350 },
+  { key: 'rocket', price: 1200 },
+  { key: 'explode', price: 1100 },
+  { key: 'smoke', price: 850 },
+  { key: 'soju', price: 850 },
+  { key: 'ufo', price: 1200 },
+  { key: 'skullsmoke', price: 950 },
+  { key: 'lightning', price: 900 },
+  { key: 'monitors', price: 750 },
+  { key: 'grumpy', price: 400 },
+  { key: 'soulcode', price: 1150 },
+  { key: 'ivcoffee', price: 1150 },
+  { key: 'pray', price: 450 },
+  { key: 'bigbutton', price: 550 },
+  { key: 'airpunch', price: 550 },
 ];
 
-// 상점에서 파는 모션 (전부 B급). rec = 권장 자리. 권장일 뿐이고 산 모션은 어느 자리에든 끼울 수 있다
+// 모션 (2.0.0): 돈 주고 사는 물건이 아니다. 처음부터 모두 열려 있고, 상점에는 안 나온다. 하우스 설정에서 상황마다 고르고 끈다.
+// rec = 권장 자리. 권장일 뿐이고 어느 자리에든 끼울 수 있다
 const MOTIONS = [
-  // --- 10차 (2026-09-29 확정) ---
-  { key: 'sojuchug', rec: ['idle', 'rest'], price: 900, level: 36 },
-  { key: 'ramenslurp', rec: ['idle', 'hungry'], price: 650, level: 20 },
-  { key: 'darkmode', rec: ['idle'], price: 750, level: 25 },
-  { key: 'stockdown', rec: ['idle', 'workHour'], price: 800, level: 30 },
-  { key: 'stockup', rec: ['idle', 'done'], price: 1000, level: 45 },
-  { key: 'callbell', rec: ['waiting'], price: 550, level: 10 },
-  { key: 'enterwait', rec: ['waiting'], price: 650, level: 20 },
-  { key: 'staticfur', rec: ['poke'], price: 850, level: 33 },
-  { key: 'bowlcarry', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'cicheck', rec: ['done'], price: 600, level: 15 },
-  { key: 'deployrocket', rec: ['done', 'levelup'], price: 1050, level: 48 },
-  { key: 'donebell', rec: ['done'], price: 450, level: 5 },
-  // --- 6차 (2026-09-23 확정) ---
-  { key: 'giantfist', rec: ['workLong', 'workHour'], price: 1100, level: 54 },
-  { key: 'trophy', rec: ['done', 'levelup'], price: 1000, level: 45 },
-  { key: 'laptoptoss', rec: ['rest'], price: 1050, level: 50 },
-  { key: 'smokereveal', rec: ['wear'], price: 950, level: 42 },
-  { key: 'curtainreveal', rec: ['wear'], price: 1050, level: 48 },
-  { key: 'drums', rec: ['idle'], price: 1050, level: 48 },
-  { key: 'piano', rec: ['idle'], price: 1050, level: 50 },
-  { key: 'electricjam', rec: ['idle'], price: 1100, level: 52 },
-  { key: 'ropeskip', rec: ['idle'], price: 800, level: 30 },
-  { key: 'sneeze', rec: ['idle'], price: 300 },
-  { key: 'hiccup', rec: ['idle'], price: 300 },
-  { key: 'fart', rec: ['idle'], price: 350 },
-  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'], price: 600, level: 15 },
-  { key: 'snot', rec: ['sleep'], price: 1000, level: 45 },
-  { key: 'workout', rec: ['rest', 'idle'], price: 1050, level: 48 },
-  { key: 'soul', rec: ['rest', 'workHour'], price: 1150, level: 56 },
-  { key: 'cafe', rec: ['rest', 'idle'], price: 600, level: 15 },
-  { key: 'karaoke', rec: ['idle', 'levelup'], price: 450, level: 5 },
-  { key: 'gum', rec: ['idle'], price: 400 },
-  { key: 'ghost', rec: ['idle'], price: 350 },
-  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'], price: 400 },
-  { key: 'rocket', rec: ['levelup', 'done'], price: 1200, level: 60 },
-  { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
-  { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
-  { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
-  { key: 'bubbleplay', rec: ['idle'], price: 350 }, // 2026-10-04 'bubbles' → 'bubbleplay' (장난감 비눗방울과 키가 겹쳤다. migrateKeys)
-  { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
-  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
-  { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
-  { key: 'lightning', rec: ['idle', 'workHour'], price: 900, level: 39 },
-  { key: 'monitors', rec: ['work', 'workLong'], price: 750, level: 25 },
-  { key: 'papers', rec: ['workLong', 'workHour'], price: 950, level: 42 },
-  { key: 'aura', rec: ['workHour'], price: 1150, level: 58 },
-  { key: 'tapfoot', rec: ['waiting'], price: 550, level: 10 },
-  { key: 'blanket', rec: ['sleep'], price: 550, level: 10 },
-  { key: 'grumpy', rec: ['poke'], price: 400 },
-  { key: 'startle', rec: ['poke'], price: 900, level: 36 },
-  { key: 'melt', rec: ['poke'], price: 900, level: 39 },
-  { key: 'popper', rec: ['done', 'levelup'], price: 800, level: 30 },
-  { key: 'coronation', rec: ['levelup', 'wear'], price: 1100, level: 52 },
-  { key: 'levelbanner', rec: ['levelup'], price: 900, level: 36 },
-  { key: 'hammock', rec: ['rest', 'sleep'], price: 900, level: 36 },
-  { key: 'fooddream', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'sipcode', rec: ['work'], price: 800, level: 30 },
-  { key: 'headbang', rec: ['work', 'workLong'], price: 750, level: 25 },
-  { key: 'eureka', rec: ['work'], price: 600, level: 15 },
-  { key: 'smokingkeys', rec: ['workLong', 'workHour'], price: 1000, level: 45 },
-  { key: 'soulcode', rec: ['workHour'], price: 1150, level: 58 },
-  { key: 'ivcoffee', rec: ['workHour'], price: 1150, level: 56 },
-  { key: 'overheat', rec: ['workHour'], price: 1150, level: 56 },
-  { key: 'raisehand', rec: ['waiting'], price: 450, level: 5 },
-  { key: 'pray', rec: ['waiting'], price: 450, level: 5 },
-  { key: 'fishdream', rec: ['sleep'], price: 650, level: 20 },
-  { key: 'slowblink', rec: ['poke'], price: 850, level: 33 },
-  { key: 'shinyfur', rec: ['poke', 'wear'], price: 800, level: 30 },
-  { key: 'donebanner', rec: ['done'], price: 600, level: 15 },
-  { key: 'bigbutton', rec: ['done'], price: 550, level: 10 },
-  { key: 'glowup', rec: ['levelup', 'wear'], price: 1100, level: 54 },
-  { key: 'fireworksbg', rec: ['levelup', 'done'], price: 1100, level: 54 },
-  { key: 'teatime', rec: ['rest'], price: 900, level: 39 },
-  { key: 'foodsign', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'paperplane', rec: ['idle'], price: 750, level: 25 },
-  { key: 'airpunch', rec: ['idle'], price: 550, level: 10 },
-  { key: 'knitting', rec: ['idle', 'rest'], price: 750, level: 25 },
+  { key: 'ramenslurp', rec: ['idle', 'hungry'] },
+  { key: 'darkmode', rec: ['idle'] },
+  { key: 'staticfur', rec: ['poke'] },
+  { key: 'bowlcarry', rec: ['hungry'] },
+  { key: 'donebell', rec: ['done'] },
+  { key: 'trophy', rec: ['done', 'levelup'] },
+  { key: 'smokereveal', rec: ['wear'] },
+  { key: 'curtainreveal', rec: ['wear'] },
+  { key: 'sneeze', rec: ['idle'] },
+  { key: 'hiccup', rec: ['idle'] },
+  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'] },
+  { key: 'snot', rec: ['sleep'] },
+  { key: 'workout', rec: ['rest', 'idle'] },
+  { key: 'cafe', rec: ['rest', 'idle'] },
+  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'] },
+  { key: 'bubbleplay', rec: ['idle'] }, // 2026-10-04 'bubbles' → 'bubbleplay' (장난감 비눗방울과 키가 겹쳤다. migrateKeys)
+  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'] },
+  { key: 'papers', rec: ['workLong', 'workHour'] },
+  { key: 'aura', rec: ['workHour'] },
+  { key: 'tapfoot', rec: ['waiting'] },
+  { key: 'blanket', rec: ['sleep'] },
+  { key: 'startle', rec: ['poke'] },
+  { key: 'melt', rec: ['poke'] },
+  { key: 'popper', rec: ['done', 'levelup'] },
+  { key: 'coronation', rec: ['levelup', 'wear'] },
+  { key: 'levelbanner', rec: ['levelup'] },
+  { key: 'hammock', rec: ['rest', 'sleep'] },
+  { key: 'fooddream', rec: ['hungry'] },
+  { key: 'sipcode', rec: ['work'] },
+  { key: 'headbang', rec: ['work', 'workLong'] },
+  { key: 'eureka', rec: ['work'] },
+  { key: 'smokingkeys', rec: ['workLong', 'workHour'] },
+  { key: 'overheat', rec: ['workHour'] },
+  { key: 'raisehand', rec: ['waiting'] },
+  { key: 'fishdream', rec: ['sleep'] },
+  { key: 'slowblink', rec: ['poke'] },
+  { key: 'shinyfur', rec: ['poke', 'wear'] },
+  { key: 'donebanner', rec: ['done'] },
+  { key: 'glowup', rec: ['levelup', 'wear'] },
+  { key: 'fireworksbg', rec: ['levelup', 'done'] },
+  { key: 'teatime', rec: ['rest'] },
+  { key: 'foodsign', rec: ['hungry'] },
+  { key: 'paperplane', rec: ['idle'] },
+  { key: 'knitting', rec: ['idle', 'rest'] },
 ];
 
 // 모션의 권장 자리들. '일할 때' · '30분 넘게' · '1시간 넘게' 는 서로 호환이라 셋 중 하나에 맞으면 셋 다 권장
@@ -961,7 +967,7 @@ class Shop {
   blocker(key) {
     const it = find(key);
     if (!it) return 'missing';
-    if (it.workshop) return 'workshop'; // 공방에서만 만든다
+    if (it.kind === 'motion') return 'motion'; // 모션은 사는 물건이 아니다 (2.0.0: 처음부터 다 열려 있다)
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
     if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
     if (this.dev()) return null;
@@ -1037,15 +1043,14 @@ class Shop {
     return it;
   }
 
-  // 이 자리에 이 모션을 끼울 수 있나. 그 자리의 기본 모션, 공짜 모션, 산 모션이면 어디든 된다
+  // 이 자리에 이 모션을 끼울 수 있나. 2.0.0 부터 모션은 모두 열려 있어서 어느 자리에든 된다
   // (기본 자세 type·curl 등은 원래 자리에서만)
   canUseMotion(slot, key) {
     const s = slotOf(slot);
     if (!s) return false;
     if (s.free.includes(key)) return true;
     if (BASIC_POSES.has(key)) return false;
-    if (FREE_MOTIONS.has(key)) return true;
-    return !!find(key, 'motion') && this.owned(key);
+    return FREE_MOTIONS.has(key) || !!find(key, 'motion');
   }
 
   // 업적 보상 넣어 주기. { food: { 키: 개수 } } 는 창고에, { item: 키 } 는 옷장에.
@@ -1211,8 +1216,10 @@ class Shop {
     const items = this.state.get('items') || [];
     const gone = [...RETIRED_ACCESSORIES, ...RETIRED_TOYS, ...RETIRED_MOTIONS].filter((r) => items.includes(r.key));
     if (gone.length) {
-      refund += gone.reduce((a, r) => a + r.price, 0);
-      this.state.set({ items: items.filter((k) => !gone.some((r) => r.key === k)) });
+      // 2.0.0: 돌려준 물건은 retiredPaid 에 적는다. 다른 기기(옛 버전)의 옷장이 합쳐지며 그 키가 되살아나도 두 번 돌려주지 않는다
+      const paid = this.state.get('retiredPaid') || [];
+      refund += gone.filter((r) => !paid.includes(r.key)).reduce((a, r) => a + r.price, 0);
+      this.state.set({ items: items.filter((k) => !gone.some((r) => r.key === k)), retiredPaid: [...new Set([...paid, ...gone.map((r) => r.key)])] });
     }
     if (refund) {
       // 쓴 코인보다 돌려줄 게 많으면 남는 건 보너스로 (잃는 코인이 없게)
@@ -1247,13 +1254,12 @@ class Shop {
     return {
       wallet: this.wallet(),
       dev: this.dev(),
-      // 보물 공방 코스튬(workshop)은 상점에 안 나온다. 공방에서 보물로 만든다 (main/workshop.js)
-      acc: ACCESSORIES.filter((x) => !x.workshop && !isStar(x) && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
+      acc: ACCESSORIES.filter((x) => !isStar(x) && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
       // 별 상점: 털색 먼저, 그다음 코스튬. 별 값 순
       star: [...STAR_FURS.map((x) => row({ ...x, kind: 'fur' })), ...ACCESSORIES.filter(isStar).map((x) => row({ ...x, kind: 'acc' }))].sort((a, b) => a.stars - b.stars),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
-      motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })),
+      motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })), // 상점에는 안 나온다. 설정의 모션 고르기가 이름 · 권장 자리를 쓴다
       slots: MOTION_SLOTS,
       setMotions: SET_MOTIONS, // 세트 카드의 '전용 모션' 버튼이 쓴다
     };

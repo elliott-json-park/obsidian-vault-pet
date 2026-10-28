@@ -1,42 +1,60 @@
 # Vault Pet
 
-**A pixel cat that lives at the bottom of your vault and grows every time you write.**
+**A pixel cat that lives at the bottom of your vault, helps you build good note habits and grows every time you write.**
 
 ![A big pixel cat typing on a tiny laptop next to the headline "Write a little. Watch your cat grow.", with a daily word goal, focus sessions, finished tasks and 320 costumes listed beside it, and Mochi's status bar showing 231 of 300 words.](docs/listing/1-hero.png)
 
-Vault Pet turns writing into a cozy little game with a goal you can see. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from what you put into your notes. Set a daily word goal and watch the bar in your status bar fill, start a focus session and your cat keeps you quiet company, and check off tasks to feed it too. Spend the coins on costumes, toys and snacks, clear daily quests, collect badges, and watch your cat grow alongside your notes.
+Vault Pet turns writing into a cozy little game with a goal you can see. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from what you put into your notes. Its house has a **Home** made for working in Obsidian: today's goal, a focus timer with breaks, a to-do list, quests that teach good note habits (links, tags, daily notes, properties, tidying up), a small map of the notes around the one you're in, and your recent notes. Spend the coins on costumes, toys and snacks, collect badges, and watch your cat grow alongside your notes.
 
 ![Mochi the cat pulls out a tiny laptop and types along, a thought bubble over its head, while a paragraph of a novel is being written in the note above.](docs/typing.gif)
 
 ## Why you'll love it
 
+- **A Home for getting things done.** Today's goal, a focus timer, a to-do list, today's quests, a note map and your recent notes, all on one screen. Every section folds away, and it reads fine in the narrow right sidebar too.
+- **It never touches your notes.** The to-do list lives inside Vault Pet. Nothing on the Home creates, edits or deletes a note; it only opens notes that already exist.
+- **Quests that teach Obsidian.** Three a day: add a tag, write in your daily note, add a property, link an orphan note, move a note into a folder, open the graph view… Each one has a one-line "how" for first-timers.
 - **A daily goal you can see.** Pick a goal like 300 words (or 1,000 characters) a day. A small bar in the status bar fills as you write, and on days you reach it your cat celebrates and pays you 100 coins. Keep it going for a goal streak.
-- **Focus sessions with a friend.** Start a 15, 25 or 50 minute focus session from the status bar, the cat's menu or the command palette. Your cat stops chatting, shows the time left above its head and cheers when you're done.
+- **Focus sessions with breaks.** Start a 15, 25 or 50 minute focus session from the Home, the status bar or the command palette. Your cat stops chatting, shows the time left above its head and cheers when you're done. Then take a 5 or 10 minute break and it calls you back.
 - **Writing and tasks both count.** Characters, links, new notes, writing sessions and every task you check off turn into XP and coins, so a day of to-dos feeds your cat too.
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
-- **It knows when to talk.** Small talk waits for your breaks instead of interrupting a sentence, and it remembers what happened: the late night you wrote until 1 AM, the snack it always gets, the friend who dropped by.
-- **There's a lot to collect.** 320 costumes (56 of them endgame star costumes), 76 motions, 30 toys and mini-games, 18 premium dishes, 20 fur colors, 13 ear shapes, 176 badges and a treasure workshop.
+- **It knows when to talk.** Small talk waits for your breaks instead of interrupting a sentence, and it remembers what happened: the late night you wrote until 1 AM, the snack it always gets.
+- **There's a lot to collect.** 344 costumes (56 of them endgame star costumes), 36 toys and mini-games, 17 premium dishes, 20 fur colors, 13 ear shapes and 171 badges. All 60 motions are free from the start: pick them per situation or switch them off.
 - **It never runs out.** Levels stop at Lv.80, and from then on your writing earns stars for a shop of its own.
 - **It's fair.** Only real new writing counts. Deleting and retyping, undo, pasting or dragging text in, and restoring a deleted note earn nothing.
 - **It's private.** Your notes are only read, never stored or sent anywhere. No network access at all.
+
+## Home
+
+![The house Home in English: today's goal at 0 of 300 words with 15, 25 and 50 minute focus lengths, a Focus 25 min button and 5 and 10 minute breaks, then a to-do list with three to-dos and one done.](docs/home.png)
+
+- **Today's goal and focus timer** at the top. Pick 15, 25 or 50 minutes and start; when you're done, start a 5 or 10 minute break right there. It shows how many sessions you finished today.
+- **To-do.** Type and press Enter. Check it off and your cat hops; double-click to edit; reorder with the arrows; done ones fold away. Saved inside Vault Pet only (synced with your plugin data), so no notes are created. Finishing to-dos counts for quests and badges.
+- **Current quests.** Three a day (hard, normal, easy), each with a short hint on how to do it. The orphan-note quest lists a few notes with no links so you can open one and link it.
+- **Note map.** A small graph of the note you have open and the notes up to two links away. Click a dot to open that note, or jump to Obsidian's **Local graph** or **Graph view**. Below it: how many notes, links and orphan notes your vault has.
+- **Recent notes.** The notes you opened last, one click away, and how many you edited today.
+- **Today's numbers and your cat.** Words or characters, links, new notes, finished tasks and your streak, then your level and fullness (with a Feed button).
+
+![Current quests: add 6 headings, add 5 links and finish a to-do on Home, each with a progress bar and a one-line hint, then the note map with Local graph and Graph view buttons.](docs/quests.png)
+
+![The note map: the open note in the middle with the notes linked to it around it, and a line counting notes, links and orphan notes in the vault.](docs/note-map.png)
 
 ## Daily goal and focus sessions
 
 ![Writing a novel chapter on the left while the house on the right shows today's goal at 231 of 300 words (77%), a 12-day goal streak and a focus session with 23:33 left. Down on the floor, Mochi wears a wizard hat with a 23:34 timer above its head.](docs/listing/2-goal-focus.png)
 
 - **Daily goal.** Count in words (English and other languages written with spaces) or characters (Korean, Chinese, Japanese). Choose 100, 300, 500 or 1,000 words, 1,667 for a 50K-words-in-a-month challenge, or any number you like. The house home shows a ring, how much is left, the last seven days and your goal streak. Change it from the house, the house settings or Obsidian's plugin settings.
-- **Focus sessions.** Click your cat's name in the status bar → **Start a focus session**, or run **Start focus session** from the command palette. Until it ends, your cat stays quiet (Do Not Disturb), a timer floats above its head and the status bar counts down. Finish for 2 coins and 1 XP per minute. Stop early and nothing bad happens.
+- **Focus sessions.** Press **Focus** on the Home, click your cat's name in the status bar → **Start a focus session**, or run **Start focus session** from the command palette. Until it ends, your cat stays quiet (Do Not Disturb), a timer floats above its head and the status bar counts down. Finish for 2 coins and 1 XP per minute, then take a 5 or 10 minute break if you like. Stop early and nothing bad happens.
 - **Fair, as always.** The goal counts the same new writing as XP: pasted text and retyped text don't count.
 
 ## Meet your cat
 
-Your cat lives on the floor of your workspace, just above the status bar. It naps, wanders, chases bugs, grooms itself, and has a mood of the day: some days it's calm, some days it's playful, and some days it really doesn't want to be petted.
+Your cat lives on the floor of your workspace, just above the status bar. It naps, wanders, chases bugs and grooms itself, and it keeps things calm while you work.
 
 | Action | What happens |
 |---|---|
 | Click | Pet it (hearts). Your cursor stays right where it was in your note |
-| Rub side to side | It purrs. On a grumpy day, you might get a paw swat |
+| Rub side to side | It purrs |
 | Drag | Pick it up and move it (it dangles, then lands) |
 | Double-click | Open the house |
 | Right-click | Feed it, give a snack, pull out a toy, quiet mode, hide, reset position |
@@ -44,7 +62,6 @@ Your cat lives on the floor of your workspace, just above the status bar. It nap
 
 Clicks on the empty parts of the floor pass straight through to Obsidian, so your cat never gets in the way.
 
-![Mochi in a wizard hat catches a red ball and cheers "Hunt successful!!" while Dust, a gray neighbor cat, drops by for a visit.](docs/kitcommit-floor.png)
 
 ![Right-clicking the cat opens a menu with its fullness, today's writing, feeding, snacks, toys, size, mute, quiet mode and more, each with its own pixel icon.](docs/kitcommit-menu.png)
 
@@ -74,6 +91,7 @@ Stars = after Lv.80, one star for every 2,000 XP (each star also pays 500 coins)
 - **Writing sessions**: starting to write again after a break of 30+ minutes.
 - **Finished tasks**: each `- [ ]` you check off. Unchecking and checking again only counts once.
 - **Bonuses**: your daily goal (+50 XP), focus sessions (+1 XP a minute), daily quests, badges and your daily check-in streak. Long streaks also pay coins at 30, 50, 100, 200 and 365 days.
+- **Habits** (for quests and badges, not XP on their own): tags, headings, properties, embeds and callouts you add, characters written in your daily note (it follows the core Daily notes folder and date format), notes you move or rename, orphan notes you link, Home to-dos you finish, and Obsidian panes you open (graph, local graph, search, backlinks, outgoing links, outline, tags, bookmarks).
 
 Growth starts on the day you install. Vault Pet takes one quick look at your vault to remember how long each note already is, so writing you did before doesn't count (the welcome screen shows, just for fun, what level you'd be if it did).
 
@@ -81,17 +99,14 @@ Growth starts on the day you install. Vault Pet takes one quick look at your vau
 
 Everything you write fills your wallet. The first 5,000 characters each day earn 1 coin per 5 characters, and after that 1 coin per 25. Every finished task is 5 coins, reaching your daily goal is 100 and a focus session pays 2 a minute. You also get 1,000 coins as a welcome gift.
 
-![The shop: 14,772 coins in the wallet, pages for meals, snacks, costumes, motions, toys and the star shop, and costume cards for a sprout pin, a gentleman mustache, a face mask and a bell collar.](docs/kitcommit-shop.png)
-
 | Category | What you get |
 |---|---|
-| Meals and snacks | Fill your cat's fullness. It walks over and eats them off the floor. A full cat (50+) finds treasures and gets neighbor visits more often, and a hungry one still plays. Every day it craves one meal and one snack: feed those and you get half the price back. Premium dishes do something extra: keep it full for hours, hide a treasure, tell a fortune or invite a friend over |
-| Costumes | 264 pieces across head, face, body, back, hand, effect and full sets. Layer one per slot, save up to three outfits |
-| Motions | 76 moves for any moment: writing, finishing a stretch, leveling up, bedtime, idle time and more. A motion you buy goes straight into the situation you were browsing |
-| Toys | 30 toys and mini-games: balls, yarn, a laser pointer, bubbles, a cat wheel, a slot machine, whack-a-cat, rock-paper-scissors, tug of war, a trampoline… After a long stretch of writing, your cat sometimes brings one over during your break. Click the bubble to play |
+| Meals and snacks | Fill your cat's fullness. It walks over and eats them off the floor. Fullness is a bonus, not a penalty: a hungry cat just asks for food now and then, and still plays. Premium dishes do something extra: keep it full for hours, give coins, tell a fortune or give the cat the zoomies |
+| Costumes | 288 pieces across head, face, body, back, hand, effect and full sets. Layer one per slot, save up to three outfits |
+| Toys | 36 toys and mini-games: balls, yarn, a laser pointer, bubbles, a sunbeam, a fishbowl, a cat wheel, a slot machine, whack-a-cat, find-the-cat, beach ball volley, a paw piano, tug of war, a trampoline… After a long stretch of writing, your cat sometimes brings one over during your break. Click the bubble to play |
 | Star shop | 56 endgame costumes (celestial crowns, six-winged angel wings, a cat that becomes the sun…) and 3 animated fur colors (aurora, neon, hologram), bought only with stars |
 
-New items unlock as you level up, all the way to Lv.80. Locked items show a faint preview, so you can see what you're working toward.
+New items unlock as you level up, all the way to Lv.80. Locked items show a faint preview, so you can see what you're working toward. Motions aren't sold: all 60 are yours from the start (see Settings).
 
 ![The star shop before Lv.80: endgame sets like Nebula Dragoon, Phoenix King, Lord of the Deep and World Tree Warden shown as faint locked previews, each priced in stars.](docs/kitcommit-starshop.png)
 
@@ -99,12 +114,8 @@ New items unlock as you level up, all the way to Lv.80. Locked items show a fain
 
 ## Quests, badges and more
 
-- **Three daily quests** (hard, normal, easy): write characters, add links, fill new notes, open notes, pet your cat, feed it, take a real break… They pay out the moment you finish.
-- **Today's news** on the home tab keeps every badge, reward and visit from today, even the ones you missed while in quiet mode. Several badges at once arrive as a single bubble.
-- **176 badges** across writing, **goals and focus**, links, new notes, sessions, streaks, daily rhythm, bonding, collecting and **using Obsidian**: tags, finished tasks, headings, embeds, callouts, daily notes, canvases and hub notes with lots of backlinks.
-- **Neighbor cats** drop by every couple of hours. Trade treasures, share a snack and become best friends, then call them over or gift them costumes.
-- **Surprise events**: your cat might dash off screen and come back with a tiny treasure, or chase a bird across your workspace.
-- **Treasure workshop**: craft exclusive costumes out of the treasures you find. The treasure exchange turns spare treasures into the ones you need, and every crafted costume remembers what it was made from.
+- **Three daily quests** (hard, normal, easy), all about using Obsidian well: write, add links or tags, write in your daily note, add headings or properties, check off tasks, try an embed or callout, tidy notes into folders, link orphan notes, finish a focus session or a to-do, look around the graph view. Each comes with a one-line hint, and they pay out the moment you finish.
+- **171 badges** across writing, **goals, focus and to-dos**, links, new notes, sessions, **using Obsidian** (tags, tasks, headings, embeds, callouts, daily notes, canvases, the graph, search, backlinks and outline panes) and **tidy habits** (properties, moving and renaming notes, rescuing orphan notes), plus streaks, daily rhythm, your cat and collecting. Several badges at once arrive as a single bubble.
 - **Once a day, your cat asks you something**: did you eat lunch, when are you going to bed, are you busy today. Say you're busy and it keeps the small talk to itself for two hours.
 
 ![The awards tab: 33 of 165 badges, with writing badges like First letter, Warming up, One page and A short story, each with its reward and the date it was earned.](docs/kitcommit-achievements.png)
@@ -132,7 +143,7 @@ Open the house (cat face in the ribbon, or double-click the cat; your cat's name
 - Language (English, 한국어, 中文). It starts in the language your Obsidian is set to
 - Speech bubbles, small talk, occasional Obsidian tips
 - Lunch and dinner times, break reminder, when to get sleepy, bedtime, late-night nagging
-- Motions for every situation, with a drag-and-drop editor
+- Motions for every situation, with a drag-and-drop editor. All motions are unlocked; switch a situation off to skip its motion, and choose whether full-set costumes mix in their own motions
 - Folders that count toward growth (untick a folder to leave it out, or open its subfolders to leave out just one, like a planning folder next to your chapters)
 - **Low power mode**: fewer frames and less wandering, to save battery
 - Show or hide the cat on screen, reset its position, see what's new again, start over
@@ -183,10 +194,12 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 | Access | Why | When |
 |---|---|---|
 | **List of notes in your vault** | To remember how long each note already is, so writing you did before installing never counts, and to catch up on notes changed while Obsidian was closed | Once on first run, then only notes whose modified time changed. Folders you untick in the settings are skipped |
-| **Reading notes** | To count new characters, links, tags, tasks, headings, embeds and callouts | Only when a note changes. Contents are never stored |
+| **Reading notes** | To count new characters, links, tags, tasks, headings, embeds, callouts and properties | Only when a note changes. Contents are never stored |
+| **Links between notes, recent notes, open panes** | For the Home note map, the orphan-note quest, recent notes and pane-opening quests and badges, using what Obsidian already knows (its link index, recently opened files, which pane is active) | While Obsidian runs. Only counts are saved, plus short hashes of notes already counted as linked |
+| **Opening notes and the graph view** | Clicking a note on the Home, or the Local graph and Graph view buttons | Only when you click. It opens existing notes and Obsidian's own graph commands; it never creates notes |
 | **Clipboard (write)** | The **Copy image** and **Copy caption** buttons on the show-off card | Only when you press one of them |
 | **Text you paste or drop into a note** | So pasted text doesn't turn into XP and coins | Only at the moment you paste or drop it into a note. Only its length is measured; the text is never stored. Vault Pet never reads your clipboard at any other time |
-| **Plugin data file** | Your cat, wallet, badges and hourly writing totals | `.obsidian/plugins/vault-pet/data.json`. The only other thing kept is a device name (next row) |
+| **Plugin data file** | Your cat, wallet, badges, hourly writing totals and your Home to-do list | `.obsidian/plugins/vault-pet/data.json`. The only other thing kept is a device name (next row) |
 | **Backup of the data file** | To bring your cat back if `data.json` is ever damaged (a crash mid-save, a sync conflict) | Once a day, a copy is written next to it as `data.backup.json`. A damaged file is kept as `data.broken-<time>.json` rather than deleted. Before merging changes from another device, this device's copy is kept as `data.premerge.json` (at most every 10 minutes) |
 | **A device name** | So two devices that sync the same vault merge their progress instead of overwriting each other | Made once and kept in Obsidian's local storage on this device, where it never syncs. It's a random string with nothing about you or the device in it |
 | **Your browser (link only)** | The **Send feedback** button | Only when you press it. It opens this repository's issue page. Vault Pet itself still makes no network requests |
@@ -196,6 +209,10 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 **I don't write much. I mostly use Obsidian for tasks and daily notes.** That works too. Every task you check off is 5 XP and 5 coins, new notes and links count, and you can set a small daily goal (or turn it off).
 
 **Does the goal count words or characters?** Your choice. English starts with words, Korean and Chinese with characters. Words are counted like Obsidian does: Chinese and Japanese characters count one word each.
+
+**Does the Home create notes?** No. The to-do list is stored in Vault Pet's own data file, and the note map, recent notes and orphan-note list only read your vault. Clicking a note opens one that already exists; a note that's gone is never re-created.
+
+**I bought motions before 2.0. What happened to them?** Every motion is free now, so the ones you kept are simply yours. Motions that were retired in 2.0 (they didn't fit writing in Obsidian) were refunded at the price you paid, leftover treasures became coins, and costumes you crafted in the old workshop are still in your wardrobe (they're in the shop now too).
 
 **Will old notes level up my cat?** No. Growth starts when you install. Adding to an old note later counts, but only the new part.
 
@@ -215,7 +232,7 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 ### 中文
 
-**Vault Pet** 是一只会随着你在 Obsidian 里写作而成长的像素小猫。它待在工作区底部陪你一起打字，你写下的字数、链接和新笔记都会变成经验值和金币。设定每日目标（字数或单词数），状态栏的进度条会随着写作填满，达成时猫咪会庆祝并送你金币；开始 15、25 或 50 分钟的专注时段，猫咪会安静地陪着你，头顶显示剩余时间。完成的任务也能换经验和金币。320 套装扮、76 个动作、30 种玩具和小游戏、每日任务、176 枚成就徽章、来串门的街坊好友……写得越多，玩得越多。粘贴进来的文字和从回收站恢复的笔记不计数；笔记内容只会被读取统计，不会被保存或发送到任何地方。
+**Vault Pet** 是一只陪你养成 Obsidian 好习惯、随着写作而成长的像素小猫。它待在工作区底部陪你一起打字，你写下的字数、链接和新笔记都会变成经验值和金币。小屋的「主页」专为写作准备：今日目标、带休息的专注计时、待办清单、教你用好 Obsidian 的每日任务（链接、标签、日记、属性、整理笔记、连起孤立笔记）、当前笔记周围的笔记地图和最近的笔记。待办只保存在插件里，主页不会新建或修改任何笔记。344 套装扮、36 种玩具和小游戏、171 枚成就徽章，60 个动作一开始全部免费，可以按情境挑选或关闭。粘贴进来的文字和从回收站恢复的笔记不计数；笔记内容只会被读取统计，不会被保存或发送到任何地方。
 
 - **自带中文界面**：猫咪的对话、小屋、商店、成就、设置和命令全部支持简体中文。
 - 首次安装时会跟随 Obsidian 的界面语言（中文则自动选中文）。
@@ -225,7 +242,7 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 
 ### 한국어
 
-**Vault Pet(볼트 펫)** 은 옵시디언에 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 하루 목표(글자 또는 단어)를 정하면 상태 표시줄 막대가 차오르고, 다 채운 날 고양이가 축하하며 코인을 줘요. 15 · 25 · 50분 집중 시간을 켜면 고양이가 조용히 곁을 지키며 머리 위에 남은 시간을 띄워요. 체크한 할 일도 경험치 · 코인이 돼요. 코스튬 320개(별로만 사는 끝판왕 코스튬 56개 포함), 모션 76개, 장난감·미니게임 30개, 프리미엄 밥·간식 18가지, 귀 모양 13가지, 일일 퀘스트, 업적 176개, 놀러 오는 동네 친구, 보물 공방과 교환소까지. Lv80 다음에는 별이 쌓이고, 날마다 먹고 싶은 것을 조르고, 기간·칸·색을 골라 나만의 자랑 카드를 만들 수 있어요. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
+**Vault Pet(볼트 펫)** 은 옵시디언 쓰는 습관을 같이 들이고, 글을 쓸수록 자라는 도트 고양이예요. 작업 영역 바닥에서 같이 타이핑하고, 쓴 글자·링크·새 노트가 경험치와 코인이 돼요. 하우스의 **홈**은 옵시디언으로 일할 때 필요한 것들로 채웠어요: 오늘의 목표, 쉬는 시간까지 이어지는 집중 타이머, 할 일 목록, 옵시디언을 잘 쓰게 돕는 오늘 퀘스트(링크 · 태그 · 데일리 노트 · 속성 · 노트 정리 · 외톨이 노트 잇기), 지금 노트 둘레의 노트 지도, 최근 노트. 할 일은 플러그인 안에만 저장되고, 홈은 노트를 만들거나 고치지 않아요. 코스튬 344개(별로만 사는 끝판왕 코스튬 56개 포함), 장난감·미니게임 36개, 업적 171개, 모션 60개는 처음부터 모두 공짜라 상황마다 고르거나 끌 수 있어요. Lv80 다음에는 별이 쌓이고, 기간·칸·색을 골라 나만의 자랑 카드를 만들 수 있어요. 붙여 넣은 글이나 지웠다 되살린 노트는 세지 않고, 노트 내용은 읽기만 할 뿐 어디에도 저장하거나 보내지 않아요. 고양이 언어는 옵시디언 언어 설정을 따라 처음에 정해지고, 하우스 설정에서 바꿀 수 있어요.
 
 Claude Code·Codex 로 일한다면, AI 토큰 사용량을 코인으로 바꿔 주는 데스크톱판 **[킷커밋(Kit Commit)](https://elliott-json-park.github.io/kitcommit-releases/ko/)** 도 무료로 받을 수 있어요 (윈도우·맥).
 

@@ -46,6 +46,7 @@ const I18N = require(path.join(src, 'kit/i18n'));
 globalThis.I18N = I18N;
 require(path.join(src, 'kit/i18n-obsidian'));
 require(path.join(src, 'kit/i18n-goals'));
+require(path.join(src, 'kit/i18n-v2'));
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -62,7 +63,8 @@ test('measure: 글자·링크·옵시디언 기능을 센다', () => {
   assert.strictEqual(m.embed, 1);
   assert.strictEqual(m.callout, 1);
   assert.ok(m.chars > 10);
-  assert.deepStrictEqual(measure(''), { chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0 });
+  assert.deepStrictEqual(measure(''), { chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0, prop: 0 });
+  assert.strictEqual(m.prop, 1, '앞머리 속성 tags (2.0.0)');
 });
 
 test('usage: 처음 본 노트는 기준만 잡고, 늘어난 만큼만 센다 (지웠다 다시 쓰기는 0)', () => {
@@ -157,7 +159,7 @@ test('achievements: 아이디가 겹치지 않고, 이름·설명·묶음 이름
 });
 
 test('i18n: 퀘스트·홈·설정 글에 Claude·토큰 이야기가 안 남았다', () => {
-  const keys = ['quest.chars', 'quest.links', 'quest.notes', 'quest.sessions', 'quest.opens', 'home.todayChars', 'shop.sub', 'shop.rate', 'dash.sub', 'mood.thinking', 'mood.waiting', 'slot.workSub', 'slot.doneSub', 'set.projectsSub', 'w.body1', 'w.privacy', 'card.headline', 'card.shareText', 'tray.today'];
+  const keys = ['quest.chars', 'quest.links', 'quest.notes', 'quest.tags', 'quest.daily', 'quest.orphans', 'home.todayChars', 'shop.sub', 'shop.rate', 'dash.sub', 'mood.thinking', 'mood.waiting', 'slot.workSub', 'slot.doneSub', 'set.projectsSub', 'w.body1', 'w.privacy', 'card.headline', 'card.shareText', 'tray.today'];
   for (const lang of I18N.LANGS) {
     for (const k of keys) {
       const v = I18N.UI[lang][k];
@@ -205,7 +207,9 @@ function makeHost(pre = {}) {
 test('host: 켜지면 성장·퀘스트가 잡히고 house:get 이 하우스에 필요한 걸 다 준다', async () => {
   const { host } = makeHost();
   const d = await host.onInvoke('house:get');
-  for (const k of ['settings', 'growth', 'today', 'game', 'shop', 'stats', 'vault', 'motion', 'gauge', 'treasures', 'workshop', 'friends', 'projects', 'formula']) assert.ok(d[k] !== undefined, k);
+  for (const k of ['settings', 'growth', 'today', 'game', 'shop', 'stats', 'vault', 'motion', 'gauge', 'todos', 'home', 'skills', 'projects', 'formula']) assert.ok(d[k] !== undefined, k);
+  // 2.0.0 에 없앤 것은 하우스에 안 간다
+  for (const k of ['treasures', 'workshop', 'friends', 'craving', 'news', 'temper']) assert.strictEqual(d[k], undefined, k);
   assert.strictEqual(d.game.quests.length, 3);
   assert.ok(d.shop.wallet.balance >= 1000, '환영 용돈');
   assert.strictEqual(d.pastLevel, growth.levelOf(growth.xpOf({ c: 50000, l: 100, n: 30, s: 0 })));
@@ -240,7 +244,7 @@ test('host: 상점에서 사고 입고, 밥을 사서 먹인다', async () => {
   assert.ok(host.gamify.st.cnt.fed >= 1);
 });
 
-test('host: 프리미엄 음식 — 고정·보물·업적 횟수, 먹이에 쓴 코인', async () => {
+test('host: 프리미엄 음식 — 고정·코인·업적 횟수, 먹이에 쓴 코인', async () => {
   const { host } = makeHost();
   host.shop.state.set({ walletBonus: 100000 });
   for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:buy', null, key)).ok, key);
@@ -251,9 +255,11 @@ test('host: 프리미엄 음식 — 고정·보물·업적 횟수, 먹이에 쓴
   for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:use', null, key)).ok, key);
   host.onSend('pet:treat-eaten', null, 'royalTable');
   assert.ok(host.gauge.locked(), '수라상은 배부름 8시간 고정');
-  const before = host.treasures.summary().kinds;
+  // 2.0.0: 황금 쥐 초콜릿은 보물 대신 코인 40~120
+  const before = host.shop.wallet().balance;
   host.onSend('pet:treat-eaten', null, 'goldMouseChoco');
-  assert.ok(host.treasures.summary().kinds >= before);
+  const got = host.shop.wallet().balance - before;
+  assert.ok(got >= 40 && got <= 120, String(got));
   host.onSend('pet:treat-eaten', null, 'mysteryBox');
   assert.strictEqual(host.gamify.st.cnt.premium, 3);
   assert.strictEqual(host.gamify.st.cnt.pf_royalTable, 1);
@@ -454,32 +460,16 @@ test('legacy: 기념 코스튬은 상점에서 못 사고, 받은 사람에게�
   }
 });
 
-test('host: 처음 만난 날은 쓰다듬기 싫은 날이 아니다', () => {
-  const orig = Math.random;
-  Math.random = () => 0.999; // 평소라면 맨 끝(grumpy)을 뽑는 값
-  try {
-    const { host, state } = makeHost();
-    state.data.temper = undefined;
-    assert.notStrictEqual(host.temper(), 'grumpy');
-    state.data.temper = { day: 'Mon Jan 01 2001', key: 'calm', said: true };
-    assert.strictEqual(host.temper(), 'grumpy');
-  } finally {
-    Math.random = orig;
-  }
+test('host: 그날의 기분이 없다 — 쓰다듬으면 늘 고른 모션 (2.0.0, 이슈 #7)', () => {
+  const { host, sent } = makeHost({ state: { temper: { day: new Date().toDateString(), key: 'grumpy', said: true } } });
+  assert.strictEqual(host.temper, undefined);
+  assert.strictEqual(host.petConfig().temper, undefined);
+  assert.strictEqual(host.state.get('temper'), undefined, '옮길 때 지운다');
+  sent.length = 0;
+  host.poke();
+  const acts = sent.filter(([ch]) => ch === 'pet:action').map(([, a]) => a);
+  assert.ok(acts.length && !acts.includes('swat') && !acts.includes('perk'), acts.join());
 });
-
-test('host: 쓰다듬기 싫은 날은 이틀 이어지지 않는다', () => {
-  const orig = Math.random;
-  Math.random = () => 0.999; // 평소라면 맨 끝(grumpy)을 뽑는 값
-  try {
-    const { host, state } = makeHost();
-    state.data.temper = { day: 'Mon Jan 01 2001', key: 'grumpy', said: true };
-    assert.notStrictEqual(host.temper(), 'grumpy');
-  } finally {
-    Math.random = orig;
-  }
-});
-
 test('stage: 떠 있는 작은 상태 표시줄 위가 아니라 작업 영역 맨 아래가 바닥이다', () => {
   const { PetStage } = require(path.join(src, 'plugin/stage'));
   const box = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
@@ -610,15 +600,12 @@ test('host: 비눗방울 — 장난감과 모션이 키를 나눠 쓴다 (예전
   assert.ok(state.get('items').includes('bubbleplay'));
   assert.deepStrictEqual(settings.get('idleMotions').slice(0, 1), ['bubbleplay']);
   assert.deepStrictEqual(settings.get('motions').done, ['bubbleplay']);
-  // 새로 사는 사람은 장난감만
+  // 2.0.0: 모션은 사지 않는다 (처음부터 다 열려 있다). 장난감이 따라 생기지도 않는다
   const fresh = makeHost();
   fresh.host.shop.state.set({ walletBonus: 100000 });
-  assert.strictEqual(fresh.host.shop.blocker('bubbleplay'), null, '모션은 레벨 제한 없이 350코인');
-  const before = fresh.host.shop.wallet().balance;
-  assert.ok((await fresh.host.onInvoke('shop:buy', null, 'bubbleplay')).ok);
-  assert.strictEqual(before - fresh.host.shop.wallet().balance, 350);
-  assert.strictEqual(fresh.host.shop.owned('bubbles'), false, '모션을 사도 장난감은 안 생긴다');
-  fresh.host.migrateShop();
+  assert.strictEqual(fresh.host.shop.blocker('bubbleplay'), 'motion');
+  assert.ok(!(await fresh.host.onInvoke('shop:buy', null, 'bubbleplay')).ok);
+  assert.ok(fresh.host.shop.canUseMotion('idle', 'bubbleplay'));
   assert.strictEqual(fresh.host.shop.owned('bubbles'), false);
   assert.ok(host);
 });
@@ -760,25 +747,7 @@ test('host: 리캡 카드 숫자는 card:recap 으로, 카드에 Claude · 토�
   }
 });
 
-test('craving: 오늘 먹고 싶은 것을 먹이면 값의 절반을 돌려받고, 밥 주기는 그것부터 꺼낸다', async () => {
-  const { host, sent } = makeHost();
-  host.shop.state.set({ walletBonus: 100000 });
-  const c = host.craving.today();
-  const meal = host.shop.summary().food.find((x) => x.key === c.meal);
-  const cheap = host.shop.summary().food.filter((x) => x.group === 'meal' && !x.premium && x.key !== c.meal)[0];
-  assert.ok((await host.onInvoke('shop:buy', null, cheap.key)).ok);
-  assert.ok((await host.onInvoke('shop:buy', null, c.meal)).ok);
-  const r = await host.onInvoke('pet:feed');
-  assert.strictEqual(r.key, c.meal, '먹고 싶은 밥부터');
-  const before = host.shop.wallet().balance;
-  host.onSend('pet:treat-eaten', null, c.meal);
-  assert.strictEqual(host.shop.wallet().balance - before, Math.floor(meal.price / 2));
-  assert.strictEqual(host.gamify.st.cnt.craving, 1);
-  assert.ok(host.craving.today().fed.includes(c.meal));
-  assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.link === 'home'));
-});
-
-test('bubbles: 수다는 한 시간에 한 번, 업적 · 보상은 한 말풍선 + 오늘의 소식', async () => {
+test('bubbles: 수다는 한 시간에 한 번, 업적 · 보상은 한 말풍선 (오늘의 소식은 2.0.0 에 없앴다)', async () => {
   const { host, sent } = makeHost();
   const n0 = sent.filter(([ch]) => ch === 'pet:bubble').length;
   host.bubble('수다 하나', 'chatter');
@@ -790,16 +759,327 @@ test('bubbles: 수다는 한 시간에 한 번, 업적 · 보상은 한 말풍�
   const last = sent.filter(([ch]) => ch === 'pet:bubble').pop()[1];
   assert.strictEqual(last.kind, 'achieve');
   assert.ok(/2/.test(last.text) && last.text.includes('250'), last.text);
-  assert.ok((await host.onInvoke('house:get')).news.some((x) => x.kind === 'achieve'));
+  assert.strictEqual(host.state.get('news'), undefined);
 });
 
-test('shop: 산 모션은 보던 상황 칸에 바로 들어간다', async () => {
-  const { host } = makeHost();
-  host.shop.state.set({ walletBonus: 100000 });
-  const m = host.shop.summary().motion.find((x) => !x.locked && !x.owned && x.slots.includes('levelup'));
-  const r = await host.onInvoke('shop:buy', null, m.key, 'levelup');
-  assert.strictEqual(r.placed, 'levelup');
-  assert.ok(host.motionList('levelup').includes(m.key));
+/* ── 2.0.0: 모션 · 퀘스트 · 할 일 · 홈 · 옮기기 ── */
+
+test('motions: 모두 처음부터 열려 있고 상점에 안 나오며, 지운 모션을 산 값은 한 번만 돌려준다', async () => {
+  const shop = require(path.join(src, 'core/shop'));
+  const { host, state, settings } = makeHost({ state: { items: ['none', 'soju', 'trophy'], walletSpent: 2000 }, settings: { motions: { rest: ['soju', 'cafe'] } } });
+  assert.strictEqual(shop.MOTIONS.length, 44);
+  for (const m of shop.MOTIONS) for (const slot of m.rec) assert.ok(host.shop.canUseMotion(slot, m.key), m.key);
+  assert.ok(!shop.MOTIONS.some((m) => 'price' in m || 'level' in m), '값 · 레벨이 없다');
+  // 지운 모션(소주 850)은 돌려주고 옷장에서 뺀다. 남은 모션(트로피)은 공짜가 됐으니 안 돌려준다
+  assert.ok(!state.get('items').includes('soju'));
+  assert.strictEqual(state.get('walletSpent'), 2000 - 850);
+  assert.ok(state.get('retiredPaid').includes('soju'));
+  assert.deepStrictEqual(host.motionList('rest'), ['cafe'], '지운 모션은 상황 칸에서도 빠진다');
+  // 다른 기기(옛 버전)의 옷장이 합쳐져 되살아나도 두 번 돌려주지 않는다
+  state.set({ items: [...state.get('items'), 'soju'] });
+  host.migrateShop();
+  assert.strictEqual(state.get('walletSpent'), 2000 - 850);
+  assert.ok(!state.get('items').includes('soju'));
+  assert.ok(!(await host.onInvoke('shop:buy', null, 'trophy')).ok, '모션은 살 수 없다');
+  assert.ok(settings);
+});
+
+test('motions: 상황마다 끌 수 있다 — 잠깐 하는 상황은 모션 없이, 머무는 상황은 기본 자세로', async () => {
+  const { host, sent } = makeHost();
+  await host.onInvoke('house:set', null, { motionsOff: ['levelup', 'work', 'nope', 'poke'] });
+  assert.deepStrictEqual(host.settings.get('motionsOff'), ['levelup', 'work', 'poke'], '모르는 상황 키는 버린다');
+  assert.strictEqual(host.motionFor('levelup'), null);
+  assert.deepStrictEqual(host.motionList('work'), ['type']);
+  sent.length = 0;
+  host.act('levelup');
+  assert.ok(!sent.some(([ch]) => ch === 'pet:action'), '끈 상황은 아무 모션도 안 보낸다');
+  host.brain.mood = 'active';
+  host.poke();
+  assert.ok(sent.some(([ch, a]) => ch === 'pet:action' && a === 'purr'), '쓰다듬기를 꺼도 가르릉은 한다');
+  const p = host.housePayload();
+  assert.deepStrictEqual(p.motion.off.sort(), ['levelup', 'poke', 'work']);
+  // 세트 옷 전용 모션 섞기 끄기
+  host.cleanOutfit = () => ({ set: 'ninjaset' });
+  assert.ok(host.setMotions().length > 0);
+  await host.onInvoke('house:set', null, { setMotionsOn: false });
+  assert.deepStrictEqual(host.setMotions(), []);
+});
+
+test('quests: 옵시디언 습관만 — 고양이 돌보기 퀘스트가 없고, 종류마다 글 · 안내가 세 언어로 있다', () => {
+  const { QUEST_POOL } = require(path.join(src, 'core/gamify'));
+  const types = QUEST_POOL.map((q) => q.type);
+  for (const gone of ['poke', 'lift', 'fed', 'snack', 'catch', 'rest', 'spend', 'xp', 'opens', 'sessions']) assert.ok(!types.includes(gone), gone);
+  for (const want of ['tags', 'daily', 'props', 'organize', 'orphans', 'todos', 'graph']) assert.ok(types.includes(want), want);
+  for (const lang of I18N.LANGS) {
+    for (const q of QUEST_POOL) {
+      assert.ok(I18N.UI[lang]['quest.' + q.type], `${lang} quest.${q.type}`);
+      assert.ok(I18N.UI[lang]['skill.' + q.skill + '.how'], `${lang} skill.${q.skill}.how`);
+    }
+  }
+});
+
+test('quests: 예전 퀘스트 묶음(쓰다듬기 등)은 새로 뽑고, 태그 퀘스트는 단 태그만큼 오른다', () => {
+  const { host, state, usage } = makeHost({ state: { questSet: { id: 'old', at: Date.now(), list: [{ type: 'poke', tier: 'easy', target: 3, xp: 25, base: 0 }], claimed: [] } } });
+  let q = host.gamify.quests();
+  assert.ok(q.length === 3 && !q.some((x) => x.type === 'poke'));
+  // 태그 퀘스트 하나로 바꿔 놓고 태그를 단다
+  state.set({ questSet: { id: 'x', at: Date.now(), list: [{ type: 'tags', tier: 'easy', target: 2, xp: 30, base: 0 }], claimed: [] } });
+  usage.observe('일기/t.md', measure('가'.repeat(20)), new Date(), { baseline: true });
+  usage.observe('일기/t.md', measure('가'.repeat(20) + ' #하나 #둘'), new Date());
+  q = host.gamify.quests();
+  assert.strictEqual(q[0].value, 2);
+  assert.ok(q[0].done && q[0].skill === 'tag');
+  // 외톨이 노트가 없으면 외톨이 퀘스트는 안 뽑힌다
+  for (let i = 0; i < 30; i++) assert.ok(!host.gamify.newQuestSet().list.some((x) => x.type === 'orphans'));
+  host.plugin.orphanList = () => ['a.md'];
+  let seen = false;
+  for (let i = 0; i < 200 && !seen; i++) seen = host.gamify.newQuestSet().list.some((x) => x.type === 'orphans');
+  assert.ok(seen);
+});
+
+test('achievements: 보물 · 모션 수집 · 먹고 싶은 것 · 친구 업적이 없고, 정리 습관 묶음이 있다. 모션 보상은 코인으로', () => {
+  const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
+  for (const gone of ['treasure_1', 'treasure_all', 'motion_10', 'motion_30', 'craving_1', 'invite_ok', 'smoke_break']) assert.ok(!ids.has(gone), gone);
+  for (const want of ['prop_1', 'move_1', 'orphan_1', 'graph_1', 'views_all', 'todo_1', 'dailyc_1k']) assert.ok(ids.has(want), want);
+  assert.ok(CATS.includes('organize'));
+  const shop = require(path.join(src, 'core/shop'));
+  for (const a of ACHIEVEMENTS) if (a.reward && a.reward.item) assert.ok(!shop.find(a.reward.item, 'motion'), `${a.id}: 모션 보상`);
+});
+
+test('usage: 속성 · 데일리 노트 글자를 센다. 예전 기록은 속성 기준만 잡는다 (2.0.0)', () => {
+  const u = new UsageTracker();
+  u.observe('2026-10-28.md', { chars: 0, words: 0, links: 0, prop: 0 }, new Date(), { baseline: true });
+  u.observe('2026-10-28.md', measure('---\nstatus: draft\ndate: x\n---\n' + '가'.repeat(30)), new Date());
+  assert.strictEqual(u.totals().f.prop, 2);
+  assert.strictEqual(u.totals().f.dailyc, 30);
+  // 1.6.1 기록(속성 칸 없음)은 처음 볼 때 기준만
+  const old = new UsageTracker({ files: {} });
+  old.observe('a.md', measure('가'.repeat(20)), new Date(), { baseline: true });
+  old.d.files[Object.keys(old.d.files)[0]].length = 11; // [.., 단어] 까지만
+  old.observe('a.md', measure('---\na: 1\nb: 2\n---\n' + '가'.repeat(20)), new Date());
+  assert.ok(!old.totals().f.prop, '이미 달아 둔 속성은 안 센다');
+  // 플러그인이 데일리 노트 알아보기를 바꿔 끼운다 (코어 데일리 노트 설정)
+  const d = new UsageTracker();
+  d.dailyTest = (p) => p.startsWith('Journal/');
+  d.observe('Journal/오늘.md', measure('가'.repeat(15)), new Date());
+  d.observe('2026-10-28.md', measure('가'.repeat(15)), new Date());
+  assert.strictEqual(d.totals().f.dailyc, 15);
+});
+
+test('todos: 플러그인 안에서만 만들고 고치고 지운다. 끝내면 한 번만 센다 (만든 지 1분 넘은 것만)', async () => {
+  const { Todos, COUNT_AFTER_MS } = require(path.join(src, 'core/todos'));
+  const { host, state } = makeHost();
+  let r = await host.onInvoke('todo:add', null, '  보고서   초안  ');
+  assert.ok(r.ok);
+  assert.strictEqual(r.payload.todos.open[0].text, '보고서 초안');
+  assert.ok(!(await host.onInvoke('todo:add', null, '   ')).ok, '빈 글은 안 된다');
+  await host.onInvoke('todo:add', null, '둘째');
+  const [a, b] = state.get('todos');
+  await host.onInvoke('todo:move', null, b.id, 0);
+  assert.deepStrictEqual(state.get('todos').map((x) => x.text), ['둘째', '보고서 초안']);
+  await host.onInvoke('todo:edit', null, a.id, '보고서 끝내기');
+  assert.strictEqual(state.get('todos').find((x) => x.id === a.id).text, '보고서 끝내기');
+  // 만들자마자 끝내면 안 센다
+  await host.onInvoke('todo:toggle', null, b.id);
+  assert.ok(!(host.gamify.st.cnt || {}).todoDone);
+  // 1분 지난 할 일은 한 번만
+  state.set({ todos: state.get('todos').map((x) => ({ ...x, at: x.at - COUNT_AFTER_MS - 1 })) });
+  await host.onInvoke('todo:toggle', null, a.id);
+  await host.onInvoke('todo:toggle', null, a.id);
+  await host.onInvoke('todo:toggle', null, a.id);
+  assert.strictEqual(host.gamify.st.cnt.todoDone, 1);
+  r = await host.onInvoke('todo:clear', null);
+  assert.strictEqual(r.payload.todos.done.length, 0);
+  assert.deepStrictEqual(state.get('todoTomb').sort(), [a.id, b.id].sort());
+  // 100개까지
+  const t = new Todos(new Store({}, {}, () => {}));
+  for (let i = 0; i < 100; i++) t.add('x' + i);
+  assert.strictEqual(t.add('넘침').reason, 'full');
+  assert.strictEqual(t.add('가'.repeat(500)).reason, 'full');
+  assert.strictEqual(new Todos(new Store({}, {}, () => {})).add('가'.repeat(500)).item.text.length, 200);
+});
+
+test('sync: 할 일은 id 로 합치고, 늦게 고친 쪽 · 어느 기기에서든 지운 건 빠진다', () => {
+  const base = devData();
+  base.state.todos = [{ id: 'a', text: 'A', done: false, at: 1, up: 1 }, { id: 'b', text: 'B', done: false, at: 1, up: 1 }];
+  const mine = clone(base);
+  const theirs = clone(base);
+  mine.state.todos = [{ id: 'a', text: 'A2', done: false, at: 1, up: 5 }, { id: 'b', text: 'B', done: false, at: 1, up: 1 }, { id: 'c', text: 'C', done: false, at: 6, up: 6 }];
+  theirs.state.todos = [{ id: 'a', text: 'A', done: true, at: 1, up: 9 }, { id: 'd', text: 'D', done: false, at: 7, up: 7 }];
+  theirs.state.todoTomb = ['b'];
+  const m = mergeData(sharedOf(base), mine, theirs, { now: SYNC_T0 });
+  assert.deepStrictEqual(m.state.todos.map((x) => x.id), ['a', 'c', 'd']);
+  assert.strictEqual(m.state.todos[0].done, true, '늦게 고친 쪽');
+  assert.deepStrictEqual(m.state.todoTomb, ['b']);
+});
+
+test('migrate v2: 보물은 코인으로, 공방 코스튬은 옷장에, 없앤 기능의 기록은 지운다 (한 번만)', () => {
+  const { migrateV2 } = require(path.join(src, 'core/migrate2'));
+  const st = new Store({ treasures: { bottlecap: 3, worm: 1, oldkey: 1 }, eventLoot: [{ key: 'receipt' }], workshopMade: [{ key: 'capcrown', at: 1 }, { key: 'gatekeeper', at: 2 }], items: ['none', 'capcrown'], friends: { list: {} }, craving: {}, temper: {}, news: {}, walletBonus: 10 }, {}, () => {});
+  const r = migrateV2(st);
+  assert.strictEqual(r.treasures, 6);
+  assert.strictEqual(r.coins, 3 * 15 + 40 + 120 + 15);
+  assert.strictEqual(st.get('walletBonus'), 10 + r.coins);
+  assert.deepStrictEqual(r.restored, ['gatekeeper'], '선물해서 옷장에 없던 공방 코스튬을 돌려준다');
+  assert.ok(st.get('items').includes('gatekeeper'));
+  for (const k of ['treasures', 'eventLoot', 'workshopMade', 'friends', 'craving', 'temper', 'news']) assert.strictEqual(st.get(k), undefined, k);
+  assert.strictEqual(migrateV2(st), null, '두 번은 안 한다');
+  // 공방 코스튬은 이제 상점에서 판다
+  const shop = require(path.join(src, 'core/shop'));
+  const gk = shop.find('gatekeeper');
+  assert.ok(gk.price > 0 && !gk.workshop);
+  // 초대장 쿠키는 상점에서 빠지고 창고분은 돌려준다
+  const { host, state } = makeHost({ state: { pantry: { inviteCookie: 2 }, walletSpent: 5000 } });
+  assert.ok(!state.get('pantry').inviteCookie);
+  assert.strictEqual(state.get('walletSpent'), 4000);
+  assert.ok(host);
+});
+
+test('focus: 마친 뒤 쉬는 시간을 켜고, 끝나면 다시 하자고 한다 (2.0.0)', async () => {
+  const { host, sent } = makeHost();
+  const t0 = Date.now();
+  host.focusStart(25);
+  assert.strictEqual(host.goals.breakStart(5, t0), null, '집중 중에는 쉬기를 못 켠다');
+  host.focusTick(t0 + 25 * 60_000 + 1000);
+  const p = await host.onInvoke('focus:break', null, 10);
+  assert.strictEqual(p.focus.brk.min, 10);
+  assert.strictEqual(p.focus.total.today, 1);
+  sent.length = 0;
+  assert.strictEqual(host.breakTick(Date.now() + 5 * 60_000), null, '아직');
+  assert.strictEqual(host.breakTick(Date.now() + 10 * 60_000 + 1000).min, 10);
+  assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.kind === 'focus'));
+  assert.strictEqual(host.goals.focusInfo().brk, null);
+  // 쉬다가 다시 집중하면 쉬기는 끝난다
+  host.breakStart(5);
+  host.focusStart(15);
+  assert.strictEqual(host.goals.focusInfo().brk, null);
+});
+
+test('vaultmap: 노트 지도 · 외톨이 노트 · 최근 노트는 읽기만 하고, 없는 노트는 열지(만들지) 않는다', async () => {
+  const vm = require(path.join(src, 'plugin/vaultmap'));
+  const KitCommitPlugin = require(path.join(src, 'plugin/main'));
+  const mk = (p, mtime = 1) => Object.assign(new fakeObsidian.TFile(), { path: p, extension: p.split('.').pop(), stat: { mtime } });
+  const files = ['a.md', 'b.md', 'c.md', 'lonely.md', 'x/d.md', 'secret/e.md'].map((p, i) => mk(p, i));
+  const opened = [];
+  const app = {
+    vault: { getMarkdownFiles: () => files, getAbstractFileByPath: (p) => files.find((f) => f.path === p) || null, create: () => assert.fail('노트를 만들면 안 된다') },
+    metadataCache: { resolvedLinks: { 'a.md': { 'b.md': 1 }, 'b.md': { 'c.md': 1, 'b.md': 1 }, 'c.md': {}, 'lonely.md': {}, 'x/d.md': { 'a.md': 2 }, 'secret/e.md': { 'a.md': 1 } } },
+    workspace: { getLastOpenFiles: () => ['b.md', 'gone.md', 'secret/e.md', 'a.md'], getLeaf: () => ({ openFile: (f) => opened.push(f.path) }), openLinkText: () => assert.fail('openLinkText 는 없는 노트를 만든다') },
+  };
+  const ex = (p) => p.startsWith('secret/');
+  const g = vm.localGraph(app, 'a.md', ex);
+  assert.strictEqual(g.nodes[0].path, 'a.md');
+  assert.deepStrictEqual(g.nodes.map((n) => n.path).sort(), ['a.md', 'b.md', 'c.md', 'x/d.md'], '두 걸음까지 · 뺀 폴더 빼고');
+  assert.ok(g.edges.length >= 3);
+  assert.strictEqual(vm.localGraph(app, 'nope.md'), null);
+  assert.deepStrictEqual(vm.orphanNotes(app, ex), ['lonely.md']);
+  assert.deepStrictEqual(vm.recentNotes(app, ex).map((x) => x.path), ['b.md', 'a.md']);
+  // 플러그인의 노트 열기: 있는 것만
+  const self = { app };
+  assert.strictEqual(await KitCommitPlugin.prototype.openNote.call(self, 'nope.md'), false);
+  assert.strictEqual(await KitCommitPlugin.prototype.openNote.call(self, 'b.md'), true);
+  assert.deepStrictEqual(opened, ['b.md']);
+  // 코어 데일리 노트 설정으로 알아보기
+  const prevMoment = globalThis.window && globalThis.window.moment;
+  globalThis.window = globalThis.window || {};
+  globalThis.window.moment = (s, f) => ({ isValid: () => f === 'YYYY-MM-DD' && /^\d{4}-\d{2}-\d{2}$/.test(s) });
+  const dapp = { internalPlugins: { getPluginById: () => ({ enabled: true, instance: { options: { folder: 'Daily', format: 'YYYY-MM-DD' } } }) } };
+  const isDaily = vm.dailyMatcher(dapp);
+  assert.ok(isDaily('Daily/2026-10-28.md') && !isDaily('2026-10-28.md') && !isDaily('Daily/메모.md'));
+  assert.strictEqual(vm.dailyMatcher({}), null);
+  globalThis.window.moment = prevMoment;
+});
+
+test('plugin: 노트 옮기기 · 이름 바꾸기 · 화면 열어 보기 · 외톨이 이어 주기를 센다 (2.0.0)', () => {
+  const KitCommitPlugin = require(path.join(src, 'plugin/main'));
+  const P = KitCommitPlugin.prototype;
+  const got = [];
+  const host = { loading: false, noteSkill: (k, n = 1) => got.push([k, n]) };
+  const mk = (p) => Object.assign(new fakeObsidian.TFile(), { path: p, extension: 'md' });
+  const self = { host, isExcludedPath: (p) => p.startsWith('.') };
+  P.noteRename.call(self, mk('정리/a.md'), 'a.md');
+  P.noteRename.call(self, mk('정리/b2.md'), '정리/b.md');
+  P.noteRename.call(self, mk('.trash/c.md'), 'c.md');
+  assert.deepStrictEqual(got.splice(0), [['move', 1], ['retitle', 1]]);
+  const leaf = (type) => ({ view: { getViewType: () => type } });
+  P.noteView.call(self, leaf('graph'));
+  P.noteView.call(self, leaf('graph'));
+  P.noteView.call(self, leaf('markdown'));
+  P.noteView.call(self, leaf('search'));
+  assert.deepStrictEqual(got.splice(0), [['view_graph', 1], ['view_search', 1]]);
+  // 외톨이: 링크를 얻은 노트만, 한 노트는 한 번만
+  const data = {};
+  let orphans = ['a.md', 'b.md'];
+  const o = { host, state: { get: (k) => data[k], set: (p) => Object.assign(data, p) }, orphanList: () => orphans, app: { vault: { getAbstractFileByPath: (p) => (p === 'gone.md' ? null : {}) } } };
+  P.orphanTick.call(o);
+  orphans = ['b.md'];
+  P.orphanTick.call(o);
+  orphans = ['a.md', 'b.md'];
+  P.orphanTick.call(o);
+  orphans = ['b.md'];
+  P.orphanTick.call(o);
+  assert.deepStrictEqual(got, [['orphanFix', 1]]);
+});
+
+test('house · 펫 화면: 없앤 기능(친구 · 보물 · 공방 · 기분 · 먹고 싶은 것 · 소식)의 통로를 부르지 않는다', () => {
+  const fs = require('fs');
+  const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  for (const n of ['pet.friend', 'pet.craft', 'pet.exchange', 'pet.fillRecipe', 'pet.devEvent', 'PetFriends', 'D.treasures', 'D.workshop', 'D.friends', 'D.craving', 'D.news', 'D.temper', 'data-crave', 'data-ws-']) assert.ok(!house.includes(n), 'house ' + n);
+  const code = ['kit/pet.js', 'kit/toyplay.js', 'kit/toyplay2.js', 'kit/toyplay3.js', 'kit/toyplay4.js', 'kit/toyplay5.js'].map((f) => fs.readFileSync(path.join(src, f), 'utf8')).join('\n');
+  for (const n of ['pet.onEvent', 'pet.treasure', 'pet.eventSkip', 'pet.onFriend', 'pet.friend', 'PetFriends', 'temper']) assert.ok(!code.includes(n), n);
+  const frame = fs.readFileSync(path.join(src, 'plugin/frame.js'), 'utf8');
+  const bridge = new Set([...frame.matchAll(/\['(\w+)', '(?:send|invoke|on)'/g)].map((m) => m[1]));
+  for (const used of new Set([...house.matchAll(/\bpet\.(\w+)\(/g)].map((m) => m[1]))) assert.ok(bridge.has(used), 'bridge ' + used);
+  for (const f of ['core/friends.js', 'core/treasure.js', 'core/workshop.js', 'core/craving.js', 'kit/friends.js']) assert.ok(!fs.existsSync(path.join(src, f)), f);
+});
+
+test('shop: 장난감 36종 — 4차 6종까지 아이콘 · 이름 · 노는 법 · 반응 글이 다 있다', () => {
+  const shop = require(path.join(src, 'core/shop'));
+  const PixelArt = require(path.join(src, 'kit/pixelart'));
+  assert.strictEqual(shop.TOYS.length, 36);
+  for (const k of ['sunbeam', 'quilt', 'fishbowl', 'shellgame', 'volley', 'simon']) assert.ok(shop.TOYS.some((x) => x.key === k), k);
+  for (const it of shop.TOYS) {
+    assert.ok(PixelArt.has(it.key), 'icon ' + it.key);
+    for (const lang of ['ko', 'en', 'zh']) for (const p of ['item.', 'toyHow.', 'toyDo.']) assert.ok(I18N.UI[lang][p + it.key], `${lang} ${p}${it.key}`);
+  }
+  for (const lang of ['ko', 'en', 'zh']) for (const k of ['whackcat', 'rps', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']) assert.ok(I18N.UI[lang]['game.rec.' + k], `${lang} game.rec.${k}`);
+});
+
+test('host: 줄넘기 · 4차 장난감 최고 기록이 저장된다 (RECORD_KEYS)', () => {
+  const { host, state } = makeHost();
+  for (const k of ['jumprope', 'quilt', 'shellgame', 'volley', 'simon']) {
+    host.onSend('pet:toy-record', null, k, 7);
+    assert.strictEqual((state.get('toyRecords') || {})[k], 7, k);
+  }
+  host.onSend('pet:toy-record', null, 'nope', 7);
+  assert.strictEqual((state.get('toyRecords') || {}).nope, undefined);
+});
+
+// 같은 창에 올라가는 스크립트들에 같은 맨 바깥 이름이 두 번 있으면 뒤의 것이 앞의 것을 소리 없이 덮어쓴다
+// (Kit Commit 10-18: 장난감 쫓기 stepHunt 가 커서 사냥 stepHunt 에 덮여 레이저 · 비눗방울을 켜도 고양이가 거의 안 쫓았다)
+test('펫 · 하우스 화면: 함께 올라가는 스크립트에 같은 맨 바깥 이름이 두 번 없다', () => {
+  const fs = require('fs');
+  const build = fs.readFileSync(path.join(__dirname, '..', 'scripts/build.js'), 'utf8');
+  const list = (name) => new Function('return ' + build.match(new RegExp(`const ${name} = (\\[[\\s\\S]*?\\]);`))[1])();
+  const COMMON = list('COMMON');
+  const PET = list('PET');
+  const HOUSE = list('HOUSE');
+  assert.ok(PET.includes('kit/toyplay5.js'), 'toyplay5');
+  assert.ok(COMMON.includes('kit/i18n-v2.js'), 'i18n-v2');
+  assert.ok(!COMMON.includes('kit/friends.js'), 'friends.js 는 뺐다');
+  const NAME = /^(?:async\s+)?function\s+([A-Za-z0-9_$]+)|^(?:const|let|var|class)\s+([A-Za-z0-9_$]+)/gm;
+  for (const [page, files] of [['pet', [...COMMON, ...PET]], ['house', [...COMMON, ...HOUSE]]]) {
+    const seen = new Map();
+    const dups = [];
+    for (const f of files) {
+      for (const m of fs.readFileSync(path.join(src, f), 'utf8').matchAll(NAME)) {
+        const n = m[1] || m[2];
+        if (seen.has(n)) dups.push(`${n} (${seen.get(n)} · ${f})`);
+        else seen.set(n, f);
+      }
+    }
+    assert.deepStrictEqual(dups, [], page);
+  }
 });
 
 test('whats new: 업데이트한 사람에게만 한 번 (처음 설치한 사람은 첫 실행 안내)', async () => {
@@ -989,7 +1269,7 @@ test('focus: 시작하면 방해 금지 + 머리 위 시간, 끝나면 축하 ·
   assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.kind === 'focus' && /25/.test(x.text)), '끝 말풍선은 방해 금지여도 나온다');
   assert.ok(sent.some(([ch, x]) => ch === 'pet:focus' && x === null));
   assert.strictEqual(host.gamify.st.cnt.focus, 1);
-  assert.deepStrictEqual(host.goals.focusTotal(), { sessions: 1, minutes: 25 });
+  assert.deepStrictEqual(host.goals.focusTotal(), { sessions: 1, minutes: 25, today: 1, todayMin: 25 });
   assert.strictEqual(state.get('focus'), null);
 });
 
@@ -1052,9 +1332,9 @@ test('첫날: 처음 만난 지 2시간 안에는 밥 알림 · 배고프다 조
   assert.ok(old.sent.some(([ch, x]) => ch === 'pet:bubble' && x.kind === 'lunch'), '평소엔 점심 알림');
 });
 
-test('achievements: 목표 · 집중 업적 11개가 있고 묶음 이름이 세 언어 다 있다', () => {
+test('achievements: 목표 · 집중 · 할 일 업적 15개가 있고 묶음 이름이 세 언어 다 있다', () => {
   const ids = ACHIEVEMENTS.filter((a) => a.cat === 'focus').map((a) => a.id);
-  assert.strictEqual(ids.length, 11);
+  assert.strictEqual(ids.length, 15);
   assert.ok(CATS.includes('focus'));
   for (const lang of ['ko', 'en', 'zh']) {
     assert.ok(I18N.UI[lang]['ach.cat.focus'], lang);

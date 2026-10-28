@@ -16,24 +16,28 @@ const { STAR_COINS, starsOf } = require('./growth');
 //  metric(c) : 지금까지의 누적값. 퀘스트를 받은 순간 값을 적어 두고(base), 거기서 늘어난 만큼이 진행도다
 //              (그래서 새로 받자마자 아까 한 일로 깨지는 일이 없다)
 //  tiers     : 난이도별 [목표, 경험치]. 없는 난이도 칸에는 뽑히지 않는다
-//  needs(c)  : false 면 아직 못 하는 퀘스트라 뽑지 않는다 (장난감이 없는데 장난감 퀘스트 등)
+//  needs(c)  : false 면 아직 못 하는 퀘스트라 뽑지 않는다 (외톨이 노트가 없는데 외톨이 노트 퀘스트 등)
 //  vars      : 문구에 넣을 값. 없으면 { n: 목표, name: 고양이 이름 }
-// 문구는 renderer/i18n.js 의 'quest.<type>'
+//  skill     : core/skills.js 의 기술 이름표. 퀘스트 카드의 '어떻게 하나요' 문구(i18n 'skill.<skill>.how')가 쓴다
+// 문구는 i18n 의 'quest.<type>'
+// 2.0.0: 옵시디언을 잘 쓰게 돕는 일만 남겼다 (쓰다듬기 · 밥 · 장난감 · 코인 쓰기 · 열어 보기 · 경험치 퀘스트는 뺐다)
 const cntOf = (c, k) => (c.st.cnt || {})[k] || 0;
+const featOf = (c, ...keys) => keys.reduce((a, k) => a + ((c.all.f || {})[k] || 0), 0);
 const QUEST_POOL = [
-  { type: 'chars', metric: (c) => c.all.c, tiers: { easy: [300, 30], normal: [1000, 60], hard: [3000, 120] } },
-  { type: 'links', metric: (c) => c.all.l, tiers: { easy: [3, 30], normal: [10, 60], hard: [25, 120] } },
-  { type: 'notes', metric: (c) => c.all.n, tiers: { easy: [1, 30], normal: [3, 60], hard: [6, 120] } },
-  { type: 'sessions', metric: (c) => c.all.s, tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 120] } },
-  { type: 'opens', metric: (c) => c.all.v, tiers: { easy: [5, 25], normal: [15, 50], hard: [40, 100] } },
-  { type: 'xp', metric: (c) => c.xp, tiers: { easy: [60, 30], normal: [200, 60], hard: [500, 120] } },
-  { type: 'poke', metric: (c) => c.st.pokes || 0, tiers: { easy: [3, 25], normal: [10, 50], hard: [25, 100] } },
-  { type: 'lift', metric: (c) => cntOf(c, 'lift'), tiers: { easy: [2, 25], normal: [5, 50] } },
-  { type: 'fed', metric: (c) => cntOf(c, 'fed'), tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 110] } },
-  { type: 'snack', metric: (c) => cntOf(c, 'snack'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
-  { type: 'catch', metric: (c) => cntOf(c, 'catch'), tiers: { easy: [3, 30], normal: [10, 60], hard: [25, 120] }, needs: (c) => c.toys > 0 },
-  { type: 'rest', metric: (c) => c.st.restsTaken || 0, tiers: { normal: [1, 70], hard: [2, 130] } },
-  { type: 'spend', metric: (c) => c.st.walletSpent || 0, tiers: { easy: [20, 25], normal: [80, 55], hard: [250, 110] } },
+  { type: 'chars', skill: 'write', metric: (c) => c.all.c, tiers: { easy: [300, 30], normal: [1000, 60], hard: [3000, 120] } },
+  { type: 'links', skill: 'link', metric: (c) => c.all.l, tiers: { easy: [2, 30], normal: [5, 60], hard: [12, 120] } },
+  { type: 'tags', skill: 'tag', metric: (c) => featOf(c, 'tag'), tiers: { easy: [1, 30], normal: [3, 60], hard: [8, 110] } },
+  { type: 'heads', skill: 'heading', metric: (c) => featOf(c, 'head'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
+  { type: 'daily', skill: 'daily', metric: (c) => featOf(c, 'dailyc'), tiers: { easy: [50, 30], normal: [200, 60], hard: [500, 120] } },
+  { type: 'tasks', skill: 'task', metric: (c) => featOf(c, 'done'), tiers: { easy: [1, 30], normal: [3, 60], hard: [8, 110] } },
+  { type: 'props', skill: 'property', metric: (c) => featOf(c, 'prop'), tiers: { easy: [1, 30], normal: [3, 60] } },
+  { type: 'embeds', skill: 'embed', metric: (c) => featOf(c, 'embed', 'callout'), tiers: { easy: [1, 35], normal: [2, 60] } },
+  { type: 'organize', skill: 'organize', metric: (c) => cntOf(c, 'move') + cntOf(c, 'retitle'), tiers: { easy: [1, 30], normal: [3, 60], hard: [6, 110] } },
+  { type: 'orphans', skill: 'orphan', metric: (c) => cntOf(c, 'orphanFix'), tiers: { easy: [1, 40], normal: [2, 70], hard: [4, 130] }, needs: (c) => c.orphans > 0 },
+  { type: 'notes', skill: 'write', metric: (c) => c.all.n, tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 120] } },
+  { type: 'focus', skill: 'focus', metric: (c) => cntOf(c, 'focus'), tiers: { easy: [1, 35], normal: [2, 70], hard: [3, 120] } },
+  { type: 'todos', skill: 'todo', metric: (c) => cntOf(c, 'todoDone'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
+  { type: 'graph', skill: 'graph', metric: (c) => cntOf(c, 'view_graph') + cntOf(c, 'view_localgraph'), tiers: { easy: [1, 30] } },
 ];
 const QUEST_TIERS = ['hard', 'normal', 'easy']; // 화면에 놓는 순서도 상·중·하
 const QUEST_REFRESH_MS = 3 * 60 * MIN; // 새 퀘스트로 바꿀 수 있기까지. 시간이 지나도 저절로 바뀌지는 않는다
@@ -41,7 +45,8 @@ const ALL_CLEAR_XP = 100;
 
 // 누르기만 하면 오르는 횟수는 1분에 이만큼만 센다 (2026-10-04: 쓰다듬기·들어 올리기 연타로 업적·퀘스트를 깨는 걸 막는다)
 // 반응(말풍선·모션)은 그대로 하고, 업적·퀘스트용 숫자만 덜 오른다
-const RATE = { poke: 20, lift: 6 };
+// 2.0.0: 노트 옮기기 · 이름 바꾸기 · 화면 열기 · 할 일 끝내기도 (폴더째 옮기기 · 껐다 켜기로 한꺼번에 오르지 않게)
+const RATE = { poke: 20, lift: 6, move: 6, retitle: 6, todoDone: 10, view_graph: 3, view_localgraph: 3, view_search: 3, view_backlink: 3, 'view_outgoing-link': 3, view_outline: 3, view_tag: 3, view_bookmarks: 3 };
 const RATE_MS = MIN;
 // 업적 판정을 몰아서 한 번에 (연타할 때 매번 업적 160개를 다 보지 않게)
 const EVAL_DELAY_MS = 1500;
@@ -285,7 +290,7 @@ class Gamify extends EventEmitter {
   // 퀘스트 진행도를 재는 값들 (전부 누적값)
   questCtx() {
     const x = this.extra ? this.extra() : {};
-    return { all: this.usage.totals(0), st: this.st, xp: this.lastGrowth ? this.lastGrowth.xp : 0, toys: x.owned ? x.owned.toy : 0 };
+    return { all: this.usage.totals(0), st: this.st, xp: this.lastGrowth ? this.lastGrowth.xp : 0, orphans: x.orphans || 0 };
   }
 
   // 새 퀘스트 3개: 상·중·하 하나씩, 종류는 겹치지 않게
@@ -352,6 +357,8 @@ class Gamify extends EventEmitter {
     const s = this.getSettings();
     const T = this.getStrings();
     let set = this.st.questSet;
+    // 2.0.0 에 뺀 종류(쓰다듬기 · 밥 · 장난감 …)가 든 예전 퀘스트 묶음은 새로 뽑는다
+    if (set && Array.isArray(set.list) && set.list.some((q) => !QUEST_POOL.some((d) => d.type === q.type)) && this.lastGrowth) set = this.newQuestSet();
     if (!set || !Array.isArray(set.list)) {
       // 첫 실행에 기록을 아직 읽는 중이면 기준값이 틀려서(곧 늘어날 과거 기록이 진행도로 잡힌다) 다 읽은 뒤에 뽑는다.
       // lastGrowth 는 기록을 다 읽고 나서 첫 evaluate 때 생긴다
@@ -367,6 +374,7 @@ class Gamify extends EventEmitter {
       return {
         id,
         type: q.type,
+        skill: def ? def.skill : null,
         tier: q.tier,
         text: T.t(`quest.${q.type}`, def && def.vars ? def.vars(q.target) : { n: q.target, name: s.petName }),
         xp: q.xp,
@@ -509,7 +517,6 @@ class Gamify extends EventEmitter {
         price: it.price,
         slot: it.slot || null,
         covers: it.covers || null,
-        workshop: !!it.workshop, // 보물 공방에서 만든 것 (인벤토리 카드의 '공방' 도장)
         name: T.t(`item.${it.key}`),
         unlocked: this.st.items.includes(it.key) || !!this.getSettings().devMode, // 개발자 모드면 전부 (배포 전에 지운다)
       })),
@@ -526,4 +533,4 @@ class Gamify extends EventEmitter {
   }
 }
 
-module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS, STREAK_GIFTS, RATE };
+module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS, STREAK_GIFTS, RATE, QUEST_POOL };

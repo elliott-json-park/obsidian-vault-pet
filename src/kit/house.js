@@ -1,4 +1,6 @@
 // 하우스 창: 펫 상태, 퀘스트, 업적, 꾸미기, 통계, 설정, 첫 실행 안내.
+// 2.0.0: 홈은 옵시디언을 쓰는 데 도움이 되는 것들(목표 · 집중 타이머 · 할 일 · 퀘스트 · 노트 지도 · 최근 노트).
+//  동네 친구 · 보물 공방 탭, 먹고 싶은 것 · 오늘의 소식 칸, 그날의 기분 딱지, 상점의 모션 페이지는 없앴다.
 // (옵시디언판: 데스크톱판 house.js 사본. 옵시디언 탭 속 iframe 에서 돈다. 바꾼 곳에는 [옵시디언] 표시)
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -20,7 +22,7 @@ const icon = (name, px = 16) => PixelArt.svg(name, px);
 // 먹이 카드의 배부름: 도트 아이콘 + 숫자 한 줄. 뜻은 마우스를 올리면
 const foodGain = (it) => `<div class="food-gain" title="${esc(t('shop.gainFood', { n: it.fill }))}"><span>${icon('ricebowl', 11)}+${it.fill}</span></div>`;
 // 먹었을 때 특별한 일이 있는 먹이(프리미엄)는 그 밑에 효과를 짧게 한 줄 (i18n 'foodFx.<키>', 긴 설명은 'foodFxTip.<키>'. 없으면 줄도 없다)
-const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift', inviteCookie: 'paw' };
+const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift' };
 const foodFx = (key) => {
   const k = 'foodFx.' + key;
   const s = t(k);
@@ -53,8 +55,8 @@ const hourName = (h) =>
   : T.lang === 'zh' ? (h === 0 ? '凌晨0点' : h === 12 ? '中午12点' : `${h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上'}${h % 12}点`)
   : `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}시`;
 const coins = (n, px = 14) => `${icon('coin', px)}<span>${t('shop.coin', { n: fmt(n) })}</span>`;
-// [옵시디언] 글자·링크·새 노트·세션·노트 열기 퀘스트
-const QUEST_ICON = { chars: 'scroll', links: 'pin', notes: 'map', opens: 'eye', msgs: 'chat', sessions: 'door', tokens: 'coin', replies: 'chats', xp: 'star', poke: 'paw', lift: 'heart', fed: 'ricebowl', snack: 'gift', catch: 'sparkle', rest: 'pillow', spend: 'moneybag', meal: 'ricebowl', early: 'sunrise' };
+// [옵시디언 2.0.0] 옵시디언 습관 퀘스트 (core/gamify.js 의 QUEST_POOL)
+const QUEST_ICON = { chars: 'scroll', links: 'pin', tags: 'pin', heads: 'scroll', daily: 'calendar', tasks: 'check', props: 'gear', embeds: 'eye', organize: 'home', orphans: 'paw', notes: 'map', focus: 'hourglass', todos: 'check', graph: 'map' };
 // 고양이가 한 마리뿐이면 단계 얘기(로드맵·시작 단계 고르기)를 통째로 숨긴다
 const oneStage = () => !D || !D.stages || D.stages.length < 2;
 const MOOD_ICON = { thinking: 'laptop', waiting: 'bang', active: 'eye', idle: 'leaf', sleepy: 'doze', sleeping: 'zzz', hungry: 'ricebowl' };
@@ -177,83 +179,6 @@ function mini(canvas) {
   r.demo = canvas.dataset.motion || null;
   r.demoGap = 0;
   return r;
-}
-
-// ---------- 보물 상자 ----------
-// 깜짝 이벤트로 주운 하찮은 보물들. 아직 못 찾은 건 까만 그림자와 ???
-function treasureBox() {
-  const T5 = D.treasures;
-  if (!T5) return '';
-  // 한 번이라도 주운 건(seen) 공방 재료로 다 써서 0개여도 이름이 보인다 (×0 은 흐리게)
-  const cells = T5.list
-    .map((x) =>
-      x.count || x.seen
-        ? `<div class="panel tcell tr-${x.rarity} ${x.count ? '' : 'used'}" title="${esc(t('treasure.' + x.key))}">
-            <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
-            <div class="tnm">${esc(t('treasure.' + x.key))}</div>${x.count !== 1 ? `<div class="tcnt">×${x.count}</div>` : ''}</div>`
-        : `<div class="panel tcell unknown">${icon(x.key, 40)}<div class="tnm">???</div></div>`,
-    )
-    .join('');
-  return `<h2 class="tbox-title">${t('treasure.title')} <span class="muted">${T5.kinds} / ${T5.total}</span></h2>
-    <p class="muted" style="margin-top:-4px">${t('treasure.sub')}</p>
-    <div class="tbox">${cells}</div>`;
-}
-
-// 동네 친구 도감. 한 번도 안 온 친구는 그림자와 ???. 카드를 누르면 TMI 가 펼쳐진다
-let friendOpen = null;
-function friendArt(f, mood) {
-  // 고양이 친구는 sprite.js, 동물 친구는 friends.js 로 그린다 (animate 가 돌린다)
-  return f.art
-    ? `<canvas class="pixel fart" width="48" height="48" data-friend-art="${f.art}"></canvas>`
-    : `<canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${(f.wear || []).join(',') || 'none'}" data-mood="${mood}"></canvas>`;
-}
-function guestBox() {
-  const F = D.friends;
-  if (!F) return '';
-  const now = F.now;
-  const nowCard = now
-    ? `<div class="panel fr-now">${icon('paw', 16)}<b>${esc(t('fr.' + now.id + '.nick'))} ${esc(t('fr.' + now.id + '.name'))}</b>
-        <span class="muted">${t('fr.visiting', { m: Math.max(1, Math.ceil((now.until - Date.now()) / 60000)) })}</span></div>`
-    : '';
-  const cards = F.list.map((f) => {
-    if (!f.visits) {
-      return `<div class="panel gcell unknown">${friendArt(f, 'idle')}<div class="gnm">???</div><div class="gsub">${t('fr.unknown')}</div></div>`;
-    }
-    const hearts = [1, 2, 3].map((i) => `<span class="${i <= f.level ? 'on' : ''}">${icon('heart', 11)}</span>`).join('');
-    const open = friendOpen === f.id;
-    const tmi = open
-      ? `<div class="fr-motto"><small>${t('fr.motto')}</small>“${esc(t('fr.' + f.id + '.motto'))}”</div>
-         <ul class="fr-tmi">${[1, 2, 3, 4].map((i) => `<li>${esc(t('fr.' + f.id + '.tmi' + i))}</li>`).join('')}</ul>
-         <div class="gsub">${t('fr.like')} · ${esc(t('fr.' + f.id + '.like'))}</div>
-         <div class="gsub">${t('fr.home')} · ${esc(t('fr.' + f.id + '.home'))}</div>`
-      : '';
-    // 부르기: 단짝만. 다른 친구가 와 있거나 쉬는 중이면 이유를 보여 준다
-    const why = f.can === 'notBest' ? t('fr.callNotBest') : f.can === 'busy' ? t('fr.callBusy') : f.can === 'cooldown' ? t('fr.callCool', { m: Math.max(1, Math.ceil((F.callReadyAt - Date.now()) / 60000)) }) : '';
-    const call = f.level >= 3 || f.can !== 'notBest'
-      ? `<button class="btn small ${f.can ? '' : 'primary'}" data-fr-call="${f.id}" ${f.can ? 'disabled' : ''}>${icon('bell', 12)}${t('fr.call')}</button>${why ? `<div class="gsub">${esc(why)}</div>` : ''}`
-      : `<div class="gsub">${esc(why)}</div>`;
-    // 선물하기: 단짝 고양이 친구만. 고양이 친구인데 아직 단짝이 아니면 안내만
-    const gift = f.giftable
-      ? `<button class="btn small" data-fr-gift="${f.id}">${icon('gift', 12)}${t('fr.giftBtn')}</button>`
-      : f.fur != null ? `<div class="gsub">${t('fr.giftHint')}</div>` : '';
-    return `<div class="panel gcell ${open ? 'open' : ''}" data-fr-card="${f.id}">
-      ${friendArt(f, 'active')}
-      <div class="fr-nick">${esc(t('fr.' + f.id + '.nick'))}</div>
-      <div class="gnm">${esc(t('fr.' + f.id + '.name'))} <span class="glv">${t('friend.' + f.level)}</span></div>
-      <div class="gsub">${esc(t('fr.' + f.id + '.species'))}</div>
-      <div class="ghearts">${hearts}</div>
-      <div class="fr-bar"><i style="width:${f.next ? Math.round(((f.pts - (f.prev || 0)) / (f.next - (f.prev || 0))) * 100) : 100}%"></i></div>
-      <div class="gsub">${f.next ? t('fr.next', { n: f.next - f.pts, level: t('friend.' + (f.level + 1)) }) : t('fr.bondMaxShort')}</div>
-      <div class="gsub">${t('fr.visits', { n: f.visits })}</div>
-      ${tmi}
-      <div class="fr-more">${open ? t('fr.tmiClose') : t('fr.tmiOpen')}</div>
-      <div class="fr-call">${call}${gift}</div>
-    </div>`;
-  }).join('');
-  return `<h2>${t('fr.title')}</h2>
-    <p class="muted" style="margin-top:-4px">${t('fr.sub')}</p>
-    ${nowCard}
-    <div class="gbox">${cards}</div>`;
 }
 
 // ---------- 자랑 카드 · 리캡 카드 ----------
@@ -596,11 +521,8 @@ async function openCard() {
 // 이 모션을 작은 캔버스로 보여 줄 때 붙일 속성. type·curl·wait 는 기분 자세라 그 기분으로
 const motionCanvasAttr = (key) => (PEEK_MOOD[key] ? `data-mood="${PEEK_MOOD[key]}"` : `data-motion="${key}"`);
 const stageNow = () => (D.growth ? D.growth.stageKey : 'cat');
-// 레벨이 아직 안 돼서 상점에서 그림자로 보이는 모션 (설정의 미리보기도 똑같이 그림자로)
-const motionLvLocked = (k) => {
-  const m = D.shop.motion.find((x) => x.key === k);
-  return !!m && m.locked && !m.owned;
-};
+// 이 상황의 모션을 껐나 (2.0.0, 설정 motionsOff)
+const motionOff = (key) => !!(D.motion && (D.motion.off || []).includes(key));
 
 // 이 자리에 지금 골라 둔 모션들
 function motionsIn(sl) {
@@ -610,7 +532,10 @@ function motionsIn(sl) {
 
 function motionCard(sl) {
   const on = motionsIn(sl);
-  const thumbs = on.length
+  const off = motionOff(sl.key);
+  const thumbs = off
+    ? `<p class="muted mcard-empty">${t('mot.offNote')}</p>`
+    : on.length
     ? on
         .map(
           (k) => `<div class="mthumb on" data-motion-key="${k}" title="${esc(t('set.peekHint'))}">
@@ -619,11 +544,12 @@ function motionCard(sl) {
         )
         .join('')
     : `<p class="muted mcard-empty">${t('mot.off')}</p>`;
-  return `<div class="panel mcard ${sl.multi ? 'multi' : ''}">
-    <div class="mcard-top"><b>${t('slot.' + sl.key)}</b><span class="mtag">${!sl.multi ? t('mot.one') : on.length > 1 ? t('mot.many', { n: on.length }) : t('mot.count', { n: on.length })}</span></div>
+  // 2.0.0: 상황마다 켜고 끄는 스위치. 끄면 그 상황엔 모션 없이 (고양이가 머무는 상황은 기본 자세로)
+  return `<div class="panel mcard ${sl.multi ? 'multi' : ''} ${off ? 'off' : ''}">
+    <div class="mcard-top"><b>${t('slot.' + sl.key)}</b><label class="switch mini" title="${esc(t(off ? 'mot.turnOn' : 'mot.turnOff'))}"><input type="checkbox" data-moff="${sl.key}" ${off ? '' : 'checked'}><span></span></label></div>
     <small class="muted">${t('slot.' + sl.key + 'Sub')}</small>
     <div class="mstrip">${thumbs}</div>
-    <button class="btn ghost small mcard-btn" data-medit="${sl.key}">${icon('gear', 12)}${t('mot.edit')}</button>
+    ${off ? '' : `<div class="mcard-foot"><span class="mtag">${!sl.multi ? t('mot.one') : on.length > 1 ? t('mot.many', { n: on.length }) : t('mot.count', { n: on.length })}</span><button class="btn ghost small mcard-btn" data-medit="${sl.key}">${icon('gear', 12)}${t('mot.edit')}</button></div>`}
   </div>`;
 }
 
@@ -648,29 +574,28 @@ function motionGroups() {
 
 // 끌어다 놓는 모션 편집 창.
 //  위: 미리보기(마우스를 올린 모션을 크게) · 고른 모션 칸(여기로 끌어다 놓는다)
-//  아래: 권장 모션 → 다른 모션. 안 산 모션은 자물쇠와 가격이 붙고, 누르면 상점으로 간다
+//  아래: 권장 모션 → 다른 모션. 2.0.0 부터 모션은 모두 열려 있다 (산 것 · 잠긴 것이 없다)
 //  끌어다 놓기 말고 눌러도 넣고 뺄 수 있다. 저장을 눌러야 적용된다
 function openMotionEditor(slotKey) {
   const sl = D.shop.slots.find((x) => x.key === slotKey);
   if (!sl) return;
   let picked = motionsIn(sl).slice();
   let query = '';
-  const paid = D.shop.motion;
+  const more = D.shop.motion;
   const BASIC = new Set(['type', 'curl', 'wait', 'happy', 'levelup', 'wave']);
-  // 이 자리에 끼울 수 있는 것 전부: 이 자리의 기본 모션 + 다른 공짜 모션(기본 자세 빼고) + 상점 모션
+  // 이 자리에 끼울 수 있는 것 전부: 이 자리의 기본 모션 + 다른 기본 모션(기본 자세 빼고) + 나머지 모션
   const freeAll = [...new Set(D.shop.slots.flatMap((x) => x.free))].filter((k) => !BASIC.has(k));
-  const all = [...new Set([...sl.free, ...freeAll, ...paid.map((m) => m.key)])];
+  const all = [...new Set([...sl.free, ...freeAll, ...more.map((m) => m.key)])];
   const info = (k) => {
-    const m = paid.find((x) => x.key === k);
-    return { key: k, locked: !!m && !m.owned, price: m ? m.price : 0, rec: sl.free.includes(k) || (!!m && m.slots.includes(sl.key)) };
+    const m = more.find((x) => x.key === k);
+    return { key: k, rec: sl.free.includes(k) || (!!m && m.slots.includes(sl.key)) };
   };
-  const byOwned = (a, b) => a.locked - b.locked;
-  const rec = all.map(info).filter((x) => x.rec).sort(byOwned);
-  const others = all.map(info).filter((x) => !x.rec).sort(byOwned);
+  const rec = all.map(info).filter((x) => x.rec);
+  const others = all.map(info).filter((x) => !x.rec);
 
-  const chip = (x, where) => `<div class="mchip ${x.locked ? 'locked' : ''} ${where === 'pool' && picked.includes(x.key) ? 'picked' : ''}" data-k="${x.key}" data-where="${where}" ${x.locked ? '' : 'draggable="true"'}>
-      ${x.locked ? icon('lock', 11) : where === 'sel' ? icon('check', 11) : ''}<span>${esc(t('motion.' + x.key))}</span>
-      ${x.locked ? `<small>${coins(x.price, 10)}</small>` : ''}${where === 'sel' && sl.multi ? '<i class="mx">×</i>' : ''}</div>`;
+  const chip = (x, where) => `<div class="mchip ${where === 'pool' && picked.includes(x.key) ? 'picked' : ''}" data-k="${x.key}" data-where="${where}" draggable="true">
+      ${where === 'sel' ? icon('check', 11) : ''}<span>${esc(t('motion.' + x.key))}</span>
+      ${where === 'sel' && sl.multi ? '<i class="mx">×</i>' : ''}</div>`;
   const match = (x) => !query || t('motion.' + x.key).toLowerCase().includes(query);
 
   const el = openModal(
@@ -698,8 +623,6 @@ function openMotionEditor(slotKey) {
     delete prevCanvas.dataset.mood;
     if (PEEK_MOOD[k]) prevCanvas.dataset.mood = PEEK_MOOD[k];
     else prevCanvas.dataset.motion = k;
-    prevCanvas.classList.toggle('lv-locked', motionLvLocked(k));
-    prevCanvas.parentElement.classList.toggle('lv-locked-box', motionLvLocked(k)); // [옵시디언] 바탕은 감싼 상자가 (house.css)
     const r = mini(prevCanvas);
     if (r.demo) r.play(r.demo);
     minis.push(r);
@@ -708,8 +631,6 @@ function openMotionEditor(slotKey) {
   };
 
   const add = (k) => {
-    const x = info(k);
-    if (x.locked) return;
     if (sl.multi) {
       if (!picked.includes(k)) picked.push(k);
     } else picked = [k];
@@ -740,11 +661,6 @@ function openMotionEditor(slotKey) {
       const k = c.dataset.k;
       c.addEventListener('mouseenter', () => preview(k));
       c.addEventListener('click', (e) => {
-        if (c.classList.contains('locked')) {
-          closeModal();
-          shopPage = 'motion';
-          return setTab('shop');
-        }
         if (c.dataset.where === 'sel') remove(k);
         else if (sl.multi && picked.includes(k)) remove(k);
         else add(k);
@@ -820,8 +736,8 @@ function showMotionPeek(el, e) {
   const mood = PEEK_MOOD[key];
   const state = el.dataset.locked ? t('set.peekLocked') : el.classList.contains('on') ? t('set.peekOn') : t('set.peekOff');
   const box = document.createElement('div');
-  box.className = 'motion-peek' + (motionLvLocked(key) ? ' lv-locked-box' : ''); // [옵시디언] 바탕은 감싼 상자가 (house.css)
-  box.innerHTML = `<canvas class="pixel ${motionLvLocked(key) ? 'lv-locked' : ''}" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
+  box.className = 'motion-peek';
+  box.innerHTML = `<canvas class="pixel" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
     <div class="nm">${esc(t('motion.' + key))}</div>
     <div class="st">${state}</div>`;
   document.body.appendChild(box);
@@ -844,6 +760,13 @@ function closeMotionPeek() {
 // 상점의 장난감 카드를 우클릭하면 고양이가 그 장난감을 갖고 노는 모습을 보여 준다.
 // 장난감마다 놀이 자세(toys.js)를 차례로 돌린다. 'carry' 는 쥐돌이를 물고 총총
 const TOY_PEEK = {
+  // 4차 장난감 (자세는 toys.js)
+  sunbeam: ['toyBask', 'toyBelly', 'toySunNap'],
+  quilt: ['toyCrouch', 'toyWiggle', 'pounce', 'toyTrap'],
+  fishbowl: ['toyStare', 'toyPawDip', 'toyWet'],
+  shellgame: ['toyWatch', 'toyYay', 'toyBlep'],
+  volley: ['toyWatch', 'toyLeap', 'toyYay'],
+  simon: ['toyLeap', 'toyWatch', 'toyYay'],
   ball: ['toyWiggle', 'pounce', 'toyBat'],
   jingle: ['pounce', 'toyBat', 'toyWiggle'],
   yarn: ['toyYarn', 'toyTangle'],
@@ -863,12 +786,12 @@ const TOY_PEEK = {
   cup: ['toyDeadpan', 'toySwipe', 'toyDeadpan'],
   bananapeel: ['toySlip', 'toyPretend'],
   catwheel: ['toyWheel', 'toySlip', 'toyDizzy'],
-  vacuum: ['toyHide', 'toyPeek'],
-  boxtower: ['toyLeap', 'toyPerch'],
-  magichat: ['toyWatch', 'pounce', 'toyProud'],
+  vacuum: ['toyHide', 'toyPeek', 'toyHiss', 'toyRide'],
+  boxtower: ['toyLeap', 'toyPerch', 'toyKing'],
+  magichat: ['toyWatch', 'pounce', 'toyProud', 'toyAchoo'],
   slotmachine: ['toyWatch', 'toyYay', 'toyWatch', 'toyPunch'],
   snowball: ['toySnowman', 'toyBat'],
-  rccar: ['toyWiggle', 'pounce', 'toySitOn'],
+  rccar: ['toyWiggle', 'pounce', 'toySitOn', 'toyRide'],
   ufotoy: ['toyFloat', 'toyLeap'],
   ballshooter: ['pounce', 'toyBat', 'pounce'],
   jumprope: ['toyLeap', 'toyLeap', 'toyTrip'],
@@ -884,7 +807,7 @@ const TOY_PEEK = {
 const TOY_DRAWN = new Set(['box', 'bag', 'scratcher', 'yarn', 'catnip', 'catwheel', 'catlaptop']);
 
 // 함께 하는 놀이 카드에 붙는 것: 최고 기록, 줄다리기 난이도 (가진 것만)
-const TOY_RECORD = { whackcat: 'whackcat', rps: 'rps', trampoline: 'trampoline' };
+const TOY_RECORD = { whackcat: 'whackcat', rps: 'rps', trampoline: 'trampoline', jumprope: 'jumprope', quilt: 'quilt', shellgame: 'shellgame', volley: 'volley', simon: 'simon' };
 // 장난감 카드 정보 칸: 하는 일 태그 + 기록·난이도. [옵시디언] 기록·난이도 줄이 붙으면 태그는 한 줄만 (tags-1, house.css)
 function toyTags(it, inShop = false) {
   const extra = toyExtra(it, inShop);
@@ -949,12 +872,6 @@ function animate() {
   const off = offscreen();
   if (!off) {
     hero.frame();
-    const ft = performance.now() / 1000;
-    for (const c of document.querySelectorAll('canvas[data-friend-art]')) {
-      const g = c.getContext('2d');
-      g.clearRect(0, 0, 48, 48);
-      PetFriends.draw(g, c.dataset.friendArt, ft + (c.dataset.off ? Number(c.dataset.off) : 0), 'idle', 1);
-    }
     for (const m of minis) {
       if (m.seq) stepToySeq(m);
       // 미리보기 모션은 끝나면 잠깐 쉬었다가 다시 한다
@@ -1064,45 +981,6 @@ function openSetMotions(key) {
   minis.push(...$$('canvas[data-stage]', el).map(mini));
 }
 
-// ---------- 친구에게 선물하기 ----------
-// 단짝 고양이 친구에게 공방 코스튬을 준다. 고르면 아래에 한 번 더 묻고, 주면 인벤토리에서 빠진다 (main/friends.js 의 gift)
-function openFriendGift(id) {
-  const f = D.friends.list.find((x) => x.id === id);
-  if (!f) return;
-  const mine = D.workshop ? D.workshop.recipes.filter((r) => r.owned) : [];
-  const name = t('fr.' + id + '.name');
-  const cells = mine
-    .map((r) => `<button class="gift-cell" data-gift-pick="${r.key}"><span class="wtag">${t('cslot.' + r.slot)}</span><canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${r.key}"></canvas><div class="nm">${esc(t('item.' + r.key))}</div></button>`)
-    .join('');
-  const el = openModal(
-    `<div class="modal-top"><h2>${esc(t('fr.giftTitle', { name }))}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
-    <p class="muted" style="margin-top:-4px">${t('fr.giftSub')}</p>
-    ${mine.length ? `<div class="gift-grid">${cells}</div>` : `<p class="muted">${t('fr.giftNone')}</p>`}
-    <div class="modal-foot gift-foot" hidden></div>`,
-    'gift-modal',
-  );
-  minis.push(...$$('canvas[data-stage]', el).map(mini));
-  const foot = $('.gift-foot', el);
-  $$('[data-gift-pick]', el).forEach((b) =>
-    b.addEventListener('click', () => {
-      $$('[data-gift-pick]', el).forEach((x) => x.classList.toggle('on', x === b));
-      const r = mine.find((x) => x.key === b.dataset.giftPick);
-      const item = t('item.' + r.key);
-      const lost = (f.wearBy || {})[r.slot];
-      foot.hidden = false;
-      foot.innerHTML = `<span>${esc(t('fr.giftConfirm', { item, name }))}${lost ? `<br><small class="muted">${esc(t('fr.giftLost', { item: t('item.' + lost) }))}</small>` : ''}</span>
-        <button class="btn primary" data-gift-go>${icon('gift', 13)}${t('fr.giftBtn')}</button>`;
-      $('[data-gift-go]', foot).addEventListener('click', async () => {
-        const res = await pet.friendGift(id, r.key);
-        if (res && res.data) await apply(res.data);
-        closeModal();
-        if (res && res.result && res.result.ok) toast(t('fr.gifted', { name, item }), 'gift');
-        renderView();
-      });
-    }),
-  );
-}
-
 // ---------- 장난감 사용법 ----------
 // 예전엔 기본 고양이가 갖고 노는 장면을 움직여 보여 줬다(시연). 2026-09-24 부터 글로만 설명한다:
 // 꺼내는 법 · 노는 법(toyHow) · 고양이 반응(toyDo) · 끝내는 법. 보고 바로 살 수도 있다
@@ -1160,7 +1038,7 @@ function saveUnlocks() {
 }
 function newUnlocks() {
   if (!D || !D.shop) return [];
-  const open = [...D.shop.acc, ...D.shop.motion, ...D.shop.toy].filter((x) => x.level && !x.locked && !x.owned);
+  const open = [...D.shop.acc, ...D.shop.toy].filter((x) => x.level && !x.locked && !x.owned);
   if (!seenUnlocks) {
     seenUnlocks = new Set(open.map((x) => x.key));
     saveUnlocks();
@@ -1268,10 +1146,8 @@ function renderTop() {
     $('#h-lv').textContent = '';
     $('#h-xptext').textContent = t('top.reading');
   }
-  // 오늘 기분 (그날의 기분) + 지금 상태
-  const TEMPER_ICON = { calm: 'leaf', playful: 'sparkle', grumpy: 'bang' };
+  // 지금 상태 (2.0.0: 그날의 기분 딱지는 없앴다)
   $('#h-mood').innerHTML =
-    (D.temper ? `<span class="temper t-${D.temper}">${icon(TEMPER_ICON[D.temper] || 'leaf', 12)}${esc(t('temper.' + D.temper))}</span>` : '') +
     (D.quiet ? icon('bellOff', 13) + `<span>${esc(t('mood.quiet'))}</span>` : '') +
     icon(MOOD_ICON[D.mood] || 'leaf', 13) +
     `<span>${esc(t('mood.' + D.mood))}</span>`;
@@ -1305,7 +1181,7 @@ function renderTop() {
 
 // ---------- 탭 ----------
 
-// 배부름 게이지. 벌이 아니라 덤: 든든하면(50 이상) 보물 · 친구가 더 자주 온다 (main/gauge.js)
+// 배부름 게이지. 벌이 아니라 덤 (core/gauge.js)
 const gaugeRow = (key, v, ic) =>
   `<div class="gauge ${v < 25 ? 'low' : ''}"><span class="gl">${icon(ic, 16)}${t('gauge.' + key)}</span><div class="bar"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
 const gaugeNote = (g) => (g.full ? t('gauge.fullNote') : g.food < 25 ? t('gauge.hungryNote') : t('gauge.okNote'));
@@ -1318,40 +1194,30 @@ function gaugePanel() {
       <div class="panel">${row('food', g.food, 'ricebowl')}<p class="muted gauge-note">${g.full ? icon('sparkle', 12) + ' ' : ''}${note}</p></div>`;
 }
 
-// 오늘 먹고 싶은 것 (main/craving.js): 밥 하나 · 간식 하나. 먹이면 산 값의 절반을 돌려받는다
-const craving = (key) => !!D.craving && [D.craving.meal, D.craving.snack].includes(key) && !D.craving.fed.includes(key);
-function cravingPanel() {
-  const c = D.craving;
-  if (!c) return '';
-  const cell = (key, kind) => {
-    const it = D.shop.food.find((x) => x.key === key);
-    if (!it) return '';
-    const done = c.fed.includes(key);
-    const act = done
-      ? `<span class="crave-done ico-row">${icon('check', 12)}${t('crave.done')}</span>`
-      : `<button class="btn small ${it.stock ? 'primary' : ''}" data-crave="${key}">${t(it.stock ? 'crave.feed' : 'crave.buyFeed')}</button>`;
-    return `<div class="crave-cell ${done ? 'done' : ''}">${icon(key, 32)}
-      <div class="crave-txt"><small>${t('crave.' + kind)}</small><b>${esc(t('item.' + key))}</b><span>${done ? '' : t('crave.back', { n: fmt(Math.floor(it.price / 2)) })}</span></div>${act}</div>`;
-  };
-  return `<h2>${t('crave.title')}</h2>
-      <div class="panel crave"><div class="crave-row">${cell(c.meal, 'meal')}${cell(c.snack, 'snack')}</div><p class="muted small crave-sub">${t('crave.sub')}</p></div>`;
-}
-
 // [옵시디언 1.5.0] 오늘의 목표 + 집중 시간. 홈 맨 위의 큰 칸 (호스트의 D.goal · D.focus = core/goals.js)
 const focusLeft = (end) => {
   const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
+// 2.0.0: 집중 길이를 여기서 바로 고르고, 마친 뒤엔 쉬는 시간(5 · 10분)을 이어서 켠다. 오늘 몇 번 했는지도
 function focusBox() {
   const f = D.focus || { on: false, min: 25 };
   if (f.on)
     return `<div class="focus-box on"><div class="focus-k">${icon('hourglass', 14)}<span data-focus-left="${f.end}">${esc(t('home.focusOn', { left: focusLeft(f.end) }))}</span></div>
       <button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button></div>`;
-  const tot = f.total && f.total.sessions ? `<small class="muted">${t('home.focusTotal', { n: fmt(f.total.sessions), m: fmt(f.total.minutes) })}</small>` : '';
-  return `<div class="focus-box"><button class="btn primary" data-act="focusStart">${icon('hourglass', 13)}${t('home.focusBtn', { m: f.min })}</button>
-    <small class="muted">${t('home.focusSub', { coins: fmt(f.min * 2) })}</small>${tot}</div>`;
-}
-function goalPanel() {
+  if (f.brk)
+    return `<div class="focus-box on brk"><div class="focus-k">${icon('pillow', 14)}<span data-break-left="${f.brk.end}">${esc(t('home.breakOn', { left: focusLeft(f.brk.end) }))}</span></div>
+      <button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button>
+      <button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button></div>`;
+  const tot = f.total || {};
+  const today = tot.today ? `<small class="muted">${t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) })}</small>` : tot.sessions ? `<small class="muted">${t('home.focusTotal', { n: fmt(tot.sessions), m: fmt(tot.minutes) })}</small>` : '';
+  const lens = (f.lengths || [15, 25, 50]).map((m) => `<button class="chip ${m === f.min ? 'on' : ''}" data-focus-min="${m}">${t('home.focusMin', { m })}</button>`).join('');
+  const breaks = (f.breaks || [5, 10]).map((m) => `<button class="btn ghost small" data-act="breakStart" data-min="${m}">${icon('pillow', 11)}${t('home.breakBtn', { m })}</button>`).join('');
+  return `<div class="focus-box"><div class="chips focus-lens">${lens}</div>
+    <button class="btn primary" data-act="focusStart">${icon('hourglass', 13)}${t('home.focusBtn', { m: f.min })}</button>
+    <small class="muted">${t('home.focusSub', { coins: fmt(f.min * 2) })}</small>${today}
+    <div class="focus-breaks">${breaks}</div></div>`;
+}function goalPanel() {
   const g = D.goal;
   if (!g) return '';
   if (!g.on)
@@ -1377,7 +1243,160 @@ function goalPanel() {
 // 집중하는 동안 남은 시간을 1초마다 (호스트는 끝 시각만 준다)
 setInterval(() => {
   for (const el of $$('[data-focus-left]')) el.textContent = t('home.focusOn', { left: focusLeft(Number(el.dataset.focusLeft)) });
+  for (const el of $$('[data-break-left]')) el.textContent = t('home.breakOn', { left: focusLeft(Number(el.dataset.breakLeft)) });
 }, 1000);
+
+// ---------- 홈 (2.0.0) ----------
+// 칸마다 접을 수 있다. 접은 칸은 하우스 저장소(KC_STORE)에 남는다 (기기마다)
+let homeFold = new Set();
+try {
+  homeFold = new Set(JSON.parse(window.KC_STORE.get('homeFold') || '[]'));
+} catch {
+  // 저장소를 못 쓰면 다 펼친 채로
+}
+function toggleFold(id) {
+  if (homeFold.has(id)) homeFold.delete(id);
+  else homeFold.add(id);
+  try {
+    window.KC_STORE.set('homeFold', JSON.stringify([...homeFold]));
+  } catch {
+    // 무시
+  }
+}
+// 홈 칸 하나: 제목 줄(오른쪽에 그 칸의 버튼 + 접기) + 내용
+function homeSec(id, title, acts, body) {
+  const folded = homeFold.has(id);
+  return `<section class="hsec ${folded ? 'folded' : ''}" id="hs-${id}">
+    <div class="h2-row"><h2>${title}</h2><div class="hsec-acts">${folded ? '' : acts}<button class="btn ghost fold" data-fold="${id}" aria-expanded="${!folded}" title="${esc(t(folded ? 'home.unfold' : 'home.fold'))}">${folded ? '+' : '−'}</button></div></div>
+    ${folded ? '' : body}
+  </section>`;
+}
+
+// 할 일: 플러그인 안에만 있는 목록. 노트를 만들지 않는다 (core/todos.js)
+let todoDoneOpen = false;
+let todoEditing = null; // 고치는 중인 할 일 id
+function todoPanel() {
+  const T2 = D.todos || { open: [], done: [] };
+  const row = (x, i, n) =>
+    todoEditing === x.id
+      ? `<li class="todo editing"><input type="text" class="todo-edit" data-todo-edit="${x.id}" value="${esc(x.text)}" maxlength="${T2.maxText || 200}" aria-label="${esc(t('todo.editLbl'))}"></li>`
+      : `<li class="todo ${x.done ? 'done' : ''}">
+        <label class="todo-check"><input type="checkbox" data-todo-toggle="${x.id}" ${x.done ? 'checked' : ''}><span class="box">${x.done ? icon('check', 11) : ''}</span></label>
+        <span class="todo-t" data-todo-text="${x.id}" title="${esc(t('todo.editHint'))}">${esc(x.text)}</span>
+        <span class="todo-acts">${x.done ? '' : `<button class="ic" data-todo-move="${x.id}" data-to="${i - 1}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('todo.up'))}">↑</button><button class="ic" data-todo-move="${x.id}" data-to="${i + 1}" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(t('todo.down'))}">↓</button>`}<button class="ic" data-todo-del="${x.id}" aria-label="${esc(t('todo.del'))}">×</button></span>
+      </li>`;
+  const open = T2.open.length ? `<ul class="todos">${T2.open.map((x, i) => row(x, i, T2.open.length)).join('')}</ul>` : `<p class="muted small todo-empty">${t('todo.empty')}</p>`;
+  const done = T2.done.length
+    ? `<button class="btn ghost small todo-more" data-act="todoDoneOpen">${t(todoDoneOpen ? 'todo.doneHide' : 'todo.doneShow', { n: fmt(T2.done.length) })}</button>
+      ${todoDoneOpen ? `<ul class="todos done-list">${T2.done.map((x, i) => row(x, i, T2.done.length)).join('')}</ul><button class="btn ghost small" data-act="todoClear">${t('todo.clear')}</button>` : ''}`
+    : '';
+  const full = T2.open.length + T2.done.length >= (T2.max || 100);
+  const body = `<div class="panel todo-panel">
+      <form class="todo-add" autocomplete="off"><input type="text" id="todo-new" maxlength="${T2.maxText || 200}" placeholder="${esc(t('todo.placeholder'))}" ${full ? 'disabled' : ''} aria-label="${esc(t('todo.placeholder'))}"><button class="btn primary small" type="submit" ${full ? 'disabled' : ''}>${t('todo.add')}</button></form>
+      ${open}${done}
+      <p class="muted todo-note">${icon('lock', 10)}${t('todo.note')}</p>
+    </div>`;
+  const n = T2.open.length;
+  return homeSec('todo', `${t('todo.title')}${n ? ` <span class="muted">${fmt(n)}</span>` : ''}`, '', body);
+}
+
+// 노트 지도: 지금 연 노트 둘레를 작은 그래프로. 같은 데이터면 늘 같은 그림이 나오게(다시 그려도 안 흔들리게) 정해진 순서로 자리를 잡는다
+const GRAPH_W = 320;
+const GRAPH_H = 210;
+function graphLayout(G) {
+  const n = G.nodes.length;
+  const cx = GRAPH_W / 2;
+  const cy = GRAPH_H / 2;
+  const rings = [0, 45, 75];
+  const byHop = [[], [], []];
+  G.nodes.forEach((nd, i) => byHop[Math.min(2, nd.hop)].push(i));
+  const p = G.nodes.map(() => [cx, cy]);
+  byHop.forEach((list, h) =>
+    list.forEach((i, k) => {
+      const a = (k / Math.max(1, list.length)) * Math.PI * 2 + h * 0.5;
+      p[i] = [cx + Math.cos(a) * rings[h] * 1.35, cy + Math.sin(a) * rings[h]];
+    }),
+  );
+  // 가볍게 밀고 당기기 (노트가 많아도 36개라 금방 끝난다). 서로 조금씩 밀고, 링크는 알맞은 길이로 당기고,
+  // 모두 가운데 쪽으로 살짝 끌어서 가장자리에 몰리지 않게 한다
+  const L = n > 16 ? 34 : n > 10 ? 56 : 90;
+  const C = n > 16 ? 25 : n > 10 ? 40 : 80; // 노트가 많으면 덜 밀어서 상자 안에 들어오게
+  for (let it = 0; it < 120; it++) {
+    const f = p.map(() => [0, 0]);
+    for (let a = 0; a < n; a++)
+      for (let b = a + 1; b < n; b++) {
+        const dx = p[a][0] - p[b][0];
+        const dy = p[a][1] - p[b][1];
+        const d2 = Math.max(16, dx * dx + dy * dy);
+        const k = C / d2;
+        f[a][0] += dx * k; f[a][1] += dy * k;
+        f[b][0] -= dx * k; f[b][1] -= dy * k;
+      }
+    for (const [a, b] of G.edges) {
+      const dx = p[b][0] - p[a][0];
+      const dy = p[b][1] - p[a][1];
+      const d = Math.max(1, Math.hypot(dx, dy));
+      const k = ((d - L) / d) * 0.06;
+      f[a][0] += dx * k; f[a][1] += dy * k;
+      f[b][0] -= dx * k; f[b][1] -= dy * k;
+    }
+    for (let i = 0; i < n; i++) {
+      if (G.nodes[i].hop === 0) continue;
+      f[i][0] += (cx - p[i][0]) * 0.03;
+      f[i][1] += (cy - p[i][1]) * 0.05;
+      p[i][0] = Math.max(34, Math.min(GRAPH_W - 34, p[i][0] + Math.max(-4, Math.min(4, f[i][0]))));
+      p[i][1] = Math.max(16, Math.min(GRAPH_H - 14, p[i][1] + Math.max(-4, Math.min(4, f[i][1]))));
+    }
+  }
+  return p.map(([x, y]) => [Math.round(x), Math.round(y)]);
+}
+function graphPanel() {
+  const H = D.home;
+  const acts = `<button class="btn head-act" data-act="localGraph">${icon('map', 12)}${t('home.localGraph')}</button><button class="btn head-act" data-act="graph">${icon('map', 12)}${t('home.graphView')}</button>`;
+  if (!H) return homeSec('map', t('home.mapTitle'), acts, `<div class="panel"><p class="muted small">${t('home.reading')}</p></div>`);
+  const G = H.graph;
+  const sum = `<p class="muted small map-sum">${t('home.mapSum', { n: fmt(H.notes), l: fmt(H.links), o: fmt((H.orphans && H.orphans.n) || 0) })}</p>`;
+  if (!G || !G.nodes.length)
+    return homeSec('map', t('home.mapTitle'), acts, `<div class="panel map-panel"><p class="muted small">${t('home.mapNone')}</p>${sum}</div>`);
+  const p = graphLayout(G);
+  const few = G.nodes.length <= 12;
+  const lines = G.edges.map(([a, b]) => `<line x1="${p[a][0]}" y1="${p[a][1]}" x2="${p[b][0]}" y2="${p[b][1]}"/>`).join('');
+  const dots = G.nodes
+    .map((nd, i) => {
+      const r = nd.hop === 0 ? 7 : 3 + Math.min(4, nd.deg * 0.5);
+      // 이름은 점 위에. 맨 위 줄에 붙은 점은 아래에 (잘리지 않게)
+      const ly = p[i][1] - r - 3 < 12 ? p[i][1] + r + 10 : p[i][1] - r - 3;
+      const label = nd.hop === 0 || (few && nd.hop === 1) ? `<text x="${p[i][0]}" y="${ly}">${esc(nd.name.length > 14 ? nd.name.slice(0, 13) + '…' : nd.name)}</text>` : '';
+      return `<g class="gn h${nd.hop}" data-open-note="${esc(nd.path)}" tabindex="0" role="button" aria-label="${esc(nd.name)}"><title>${esc(nd.name)}</title><circle cx="${p[i][0]}" cy="${p[i][1]}" r="${r}"/>${label}</g>`;
+    })
+    .join('');
+  const more = G.more ? `<span class="muted small">${t('home.mapMore', { n: fmt(G.more) })}</span>` : '';
+  const body = `<div class="panel map-panel">
+      <svg class="mini-graph" viewBox="0 0 ${GRAPH_W} ${GRAPH_H}" role="img" aria-label="${esc(t('home.mapTitle'))}"><g class="ge">${lines}</g>${dots}</svg>
+      <div class="map-foot"><span class="small">${icon('pin', 11)}<b>${esc(G.nodes[0].name)}</b> · ${t('home.mapNear', { n: fmt(G.nodes.length - 1) })}</span>${more}</div>
+      ${sum}
+    </div>`;
+  return homeSec('map', t('home.mapTitle'), acts, body);
+}
+
+// 최근 노트: 옵시디언이 기억하는 최근에 연 노트. 누르면 연다 (이미 있는 노트만)
+function ago(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 1) return t('home.agoNow');
+  if (m < 60) return t('home.agoMin', { n: m });
+  const h = Math.round(m / 60);
+  if (h < 24) return t('home.agoHour', { n: h });
+  return new Date(ms).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+}
+function recentPanel() {
+  const H = D.home;
+  const list = (H && H.recent) || [];
+  const rows = list.length
+    ? `<ul class="recent">${list.map((x) => `<li><button class="recent-btn" data-open-note="${esc(x.path)}">${icon(x.canvas ? 'map' : 'scroll', 13)}<span class="nm">${esc(x.name)}</span><span class="muted small">${esc(ago(x.mtime))}</span></button></li>`).join('')}</ul>`
+    : `<p class="muted small">${t('home.recentNone')}</p>`;
+  const edited = H && H.editedToday ? `<p class="muted small recent-sum">${t('home.editedToday', { n: fmt(H.editedToday) })}</p>` : '';
+  return homeSec('recent', t('home.recentTitle'), '', `<div class="panel recent-panel">${rows}${edited}</div>`);
+}
 
 // 하루 목표 고르기 (홈의 '바꾸기' · '목표 정하기'). 단위 · 미리 정한 양 · 직접 입력 · 끄기
 const GOAL_PRESETS = { words: [100, 300, 500, 1000, 1667], chars: [300, 1000, 2000, 5000] };
@@ -1444,52 +1463,21 @@ function openGoalPicker() {
   });
 }
 
-// 오늘의 소식 (2026-10-10): 업적 · 보상 · 레벨 · 친구 · 보물. 방해 금지 등으로 못 띄운 말풍선도 여기 남는다
-let newsOpen = false;
-const NEWS_ICON = { grow: 'star', achieve: 'medal', item: 'gift', quest: 'check', attend: 'fire', retro: 'medal', event: 'paw' };
-function newsPanel() {
-  const list = [...(D.news || [])].reverse();
-  const show = newsOpen ? list : list.slice(0, 4);
-  const time = (at) => new Date(at).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
-  const rows = show
-    .map((x) => `<li ${x.link ? `data-news-link="${x.link}"` : ''}><span class="nt">${time(x.at)}</span>${icon(NEWS_ICON[x.kind] || 'sparkle', 13)}<span class="nx">${esc(x.text)}</span></li>`)
-    .join('');
-  const more = list.length > 4 ? `<button class="btn ghost small" data-act="newsMore">${newsOpen ? t('news.less') : t('news.more', { n: list.length - 4 })}</button>` : '';
-  return `<h2>${t('news.title')} <span class="muted">${list.length || ''}</span></h2>
-      <div class="panel news">${list.length ? `<ul class="news-list">${rows}</ul>${more}` : `<p class="muted small">${t('news.empty')}</p>`}</div>`;
-}
-
 // 업적 탭 거르기 (all · todo · done)
 let achFilter = 'todo'; // 업적 탭은 아직 못 한 것부터 보여 준다
 
-// 상점에서 지금 보는 페이지 (meal · snack · acc · motion · toy)
+// 상점에서 지금 보는 페이지 (meal · snack · acc · toy · star. 2.0.0: 모션은 상점에서 뺐다)
 let shopPage = 'meal';
 let freshSnap = null; // '새로 열림' 페이지를 연 순간의 목록 (보는 동안 NEW 가 꺼져도 페이지에서 안 사라지게)
 // 코스튬 칸 (main/shop.js 의 COSTUME_TABS 와 같은 순서). 옷장 인벤토리 탭·상점 코스튬 분류가 쓴다
 const COSTUME_TABS = ['set', 'head', 'face', 'neck', 'back', 'hand', 'effect'];
 let wardTab = 'all';
 // 인벤토리 큰 분류. 코스튬 밑에만 칸 분류(wardTab)가 한 줄 더 붙는다
-const INV_PAGES = ['costume', 'meal', 'snack', 'toy', 'treasure'];
+const INV_PAGES = ['costume', 'meal', 'snack', 'toy'];
 let invPage = 'costume';
-// 보물 공방 탭 안의 페이지: 공방(코스튬 만들기) · 보물 상자(주운 보물 도감)
-let wsPage = 'workshop';
-let exPick = null; // 보물 교환소에서 고른 보물
-// 공방 코스튬의 이야기: "재료: 병뚜껑 2 · 아무 보물 4 · 10월 9일 제작" (예전 기록은 쓴 재료가 없어서 조합표로)
-function wsStory(r) {
-  const used = r.used || Object.fromEntries(r.need.map((m) => [m.key, m.n]));
-  const parts = Object.entries(used).slice(0, 4).map(([k, n]) => `${t('treasure.' + k)} ${n}`);
-  if (!r.used && r.any) parts.push(`${t('workshop.any')} ${r.any}`);
-  if (r.used && Object.keys(used).length > 4) parts.push('…');
-  const date = new Date(r.madeAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
-  return t('workshop.story', { mats: parts.join(' · '), date });
-}
 let shopCostumeTab = 'set'; // 처음 열면 세트부터 (2026-09-29)
-// 상점 모션 페이지에서 고른 상황 ('all' | MOTION_SLOTS 키. 일할 때 셋은 'work' 하나로 묶는다)
-let shopMotionTab = 'work'; // 처음 열면 일할 때부터 (2026-09-29)
 let shopStarTab = 'set'; // 별 상점도 코스튬처럼 칸으로 거른다. 처음 열면 세트부터 (2026-10-09). 털색은 맨 끝 '털색' 칩
-const WORK_SLOTS = ['work', 'workLong', 'workHour'];
-// 모션이 그 상황 칩에 들어가나 (일할 때 칩은 30분·1시간 넘게 일할 때까지 포함)
-const motionInTab = (it, k) => (k === 'work' ? it.slots.some((x) => WORK_SLOTS.includes(x)) : it.slots.includes(k));
+
 
 // 설정의 '경험치에 넣을 프로젝트' 목록을 처음에 몇 줄만 보여 줄지
 const PROJECTS_SHOWN = 6;
@@ -1497,6 +1485,7 @@ let projectsOpen = false;
 const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6.0)
 
 const TABS = {
+  // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것부터 위에. 고양이 상태(배부름 · 레벨)는 맨 아래 작게
   home() {
     const g = D.growth;
     const u = D.today;
@@ -1505,67 +1494,38 @@ const TABS = {
     const hook = D.petShown === false
       ? `<div class="banner">${icon('paw', 22)}<p><b>${t('obs.petOffTitle')}</b><br><span class="muted">${t('obs.petOffDesc')}</span></p><button class="btn primary" data-act="petOn">${t('obs.petOn')}</button></div>`
       : '';
-    // 단계가 여럿이면 성장 로드맵, 하나뿐이면 레벨 칸
     const into = g ? g.xp - g.levelFloor : 0;
     const need = g ? g.levelCeil - g.levelFloor : 1;
-    // 레벨은 맨 위 머리 부분에도 막대가 있어서 여기서는 한 줄로만 (Lv · 막대 · 남은 XP)
-    const growthPanel = oneStage()
-      ? `<div class="panel lvline">
-        <b class="lvtag">Lv.${g ? g.level : 1}</b>
-        <div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
-        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span>
-      </div>`
-      : `<h2>${t('home.roadmap')}</h2>
-      <div class="panel">
-        <div class="road">${D.stages
-          .map((s, i) => {
-            const cls = !g ? 'locked' : i < g.stageIndex ? 'done' : i === g.stageIndex ? 'now' : 'locked';
-            return `<div class="step ${cls}"><canvas class="pixel" data-stage="${s.key}"></canvas>${stageName(s.key)}<br><span class="muted">${fmt(s.min)}</span></div>`;
-          })
-          .join('')}</div>
-        <div class="bar" style="margin-top:10px"><i style="width:${g ? g.progress * 100 : 0}%"></i></div>
-        <p class="center muted" style="margin:8px 0 0">${
-          g ? (g.nextStageKey ? t('home.toNext', { stage: esc(stageName(g.nextStageKey)), xp: fmt(g.xpToNext) }) : t('home.grown')) : t('home.reading')
-        }</p>
-      </div>`;
-    // 오늘 숫자 카드에 소제목을 달고, 자주 켜고 끄는 방해 금지는 그 줄 오른쪽에 둔다
-    const todayHead = `<div class="h2-row"><h2>${t('home.today')}</h2><button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button></div>`;
-    // [옵시디언 1.5.0] 목표를 단어로 세면 첫 카드도 단어로. 세션 카드 자리에 끝낸 할 일 (세션은 통계 탭에)
+    // 오늘 숫자: 한 줄짜리 작은 칸들. 목표를 단어로 세면 첫 칸도 단어로
     const words = D.goal && D.goal.unit === 'words';
-    const firstCard = words
-      ? `<div class="panel stat"><div class="k">${t('home.todayWords')}${info('words')}</div><div class="v">${fmt(u.w || 0)}</div><div class="d">+${fmt(Math.floor(u.c / D.formula.CHARS_PER_XP))} XP</div></div>`
-      : `<div class="panel stat"><div class="k">${t('home.todayChars')}${info('chars')}</div><div class="v">${fmt(u.c)}</div><div class="d">+${fmt(Math.floor(u.c / D.formula.CHARS_PER_XP))} XP</div></div>`;
-    const tasksCard = D.formula.XP_PER_TASK
-      ? `<div class="panel stat"><div class="k">${t('home.todayTasks')}${info('tasks')}</div><div class="v">${fmt(u.k || 0)}</div><div class="d">+${fmt((u.k || 0) * D.formula.XP_PER_TASK)} XP</div></div>`
-      : `<div class="panel stat"><div class="k">${t('home.todaySessions')}${info('sessions')}</div><div class="v">${fmt(u.s)}</div><div class="d">+${fmt(u.s * D.formula.XP_PER_SESSION)} XP</div></div>`;
+    const cell = (k, v, tipKey) => `<div class="tcell2"><span class="k">${k}${tipKey ? info(tipKey) : ''}</span><b>${v}</b></div>`;
+    const todayBody = `<div class="panel today-row">
+        ${words ? cell(t('home.todayWords'), fmt(u.w || 0), 'words') : cell(t('home.todayChars'), fmt(u.c), 'chars')}
+        ${cell(t('home.todayLinks'), fmt(u.l), 'links')}
+        ${cell(t('home.todayNotes'), fmt(u.n), 'notes')}
+        ${cell(t('home.todayTasks'), fmt(u.k || 0), 'tasks')}
+        ${cell(t('home.attendance'), `${icon('fire', 13)}${st.current}`)}
+      </div>`;
+    const quietBtn = `<button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button>`;
+    // 고양이: 레벨 한 줄 + 배부름 한 줄 (밥 주기)
+    const gg = D.gauge || { food: 100, full: true };
+    const catBody = `<div class="panel cat-panel">
+        <div class="lvline"><b class="lvtag">Lv.${g ? g.level : 1}</b><div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
+        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span></div>
+        ${gaugeRow('food', gg.food, 'ricebowl')}
+        <p class="muted gauge-note">${gaugeNote(gg)}</p>
+      </div>`;
+    const feedBtn = `<button class="btn head-act ${gg.food < 50 ? 'alert' : ''}" data-act="feed">${icon('ricebowl', 12)}${t('home.feed')}</button>`;
     return `
       ${hook}
       ${goalPanel()}
-      ${todayHead}
-      <div class="cards">
-        ${firstCard}
-        <div class="panel stat"><div class="k">${t('home.todayLinks')}${info('links')}</div><div class="v">${fmt(u.l)}</div><div class="d">+${fmt(u.l * D.formula.XP_PER_LINK)} XP</div></div>
-        <div class="panel stat"><div class="k">${t('home.todayNotes')}${info('notes')}</div><div class="v">${fmt(u.n)}</div><div class="d">+${fmt(u.n * D.formula.XP_PER_NOTE)} XP</div></div>
-        ${tasksCard}
-        <div class="panel stat"><div class="k">${t('home.attendance')}</div><div class="v ico-row">${icon('fire', 18)}${st.current}</div><div class="d">${t('home.streakSub', { best: st.best, total: st.total })}${D.game.streakGifts && D.game.streakGifts.next ? `<br>${t('streak.nextGift', { n: D.game.streakGifts.left })}` : ''}</div></div>
-      </div>
-
-      ${gaugePanel()}
-
-      ${cravingPanel()}
-
-      ${newsPanel()}
-
+      ${todoPanel()}
       <section id="quests">${TABS.__questsBody()}</section>
-
-      ${growthPanel}
-
-      <h2>${t('home.recentXp')}</h2>
-      <div class="panel">
-        ${D.game.recentBonus.length ? `<ul class="feed">${D.game.recentBonus.map((b) => `<li><span>${esc(why(b))}</span><span class="xp-plus">+${fmt(b.xp)} XP</span></li>`).join('')}</ul>` : `<p class="muted center" style="margin:0">${t('home.recentXpEmpty')}</p>`}
-      </div>`;
+      ${graphPanel()}
+      ${recentPanel()}
+      ${homeSec('today', t('home.today'), quietBtn, todayBody)}
+      ${homeSec('cat', esc(D.settings.petName), feedBtn, catBody)}`;
   },
-
   // 퀘스트는 탭이 아니라 홈 안의 한 칸이다 (7차: 홈에 통합)
   __questsBody() {
     const q = D.game.quests;
@@ -1583,17 +1543,24 @@ const TABS = {
         <button class="btn head-act ${qi.canRefresh ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t('quests.refresh')}</button>
       </div>
       ${q
-        .map(
-          (x) => `
+        .map((x) => {
+          // 2.0.0: 처음 해 보는 사람을 위한 '어떻게' 한 줄 (core/skills.js 의 기술 이름표). 외톨이 노트 퀘스트는 그 노트들을 바로 열 수 있게
+          const howKey = x.skill ? 'skill.' + x.skill + '.how' : '';
+          const how = howKey && t(howKey) !== howKey ? `<div class="quest-how">${icon('bulb', 11)}<span>${esc(t(howKey))}</span></div>` : '';
+          const orphans = x.type === 'orphans' && !x.done && D.home && D.home.orphans && D.home.orphans.list.length
+            ? `<div class="quest-notes">${D.home.orphans.list.map((o) => `<button class="chip" data-open-note="${esc(o.path)}">${esc(o.name)}</button>`).join('')}</div>`
+            : '';
+          return `
         <div class="panel quest ${x.done ? 'done' : ''}">
           <div class="icon">${icon(QUEST_ICON[x.type] || 'star', 26)}</div>
           <div class="body">
             <div class="row"><span><span class="qtier qtier-${x.tier}">${t('quests.tier.' + x.tier)}</span>${esc(x.text)}</span><span class="reward">${x.done ? icon('check', 11) : ''}+${x.xp} XP</span></div>
             <div class="bar ${x.done ? 'good' : ''}"><i style="width:${(x.value / x.target) * 100}%"></i></div>
-            <div class="muted" style="font-size:11px;margin-top:3px">${x.type === 'chars' ? `${fmt(x.value)} / ${fmt(x.target)}` : `${fmt(x.value)} / ${fmt(x.target)}`}</div>
+            <div class="muted" style="font-size:11px;margin-top:3px">${fmt(x.value)} / ${fmt(x.target)}</div>
+            ${x.done ? '' : how}${orphans}
           </div>
-        </div>`,
-        )
+        </div>`;
+        })
         .join('')}
       ${q.length ? '' : `<p class="muted center">${t('home.reading')}</p>`}
       <div class="panel allclear ${q.length && done === q.length ? 'done' : ''}" ${q.length ? '' : 'hidden'}>
@@ -1662,79 +1629,6 @@ const TABS = {
 
   // 옷장: 왼쪽에 지금 입은 모습과 칸별 착용 목록·코디 저장, 오른쪽에 가진 코스튬 인벤토리 (분류 탭).
   // 누르면 그 칸에 입고, 입은 걸 다시 누르면 벗는다. 칸마다 하나씩, 세트는 여러 칸을 한꺼번에 차지한다
-  friends() {
-    // 동네 친구들: 놀러 오는 동네 친구 도감 (보물 상자는 2026-09-24 에 '보물 공방' 탭으로 옮겼다)
-    return guestBox();
-  },
-
-  // 보물 공방: 주운 보물을 재료로 공방 전용 코스튬을 만든다 (main/workshop.js).
-  // 보물 상자(주운 보물 도감)는 위쪽 '보물 상자' 버튼을 눌러야 보인다
-  workshop() {
-    const W = D.workshop;
-    const T5 = D.treasures;
-    const page = W && wsPage !== 'box' ? 'workshop' : 'box';
-    const chips = [
-      ['workshop', W ? `${W.made} / ${W.total}` : ''],
-      ['box', T5 ? `${T5.kinds} / ${T5.total}` : ''],
-    ]
-      .map(([k, n]) => `<button class="chip ${k === page ? 'on' : ''}" data-ws-page="${k}">${t(k === 'box' ? 'treasure.title' : 'workshop.title')}<small>${n}</small></button>`)
-      .join('');
-    const nav = `<nav class="shop-jump ws-pages">${chips}</nav>`;
-    if (page === 'box') return `${nav}${treasureBox()}`;
-    const tr = (k) => esc(t('treasure.' + k));
-    const card = (r) => {
-      const mats = r.need
-        .map((m) => `<li class="${m.have >= m.n ? 'ok' : ''}">${icon(m.key, 16)}<span class="nm">${tr(m.key)}</span><b>${Math.min(m.have, m.n)}/${m.n}</b></li>`)
-        .join('');
-      const any = r.any
-        ? `<li class="${r.anyHave >= r.any ? 'ok' : ''}" title="${esc(t('workshop.anyHint'))}">${icon('gift', 16)}<span class="nm">${t('workshop.any')}</span><b>${Math.min(r.anyHave, r.any)}/${r.any}</b></li>`
-        : '';
-      const on = r.slot && (D.settings.outfit || {})[r.slot] === r.key;
-      // 가진 건 입기, 선물해서 없으면 다시 만들기
-      const foot = r.owned
-        ? `<span class="own">${icon('check', 11)}${t('workshop.made')}</span><button class="btn buy ${on ? '' : 'primary'}" data-ws-wear="${r.key}" data-slot="${r.slot}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`
-        : `<button class="btn buy ${r.ready ? 'primary' : ''}" data-craft="${r.key}" ${r.ready ? '' : 'disabled'}>${t(r.ready ? (r.made ? 'workshop.remake' : 'workshop.make') : 'workshop.collecting')}</button>`;
-      // 모자란 재료를 교환소에서 바꿔 채울 수 있으면 버튼 하나 더
-      const fill = r.fillable ? `<button class="btn ghost buy ws-fill" data-ws-fill="${r.key}">${icon('sparkle', 11)}${t('workshop.fill')}</button>` : '';
-      // 만든 건 '주워 온 잡동사니로 만든 것'이라는 이야기: 쓴 재료 · 만든 날
-      const story = r.made && r.madeAt ? `<div class="ws-story">${esc(wsStory(r))}</div>` : '';
-      // 카드는 늘 네 줄 (그림 · 이름 · 재료 · 버튼). 같은 줄 카드끼리 줄 높이를 맞춘다 (house.css .ws-grid)
-      return `<div class="panel item ws-card ${r.owned ? 'on' : ''} ${r.ready && !r.owned ? 'ready' : ''}">
-        ${r.slot ? `<span class="wtag">${t('cslot.' + r.slot)}</span>` : ''}
-        <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${D.growth ? D.growth.stageKey : 'cat'}" data-acc="${r.key}"></canvas></span></div>
-        <div class="nm">${esc(t('item.' + r.key))}</div>
-        ${story}
-        <ul class="ws-mats">${mats}${any}</ul>
-        <div class="hint">${foot}${fill}</div>
-      </div>`;
-    };
-    const tier = (k) => {
-      const list = W.recipes.filter((r) => r.tier === k);
-      return `<h2>${t('workshop.tier.' + k)} <span class="muted">${list.filter((r) => r.made).length} / ${list.length}</span></h2>
-        <p class="muted" style="margin-top:-4px">${t('workshop.tierSub.' + k)}</p>
-        <div class="wardrobe ws-grid">${list.map(card).join('')}</div>`;
-    };
-    // 보물 교환소: 받을 보물을 고르면 내는 것이 보이고, 바꾸기
-    const ex = W.exchange || [];
-    const exOpt = (rar) => ex.filter((x) => x.rarity === rar)
-      .map((x) => `<option value="${x.key}" ${x.key === exPick ? 'selected' : ''} ${x.ok ? '' : 'data-no="1"'}>${tr(x.key)} (${t('workshop.exHave', { n: x.have })})${x.ok ? '' : ' · ' + t('workshop.exShort')}</option>`)
-      .join('');
-    const cur = ex.find((x) => x.key === exPick) || ex.find((x) => x.ok) || ex[0];
-    const exchange = cur
-      ? `<h2>${t('workshop.exTitle')}</h2>
-      <p class="muted" style="margin-top:-4px">${t('workshop.exSub')}</p>
-      <div class="panel ws-exchange">
-        <select id="ex-pick"><optgroup label="${esc(t('rarity.common'))}">${exOpt('common')}</optgroup><optgroup label="${esc(t('rarity.rare'))}">${exOpt('rare')}</optgroup></select>
-        <span class="muted small ex-cost">${t('workshop.exCost.' + cur.rarity)}</span>
-        <button class="btn primary" data-act="exchange" ${cur.ok ? '' : 'disabled'}>${t('workshop.exDo')}</button>
-      </div>`
-      : '';
-    return `${nav}<h2>${t('workshop.title')} <span class="muted">${W.made} / ${W.total}</span></h2>
-      <p class="muted" style="margin-top:-4px">${t('workshop.sub')}</p>
-      ${exchange}
-      ${tier('easy')}${tier('normal')}${tier('hard')}`;
-  },
-
   wardrobe() {
     const g = D.growth;
     const stage = g ? g.stageKey : 'cat';
@@ -1773,7 +1667,7 @@ const TABS = {
         const on = worn.has(it.key);
         const isNew = !seenItems.has(it.key);
         return `<div class="panel item witem ${on ? 'on' : ''}" data-item="${it.key}" title="${esc(it.name)}">
-          <span class="wtag">${t('cslot.' + it.slot)}</span>${it.workshop ? `<span class="ws-stamp">${t('workshop.stamp')}</span>` : ''}
+          <span class="wtag">${t('cslot.' + it.slot)}</span>
           <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span></div>
           <div class="nm">${esc(it.name)} ${isNew ? '<span class="new">NEW</span>' : ''}</div>
           <div class="fx">${setMoBtn(it.key)}</div>
@@ -1781,7 +1675,7 @@ const TABS = {
         </div>`;
       })
       .join('');
-    // ---- 밥 · 간식 · 장난감 · 보물 재료: 지금 가진 것만. 다 먹거나 다 쓴 건 카드가 사라진다 ----
+    // ---- 밥 · 간식 · 장난감: 지금 가진 것만. 다 먹은 건 카드가 사라진다 ----
     const page = INV_PAGES.includes(invPage) ? invPage : 'costume';
     const pantry = (grp) => D.shop.food.filter((x) => x.group === grp && x.stock > 0);
     const have = {
@@ -1789,7 +1683,6 @@ const TABS = {
       meal: pantry('meal'),
       snack: pantry('snack'),
       toy: D.shop.toy.filter((x) => x.owned),
-      treasure: D.treasures ? D.treasures.list.filter((x) => x.count > 0) : [],
     };
     const pageChips = INV_PAGES.map(
       (k) => `<button class="chip ${k === page ? 'on' : ''} ${have[k].length ? '' : 'empty'}" data-inv-page="${k}">${t('inv.' + k)}<small>${have[k].length}</small></button>`,
@@ -1806,11 +1699,9 @@ const TABS = {
         <div class="fx">${toyTags(it)}</div>
         <div class="hint"><button class="btn primary buy" data-play="${it.key}">${t('inv.play')}</button><button class="btn ghost buy" data-toy-demo="${it.key}">${t('shop.guide')}</button></div>
       </div>`;
-    const treasureCard = (x) => `<div class="panel tcell tr-${x.rarity}" title="${esc(t('treasure.' + x.key))}">
-        <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
-        <div class="tnm">${esc(t('treasure.' + x.key))}</div><div class="tcnt">×${x.count}</div></div>`;
+
     const cat = `<canvas class="pixel closet-cat" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" data-mood="active"></canvas>`;
-    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지, 보물은 공방 가기
+    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지
     const gg = D.gauge || { food: 100, full: true };
     const left =
       page === 'costume'
@@ -1821,10 +1712,7 @@ const TABS = {
           <button class="btn ghost small wide" data-act="undress" ${worn.size ? '' : 'disabled'}>${t('ward.undress')}</button>
           <div class="wsaves-title">${t('ward.saves')}</div>
           <div class="wsaves">${saves}</div>`
-        : page === 'treasure'
-          ? `${cat}<p class="muted inv-note">${t('inv.treasureNote')}</p>
-            <button class="btn small wide" data-act="toWorkshop">${icon('gem', 12)}${t('inv.toWorkshop')}</button>`
-          : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
+        : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
             <p class="muted inv-note">${gaugeNote(gg)}</p>`;
     const right =
       page === 'costume'
@@ -1832,9 +1720,7 @@ const TABS = {
           ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
         : !have[page].length
           ? `<p class="muted center">${t('inv.empty.' + page)}</p>`
-          : page === 'treasure'
-            ? `<div class="tbox">${have.treasure.map(treasureCard).join('')}</div>`
-            : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
+          : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
     const html = `
       <div class="h2-row"><h2>${t('ward.title')}</h2><button class="btn head-act" data-act="card">${icon('sparkle', 12)}${t('card.open')}</button></div>
       <p class="muted" style="margin-top:-4px">${t(page === 'costume' ? 'ward.sub' : 'inv.sub.' + page)}</p>
@@ -1859,25 +1745,22 @@ const TABS = {
     const freshKeys = new Set(freshNow.map((x) => x.key));
     if (freshSnap) for (const k of freshSnap) freshKeys.add(k);
 
-    // 악세사리는 고양이가 쓴 모습으로, 모션은 고양이가 직접 해 보이고, 먹이·장난감은 물건 도트 그대로 보여 준다
+    // 악세사리는 고양이가 쓴 모습으로, 먹이·장난감은 물건 도트 그대로 보여 준다
     const stage = D.growth ? D.growth.stageKey : 'cat';
     const card = (it) => {
-      const name = it.kind === 'motion' ? t('motion.' + it.key) : it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + it.key);
+      const name = it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + it.key);
       const fresh = freshKeys.has(it.key) ? '<span class="new">NEW</span>' : '';
       const preview =
         it.kind === 'acc'
           ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span>`
-          : it.kind === 'motion'
-            ? `<canvas class="pixel" data-stage="${stage}" data-motion="${it.key}"></canvas>`
-            : it.kind === 'fur'
+          : it.kind === 'fur'
               ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-furkey="${it.fur}"></canvas></span>`
               : it.kind === 'food'
               ? foodArt(it.key, 62)
               : `<div class="art">${icon(it.key, 62)}</div>`;
       let foot;
-      if (it.kind === 'motion' && it.owned) foot = `<button class="btn buy" data-act="toMotions">${t('shop.apply')}</button>`;
       // 산 코스튬은 옷장까지 안 가도 여기서 바로 입고 벗는다
-      else if (it.kind === 'acc' && it.owned && it.slot) {
+      if (it.kind === 'acc' && it.owned && it.slot) {
         const on = (D.settings.outfit || {})[it.slot] === it.key;
         foot = `<button class="btn ${on ? '' : 'primary'} buy" data-shop-wear="${it.key}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`;
       }
@@ -1897,19 +1780,13 @@ const TABS = {
       // 먹이는 가진 만큼 바로 꺼내 줄 수도 있다
       if (it.kind === 'food' && it.stock) foot += ` <button class="btn ghost buy" data-give="${it.key}">${t('shop.give')}</button>`;
       const have = it.kind === 'food' && it.stock ? `<span class="own">${t('shop.stock', { n: it.stock })}</span>` : '';
-      // 모션은 어느 상황에 끼우는지만 해시태그로
       // 장난감은 꺼내면 고양이가 뭘 하는지 한 줄로
-      const slot =
-        it.kind === 'motion'
-          ? `<div class="tags">${[...new Set(it.slots.map((x) => (WORK_SLOTS.includes(x) ? 'work' : x)))].map((x) => `<span>#${esc(t('slot.' + x))}</span>`).join('')}</div>`
-          : it.kind === 'toy'
-            ? toyTags(it, true)
-            : '';
+      const slot = it.kind === 'toy' ? toyTags(it, true) : '';
       // 먹이는 하나 먹으면 배부름이 얼마나 차는지
       const gauge = it.kind === 'food'
         ? `${foodGain(it)}${foodFx(it.key)}`
         : '';
-      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : it.kind === 'food' && craving(it.key) ? `<span class="wtag crave-tag">${icon('heart', 9)}${t('crave.tag')}</span>` : '';
+      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : '';
       // 이미 가진 물건(먹이 빼고)은 가격 대신 '가짐'. 버튼 줄은 한 줄로 (사기·입기·적용 | 사용법)
       const price =
         it.kind !== 'food' && it.owned
@@ -1938,9 +1815,9 @@ const TABS = {
     const lockRank = (x) => (x.locked && !x.owned ? x.level || 0 : -1);
     const ordered = (list) => list.map((x, i) => [x, i]).sort((a, b) => lockRank(a[0]) - lockRank(b[0]) || a[1] - b[1]).map(([x]) => x);
     const grid = (list) => `<div class="wardrobe shop-grid">${ordered(list.filter((x) => x.key !== 'none')).map(card).join('')}</div>`;
-    // 상점은 밥·간식·악세사리·모션·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
-    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, motion: D.shop.motion, toy: D.shop.toy, star: D.shop.star || [] };
-    if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.motion, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
+    // 상점은 밥·간식·악세사리·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
+    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, toy: D.shop.toy, star: D.shop.star || [] };
+    if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
     const page = pageList[shopPage] ? shopPage : 'meal';
     // 코스튬 페이지는 옷장과 같은 분류(세트·머리·얼굴·목·등·손·효과)로 거를 수 있다
     const costumeTab = COSTUME_TABS.includes(shopCostumeTab) ? shopCostumeTab : 'all';
@@ -1961,18 +1838,8 @@ const TABS = {
             .map((k) => `<button class="chip ${k === starTab ? 'on' : ''}" data-shop-star="${k}">${t(k === 'all' ? 'ward.all' : k === 'fur' ? 'ward.fur' : 'cslot.' + k)}<small>${k === 'all' ? starList.length : starList.filter((x) => starIn(x, k)).length}</small></button>`)
             .join('')}</nav>`
         : '';
-    // 모션 페이지는 상황별로 거를 수 있다 (일할 때 셋은 하나로 묶는다)
-    const MOTION_TABS = D.shop.slots.map((x) => x.key).filter((k) => k !== 'workLong' && k !== 'workHour');
-    const motionTab = MOTION_TABS.includes(shopMotionTab) ? shopMotionTab : 'all';
-    const motionChips =
-      page === 'motion'
-        ? `<nav class="shop-jump costume-tabs">${['all', ...MOTION_TABS]
-            .map((k) => `<button class="chip ${k === motionTab ? 'on' : ''}" data-shop-motion="${k}">${t(k === 'all' ? 'ward.all' : 'slot.' + k)}<small>${k === 'all' ? D.shop.motion.length : D.shop.motion.filter((x) => motionInTab(x, k)).length}</small></button>`)
-            .join('')}</nav>`
-        : '';
     const pageItems =
       page === 'acc' && costumeTab !== 'all' ? pageList.acc.filter((x) => x.slot === costumeTab)
-      : page === 'motion' && motionTab !== 'all' ? pageList.motion.filter((x) => motionInTab(x, motionTab))
       : page === 'star' && starTab !== 'all' ? starList.filter((x) => starIn(x, starTab))
       : pageList[page];
     // 별 상점: Lv80 뒤 별로만 산다. 별이 아직 없으면 무엇을 향해 가는지 보여 주는 진열장이 된다
@@ -2000,7 +1867,7 @@ const TABS = {
     // 맨 위 페이지 버튼 (스크롤해도 따라 붙는다). 개수도 같이
     const count = (k) => (k === 'new' ? (freshSnap ? freshSnap.length : freshNow.length) : pageList[k].filter((x) => x.key !== 'none').length);
     // '새로 열림' 은 새로 열린 게 있을 때만 맨 앞에
-    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'motion', 'toy', ...(pageList.star.length ? ['star'] : [])]
+    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'toy', ...(pageList.star.length ? ['star'] : [])]
       .map((k) => `<button class="chip ${k === page ? 'on' : ''} ${k === 'new' ? 'chip-new' : ''}" data-shop-page="${k}">${t('shop.' + k)}<small>${count(k)}</small></button>`)
       .join('');
     // 이 페이지에 보인 새로 열린 것은 잠깐 뒤 본 걸로 (다음에 그릴 때 NEW 가 꺼진다)
@@ -2022,7 +1889,7 @@ const TABS = {
       </div>
       <div class="shop-sticky">
         <nav class="shop-jump">${jumps}<span class="jump-coins ico-row" title="${esc(t('shop.balanceNow'))}">${coins(w.balance, 13)}</span></nav>
-        ${costumeChips}${motionChips}${starChips}
+        ${costumeChips}${starChips}
       </div>
 
       ${pageBody}`;
@@ -2046,7 +1913,7 @@ const TABS = {
     const L = S.ledger;
     const CAT_ICON = { food: 'ricebowl', dignity: 'ribbon', fun: 'paw', etc: 'gift' };
     // '?' = 구매 목록이 잘려 어디 썼는지 모르는 예전 코인 (main/stats.js 의 untracked)
-    const itemName = (it) => (it.key === '?' ? t('ledger.untracked') : it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key }));
+    const itemName = (it) => (it.key === '?' ? t('ledger.untracked') : it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key })); // 2.0.0 전에 산 모션도 가계부에는 남는다
     // 통계 화면에는 항목마다 LEDGER_SHOWN 줄까지만 보이고 나머지는 '… 외 N개'. 전부는 '자세히 보기' 팝업에서
     const ledgerLi = (it) => `<li><span class="ledger-nm">${esc(itemName(it))}</span>${it.count > 1 ? `<span class="ledger-x">×${it.count}</span>` : ''}<span class="ledger-dots"></span><span class="ledger-amt">${fmt(it.total)}</span></li>`;
     const ledgerCatsOf = (all) => L.cats
@@ -2135,6 +2002,11 @@ const TABS = {
           <tr><td><b>${t('stats.total')}</b></td><td>${fmt(g ? g.xp : 0)}</td></tr>
         </table>
         <p class="muted" style="font-size:11px;margin:8px 0 0">${t('stats.formula', { c: D.formula.CHARS_PER_XP, l: D.formula.XP_PER_LINK, n: D.formula.XP_PER_NOTE, s: D.formula.XP_PER_SESSION })}</p>
+      </div>
+
+      <h2>${t('home.recentXp')}</h2>
+      <div class="panel">
+        ${D.game.recentBonus.length ? `<ul class="feed">${D.game.recentBonus.map((b) => `<li><span>${esc(why(b))}</span><span class="xp-plus">+${fmt(b.xp)} XP</span></li>`).join('')}</ul>` : `<p class="muted center" style="margin:0">${t('home.recentXpEmpty')}</p>`}
       </div>`;
   },
 
@@ -2233,6 +2105,7 @@ const TABS = {
 
       <h2 id="set-motions">${t('set.motions')}</h2>
       <p class="muted" style="margin-top:-4px">${t('set.motionsSub')}</p>
+      <div class="panel mset-row"><div class="field"><div class="lbl">${t('set.setMotions')}<small>${t('set.setMotionsSub')}</small></div>${sw('setMotionsOn', s.setMotionsOn !== false)}</div></div>
       <div class="mgroups">${motionCards}</div>
 
       <h2 id="set-projects">${t('set.projects')}</h2>
@@ -2249,15 +2122,6 @@ const TABS = {
         <div class="field"><div class="lbl">${t('set.showNews')}</div><button class="btn ghost" data-act="whatsNew">${t('set.open')}</button></div>
         <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
-
-      ${
-        s.devMode
-          ? `<h2>${t('dev.events')}</h2>
-      <div class="panel"><p class="muted" style="margin:0 0 8px;font-size:12px">${t('dev.eventsSub')}</p><div class="actions">${['fetch', 'bird', 'guest', 'rare']
-        .map((k) => `<button class="btn small" data-dev-event="${k}">${t('dev.ev.' + k)}</button>`)
-        .join('')}</div></div>`
-          : ''
-      }
 
       <h2 id="set-reset">${t('set.reset')}</h2>
       <div class="panel danger">
@@ -2390,8 +2254,8 @@ function checkNumber(el, key) {
 
 function bindView(view) {
   $$('[data-act]', view).forEach((b) => b.addEventListener('click', () => act(b.dataset.act, b)));
-  // 누르는 카드(옷장 코스튬·동네 친구)는 키보드로도 고르고 Enter·Space 로 누른다
-  $$('[data-item], [data-fr-card]', view).forEach((el) => {
+  // 누르는 카드(옷장 코스튬)는 키보드로도 고르고 Enter·Space 로 누른다
+  $$('[data-item]', view).forEach((el) => {
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
@@ -2442,14 +2306,6 @@ function bindView(view) {
       keepScroll();
     }),
   );
-  // 보물 공방 ↔ 보물 상자. 서로 길이가 달라서 맨 위부터 보여 준다
-  $$('[data-ws-page]', view).forEach((el) =>
-    el.addEventListener('click', () => {
-      wsPage = el.dataset.wsPage;
-      renderView();
-      $('#view').scrollTop = 0;
-    }),
-  );
   // 인벤토리 장난감 꺼내기. 이미 놀고 있으면 main 쪽 startPlay 가 놀이를 끝낸다
   $$('[data-play]', view).forEach((el) =>
     el.addEventListener('click', async () => {
@@ -2497,29 +2353,6 @@ function bindView(view) {
       hero.play((D.motion.lists.wear || [])[0] || 'happy');
       toast(t('ward.loaded', { n: Number(el.dataset.outfitLoad) + 1 }), 'sparkle');
       keepScroll();
-    }),
-  );
-  // 동네 친구 카드: 누르면 TMI 펼치기, 부르기 버튼
-  $$('[data-fr-card]', view).forEach((el) =>
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      friendOpen = friendOpen === el.dataset.frCard ? null : el.dataset.frCard;
-      keepScroll();
-    }),
-  );
-  $$('[data-fr-gift]', view).forEach((el) => el.addEventListener('click', () => openFriendGift(el.dataset.frGift)));
-  $$('[data-fr-call]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.friendCall(el.dataset.frCall);
-      if (r && r.data) await apply(r.data);
-      if (r && r.result && !r.result.error) toast(t('fr.called', { name: t('fr.' + el.dataset.frCall + '.name') }), 'paw');
-      renderView();
-    }),
-  );
-  $$('[data-shop-motion]', view).forEach((el) =>
-    el.addEventListener('click', () => {
-      shopMotionTab = el.dataset.shopMotion;
-      keepShopTop();
     }),
   );
   // 세트 카드의 '전용 모션' 버튼 (옷장 카드를 눌러 입는 것과 겹치지 않게 막는다)
@@ -2593,15 +2426,13 @@ function bindView(view) {
   $$('[data-buy]', view).forEach((el) =>
     el.addEventListener('click', async () => {
       const key = el.dataset.buy;
-      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...D.shop.motion, ...(D.shop.star || [])].find((x) => x.key === key);
-      // 모션은 지금 보고 있는 상황 칸에 바로 들어간다 ('전체'면 첫 번째 추천 상황)
-      const r = await pet.buy(key, it && it.kind === 'motion' && shopPage === 'motion' ? shopMotionTab : null);
+      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...(D.shop.star || [])].find((x) => x.key === key);
+      const r = await pet.buy(key);
       if (r.payload) await apply(r.payload);
       if (r.ok) {
         hero.play('happy');
-        const name = it && it.kind === 'motion' ? t('motion.' + key) : it && it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + key);
-        if (r.placed) toast(t('toast.motionPlaced', { name, slot: t('slot.' + r.placed) }), 'sparkle');
-        else toast(t('toast.bought', { name }), it && it.stars ? 'star' : key);
+        const name = it && it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + key);
+        toast(t('toast.bought', { name }), it && it.stars ? 'star' : key);
       } else if (r.reason === 'level') toast(t('toast.needLevel', { n: it.level }), 'lock');
       else if (r.reason === 'coins') toast(t('toast.needCoins'), 'coin');
       else if (r.reason === 'stars') toast(t('toast.needStars'), 'star');
@@ -2660,42 +2491,9 @@ function bindView(view) {
     }),
   );
 
-  // 오늘 먹고 싶은 것: 창고에 있으면 바로, 없으면 사서 바로 먹인다
-  $$('[data-crave]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.crave;
-      const it = D.shop.food.find((x) => x.key === key);
-      if (it && !it.stock) {
-        const b = await pet.buy(key);
-        if (b.payload) await apply(b.payload);
-        if (!b.ok) return toast(t('toast.needCoins'), 'coin');
-      }
-      const r = await pet.useFood(key);
-      if (r.payload) await apply(r.payload);
-      if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
-      renderView();
-    }),
-  );
-  // 소식을 누르면 그 탭으로
-  $$('[data-news-link]', view).forEach((el) => el.addEventListener('click', () => setTab(el.dataset.newsLink === 'quests' ? 'home' : el.dataset.newsLink)));
   // 모션 묶음을 펼치고 접은 걸 기억한다
   $$('details[data-mgroup]', view).forEach((el) =>
     el.addEventListener('toggle', () => (el.open ? mgroupOpen.add(el.dataset.mgroup) : mgroupOpen.delete(el.dataset.mgroup))),
-  );
-  // 보물 교환소
-  const exSel = $('#ex-pick', view);
-  if (exSel)
-    exSel.addEventListener('change', () => {
-      exPick = exSel.value;
-      renderView();
-    });
-  $$('[data-ws-fill]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.fillRecipe(el.dataset.wsFill);
-      if (r.payload) await apply(r.payload);
-      toast(r.ok ? t('workshop.filled', { what: Object.entries(r.got).map(([k, n]) => `${t('treasure.' + k)} ${n}`).join(', ') }) : t('workshop.exShort'), 'gem');
-      renderView();
-    }),
   );
   $$('[data-give]', view).forEach((el) =>
     el.addEventListener('click', async () => {
@@ -2704,30 +2502,6 @@ function bindView(view) {
       if (r.payload) await apply(r.payload);
       if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
       renderView();
-    }),
-  );
-
-  // 보물 공방: 만들기 · 만든 것 입고 벗기
-  $$('[data-craft]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.craft;
-      el.disabled = true;
-      const r = await pet.craft(key);
-      if (r.payload) await apply(r.payload);
-      if (r.ok) toast(t('workshop.crafted', { name: t('item.' + key) }), key);
-      else toast(t('workshop.short'), 'gift');
-      keepScroll();
-    }),
-  );
-  $$('[data-ws-wear]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.wsWear;
-      const slot = el.dataset.slot;
-      const wearing = (D.settings.outfit || {})[slot] === key;
-      const name = t('item.' + key);
-      await apply(await pet.set({ outfit: { [slot]: wearing ? null : key } }));
-      toast(wearing ? t('ward.tookOff', { name }) : t('ward.worn', { name }), wearing ? 'check' : key);
-      keepScroll();
     }),
   );
 
@@ -2755,14 +2529,115 @@ function bindView(view) {
     }),
   );
 
-  // 개발자 모드: 깜짝 이벤트 바로 일으키기 (배포 전에 지운다)
-  $$('[data-dev-event]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.devEvent(el.dataset.devEvent);
-      toast(r ? t('dev.eventSent', { type: el.dataset.devEvent }) : t('dev.eventNo'), 'sparkle');
+  // 상황마다 모션 켜고 끄기 (2.0.0)
+  $$('[data-moff]', view).forEach((el) =>
+    el.addEventListener('change', async () => {
+      const k = el.dataset.moff;
+      const off = new Set((D.motion && D.motion.off) || []);
+      if (el.checked) off.delete(k);
+      else off.add(k);
+      await apply(await pet.set({ motionsOff: [...off] }));
+      toast(t(el.checked ? 'toast.motionOn' : 'toast.motionOff', { slot: t('slot.' + k) }), el.checked ? 'sparkle' : 'check');
+      const y = $('#view').scrollTop;
+      renderView();
+      $('#view').scrollTop = y;
+    }),
+  );  $$('[data-medit]', view).forEach((el) => el.addEventListener('click', () => openMotionEditor(el.dataset.medit)));
+
+  // ---------- 홈 (2.0.0) ----------
+  $$('[data-fold]', view).forEach((el) =>
+    el.addEventListener('click', () => {
+      toggleFold(el.dataset.fold);
+      const y = $('#view').scrollTop;
+      renderView();
+      $('#view').scrollTop = y;
     }),
   );
-  $$('[data-medit]', view).forEach((el) => el.addEventListener('click', () => openMotionEditor(el.dataset.medit)));
+  // 집중 길이 고르기 (설정의 집중 시간 길이와 같은 값)
+  $$('[data-focus-min]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      await apply(await pet.set({ focusMin: Number(el.dataset.focusMin) }));
+      renderView();
+    }),
+  );
+  // 이미 있는 노트 열기 (노트 지도 · 최근 노트 · 외톨이 노트). 없는 노트면 아무것도 안 만든다
+  $$('[data-open-note]', view).forEach((el) => {
+    const go = async () => {
+      const ok = await pet.openNote(el.dataset.openNote);
+      if (!ok) toast(t('home.noteGone'), 'bang');
+    };
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        go();
+      }
+    });
+  });
+  // 할 일 (플러그인 안 목록)
+  const todoRun = async (p, keepFocus = false) => {
+    const r = await p;
+    if (r && r.payload) await apply(r.payload);
+    if (r && !r.ok && r.reason === 'full') toast(t('todo.full'), 'bang');
+    const y = $('#view').scrollTop;
+    renderView();
+    $('#view').scrollTop = y;
+    if (keepFocus) {
+      const inp = $('#todo-new');
+      if (inp) inp.focus();
+    }
+    return r;
+  };
+  const addForm = $('.todo-add', view);
+  if (addForm)
+    addForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inp = $('#todo-new', addForm);
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      todoRun(pet.todoAdd(text), true);
+    });
+  $$('[data-todo-toggle]', view).forEach((el) =>
+    el.addEventListener('change', async () => {
+      const r = await todoRun(pet.todoToggle(el.dataset.todoToggle));
+      if (r && r.ok && el.checked) hero.play((D.motion.lists.done || [])[0] || 'happy');
+    }),
+  );
+  $$('[data-todo-del]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoRemove(el.dataset.todoDel))));
+  $$('[data-todo-move]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoMove(el.dataset.todoMove, Number(el.dataset.to)))));
+  // 글을 두 번 누르면 고친다. Enter 저장 · Esc 그만
+  $$('[data-todo-text]', view).forEach((el) =>
+    el.addEventListener('dblclick', () => {
+      todoEditing = el.dataset.todoText;
+      renderView();
+      const inp = $('[data-todo-edit]');
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }),
+  );
+  $$('[data-todo-edit]', view).forEach((el) => {
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const id = todoEditing;
+      todoEditing = null;
+      if (save && el.value.trim()) todoRun(pet.todoEdit(id, el.value));
+      else renderView();
+    };
+    el.addEventListener('keydown', (e) => {
+      if (e.isComposing) return;
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') {
+        e.stopPropagation();
+        finish(false);
+      }
+    });
+    el.addEventListener('blur', () => finish(true));
+  });
 
   $$('select[data-key]', view).forEach((el) =>
     el.addEventListener('change', async () => {
@@ -2836,21 +2711,6 @@ async function act(name, el) {
       pet.poke();
       hero.play('happy');
       break;
-    case 'newsMore':
-      newsOpen = !newsOpen;
-      renderView();
-      break;
-    case 'exchange': {
-      const sel = $('#ex-pick');
-      const key = sel ? sel.value : exPick;
-      if (!key) break;
-      exPick = key;
-      const r = await pet.exchange(key);
-      if (r.payload) await apply(r.payload);
-      toast(r.ok ? t('workshop.exDone', { name: t('treasure.' + key) }) : t('workshop.exShort'), key);
-      renderView();
-      break;
-    }
     case 'feed': {
       const r = await pet.feed();
       if (r && r.payload) await apply(r.payload);
@@ -2890,6 +2750,29 @@ async function act(name, el) {
       await apply(await pet.focusStop());
       renderView();
       break;
+    // 2.0.0: 쉬는 시간 · 집중 길이 고르기
+    case 'breakStart':
+      await apply(await pet.breakStart(Number(el && el.dataset.min) || 5));
+      renderView();
+      break;
+    case 'breakStop':
+      await apply(await pet.breakStop());
+      renderView();
+      break;
+    case 'graph':
+    case 'localGraph': {
+      const ok = await pet.openGraph(name === 'localGraph');
+      if (!ok) toast(t(name === 'localGraph' ? 'home.graphNeedNote' : 'home.graphOff'), 'bang');
+      break;
+    }
+    case 'todoClear':
+      await apply((await pet.todoClear()).payload);
+      renderView();
+      break;
+    case 'todoDoneOpen':
+      todoDoneOpen = !todoDoneOpen;
+      renderView();
+      break;
     case 'goalEdit':
       openGoalPicker();
       break;
@@ -2923,10 +2806,6 @@ async function act(name, el) {
       break;
     case 'reveal':
       pet.revealHooks();
-      break;
-    case 'toWorkshop':
-      wsPage = 'workshop';
-      setTab('workshop');
       break;
     case 'card':
       openCard();
@@ -3117,8 +2996,6 @@ function renderWelcome() {
 const WHATS_NEW = [
   ['star', 'star', 'shop'],
   ['ears', 'heart', 'ears'],
-  ['crave', 'ricebowl', 'home'],
-  ['exchange', 'gem', 'workshop'],
   ['card', 'sparkle', 'card'],
   ['theme', 'gear', 'settings'],
   ['bubble', 'chat', 'home'],
@@ -3127,11 +3004,13 @@ const WHATS_NEW = [
 ];
 // [옵시디언 1.5.0] 하루 목표 · 집중 시간 · 끝낸 할 일 · 단어 · 새 업적
 const WHATS_NEW_OBS = [
-  ['goal', 'star', 'goal'],
-  ['focus', 'hourglass', 'home'],
-  ['tasks', 'check', 'home'],
-  ['words', 'scroll', 'settings'],
-  ['badges', 'medal', 'achievements'],
+  ['home2', 'home', 'home'],
+  ['todo2', 'check', 'home'],
+  ['map2', 'map', 'home'],
+  ['quest2', 'scroll', 'home'],
+  ['motion2', 'sparkle', 'motions'],
+  ['toys2', 'yarn', 'shop'],
+  ['gone2', 'gift', 'wardrobe'],
 ];
 function showWhatsNew() {
   const v = D.version || '';
@@ -3157,7 +3036,13 @@ function showWhatsNew() {
         setTab('home');
         openGoalPicker();
       } else if (go === 'card') openCard();
-      else setTab(go);
+      else if (go === 'motions') {
+        setTab('settings');
+        setTimeout(() => {
+          const m = document.getElementById('set-motions');
+          if (m) m.scrollIntoView({ block: 'start' });
+        }, 30);
+      } else setTab(go);
     }),
   );
   if (D.whatsNew) pet.whatsNewSeen().then((d) => d && (D = d));

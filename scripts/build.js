@@ -18,9 +18,9 @@ const COMMON = [
   'kit/i18n.js',
   'kit/i18n-obsidian.js',
   'kit/i18n-goals.js',
+  'kit/i18n-v2.js',
   'kit/pixelart.js',
   'kit/sprite.js',
-  'kit/friends.js',
   'kit/accessories.js',
   'kit/accessories-workshop-b.js',
   'kit/accessories-workshop-c.js',
@@ -36,7 +36,7 @@ const COMMON = [
   'kit/reactions.js',
   'kit/toys.js',
 ];
-const PET = ['kit/sound.js', 'kit/pet.js', 'kit/toyplay.js', 'kit/toyplay2.js', 'kit/toyplay3.js', 'kit/toyplay4.js'];
+const PET = ['kit/sound.js', 'kit/pet.js', 'kit/toyplay.js', 'kit/toyplay2.js', 'kit/toyplay3.js', 'kit/toyplay4.js', 'kit/toyplay5.js'];
 const HOUSE = ['kit/house.js'];
 
 const join = (list) => list.map((f) => `/* ${f} */\n${read(f)}`).join('\n;\n');
@@ -142,8 +142,6 @@ const HOUSE_BODY = `
         <button role="tab" aria-selected="false" aria-controls="view" data-tab="achievements" data-icon="medal"><span class="tx"></span></button>
         <button role="tab" aria-selected="false" aria-controls="view" data-tab="wardrobe" data-icon="ribbon"><span class="tx"></span><span class="dot" id="dot-wardrobe" hidden></span></button>
         <button role="tab" aria-selected="false" aria-controls="view" data-tab="shop" data-icon="coin"><span class="tx"></span><span class="dot" id="dot-shop" hidden></span></button>
-        <button role="tab" aria-selected="false" aria-controls="view" data-tab="friends" data-icon="paw"><span class="tx"></span><span class="dot" id="dot-friends" hidden></span></button>
-        <button role="tab" aria-selected="false" aria-controls="view" data-tab="workshop" data-icon="gem"><span class="tx"></span></button>
         <button role="tab" aria-selected="false" aria-controls="view" data-tab="stats" data-icon="chart"><span class="tx"></span></button>
         <button role="tab" aria-selected="false" aria-controls="view" data-tab="settings" data-icon="gear"><span class="tx"></span></button>
       </nav>
@@ -179,12 +177,12 @@ const walk = (dir) => {
 walk('core');
 walk('plugin');
 // 호스트(플러그인) 쪽에서도 쓰는 화면 코드: 글(i18n + 옵시디언판 글)과 도트 아이콘
-add('kit/i18n', read('kit/i18n.js') + '\n;\n' + read('kit/i18n-obsidian.js') + '\n;\n' + read('kit/i18n-goals.js'));
+add('kit/i18n', read('kit/i18n.js') + '\n;\n' + read('kit/i18n-obsidian.js') + '\n;\n' + read('kit/i18n-goals.js') + '\n;\n' + read('kit/i18n-v2.js'));
 add('kit/pixelart', read('kit/pixelart.js'));
 // 화면 코드는 글자로 넣었다가 iframe 에 스크립트로 꽂지 않고, 보통 함수로 묶어 둔다 (옵시디언 자동 리뷰가 런타임 스크립트 주입을 막는다).
 // run(window, document, pet, kind) 를 부르면 iframe 의 window·document 를 쥐고 데스크톱판 화면 코드가 그대로 돈다.
 // 전역처럼 쓰던 이름(타이머·storage·모듈 이름)은 함수 안 변수로 iframe 쪽 것을 가리키게 한다
-const EXPORTS = ['PetSprite', 'PixelArt', 'I18N', 'PetFriends', 'PetToys', 'PetSound', 'ToyKit'];
+const EXPORTS = ['PetSprite', 'PixelArt', 'I18N', 'PetToys', 'PetSound', 'ToyKit'];
 const sync = EXPORTS.map((n) => `if (window.${n} !== undefined) ${n} = window.${n};`).join(' ');
 const wrap = (list) => list.map((f) => `/* ${f} */
 ${read(f)}

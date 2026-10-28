@@ -8,7 +8,8 @@
 //  s : 글쓰기 세션 수 (30분 넘게 쉬었다가 다시 쓰기 시작하면 하나)
 //  v : 노트를 연 횟수
 //  e : 기록 횟수 (글이 늘어난 저장 한 번 = 하나. 히트맵·출석·시간대 업적이 쓴다)
-//  t : 옵시디언 기능 활용 { tag 태그, task 할 일, done 끝낸 할 일, head 제목, embed 임베드, callout 콜아웃, daily 데일리 노트, canvas 캔버스 }
+//  t : 옵시디언 기능 활용 { tag 태그, task 할 일, done 끝낸 할 일, head 제목, embed 임베드, callout 콜아웃, daily 데일리 노트, canvas 캔버스,
+//      prop 속성(프로퍼티) · dailyc 데일리 노트에 쓴 글자 (2.0.0) }
 //
 // 막는 것 (경험치 농사 방지)
 //  - 노트마다 "지금까지 가장 많았던 값"(최고 기록)을 기억해서 그보다 늘어난 만큼만 센다.
@@ -33,6 +34,8 @@ const FEATURES = ['tag', 'task', 'done', 'head', 'embed', 'callout'];
 const F0 = 4;
 // 최고 단어는 1.5.0 에 맨 뒤에 붙였다. 그 전 기록에는 없어서, 처음 볼 때는 기준만 잡는다 (예전 글이 한꺼번에 단어로 세지지 않게)
 const W_AT = F0 + FEATURES.length;
+// 최고 속성 수는 2.0.0 에 단어 뒤에 붙였다. 단어처럼 처음 볼 때는 기준만 잡는다 (이미 달아 둔 속성이 한꺼번에 세지지 않게)
+const P_AT = W_AT + 1;
 // 지운 노트의 기록을 이만큼까지 남겨 둔다. 같은 자리에 다시 생기면(휴지통 복원·동기화·git) 이어서 센다
 const GONE_MAX = 3000;
 
@@ -54,7 +57,13 @@ function stripFrontmatter(text) {
 
 const EXCALIDRAW_RE = /(^|\n)excalidraw-plugin\s*:/;
 const BLOB_LINE = 1000; // 코드 블록 안에서 이보다 긴 한 줄은 데이터 덩어리로 보고 세지 않는다
-const EMPTY = () => ({ chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0 });
+const EMPTY = () => ({ chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0, prop: 0 });
+
+// 앞머리(frontmatter)의 맨 윗단 속성 수 (2.0.0). "tags:" 도 속성 하나다
+function countProps(front) {
+  const body = front.replace(/^---\r?\n/, '').replace(/\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n)?$/, '');
+  return (body.match(/^[^\s#:'"-][^:\n]*:/gm) || []).length;
+}
 
 // 단어 수. 띄어 쓰는 말(영어·한국어…)은 글자·숫자 덩어리 하나가 한 단어, 중국어·일본어 글자는 한 글자가 한 단어 (옵시디언 단어 세기와 비슷하게)
 const CJ_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿]/g;
@@ -69,7 +78,8 @@ function countWords(text) {
 function measure(text) {
   const raw = String(text || '');
   const body = stripFrontmatter(raw);
-  if (EXCALIDRAW_RE.test(raw.slice(0, raw.length - body.length))) return EMPTY();
+  const front = raw.slice(0, raw.length - body.length);
+  if (EXCALIDRAW_RE.test(front)) return EMPTY();
   const prose = [];
   const code = [];
   let fence = null;
@@ -100,7 +110,7 @@ function measure(text) {
   const chars = plain.replace(/[\s#*_>`~=|[\]!-]+/g, '').length;
   // 할 일 표시(- [ ] · - [x])의 x 는 단어가 아니다
   const words = countWords(plain.replace(/^\s*[-*+] \[[ xX]\]/gm, ' '));
-  return { chars, words, links: wiki.length + md.length, tag: tags.length, task: tasks.length, done: done.length, head: heads.length, embed: embeds.length, callout: callouts.length };
+  return { chars, words, links: wiki.length + md.length, tag: tags.length, task: tasks.length, done: done.length, head: heads.length, embed: embeds.length, callout: callouts.length, prop: front ? countProps(front) : 0 };
 }
 
 // 경로 토막 해시 (FNV 두 개를 이어 붙인다)
@@ -169,6 +179,11 @@ class UsageTracker extends EventEmitter {
     return this.d;
   }
 
+  // 데일리 노트인가. 플러그인이 코어 '데일리 노트' 설정(폴더 · 날짜 형식)으로 바꿔 끼운다 (plugin/main.js dailyTest)
+  isDaily(path) {
+    return this.dailyTest ? this.dailyTest(path) : DAILY_RE.test(path);
+  }
+
   setExcluded(list) {
     this.excluded = new Set(list || []);
   }
@@ -206,6 +221,8 @@ class UsageTracker extends EventEmitter {
     // 단어 기록이 없는 예전 기록(1.4 이하)은 이번에 기준만 잡는다. 기록 자체가 없던 새 노트는 0 에서 센다
     const hadWords = !f || f[W_AT] !== undefined;
     fresh[W_AT] = Math.max(hadWords ? prev(W_AT) : 0, m.words || 0);
+    const hadProps = !f || f[P_AT] !== undefined;
+    fresh[P_AT] = Math.max(hadProps ? prev(P_AT) : 0, m.prop || 0);
     if (opts.baseline) {
       this.d.files[key] = fresh;
       return { dc: 0, dw: 0, dl: 0, dn: 0, skipped: { c: 0, l: 0, w: 0 } };
@@ -242,7 +259,13 @@ class UsageTracker extends EventEmitter {
       const d = Math.max(0, (m[k] || 0) - prev(F0 + i));
       if (d) feat[k] = Math.min(d, 50);
     });
-    if (dn && DAILY_RE.test(path)) feat.daily = 1;
+    if (hadProps) {
+      const d = Math.max(0, (m.prop || 0) - prev(P_AT));
+      if (d) feat.prop = Math.min(d, 20);
+    }
+    const daily = this.isDaily(path);
+    if (dn && daily) feat.daily = 1;
+    if (dc && daily) feat.dailyc = dc; // 데일리 노트에 쓴 글자 (2.0.0. 붙여넣기 · 상한을 뺀 뒤의 값)
     this.d.files[key] = fresh;
     if (dc || dl || dn || Object.keys(feat).length) this.add(path, when, dc, dl, dn, feat, opts, dw);
     return { dc, dw, dl, dn, feat, skipped };
@@ -363,9 +386,9 @@ class UsageTracker extends EventEmitter {
     }
   }
 
-  // sinceMs 이후의 합계. w = 단어, k = 끝낸 할 일 (1.5.0 부터 경험치·코인이 된다)
+  // sinceMs 이후의 합계. w = 단어, k = 끝낸 할 일 (1.5.0 부터 경험치·코인이 된다), f = 옵시디언 기능별 횟수 (2.0.0 퀘스트)
   totals(sinceMs = 0) {
-    const sum = { c: 0, w: 0, l: 0, n: 0, s: 0, v: 0, e: 0, k: 0 };
+    const sum = { c: 0, w: 0, l: 0, n: 0, s: 0, v: 0, e: 0, k: 0, f: {} };
     for (const [, b] of this.eachBucket(sinceMs)) {
       sum.c += b.c;
       sum.w += b.w || 0;
@@ -375,6 +398,7 @@ class UsageTracker extends EventEmitter {
       sum.v += b.v || 0;
       sum.e += b.e || 0;
       sum.k += (b.t && b.t.done) || 0;
+      if (b.t) for (const [k, v] of Object.entries(b.t)) sum.f[k] = (sum.f[k] || 0) + v;
     }
     return sum;
   }

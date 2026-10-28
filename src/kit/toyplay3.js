@@ -101,16 +101,35 @@
   };
 
   // ================= T31 RC 쥐 자동차 =================
-  // 쥐 모양 자동차가 마우스 쪽으로 달려간다. 클릭하면 부스터! 고양이가 덮치면 뒤집혀서 바퀴만 헛돈다
+  // 쥐 모양 자동차가 마우스 쪽으로 달려간다. 클릭하면 부스터! 고양이가 덮치면 뒤집혀서 바퀴만 헛돈다.
+  // 4차 다듬기 (2026-10-17): 부스터로 벽에 꽝 박으면 혼자 뒤집힌다. 뒤집혔을 때 누르면 통 튀어 바로 서고, 그 위에 앉아 있던 고양이는 화들짝.
+  // 세 번 잡을 때마다 고양이가 차에 올라타 마우스를 따라 신나게 달린다 (그동안 누르면 부스터)
   const CAR = ['....KK.......', '...KPPK......', '..KKGGKKKK...', '.KGGGGGGGGKK.', 'KGGGGGGGGKGGK', 'KGGGGGGGGGGGP', 'KKKKKKKKKKKKK', '.KDK....KDK..'];
   C.rccar = {
     cursor: true,
     start(o, side) {
-      Object.assign(o, { cx: clamp(catX + side * petPx() * 1.5, 30, window.innerWidth - 30), cv: 0, flipped: 0, boost: 0 });
+      Object.assign(o, { cx: clamp(catX + side * petPx() * 1.5, 30, window.innerWidth - 30), cv: 0, flipped: 0, boost: 0, caught: 0, ride: 0, hopAt: 0 });
+    },
+    // 차 지붕에 앉았을 때 고양이 높이
+    rideLift() {
+      return (CAR.length - 2) * itemDot() + (H() - floorY()) - (PetSprite.GRID - PetSprite.util.GROUND - 1) * cellPx();
     },
     click(o) {
-      if (o.flipped) return;
-      o.boost = performance.now() + 900;
+      const now = performance.now();
+      if (o.flipped) {
+        // 통! 튀어서 바로 선다. 위에 앉아 있던 고양이는 깜짝
+        o.flipped = 0;
+        o.hopAt = now;
+        sfx('spin', 0.02);
+        pop(o, 'BOING', o.cx, floorY() - 40, '#9fe3c8', 700);
+        if (catLift <= 0 && Math.abs(catX - o.cx) < petPx() * 0.4) {
+          sprite.setToyPose(null);
+          sprite.play('startle');
+          o.busyUntil = now + 900;
+        }
+        return;
+      }
+      o.boost = now + 900;
       sfx('spin', 0.02);
     },
     step(o, dt, now) {
@@ -119,16 +138,49 @@
       if (o.flipped && now > o.flipped) o.flipped = 0;
       if (!o.flipped) {
         const want = mouseX == null ? o.cx : mouseX;
-        const top = now < o.boost ? 420 : 170;
+        const top = now < o.boost ? 420 : o.ride ? 260 : 170;
         const acc = Math.sign(want - o.cx) * 900;
         o.cv = clamp(o.cv + acc * dt, -top, top);
         if (Math.abs(want - o.cx) < 12) o.cv *= Math.pow(0.02, dt);
-        o.cx = clamp(o.cx + o.cv * dt, 16, W - 16);
+        const nx = clamp(o.cx + o.cv * dt, 16, W - 16);
+        // 부스터로 벽에 꽝 → 혼자 뒤집힌다 (고양이를 태우고 있을 땐 멈추기만)
+        if ((nx <= 16 || nx >= W - 16) && Math.abs(o.cv) > 300 && !o.ride) {
+          o.flipped = now + 2500;
+          pop(o, 'BONK', nx, floorY() - 40, '#ff9a9a', 700);
+          burst(o, nx, floorY() - 6, 6, ['#d3cabb', '#565d69'], 140, 500);
+          sfx('bonk', 0.03);
+          o.cv = 0;
+        }
+        if (nx <= 16 || nx >= W - 16) o.cv = 0;
+        o.cx = nx;
+      }
+      if (o.ride) {
+        // 태우고 달린다
+        catX = o.cx;
+        catLift = this.rideLift();
+        catVy = 0;
+        placeCat();
+        sprite.setMove(0);
+        sprite.setToyPose('toyRide');
+        if (Math.abs(o.cv) > 120 && Math.random() < dt * 14) burst(o, o.cx - Math.sign(o.cv) * 8 * itemDot(), floorY() - 2, 1, ['#d6cfc4'], 60, 400);
+        if (now > o.ride) {
+          // 폴짝 내려와 뿌듯
+          o.ride = 0;
+          floating = false;
+          sprite.setToyPose(null);
+          catVy = -320;
+          catVx = -(Math.sign(o.cv) || 1) * 120;
+          sprite.play('toyLeap');
+          K.later(o, 800, () => toy === o && catLift <= 0 && sprite.play('toyProud'));
+          o.busyUntil = now + 2600;
+        }
+        return;
       }
       if (K.landed(o, now)) return;
+      if (catLift > 0 || now < (o.busyUntil || 0)) return sprite.setMove(0);
       if (o.flipped) {
         // 뒤집힌 차 위에 앉아 의기양양
-        if (catLift <= 0 && walkTo(o.cx, dt, 1, 4) <= 4) {
+        if (walkTo(o.cx, dt, 1, 4) <= 4) {
           sprite.setMove(0);
           sprite.setToyPose('toySitOn');
         }
@@ -136,17 +188,31 @@
       }
       sprite.setToyPose(null);
       chase(o, { x: o.cx, y: floorY() - 6 }, dt, now, () => {
+        o.caught++;
+        scored(o, now);
+        if (o.caught % 3 === 0) {
+          // 올라탄다!
+          o.ride = now + 4500;
+          floating = true;
+          sprite.cancel();
+          sfx('win', 0.03);
+          pop(o, 'RIDE!', o.cx, floorY() - 50, '#ffd35c', 900);
+          return;
+        }
         o.flipped = now + 2800;
         o.cv = 0;
         sfx('bonk', 0.03);
         pop(o, 'FLIP', o.cx, floorY() - 40, '#ffd35c', 700);
         burst(o, o.cx, floorY() - 6, 6, ['#d3cabb', '#565d69'], 140, 500);
-        scored(o, now);
       }, { fast: 1.3, noLeap: true, every: 900 });
+    },
+    end(o) {
+      if (o.ride) floating = false;
     },
     draw(ctx, o, D, now) {
       const t = now / 1000;
       const flip = o.cv < 0;
+      const hop = now - o.hopAt < 300 ? Math.round(Math.sin(((now - o.hopAt) / 300) * Math.PI) * 6) * D : 0;
       if (o.flipped) {
         // 뒤집힌 차 위에 고양이가 올라앉으니 차는 고양이 뒤(아래)로
         const up = [...CAR].reverse();
@@ -157,8 +223,12 @@
           FT.dotAt(ctx, o.cx + 4 * D, floorY() - 9 * D, D, '#8f95a0');
         }
       } else {
-        const bump = Math.abs(o.cv) > 50 && Math.floor(t * 16) % 2 ? D : 0;
-        stamp(ctx, CAR, o.cx, floorY() - 4 * D - bump, D, flip);
+        const bump = (Math.abs(o.cv) > 50 && Math.floor(t * 16) % 2 ? D : 0) + hop;
+        // 고양이를 태우고 있으면 차가 고양이 밑에 보이게
+        const w = (CAR[0].length + 2) * D;
+        const car = (g) => stamp(g, CAR, o.cx, floorY() - 4 * D - bump, D, flip);
+        if (o.ride) FT.underCat(ctx, car, [o.cx - w / 2, floorY() - 12 * D - bump, w, 13 * D + bump]);
+        else car(ctx);
         // 꼬리 (안테나 겸용)
         const back = flip ? 1 : -1;
         const wag = Math.round(Math.sin(t * 12)) * D;
@@ -361,56 +431,93 @@
   };
 
   // ================= T37 줄넘기 =================
-  // 클릭할 때마다 줄이 한 바퀴. 박자에 맞춰 누르면 고양이가 폴짝 넘고(콤보!), 박자가 어긋나면 걸려 넘어진다
+  // 클릭할 때마다 줄이 한 바퀴. 박자에 맞춰 누르면 고양이가 폴짝 넘고(콤보!), 박자가 어긋나면 걸려 넘어진다.
+  // 빨리 누르면 줄도 빨리 돈다. 박자가 딱 맞으면 PERFECT. 10콤보마다 공중제비, 10부터 파란 줄 · 20부터 무지개 줄.
+  // 넘어지면 이번 콤보를 크게 보여 주고, 최고 기록이면 NEW BEST (기록은 main 의 toyRecords.jumprope)
+  const JR_RAINBOW = ['#e8534a', '#ff9a3c', '#ffd65a', '#78c46a', '#6fb0ea', '#b784f5'];
+  const jrPlayed = () => (pet.played ? pet.played() : pet.caught());
   C.jumprope = {
     cursor: true,
     start(o) {
-      Object.assign(o, { phase: 1, combo: 0, lastClick: 0, lastGap: 0 });
+      Object.assign(o, { phase: 1, combo: 0, lastClick: 0, lastGap: 0, swing: 0.7, perfects: 0 });
     },
     click(o) {
       const now = performance.now();
-      if (now < (o.busyUntil || 0) || o.phase < 1) return;
+      // 줄이 고양이 발밑을 지난 뒤면 다음 바퀴를 바로 시작할 수 있다 (빠른 박자)
+      if (now < (o.busyUntil || 0) || o.phase < 0.55) return;
       const gap = o.lastClick ? (now - o.lastClick) / 1000 : 0;
       // 첫 번째거나, 간격이 적당하고 지난번과 비슷하면 성공
       const fresh = !gap || gap >= 1.8;
-      const ok = fresh || !o.lastGap || Math.abs(gap - o.lastGap) / o.lastGap < 0.35;
+      const err = fresh || !o.lastGap ? 0 : Math.abs(gap - o.lastGap) / o.lastGap;
+      const ok = fresh || !o.lastGap || err < 0.35;
       if (fresh) o.combo = 0;
       o.lastGap = fresh ? 0 : gap;
       o.lastClick = now;
       o.phase = 0;
+      o.swing = fresh ? 0.7 : clamp(gap * 0.85, 0.3, 0.7);
       o.success = ok;
+      o.perfect = ok && !fresh && o.lastGap && err < 0.08;
       o.jumped = false;
       sfx('tick', 0.02);
     },
     step(o, dt, now) {
       commonStep(o, dt, now);
       if (o.phase < 1) {
-        o.phase = Math.min(1, o.phase + dt / 0.7);
+        o.phase = Math.min(1, o.phase + dt / o.swing);
         // 줄이 발밑에 올 때 폴짝 (또는 걸림)
         if (!o.jumped && o.phase > (o.success ? 0.3 : 0.5)) {
           o.jumped = true;
           if (o.success && catLift <= 0) {
             sprite.setToyPose(null);
-            catVy = -440;
-            catLift = 1;
-            sprite.play('toyLeap');
             o.combo++;
-            if (o.combo % 5 === 0) {
+            const flip = o.combo % 10 === 0;
+            catVy = flip ? -560 : -440;
+            catLift = 1;
+            sprite.play(flip ? 'toySlip' : 'toyLeap');
+            if (o.perfect) {
+              o.perfects++;
+              pop(o, 'PERFECT', catX + petPx() * 0.55, K.catTop() - 8, '#ffd35c', 600);
+              burst(o, catX, H() - 4, 6, ['#ffd35c', '#ffffff'], 120, 400);
+            }
+            if (flip) {
               sfx('win', 0.03);
+              pop(o, o.combo === 10 ? 'BLUE ROPE!' : o.combo === 20 ? 'RAINBOW!' : `FLIP ${o.combo}`, catX, K.catTop() - 40, '#ffd35c', 1000);
+              burst(o, catX, K.catTop(), 14, JR_RAINBOW, 200, 800);
+            } else if (o.combo % 5 === 0) {
+              sfx('quest', 0.02);
               pop(o, `COMBO ${o.combo}`, catX, K.catTop() - 40, '#ffd35c', 900);
             }
-            if (o.combo % 3 === 0) scored(o, now);
-          } else if (!o.success) {
-            o.combo = 0;
-            sprite.play('toyTrip');
-            o.busyUntil = now + 1600;
-            pop(o, 'OOPS', catX, K.catTop() - 20, '#ff9a9a', 800);
-          }
+            if (o.combo % 5 === 0) jrPlayed();
+          } else if (!o.success) this.trip(o, now);
         }
       }
       if (catLift > 0) return;
       sprite.setMove(0);
       if (now > (o.busyUntil || 0)) face(mouseX);
+    },
+    // 줄에 걸려 콰당. 이번 콤보를 크게 보여 주고 기록을 남긴다
+    trip(o, now) {
+      const n = o.combo;
+      o.combo = 0;
+      sprite.setToyPose(null);
+      sprite.play('toyTrip');
+      o.busyUntil = now + 1600;
+      sfx('bonk', 0.02);
+      if (n >= 3) {
+        const rec = (root.TOY_RECORDS = root.TOY_RECORDS || {});
+        const isBest = n > (rec.jumprope || 0);
+        if (isBest) {
+          rec.jumprope = n;
+          if (pet.toyRecord) pet.toyRecord('jumprope', n);
+        }
+        o.result = { n, isBest, best: rec.jumprope, t: now };
+        K.later(o, 1600, () => {
+          if (toy !== o || catLift > 0) return;
+          // 잘했으면 털고 일어나 뿌듯, 아니면 시치미
+          sprite.play(isBest || n >= 10 ? 'toyProud' : 'toyPretend');
+          if (isBest) sfx('win', 0.03);
+        });
+      } else pop(o, 'OOPS', catX, K.catTop() - 20, '#ff9a9a', 800);
     },
     draw(ctx, o, D, now) {
       const P = petPx();
@@ -420,10 +527,12 @@
       const lx = catX - P * 0.34;
       const rx = catX + P * 0.34;
       // 줄: 손잡이 둘을 잇는 반원. phase 에 따라 머리 위 → 앞 → 발밑 → 뒤로 돈다.
-      // 이어진 선으로 긋고, 고양이 뒤로 넘어가는 동안은 고양이 뒤에 그린다
+      // 이어진 선으로 긋고, 고양이 뒤로 넘어가는 동안은 고양이 뒤에 그린다. 콤보가 쌓이면 줄 색이 바뀐다
       const ang = o.phase < 1 ? o.phase * Math.PI * 2 : 0;
       const ry = bodyH * 0.5 + 8 * D;
       const n = 16;
+      const best = o.combo >= 20 ? 2 : o.combo >= 10 ? 1 : 0;
+      const col = (i) => (best === 2 ? JR_RAINBOW[(i + Math.floor(now / 90)) % JR_RAINBOW.length] : best === 1 ? '#6fb0ea' : '#e8534a');
       const rope = (g) => {
         let px = lx;
         let py = hy;
@@ -431,7 +540,7 @@
           const k = i / n;
           const x = lx + (rx - lx) * k;
           const y = Math.min(floorY() - D, hy - Math.cos(ang) * ry * Math.sin(k * Math.PI));
-          FT.line(g, px, py, x, y, D, '#e8534a');
+          FT.line(g, px, py, x, y, D, col(i));
           px = x;
           py = y;
         }
@@ -441,7 +550,15 @@
       // 양 손잡이: 나무 자루에 빨간 손잡이 (줄이 자루 끝에 달렸다)
       stamp(ctx, ['KK', 'KC', 'RK', 'RK', 'RK', 'KK'], lx, hy + 2 * D, D);
       stamp(ctx, ['KK', 'CK', 'KR', 'KR', 'KR', 'KK'], rx, hy + 2 * D, D);
-      if (o.combo > 1) ftext(ctx, String(o.combo), catX, H() - bodyH - 14 * D, D, '#ffd35c');
+      // 콤보 숫자는 고양이 옆에 (머리 위 말풍선과 안 겹치게)
+      if (o.combo > 1) ftext(ctx, String(o.combo), rx + 8 * D, hy - 6 * D, D + 1, best === 2 ? JR_RAINBOW[Math.floor(now / 120) % 6] : '#ffd35c');
+      // 넘어진 뒤: 이번 콤보 · 최고 기록
+      const r = o.result;
+      if (r && now - r.t < 3200) {
+        const top = H() - bodyH - 22 * D;
+        ftext(ctx, `COMBO ${r.n}`, catX, top, D * 2, '#ffd35c');
+        ftext(ctx, r.isBest ? 'NEW BEST!' : `BEST ${r.best}`, catX, top + 10 * D, D, r.isBest ? '#9fe3c8' : '#ffffff');
+      }
       commonDraw(ctx, o, D, now);
     },
   };

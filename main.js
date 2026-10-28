@@ -1,5 +1,5 @@
 /*
- * Vault Pet 1.6.1 — Obsidian plugin (built 2026-10-27)
+ * Vault Pet 2.0.0 — Obsidian plugin (built 2026-10-28)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -32,13 +32,13 @@ function __require(from) {
 
 __defs["core/achievements"] = function (module, exports, require) {
 // 업적. 킷커밋 데스크톱판의 업적표를 옵시디언에 맞게 옮겼다 (대화·세션·토큰·Claude 활용 → 글쓰기·링크·새 노트·세션·옵시디언 활용).
-// 보상 아이템은 데스크톱판과 똑같이 둬서, 모든 코스튬·모션을 여기서도 얻을 수 있다.
+// 2.0.0: 옵시디언을 잘 쓰게 돕는 쪽으로 (정리 습관 · 화면 열어 보기 · 할 일). 보물 · 모션 · 먹고 싶은 것 · 친구 업적은 뺐고, 모션 보상은 코인으로 바꿨다.
 //  tier   : easy · normal · hard · legend
 //  reward : { food: { 키: 개수 } } · { item: 키 } · { coins: n }. 이미 갖고 있는 아이템이면 그 값만큼 코인으로 준다
 //  c 는 gamify.js 의 context(): c.all{c,l,n,s,v,e} 누적 · c.today 오늘 · c.hours[0..23] 시각별 기록 횟수 · c.use(usage.obsidianUse) · c.maxBacklinks
 // 이름·설명은 i18n 의 ach.<id>.name / ach.<id>.desc, icon 은 pixelart.js 의 도트 이름.
-const { TREASURES } = require('./treasure');
 const { PREMIUM_FOODS } = require('./shop');
+const { VIEWS } = require('./skills');
 
 const XP = { easy: 50, normal: 150, hard: 400, legend: 1000 };
 const n = (c, k) => (c.st.cnt && c.st.cnt[k]) || 0;
@@ -56,14 +56,14 @@ const RAW = [
   ['write_100', 'write', 'easy', 'scroll', (c) => c.all.c, 100, { food: { churu: 2 } }],
   ['write_1k', 'write', 'easy', 'scroll', (c) => c.all.c, 1000, { food: { tuna: 2 } }],
   ['write_10k', 'write', 'normal', 'scroll', (c) => c.all.c, 1e4, { item: 'sprout' }],
-  ['write_30k', 'write', 'normal', 'scroll', (c) => c.all.c, 3e4, { item: 'hiccup' }],
+  ['write_30k', 'write', 'normal', 'scroll', (c) => c.all.c, 3e4, { coins: 300 }],
   ['write_100k', 'write', 'hard', 'map', (c) => c.all.c, 1e5, { item: 'glasses' }],
-  ['write_300k', 'write', 'hard', 'heart', (c) => c.all.c, 3e5, { item: 'karaoke' }],
+  ['write_300k', 'write', 'hard', 'heart', (c) => c.all.c, 3e5, { coins: 450 }],
   ['write_1m', 'write', 'hard', 'heart', (c) => c.all.c, 1e6, { item: 'headphones' }],
-  ['write_3m', 'write', 'legend', 'trophy', (c) => c.all.c, 3e6, { item: 'aura' }],
+  ['write_3m', 'write', 'legend', 'trophy', (c) => c.all.c, 3e6, { coins: 1150 }],
   ['write_10m', 'write', 'legend', 'trophy', (c) => c.all.c, 1e7, { item: 'crown' }],
-  ['day_write_3k', 'write', 'normal', 'fire', (c) => c.today.c, 3000, { item: 'trophy' }],
-  ['day_write_10k', 'write', 'legend', 'fire', (c) => c.today.c, 1e4, { item: 'explode' }],
+  ['day_write_3k', 'write', 'normal', 'fire', (c) => c.today.c, 3000, { coins: 1000 }],
+  ['day_write_10k', 'write', 'legend', 'fire', (c) => c.today.c, 1e4, { coins: 1100 }],
   ['day_write_20k', 'write', 'legend', 'moneybag', (c) => c.today.c, 2e4, COIN.legend],
   ['edit_10000', 'write', 'hard', 'chats', (c) => c.all.e || 0, 10000, COIN.hard],
   ['edit_50000', 'write', 'legend', 'chats', (c) => c.all.e || 0, 50000, COIN.legend],
@@ -81,16 +81,21 @@ const RAW = [
   ['focus_10', 'focus', 'normal', 'hourglass', (c) => n(c, 'focus'), 10, COIN.normal],
   ['focus_50', 'focus', 'hard', 'hourglass', (c) => n(c, 'focus'), 50, COIN.hard],
   ['focus_200', 'focus', 'legend', 'hourglass', (c) => n(c, 'focus'), 200, COIN.legend],
+  // 2.0.0: 홈의 할 일 (플러그인 안에만 있는 목록. host.todoDone 이 센다)
+  ['todo_1', 'focus', 'easy', 'check', (c) => n(c, 'todoDone'), 1, { food: { churu: 2 } }],
+  ['todo_50', 'focus', 'normal', 'check', (c) => n(c, 'todoDone'), 50, COIN.normal],
+  ['todo_300', 'focus', 'hard', 'check', (c) => n(c, 'todoDone'), 300, COIN.hard],
+  ['todo_1000', 'focus', 'legend', 'trophy', (c) => n(c, 'todoDone'), 1000, COIN.legend],
 
   // ---------- 링크 ----------
   ['link_1', 'link', 'easy', 'pin', (c) => c.all.l, 1, { food: { churu: 3 } }],
   ['link_30', 'link', 'easy', 'pin', (c) => c.all.l, 30, { food: { chicken: 2 } }],
   ['link_100', 'link', 'normal', 'pin', (c) => c.all.l, 100, { item: 'nerd' }],
-  ['link_300', 'link', 'normal', 'map', (c) => c.all.l, 300, { item: 'codefrenzy' }],
+  ['link_300', 'link', 'normal', 'map', (c) => c.all.l, 300, { coins: 600 }],
   ['link_1000', 'link', 'hard', 'map', (c) => c.all.l, 1000, { item: 'magnifier' }], // 1.2.4: 'chef' 는 premium_all(프리미엄 음식 다 먹이기)과 겹쳐서 돋보기로
-  ['link_3000', 'link', 'hard', 'gem', (c) => c.all.l, 3000, { item: 'levelbanner' }],
+  ['link_3000', 'link', 'hard', 'gem', (c) => c.all.l, 3000, { coins: 900 }],
   ['link_10000', 'link', 'legend', 'gem', (c) => c.all.l, 1e4, { item: 'halo' }],
-  ['link_30000', 'link', 'legend', 'gem', (c) => c.all.l, 3e4, { item: 'rocket' }],
+  ['link_30000', 'link', 'legend', 'gem', (c) => c.all.l, 3e4, { coins: 1200 }],
   ['day_link_50', 'link', 'hard', 'fire', (c) => c.today.l, 50, { item: 'propeller' }],
   ['hub_20', 'link', 'hard', 'home', (c) => c.maxBacklinks || 0, 20, COIN.hard],
   ['hub_50', 'link', 'legend', 'home', (c) => c.maxBacklinks || 0, 50, COIN.legend],
@@ -107,30 +112,30 @@ const RAW = [
   ['first_session', 'session', 'easy', 'wave', (c) => c.all.s, 1, { food: { milk: 3 } }],
   ['sess_10', 'session', 'easy', 'door', (c) => c.all.s, 10, { food: { pouch: 2 } }],
   ['sess_50', 'session', 'normal', 'door', (c) => c.all.s, 50, { item: 'tuxedo' }],
-  ['sess_100', 'session', 'normal', 'door', (c) => c.all.s, 100, { item: 'monitors' }],
+  ['sess_100', 'session', 'normal', 'door', (c) => c.all.s, 100, { coins: 750 }],
   ['sess_300', 'session', 'hard', 'home', (c) => c.all.s, 300, { item: 'tophat' }],
-  ['sess_700', 'session', 'hard', 'home', (c) => c.all.s, 700, { item: 'codeflame' }],
+  ['sess_700', 'session', 'hard', 'home', (c) => c.all.s, 700, { coins: 1050 }],
   ['sess_1500', 'session', 'legend', 'home', (c) => c.all.s, 1500, { item: 'wizard' }],
-  ['day_sess_5', 'session', 'normal', 'door', (c) => c.today.s, 5, { item: 'papers' }],
+  ['day_sess_5', 'session', 'normal', 'door', (c) => c.today.s, 5, { coins: 950 }],
 
   // ---------- 코인 ----------
-  ['coins_10k', 'token', 'normal', 'coin', (c) => c.earned, 10000, { item: 'popper' }],
+  ['coins_10k', 'token', 'normal', 'coin', (c) => c.earned, 10000, { coins: 800 }],
   ['coins_100k', 'token', 'legend', 'moneybag', (c) => c.earned, 100000, { item: 'santa' }],
 
   // ---------- 출석·꾸준함 ----------
   ['streak_3', 'streak', 'easy', 'fire', (c) => c.best, 3, { food: { fishgrill: 2 } }],
   ['streak_7', 'streak', 'normal', 'calendar', (c) => c.best, 7, { item: 'bandana' }],
-  ['streak_14', 'streak', 'normal', 'calendar', (c) => c.best, 14, { item: 'tapfoot' }],
+  ['streak_14', 'streak', 'normal', 'calendar', (c) => c.best, 14, { coins: 550 }],
   ['streak_30', 'streak', 'hard', 'trophy', (c) => c.best, 30, { item: 'bunny' }],
   ['streak_60', 'streak', 'hard', 'fire', (c) => c.best, 60, COIN.hard],
   ['streak_100', 'streak', 'legend', 'trophy', (c) => c.best, 100, { item: 'wings' }],
-  ['streak_365', 'streak', 'legend', 'trophy', (c) => c.best, 365, { item: 'ufo' }],
+  ['streak_365', 'streak', 'legend', 'trophy', (c) => c.best, 365, { coins: 1200 }],
   ['days_10', 'streak', 'easy', 'calendar', (c) => c.days, 10, { food: { omurice: 2 } }],
   ['days_50', 'streak', 'normal', 'calendar', (c) => c.days, 50, { item: 'mikan' }],
-  ['days_100', 'streak', 'hard', 'calendar', (c) => c.days, 100, { item: 'coronation' }],
+  ['days_100', 'streak', 'hard', 'calendar', (c) => c.days, 100, { coins: 1100 }],
   ['days_200', 'streak', 'legend', 'calendar', (c) => c.days, 200, COIN.legend],
   ['days_365', 'streak', 'legend', 'calendar', (c) => c.days, 365, { item: 'antlers' }],
-  ['weekend_5', 'streak', 'normal', 'sunrise', (c) => c.weekend, 5, { item: 'hammock' }],
+  ['weekend_5', 'streak', 'normal', 'sunrise', (c) => c.weekend, 5, { coins: 900 }],
   ['weekend_20', 'streak', 'hard', 'sunrise', (c) => c.weekend, 20, { item: 'tube' }],
   ['weekend_50', 'streak', 'legend', 'sunrise', (c) => c.weekend, 50, COIN.legend],
   ['week_full', 'streak', 'normal', 'calendar', (c) => U(c).weeksFull || 0, 1, COIN.normal],
@@ -142,84 +147,58 @@ const RAW = [
   // ---------- 생활 리듬 ----------
   ['night_owl', 'rhythm', 'easy', 'moon', (c) => (c.hours.slice(1, 5).some((x) => x > 0) ? 1 : 0), 1, { food: { ramen: 1 } }],
   ['early_bird', 'rhythm', 'easy', 'sunrise', (c) => (c.hours.slice(5, 8).some((x) => x > 0) ? 1 : 0), 1, { food: { milk: 2 } }],
-  ['dawn_3', 'rhythm', 'normal', 'moon', (c) => (c.hours[3] > 0 ? 1 : 0), 1, { item: 'piano' }],
-  ['night_100', 'rhythm', 'hard', 'moon', (c) => c.hours.slice(1, 5).reduce((a, x) => a + x, 0), 100, { item: 'soul' }],
-  ['every_hour', 'rhythm', 'legend', 'clock', (c) => c.hours.filter((x) => x > 0).length, 24, { item: 'ghost' }],
+  ['dawn_3', 'rhythm', 'normal', 'moon', (c) => (c.hours[3] > 0 ? 1 : 0), 1, { coins: 1050 }],
+  ['night_100', 'rhythm', 'hard', 'moon', (c) => c.hours.slice(1, 5).reduce((a, x) => a + x, 0), 100, { coins: 1150 }],
+  ['every_hour', 'rhythm', 'legend', 'clock', (c) => c.hours.filter((x) => x > 0).length, 24, { coins: 350 }],
   ['hours_18', 'rhythm', 'hard', 'clock', (c) => c.hours.filter((x) => x > 0).length, 18, COIN.hard],
   ['morning_300', 'rhythm', 'hard', 'sunrise', (c) => c.hours.slice(6, 9).reduce((a, x) => a + x, 0), 300, COIN.hard],
-  ['marathon', 'rhythm', 'normal', 'clock', (c) => c.st.maxStreakMin, 180, { item: 'workout' }],
+  ['marathon', 'rhythm', 'normal', 'clock', (c) => c.st.maxStreakMin, 180, { coins: 1050 }],
   ['marathon_6h', 'rhythm', 'hard', 'clock', (c) => c.st.maxStreakMin, 360, { item: 'beanie' }],
-  ['marathon_12h', 'rhythm', 'legend', 'clock', (c) => c.st.maxStreakMin, 720, { item: 'skullsmoke' }],
-  ['rest_10', 'rhythm', 'normal', 'pillow', (c) => c.st.restsTaken, 10, { item: 'cafe' }],
+  ['marathon_12h', 'rhythm', 'legend', 'clock', (c) => c.st.maxStreakMin, 720, { coins: 950 }],
+  ['rest_10', 'rhythm', 'normal', 'pillow', (c) => c.st.restsTaken, 10, { coins: 600 }],
   ['rest_50', 'rhythm', 'hard', 'pillow', (c) => c.st.restsTaken, 50, { item: 'fedora' }],
   ['rest_150', 'rhythm', 'legend', 'pillow', (c) => c.st.restsTaken, 150, COIN.legend],
 
   // ---------- 고양이와 교감 ----------
   ['pet_1', 'bond', 'easy', 'paw', (c) => c.st.pokes, 1, { food: { churu: 1 } }],
-  ['pet_50', 'bond', 'easy', 'paw', (c) => c.st.pokes, 50, { food: { salmon: 1 } }],
   ['pet_300', 'bond', 'normal', 'paw', (c) => c.st.pokes, 300, { item: 'bellcollar' }],
-  ['pet_1000', 'bond', 'hard', 'heart', (c) => c.st.pokes, 1000, { item: 'melt' }],
-  ['pet_5000', 'bond', 'legend', 'heart', (c) => c.st.pokes, 5000, { item: 'flowercrown' }],
-  ['spam_1', 'bond', 'easy', 'bang', (c) => n(c, 'spam'), 1, { food: { anchovy: 2 } }],
-  ['spam_20', 'bond', 'normal', 'bang', (c) => n(c, 'spam'), 20, { item: 'grumpy' }],
+  ['pet_1000', 'bond', 'hard', 'heart', (c) => c.st.pokes, 1000, { coins: 900 }],
   ['lift_1', 'bond', 'easy', 'paw', (c) => n(c, 'lift'), 1, { food: { churu: 2 } }],
-  ['lift_50', 'bond', 'normal', 'paw', (c) => n(c, 'lift'), 50, { item: 'startle' }],
-  ['lift_300', 'bond', 'hard', 'paw', (c) => n(c, 'lift'), 300, { item: 'mask' }],
   ['fed_1', 'bond', 'easy', 'ricebowl', (c) => n(c, 'fed'), 1, { food: { milk: 2 } }],
   ['fed_30', 'bond', 'normal', 'ricebowl', (c) => n(c, 'fed'), 30, { item: 'toast' }],
-  ['fed_200', 'bond', 'hard', 'ricebowl', (c) => n(c, 'fed'), 200, { item: 'fooddream' }],
   ['snack_10', 'bond', 'easy', 'gift', (c) => n(c, 'snack'), 10, { food: { churu: 2 } }],
-  ['snack_100', 'bond', 'hard', 'gift', (c) => n(c, 'snack'), 100, { item: 'mustache' }],
   // 4차 (2026-09-26): 프리미엄 밥·간식. 먹은 종류는 cnt 의 'pf_<키>' 로 센다 (main.js premiumEaten)
   ['premium_1', 'bond', 'easy', 'ricebowl', (c) => n(c, 'premium'), 1, { food: { fortuneCookie: 1 } }],
-  ['premium_10', 'bond', 'normal', 'ricebowl', (c) => n(c, 'premium'), 10, { food: { mysteryBox: 2 } }],
   ['premium_all', 'collect', 'legend', 'star', (c) => PREMIUM_FOODS.filter((k) => n(c, 'pf_' + k) > 0).length, PREMIUM_FOODS.length, { item: 'chef' }],
   ['foodspend_10k', 'collect', 'hard', 'moneybag', (c) => n(c, 'foodSpent'), 10000, { food: { goldMouseChoco: 1 } }],
-  ['dragonking', 'bond', 'hard', 'gem', (c) => n(c, 'pf_dragonKingFeast'), 1, COIN.hard],
-  ['invite_ok', 'bond', 'normal', 'paw', (c) => n(c, 'invite'), 1, { food: { inviteCookie: 1 } }],
   ['play_1', 'bond', 'easy', 'paw', (c) => n(c, 'play'), 1, { food: { churu: 2 } }],
-  ['play_30', 'bond', 'normal', 'paw', (c) => n(c, 'play'), 30, { item: 'sneeze' }],
   ['catch_100', 'bond', 'normal', 'star', (c) => n(c, 'catch'), 100, { item: 'frog' }],
-  ['catch_1000', 'bond', 'hard', 'star', (c) => n(c, 'catch'), 1000, { item: 'ropeskip' }],
-  ['giant_1', 'bond', 'normal', 'sparkle', (c) => n(c, 'giant'), 1, { item: 'bubbleplay' }],
-  ['box_10', 'bond', 'normal', 'gift', (c) => n(c, 'box'), 10, { item: 'snot' }],
-  ['bored_10', 'bond', 'normal', 'doze', (c) => n(c, 'bored'), 10, { item: 'gum' }],
-  // 2026-10-10: 오늘 먹고 싶은 것 들어주기 (main/craving.js)
-  ['craving_1', 'bond', 'easy', 'ricebowl', (c) => n(c, 'craving'), 1, { food: { churu: 2 } }],
-  ['craving_30', 'bond', 'normal', 'ricebowl', (c) => n(c, 'craving'), 30, COIN.normal],
-  ['craving_100', 'bond', 'hard', 'ricebowl', (c) => n(c, 'craving'), 100, { food: { royalTable: 1 } }],
-  ['cravingRun_7', 'bond', 'hard', 'heart', (c) => n(c, 'cravingRun'), 7, COIN.hard],
 
   // ---------- 쇼핑·수집 ----------
   ['buy_1', 'collect', 'easy', 'coin', (c) => c.bought, 1, { food: { tempura: 1 } }],
   ['buy_20', 'collect', 'normal', 'coin', (c) => c.bought, 20, { item: 'bee' }],
-  ['buy_100', 'collect', 'hard', 'moneybag', (c) => c.bought, 100, { item: 'soju' }],
+  ['buy_100', 'collect', 'hard', 'moneybag', (c) => c.bought, 100, { coins: 850 }],
   ['spend_10k', 'collect', 'hard', 'moneybag', (c) => c.spent, 10000, { item: 'party' }],
-  ['acc_5', 'collect', 'normal', 'ribbon', (c) => c.owned.acc, 5, { item: 'dealwithit' }],
+  ['acc_5', 'collect', 'normal', 'ribbon', (c) => c.owned.acc, 5, { coins: 400 }],
   // 한 번이라도 가졌던 코스튬 수 (공방 코스튬을 친구에게 선물해도 줄지 않는다. gamify.js 의 lifetimeSide)
-  ['acc_all', 'collect', 'legend', 'ribbon', (c) => (c.accEver != null ? c.accEver : c.owned.acc), (c) => c.totalAcc, { item: 'electricjam' }],
-  ['motion_10', 'collect', 'normal', 'sparkle', (c) => c.owned.motion, 10, { item: 'eyepatch' }],
-  ['motion_30', 'collect', 'hard', 'sparkle', (c) => c.owned.motion, 30, { item: 'lightning' }],
+  ['acc_all', 'collect', 'legend', 'ribbon', (c) => (c.accEver != null ? c.accEver : c.owned.acc), (c) => c.totalAcc, { coins: 1100 }],
   ['toy_5', 'collect', 'normal', 'paw', (c) => c.owned.toy, 5, { item: 'bearhood' }],
-  ['toy_all', 'collect', 'hard', 'paw', (c) => c.owned.toy, (c) => c.totalToy, { item: 'drums' }],
-  ['treasure_1', 'collect', 'easy', 'gift', (c) => c.treasureKinds || 0, 1, { food: { churu: 2 } }],
-  ['treasure_10', 'collect', 'normal', 'gift', (c) => c.treasureKinds || 0, 10, { item: 'clover' }],
-  ['treasure_all', 'collect', 'legend', 'gem', (c) => c.treasureKinds || 0, TREASURES.length, { item: 'goldaura' }],
-  ['rich_5k', 'collect', 'normal', 'moneybag', (c) => c.balance, 5000, { item: 'giantfist' }],
+  ['toy_all', 'collect', 'hard', 'paw', (c) => c.owned.toy, (c) => c.totalToy, { coins: 1050 }],
+  ['rich_5k', 'collect', 'normal', 'moneybag', (c) => c.balance, 5000, { coins: 1100 }],
   ['rich_50k', 'collect', 'legend', 'gem', (c) => c.balance, 50000, { item: 'scarf' }],
 
   // ---------- 성장·퀘스트 ----------
   ['lv_5', 'growth', 'easy', 'star', (c) => c.level, 5, { food: { sushi: 1 } }],
   ['lv_10', 'growth', 'normal', 'star', (c) => c.level, 10, { item: 'police' }],
-  ['lv_20', 'growth', 'normal', 'star', (c) => c.level, 20, { item: 'laptoptoss' }],
-  ['lv_30', 'growth', 'hard', 'sparkle', (c) => c.level, 30, { item: 'glowup' }],
-  ['lv_50', 'growth', 'legend', 'sparkle', (c) => c.level, 50, { item: 'fart' }],
+  ['lv_20', 'growth', 'normal', 'star', (c) => c.level, 20, { coins: 1050 }],
+  ['lv_30', 'growth', 'hard', 'sparkle', (c) => c.level, 30, { coins: 1100 }],
+  ['lv_50', 'growth', 'legend', 'sparkle', (c) => c.level, 50, { coins: 350 }],
   ['quest_1', 'growth', 'easy', 'scroll', (c) => c.st.questsDone, 1, { food: { churu: 3 } }],
-  ['quest_10', 'growth', 'normal', 'scroll', (c) => c.st.questsDone, 10, { item: 'blanket' }],
+  ['quest_10', 'growth', 'normal', 'scroll', (c) => c.st.questsDone, 10, { coins: 550 }],
   ['quest_50', 'growth', 'hard', 'map', (c) => c.st.questsDone, 50, { item: 'nightcap' }],
-  ['quest_200', 'growth', 'legend', 'map', (c) => c.st.questsDone, 200, { item: 'curtainreveal' }],
+  ['quest_200', 'growth', 'legend', 'map', (c) => c.st.questsDone, 200, { coins: 1050 }],
   ['quest_500', 'growth', 'legend', 'map', (c) => c.st.questsDone, 500, COIN.legend],
-  ['allclear_10', 'growth', 'hard', 'check', (c) => n(c, 'allclear'), 10, { item: 'smokereveal' }],
+  ['allclear_10', 'growth', 'hard', 'check', (c) => n(c, 'allclear'), 10, { coins: 950 }],
   ['allclear_30', 'growth', 'legend', 'check', (c) => n(c, 'allclear'), 30, COIN.legend],
 
   // ---------- 옵시디언 활용 (데스크톱판의 'Claude 활용' 자리) ----------
@@ -244,6 +223,26 @@ const RAW = [
   ['open_1000', 'obsidian', 'hard', 'door', (c) => c.all.v || 0, 1000, COIN.hard],
   ['open_10000', 'obsidian', 'legend', 'door', (c) => c.all.v || 0, 10000, COIN.legend],
   ['features_8', 'obsidian', 'legend', 'gear', FEATURES8, 8, COIN.legend],
+  // 2.0.0: 데일리 노트에 쓴 글자 · 옵시디언 화면 열어 보기 (plugin/main.js 가 뷰 종류마다 view_<종류> 로 센다)
+  ['dailyc_1k', 'obsidian', 'normal', 'calendar', (c) => feat(c, 'dailyc'), 1000, COIN.normal],
+  ['dailyc_10k', 'obsidian', 'hard', 'calendar', (c) => feat(c, 'dailyc'), 10000, COIN.hard],
+  ['graph_1', 'obsidian', 'easy', 'map', (c) => n(c, 'view_graph') + n(c, 'view_localgraph'), 1, { food: { milk: 2 } }],
+  ['search_1', 'obsidian', 'easy', 'eye', (c) => n(c, 'view_search'), 1, { food: { churu: 2 } }],
+  ['backlink_1', 'obsidian', 'easy', 'pin', (c) => n(c, 'view_backlink') + n(c, 'view_outgoing-link'), 1, { food: { tuna: 1 } }],
+  ['outline_1', 'obsidian', 'easy', 'scroll', (c) => n(c, 'view_outline'), 1, { food: { milk: 2 } }],
+  ['views_all', 'obsidian', 'hard', 'gear', (c) => VIEWS.filter((v) => n(c, 'view_' + v) > 0).length, VIEWS.length, COIN.hard],
+
+  // ---------- 정리 습관 (2.0.0): 속성 달기 · 노트 옮기기 · 이름 다듬기 · 외톨이 노트 이어 주기 ----------
+  ['prop_1', 'organize', 'easy', 'pin', (c) => feat(c, 'prop'), 1, { food: { churu: 2 } }],
+  ['prop_50', 'organize', 'normal', 'pin', (c) => feat(c, 'prop'), 50, COIN.normal],
+  ['prop_300', 'organize', 'hard', 'pin', (c) => feat(c, 'prop'), 300, COIN.hard],
+  ['move_1', 'organize', 'easy', 'home', (c) => n(c, 'move'), 1, { food: { tuna: 1 } }],
+  ['move_50', 'organize', 'normal', 'home', (c) => n(c, 'move'), 50, COIN.normal],
+  ['move_300', 'organize', 'hard', 'home', (c) => n(c, 'move'), 300, COIN.hard],
+  ['retitle_10', 'organize', 'normal', 'scroll', (c) => n(c, 'retitle'), 10, COIN.normal],
+  ['orphan_1', 'organize', 'easy', 'paw', (c) => n(c, 'orphanFix'), 1, { food: { salmon: 1 } }],
+  ['orphan_30', 'organize', 'hard', 'heart', (c) => n(c, 'orphanFix'), 30, COIN.hard],
+  ['orphan_100', 'organize', 'legend', 'heart', (c) => n(c, 'orphanFix'), 100, COIN.legend],
 
   // ---------- 여러 폴더 (데스크톱판의 '여러 프로젝트' 자리) ----------
   ['folder_3', 'project', 'normal', 'home', (c) => U(c).folders || 0, 3, COIN.normal],
@@ -256,14 +255,13 @@ const RAW = [
   ['house_1', 'secret', 'easy', 'home', (c) => n(c, 'house'), 1, { food: { churu: 2 } }],
   ['rename', 'secret', 'easy', 'paw', (c) => n(c, 'rename'), 1, { food: { milk: 1 } }],
   ['mystery_jackpot', 'secret', 'normal', 'gift', (c) => n(c, 'mysteryPremium'), 1, { food: { fortuneCookie: 2 } }],
-  ['quiet_10', 'secret', 'normal', 'bellOff', (c) => n(c, 'quiet'), 10, { item: 'teatime' }],
-  ['smoke_break', 'secret', 'normal', 'pillow', (c) => n(c, 'lift') >= 1 && c.st.restsTaken >= 3 ? 1 : 0, 1, { item: 'smoke' }],
+  ['quiet_10', 'secret', 'normal', 'bellOff', (c) => n(c, 'quiet'), 10, { coins: 900 }],
 ];
 
 // 데스크톱판의 'Claude Code 에서만 깰 수 있는 업적' 표. 옵시디언판에는 그런 업적이 없다
 const CLAUDE_ONLY = new Set();
 
-const CATS = ['write', 'focus', 'link', 'note', 'session', 'obsidian', 'project', 'token', 'streak', 'rhythm', 'bond', 'collect', 'growth', 'secret'];
+const CATS = ['write', 'focus', 'link', 'note', 'session', 'obsidian', 'organize', 'project', 'token', 'streak', 'rhythm', 'bond', 'collect', 'growth', 'secret'];
 const TIERS = ['easy', 'normal', 'hard', 'legend'];
 
 const ACHIEVEMENTS = RAW.map(([id, cat, tier, icon, value, goal, reward]) => {
@@ -674,9 +672,7 @@ class Brain extends EventEmitter {
     if (!grace && this.hungry(now) && present && this.ready('hungry', 60 * MIN)) {
       const starving = now - this.life.hungrySince > 60 * MIN;
       this.emit('action', 'slot:hungry');
-      // 절반쯤은 오늘 먹고 싶은 밥 이름을 댄다 (main.js 의 cravingMeal)
-      const want = this.cravingMeal && this.cravingMeal();
-      this.say(want && Math.random() < 0.5 ? T.line('hungryCrave', { name: want }) : T.line(starving ? 'starving' : 'hungry'), 'hungry');
+      this.say(T.line(starving ? 'starving' : 'hungry'), 'hungry');
       return;
     }
 
@@ -701,12 +697,6 @@ class Brain extends EventEmitter {
       return;
     }
 
-    // 오늘 먹고 싶은 것을 하루 한 번 말한다 (쉬는 순간에. main.js 의 cravingToday)
-    if (present && this.cravingToday && mood !== 'sleeping' && this.once('crave', d)) {
-      const c = this.cravingToday();
-      if (c) this.talk(T.line('craveAnnounce', c), 'crave');
-    }
-
     // AI 활용 팁: 하루 5번까지, 90분에 한 번. 20분쯤 이어서 일하고 있을 때 (설정 '가끔 AI 활용 팁'으로 끈다)
     const [tipDay, tipN] = String(this.daily.tips || '').split('|');
     const tipsToday = tipDay === dayKey(d) ? Number(tipN) || 0 : 0;
@@ -724,12 +714,6 @@ class Brain extends EventEmitter {
         return;
       }
       const t = this.getStats().today;
-      // 공방에서 만든 옷을 입고 있으면 가끔 그 얘기 (main.js 의 workshopWorn, 2026-10-10)
-      const made = this.workshopWorn && this.workshopWorn();
-      if (made && Math.random() < 0.2) {
-        this.talk(T.line('workshopWear', { item: made }), 'chatter');
-        return;
-      }
       // 실제 있었던 일을 기억해서 말한다 (하루 2번까지. 값이 없으면 안 한다. main.js 의 memoryVars)
       const [memDay, memN] = String(this.daily.memory || '').split('|');
       const memToday = memDay === dayKey(d) ? Number(memN) || 0 : 0;
@@ -748,368 +732,6 @@ class Brain extends EventEmitter {
 }
 
 module.exports = { Brain };
-
-};
-
-__defs["core/craving"] = function (module, exports, require) {
-// 오늘 먹고 싶은 것 (2026-10-10). 고양이가 날마다 밥 하나 · 간식 하나를 조른다.
-//  - 날짜로 정해서 앱을 껐다 켜도 안 바뀐다. 어제 고른 건 빼고, 적게 먹여 본 음식일수록 잘 뽑힌다
-//  - 프리미엄은 빼되, 일주일에 한 번쯤(PREMIUM_EVERY) 하나가 프리미엄이다
-//  - 들어주면(그 음식을 먹이면) 산 값의 절반을 코인으로 돌려준다 (main.js 의 treat-eaten)
-// state.craving = { day, meal, snack, fed: [키…], prev: [어제 둘], run, lastDay }
-// electron 없이 도는 순수 Node 라 test/craving.test.js 가 직접 돌린다
-const { FOODS } = require('./shop');
-
-const PREMIUM_EVERY = 7;
-const REFUND = 0.5;
-
-const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-// 같은 날 · 같은 사람이면 같은 수가 나오는 난수 (mulberry32)
-function seeded(str) {
-  let h = 1779033703 ^ str.length;
-  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 3432918353), (h = (h << 13) | (h >>> 19));
-  let a = h >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// fedCounts: { 키: 지금까지 사 먹인 횟수 } (적을수록 잘 뽑힌다)
-function pickOne(list, rnd, fedCounts, avoid) {
-  const pool = list.filter((x) => !avoid.includes(x.key));
-  const use = pool.length ? pool : list;
-  const w = use.map((x) => 1 / (1 + (fedCounts[x.key] || 0)));
-  let r = rnd() * w.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < use.length; i++) if ((r -= w[i]) <= 0) return use[i].key;
-  return use[use.length - 1].key;
-}
-
-// 그날의 두 음식. seed = 사람마다 다르게 (처음 만난 시각 등)
-function pickCraving(day, { seed = '', fedCounts = {}, avoid = [] } = {}) {
-  const rnd = seeded(`${seed}|${day}`);
-  const premiumDay = rnd() < 1 / PREMIUM_EVERY;
-  const premiumMeal = premiumDay && rnd() < 0.5;
-  const list = (group, premium) => FOODS.filter((x) => x.group === group && !!x.premium === premium && x.fill !== 0);
-  return {
-    meal: pickOne(list('meal', premiumMeal), rnd, fedCounts, avoid),
-    snack: pickOne(list('snack', premiumDay && !premiumMeal), rnd, fedCounts, avoid),
-  };
-}
-
-class Craving {
-  // fedCounts() = { 키: 횟수 } 를 돌려주는 함수, seed() = 사람마다 다른 값
-  constructor(state, { fedCounts = () => ({}), seed = () => '' } = {}) {
-    this.state = state;
-    this.fedCounts = fedCounts;
-    this.seed = seed;
-  }
-
-  // 오늘 것 (날이 바뀌었으면 새로 고른다)
-  today(now = new Date()) {
-    const day = dayKey(now);
-    const c = this.state.get('craving') || {};
-    if (c.day === day) return c;
-    const prev = c.day ? [c.meal, c.snack] : [];
-    const pick = pickCraving(day, { seed: String(this.seed()), fedCounts: this.fedCounts(), avoid: prev });
-    const next = { day, ...pick, fed: [], prev, run: c.run || 0, lastDay: c.lastDay || null };
-    this.state.set({ craving: next });
-    return next;
-  }
-
-  // 이 음식을 먹었다. 오늘 먹고 싶던 것이고 아직 안 들어줬으면 { refund, first, run } 를 돌려준다
-  // run = 하루도 안 빠지고 소원을 들어준 날 수 (어제도 들어줬으면 이어진다)
-  eaten(key, now = new Date()) {
-    const c = this.today(now);
-    if ((key !== c.meal && key !== c.snack) || c.fed.includes(key)) return null;
-    const it = FOODS.find((x) => x.key === key);
-    const refund = Math.floor((it ? it.price : 0) * REFUND);
-    const firstToday = !c.fed.length;
-    let run = c.run || 0;
-    if (firstToday) {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      run = c.lastDay === dayKey(y) ? run + 1 : 1;
-    }
-    this.state.set({ craving: { ...c, fed: [...c.fed, key], run, lastDay: c.day } });
-    return { refund, first: firstToday, run, both: c.fed.length + 1 >= 2 };
-  }
-}
-
-module.exports = { Craving, pickCraving, dayKey, PREMIUM_EVERY, REFUND };
-
-};
-
-__defs["core/friends"] = function (module, exports, require) {
-// 동네 친구들 (7차, 2026-09-23). 예전 '동네 고양이 손님'을 넓혀 여러 동물이 놀러 온다.
-//
-//  - 두 시간쯤마다 한 마리가 놀러 와서 10분 머물다 간다 (자리를 비운 동안은 안 온다)
-//  - 단짝이 된 친구는 하우스 '동네 친구들'에서 불러 5분 같이 놀 수 있다. 한 번에 한 친구, 돌아간 뒤 30분 쉬었다가 다시
-//  - 올 때마다 원하는 보물과 개수가 달라진다. 그걸 주면 답례로 밥이나 간식을 준다 (물물교환)
-//  - 밥·간식을 주면 친해진다. 친밀도: 처음 봄 · 아는 사이 · 친구 · 단짝
-//  - 단짝 고양이 친구에게는 보물 공방에서 만든 코스튬을 선물할 수 있다 (2026-09-25). 선물하면 내 인벤토리에서 빠지고,
-//    친구는 칸마다 하나씩 입는다. 같은 칸에 새 옷을 주면 먼저 입던 옷은 사라진다. 다른 친구에게 주려면 공방에서 다시 만든다
-// 이름·별명·TMI·수다는 renderer/i18n.js 의 'friend.<id>.*', 그림은 renderer/friends.js (고양이 셋은 sprite.js 의 GUEST_FURS)
-const { find: findTreasure } = require('./treasure');
-const { ACCESSORIES, COSTUME_SLOTS } = require('./shop');
-
-// fur = GUEST_FURS 번호 (고양이 친구), art = renderer/friends.js 의 그림 (동물 친구)
-// likes = 물물교환 때 달라고 하는 보물들, gifts = 답례로 주는 먹이들
-// generous = 물물교환 답례가 두 배
-// 2026-09-25: 족까치·F-22 랩터·개구라가 떠나고 최번개·돈돈까스가 왔다. 떠난 친구들이 좋아하던 보물은 남은 친구들에게 나눴다
-const FRIENDS = [
-  { id: 'dust', fur: 0, likes: ['dustball', 'pigeonfeather', 'pebble', 'marble', 'seedshell', 'dryleaf'], gifts: ['churu', 'anchovy', 'milk', 'tuna'] },
-  { id: 'coal', fur: 1, likes: ['bottlecap', 'deadbattery', 'coin10', 'lottery', 'keycap'], gifts: ['emberChicken', 'chicken', 'churubar', 'anchovy'] },
-  { id: 'tofu', fur: 2, likes: ['button', 'rubberband', 'candywrap', 'bandaid', 'lonesock', 'crayon'], gifts: ['milk', 'creamtaiyaki', 'pouch', 'churu'] },
-  { id: 'bolt', fur: 4, likes: ['clip', 'usbcap', 'deadbattery', 'keycap', 'googlyeye'], gifts: ['churu', 'chicken', 'milk', 'anchovy'] },
-  { id: 'dondon', fur: 5, likes: ['shinycap', 'coin10', 'lottery', 'marble', 'postit'], gifts: ['sushi', 'salmon', 'goldmackerel', 'churuchamp'], generous: true },
-  { id: 'pigeon', art: 'pigeon', likes: ['crumb', 'seedshell', 'receipt', 'bottlecap', 'twig', 'pinecone'], gifts: ['bento', 'omurice', 'anchovy', 'cookieMilk'] },
-  { id: 'hedgehog', art: 'hedgehog', likes: ['lottery', 'ddakji', 'coin10', 'clover3', 'marble', 'worm'], gifts: ['cricket', 'wormgummy', 'fishgrill', 'churubar'] },
-  { id: 'raccoon', art: 'raccoon', likes: ['candywrap', 'crumb', 'bottlecap', 'lonesock', 'bubblewrap', 'drinkstraw'], gifts: ['ramen', 'tonkotsu', 'vinylchip', 'foilcandy'] },
-];
-// 예전 손님 번호 (0 먼지 1 연탄 2 두부 3 호떡). 호떡은 떠났다
-const OLD_GUESTS = ['dust', 'coal', 'tofu'];
-
-// 친밀도: 점수가 이만큼 되면 한 단계 (처음 봄 · 아는 사이 · 친구 · 단짝)
-const FRIEND_STEPS = [0, 10, 30, 55]; // 2026-09-24: 6 · 20 · 45 에서 올렸다
-const PTS = { visit: 1, meal: 2, snack: 1, trade: 3 };
-const MAX_FEEDS = 3; // 한 번 놀러 왔을 때 받아먹는 최대 횟수 (그 뒤로는 배불러서 사양)
-const GIFT_CHANCE = [0.2, 0.35, 0.5, 0.7]; // 돌아갈 때 보물을 두고 갈 확률
-
-const VISIT_MS = 10 * 60_000;
-const CALL_MS = 5 * 60_000;
-const CALL_COOLDOWN_MS = 30 * 60_000;
-const VISIT_GAP_MS = 2 * 60 * 60_000; // 두 시간쯤마다 한 마리
-const FULL_EARLY_MS = 30 * 60_000;
-const WANT_N = { common: [3, 6], rare: [1, 3], legend: [1, 1] };
-
-const levelOf = (pts) => FRIEND_STEPS.filter((n) => pts >= n).length - 1;
-const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-const pick = (list) => list[Math.floor(Math.random() * list.length)];
-
-class Friends {
-  // state = JsonFile. pantry(먹이 창고)·treasures(보물 상자)는 같은 state 에 있다
-  constructor(state) {
-    this.state = state;
-    this.migrate();
-    const s = this.st();
-    // 켜자마자는 말고, 20분~두 시간 안에 첫 손님
-    if (!s.nextAt || s.nextAt < Date.now()) this.save({ nextAt: Date.now() + rint(20, 120) * 60_000 });
-    // 앱을 껐다 켜면 방문 중이던 친구는 돌아간 셈
-    if (s.visit) this.save({ visit: null });
-  }
-
-  st() {
-    return this.state.get('friends') || { list: {}, visit: null, nextAt: 0, callReadyAt: 0 };
-  }
-  save(patch) {
-    this.state.set({ friends: { ...this.st(), ...patch } });
-  }
-  one(id) {
-    return (this.st().list || {})[id] || { pts: 0, visits: 0 };
-  }
-  setOne(id, patch) {
-    const list = { ...(this.st().list || {}) };
-    list[id] = { ...this.one(id), ...patch };
-    this.save({ list });
-  }
-
-  // 예전 '동네 고양이' 방문 횟수를 친밀도 점수로 옮긴다 (한 번만)
-  // 떠난 친구(족까치·랩터·개구라)의 기록과 방문은 지운다
-  migrate() {
-    const cur = this.st();
-    const gone = Object.keys(cur.list || {}).filter((id) => !FRIENDS.some((f) => f.id === id));
-    if (gone.length || (cur.visit && !FRIENDS.some((f) => f.id === cur.visit.id))) {
-      const list = { ...(cur.list || {}) };
-      for (const id of gone) delete list[id];
-      this.save({ list, visit: cur.visit && FRIENDS.some((f) => f.id === cur.visit.id) ? cur.visit : null });
-    }
-    const old = this.state.get('guests');
-    if (!old || this.st().migrated) return;
-    const list = { ...(this.st().list || {}) };
-    for (const id of OLD_GUESTS) if (old[id] && old[id].visits) list[id] = { pts: old[id].visits * 2, visits: old[id].visits };
-    this.save({ list, migrated: true });
-  }
-
-  // 지금 놀러 와 있는 친구 (시간이 지났으면 null)
-  current() {
-    const v = this.st().visit;
-    return v && v.until > Date.now() ? v : null;
-  }
-
-  // 1분마다 main 이 부른다. 새 손님이 올 때가 됐으면 방문 정보를 돌려준다
-  //  ctx = { away, busy } — 자리를 비웠거나(키보드·마우스를 5분 넘게 안 만짐) 바쁘면 미룬다
-  // 시간이 다 된 친구를 여기서 보내면(펫 창이 인사를 못 했을 때) 두고 간 보물은 고양이가 챙겨 둔다(보물 상자로 바로).
-  // 그 결과 { id, gift, kept } 는 takeLeft() 로 한 번 꺼내 간다 (main 이 펫 창에 pet:friend-leave 를 보낸다)
-  tick(ctx = {}) {
-    const s = this.st();
-    const now = Date.now();
-    if (s.visit && s.visit.until <= now) this.left = this.finish({ keep: true });
-    // 배가 든든하면(ctx.full) 30분 일찍 온다 = 1시간 반쯤마다 (2026-10-10, 배부름은 덤)
-    if (this.current() || now < s.nextAt - (ctx.full ? FULL_EARLY_MS : 0) || ctx.away || ctx.busy) return null;
-    return this.start(pick(FRIENDS).id, 'visit');
-  }
-
-  // 방문 시작. kind = 'visit'(저절로) | 'call'(불러서)
-  start(id, kind) {
-    const f = FRIENDS.find((x) => x.id === id);
-    if (!f) return null;
-    const now = Date.now();
-    const wantKey = pick(f.likes);
-    const rar = (findTreasure(wantKey) || {}).rarity || 'common';
-    const [a, b] = WANT_N[rar];
-    const n = rint(a, b);
-    const food = pick(f.gifts);
-    const give = (rar === 'legend' ? 4 : rar === 'rare' ? 2 + (n > 1 ? 1 : 0) : 1 + Math.floor(n / 3)) * (f.generous ? 2 : 1);
-    const visit = { id, kind, at: now, until: now + (kind === 'call' ? CALL_MS : VISIT_MS), want: { key: wantKey, n }, gift: { key: food, n: give }, traded: false, feeds: 0 };
-    const before = levelOf(this.one(id).pts);
-    this.setOne(id, { visits: this.one(id).visits + 1, pts: this.one(id).pts + PTS.visit, lastAt: now });
-    this.save({ visit });
-    return { ...visit, level: levelOf(this.one(id).pts), up: levelOf(this.one(id).pts) > before };
-  }
-
-  // 돌아간다 (시간이 다 됐거나 앱이 보냈다). 가끔 보물을 두고 간다.
-  //  keep = 바닥에 떨어뜨릴 펫 창이 없을 때(main 이 보낼 때): 보물을 상자에 바로 넣는다 (kept: true)
-  //  아니면 펫 창이 바닥에 떨어뜨리고, 주우면 pet:treasure 로 들어온다
-  finish(opts = {}) {
-    const v = this.st().visit;
-    if (!v) return null;
-    const lv = levelOf(this.one(v.id).pts);
-    const f = FRIENDS.find((x) => x.id === v.id);
-    const gift = f && Math.random() < GIFT_CHANCE[lv] ? pick(f.likes) : null;
-    const patch = { visit: null, nextAt: Date.now() + VISIT_GAP_MS + rint(-20, 20) * 60_000 };
-    if (v.kind === 'call') patch.callReadyAt = Date.now() + CALL_COOLDOWN_MS;
-    this.save(patch);
-    if (gift && opts.keep) this.keepGift(gift);
-    return { id: v.id, gift, kept: !!(gift && opts.keep) };
-  }
-
-  // tick 이 보낸 친구 (한 번만 꺼낸다). 없으면 null
-  takeLeft() {
-    const r = this.left || null;
-    this.left = null;
-    return r;
-  }
-
-  // 두고 간 보물을 상자에 바로 넣는다 (도감 기록 treasureSeen 도 같이. treasure.js 의 add 와 같다)
-  keepGift(key) {
-    if (!findTreasure(key)) return;
-    const box = { ...(this.state.get('treasures') || {}) };
-    box[key] = (box[key] || 0) + 1;
-    const seen = new Set(this.state.get('treasureSeen') || []);
-    seen.add(key);
-    this.state.set({ treasures: box, treasureSeen: [...seen] });
-  }
-
-  // 단짝 부르기: 단짝이고, 아무도 안 와 있고, 쿨타임이 지났으면
-  canCall(id) {
-    const s = this.st();
-    if (levelOf(this.one(id).pts) < 3) return 'notBest';
-    if (this.current()) return 'busy';
-    if (Date.now() < (s.callReadyAt || 0)) return 'cooldown';
-    return null;
-  }
-  call(id) {
-    const why = this.canCall(id);
-    if (why) return { error: why };
-    return this.start(id, 'call');
-  }
-
-  // 물물교환: 원하는 보물을 원하는 만큼 주면 답례 먹이를 준다
-  trade() {
-    const v = this.current();
-    if (!v || v.traded) return { error: v ? 'done' : 'gone' };
-    const box = { ...(this.state.get('treasures') || {}) };
-    if ((box[v.want.key] || 0) < v.want.n) return { error: 'short' };
-    box[v.want.key] -= v.want.n;
-    if (!box[v.want.key]) delete box[v.want.key];
-    const pantry = { ...(this.state.get('pantry') || {}) };
-    pantry[v.gift.key] = (pantry[v.gift.key] || 0) + v.gift.n;
-    this.state.set({ treasures: box, pantry });
-    this.save({ visit: { ...v, traded: true } });
-    return this.addPts(v.id, PTS.trade, { gift: v.gift });
-  }
-
-  // 밥·간식 주기 (창고에서 하나 꺼낸다). group = 'meal' | 'snack'
-  feed(key, group) {
-    const v = this.current();
-    if (!v) return { error: 'gone' };
-    if (v.feeds >= MAX_FEEDS) return { error: 'full' };
-    const pantry = { ...(this.state.get('pantry') || {}) };
-    if (!pantry[key]) return { error: 'none' };
-    pantry[key]--;
-    if (!pantry[key]) delete pantry[key];
-    this.state.set({ pantry });
-    this.save({ visit: { ...v, feeds: v.feeds + 1 } });
-    return this.addPts(v.id, group === 'meal' ? PTS.meal : PTS.snack, { key });
-  }
-
-  addPts(id, n, extra) {
-    const before = levelOf(this.one(id).pts);
-    this.setOne(id, { pts: this.one(id).pts + n });
-    const level = levelOf(this.one(id).pts);
-    return { ok: true, id, level, up: level > before, ...extra };
-  }
-
-  // 선물 받은 코스튬 { 칸: 키 } 과 입는 순서대로의 목록
-  wear(id) {
-    return { ...(this.one(id).wear || {}) };
-  }
-  wearList(id) {
-    const w = this.wear(id);
-    return COSTUME_SLOTS.map((s) => w[s]).filter(Boolean);
-  }
-  // 선물할 수 있나: 단짝 고양이 친구에게만
-  canGift(id) {
-    const f = FRIENDS.find((x) => x.id === id);
-    if (!f || f.fur == null) return 'notCat';
-    if (levelOf(this.one(id).pts) < 3) return 'notBest';
-    return null;
-  }
-  // 선물하기: 내가 실제로 가진 공방 코스튬을 인벤토리에서 빼고 친구가 그 칸에 입는다.
-  // 세트면 세트가 덮는 칸도 비우고, 입던 세트가 덮는 칸에 주면 세트를 벗긴다. { ok, id, key, lost: [밀려나 사라진 옷] }
-  gift(id, key) {
-    const why = this.canGift(id);
-    if (why) return { error: why };
-    const it = ACCESSORIES.find((a) => a.key === key);
-    const items = this.state.get('items') || [];
-    if (!it || !it.workshop) return { error: 'notWorkshop' };
-    if (!items.includes(key)) return { error: 'notOwned' };
-    const wear = this.wear(id);
-    const lost = [];
-    const drop = (s) => {
-      if (wear[s]) lost.push(wear[s]);
-      delete wear[s];
-    };
-    drop(it.slot);
-    if (it.slot === 'set') for (const s of it.covers || []) drop(s);
-    else if (wear.set && ((ACCESSORIES.find((a) => a.key === wear.set) || {}).covers || []).includes(it.slot)) drop('set');
-    wear[it.slot] = key;
-    this.state.set({ items: items.filter((k) => k !== key) });
-    this.setOne(id, { wear });
-    return { ok: true, id, key, lost };
-  }
-
-  // 하우스·펫 창에 넘기는 요약
-  summary() {
-    const s = this.st();
-    const v = this.current();
-    return {
-      now: v ? { id: v.id, kind: v.kind, until: v.until, want: v.want, gift: v.gift, traded: v.traded, feeds: v.feeds, maxFeeds: MAX_FEEDS } : null,
-      callReadyAt: s.callReadyAt || 0,
-      list: FRIENDS.map((f) => {
-        const o = this.one(f.id);
-        const level = levelOf(o.pts);
-        return { id: f.id, fur: f.fur, art: f.art || null, visits: o.visits, pts: o.pts, level, prev: FRIEND_STEPS[level], next: FRIEND_STEPS[level + 1] || null, likes: f.likes, can: this.canCall(f.id), wear: this.wearList(f.id), wearBy: this.wear(f.id), giftable: !this.canGift(f.id) };
-      }),
-    };
-  }
-}
-
-module.exports = { Friends, FRIENDS, FRIEND_STEPS, VISIT_MS, CALL_MS, CALL_COOLDOWN_MS, MAX_FEEDS };
 
 };
 
@@ -1132,24 +754,28 @@ const { STAR_COINS, starsOf } = require('./growth');
 //  metric(c) : 지금까지의 누적값. 퀘스트를 받은 순간 값을 적어 두고(base), 거기서 늘어난 만큼이 진행도다
 //              (그래서 새로 받자마자 아까 한 일로 깨지는 일이 없다)
 //  tiers     : 난이도별 [목표, 경험치]. 없는 난이도 칸에는 뽑히지 않는다
-//  needs(c)  : false 면 아직 못 하는 퀘스트라 뽑지 않는다 (장난감이 없는데 장난감 퀘스트 등)
+//  needs(c)  : false 면 아직 못 하는 퀘스트라 뽑지 않는다 (외톨이 노트가 없는데 외톨이 노트 퀘스트 등)
 //  vars      : 문구에 넣을 값. 없으면 { n: 목표, name: 고양이 이름 }
-// 문구는 renderer/i18n.js 의 'quest.<type>'
+//  skill     : core/skills.js 의 기술 이름표. 퀘스트 카드의 '어떻게 하나요' 문구(i18n 'skill.<skill>.how')가 쓴다
+// 문구는 i18n 의 'quest.<type>'
+// 2.0.0: 옵시디언을 잘 쓰게 돕는 일만 남겼다 (쓰다듬기 · 밥 · 장난감 · 코인 쓰기 · 열어 보기 · 경험치 퀘스트는 뺐다)
 const cntOf = (c, k) => (c.st.cnt || {})[k] || 0;
+const featOf = (c, ...keys) => keys.reduce((a, k) => a + ((c.all.f || {})[k] || 0), 0);
 const QUEST_POOL = [
-  { type: 'chars', metric: (c) => c.all.c, tiers: { easy: [300, 30], normal: [1000, 60], hard: [3000, 120] } },
-  { type: 'links', metric: (c) => c.all.l, tiers: { easy: [3, 30], normal: [10, 60], hard: [25, 120] } },
-  { type: 'notes', metric: (c) => c.all.n, tiers: { easy: [1, 30], normal: [3, 60], hard: [6, 120] } },
-  { type: 'sessions', metric: (c) => c.all.s, tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 120] } },
-  { type: 'opens', metric: (c) => c.all.v, tiers: { easy: [5, 25], normal: [15, 50], hard: [40, 100] } },
-  { type: 'xp', metric: (c) => c.xp, tiers: { easy: [60, 30], normal: [200, 60], hard: [500, 120] } },
-  { type: 'poke', metric: (c) => c.st.pokes || 0, tiers: { easy: [3, 25], normal: [10, 50], hard: [25, 100] } },
-  { type: 'lift', metric: (c) => cntOf(c, 'lift'), tiers: { easy: [2, 25], normal: [5, 50] } },
-  { type: 'fed', metric: (c) => cntOf(c, 'fed'), tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 110] } },
-  { type: 'snack', metric: (c) => cntOf(c, 'snack'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
-  { type: 'catch', metric: (c) => cntOf(c, 'catch'), tiers: { easy: [3, 30], normal: [10, 60], hard: [25, 120] }, needs: (c) => c.toys > 0 },
-  { type: 'rest', metric: (c) => c.st.restsTaken || 0, tiers: { normal: [1, 70], hard: [2, 130] } },
-  { type: 'spend', metric: (c) => c.st.walletSpent || 0, tiers: { easy: [20, 25], normal: [80, 55], hard: [250, 110] } },
+  { type: 'chars', skill: 'write', metric: (c) => c.all.c, tiers: { easy: [300, 30], normal: [1000, 60], hard: [3000, 120] } },
+  { type: 'links', skill: 'link', metric: (c) => c.all.l, tiers: { easy: [2, 30], normal: [5, 60], hard: [12, 120] } },
+  { type: 'tags', skill: 'tag', metric: (c) => featOf(c, 'tag'), tiers: { easy: [1, 30], normal: [3, 60], hard: [8, 110] } },
+  { type: 'heads', skill: 'heading', metric: (c) => featOf(c, 'head'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
+  { type: 'daily', skill: 'daily', metric: (c) => featOf(c, 'dailyc'), tiers: { easy: [50, 30], normal: [200, 60], hard: [500, 120] } },
+  { type: 'tasks', skill: 'task', metric: (c) => featOf(c, 'done'), tiers: { easy: [1, 30], normal: [3, 60], hard: [8, 110] } },
+  { type: 'props', skill: 'property', metric: (c) => featOf(c, 'prop'), tiers: { easy: [1, 30], normal: [3, 60] } },
+  { type: 'embeds', skill: 'embed', metric: (c) => featOf(c, 'embed', 'callout'), tiers: { easy: [1, 35], normal: [2, 60] } },
+  { type: 'organize', skill: 'organize', metric: (c) => cntOf(c, 'move') + cntOf(c, 'retitle'), tiers: { easy: [1, 30], normal: [3, 60], hard: [6, 110] } },
+  { type: 'orphans', skill: 'orphan', metric: (c) => cntOf(c, 'orphanFix'), tiers: { easy: [1, 40], normal: [2, 70], hard: [4, 130] }, needs: (c) => c.orphans > 0 },
+  { type: 'notes', skill: 'write', metric: (c) => c.all.n, tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 120] } },
+  { type: 'focus', skill: 'focus', metric: (c) => cntOf(c, 'focus'), tiers: { easy: [1, 35], normal: [2, 70], hard: [3, 120] } },
+  { type: 'todos', skill: 'todo', metric: (c) => cntOf(c, 'todoDone'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
+  { type: 'graph', skill: 'graph', metric: (c) => cntOf(c, 'view_graph') + cntOf(c, 'view_localgraph'), tiers: { easy: [1, 30] } },
 ];
 const QUEST_TIERS = ['hard', 'normal', 'easy']; // 화면에 놓는 순서도 상·중·하
 const QUEST_REFRESH_MS = 3 * 60 * MIN; // 새 퀘스트로 바꿀 수 있기까지. 시간이 지나도 저절로 바뀌지는 않는다
@@ -1157,7 +783,8 @@ const ALL_CLEAR_XP = 100;
 
 // 누르기만 하면 오르는 횟수는 1분에 이만큼만 센다 (2026-10-04: 쓰다듬기·들어 올리기 연타로 업적·퀘스트를 깨는 걸 막는다)
 // 반응(말풍선·모션)은 그대로 하고, 업적·퀘스트용 숫자만 덜 오른다
-const RATE = { poke: 20, lift: 6 };
+// 2.0.0: 노트 옮기기 · 이름 바꾸기 · 화면 열기 · 할 일 끝내기도 (폴더째 옮기기 · 껐다 켜기로 한꺼번에 오르지 않게)
+const RATE = { poke: 20, lift: 6, move: 6, retitle: 6, todoDone: 10, view_graph: 3, view_localgraph: 3, view_search: 3, view_backlink: 3, 'view_outgoing-link': 3, view_outline: 3, view_tag: 3, view_bookmarks: 3 };
 const RATE_MS = MIN;
 // 업적 판정을 몰아서 한 번에 (연타할 때 매번 업적 160개를 다 보지 않게)
 const EVAL_DELAY_MS = 1500;
@@ -1401,7 +1028,7 @@ class Gamify extends EventEmitter {
   // 퀘스트 진행도를 재는 값들 (전부 누적값)
   questCtx() {
     const x = this.extra ? this.extra() : {};
-    return { all: this.usage.totals(0), st: this.st, xp: this.lastGrowth ? this.lastGrowth.xp : 0, toys: x.owned ? x.owned.toy : 0 };
+    return { all: this.usage.totals(0), st: this.st, xp: this.lastGrowth ? this.lastGrowth.xp : 0, orphans: x.orphans || 0 };
   }
 
   // 새 퀘스트 3개: 상·중·하 하나씩, 종류는 겹치지 않게
@@ -1468,6 +1095,8 @@ class Gamify extends EventEmitter {
     const s = this.getSettings();
     const T = this.getStrings();
     let set = this.st.questSet;
+    // 2.0.0 에 뺀 종류(쓰다듬기 · 밥 · 장난감 …)가 든 예전 퀘스트 묶음은 새로 뽑는다
+    if (set && Array.isArray(set.list) && set.list.some((q) => !QUEST_POOL.some((d) => d.type === q.type)) && this.lastGrowth) set = this.newQuestSet();
     if (!set || !Array.isArray(set.list)) {
       // 첫 실행에 기록을 아직 읽는 중이면 기준값이 틀려서(곧 늘어날 과거 기록이 진행도로 잡힌다) 다 읽은 뒤에 뽑는다.
       // lastGrowth 는 기록을 다 읽고 나서 첫 evaluate 때 생긴다
@@ -1483,6 +1112,7 @@ class Gamify extends EventEmitter {
       return {
         id,
         type: q.type,
+        skill: def ? def.skill : null,
         tier: q.tier,
         text: T.t(`quest.${q.type}`, def && def.vars ? def.vars(q.target) : { n: q.target, name: s.petName }),
         xp: q.xp,
@@ -1625,7 +1255,6 @@ class Gamify extends EventEmitter {
         price: it.price,
         slot: it.slot || null,
         covers: it.covers || null,
-        workshop: !!it.workshop, // 보물 공방에서 만든 것 (인벤토리 카드의 '공방' 도장)
         name: T.t(`item.${it.key}`),
         unlocked: this.st.items.includes(it.key) || !!this.getSettings().devMode, // 개발자 모드면 전부 (배포 전에 지운다)
       })),
@@ -1642,15 +1271,15 @@ class Gamify extends EventEmitter {
   }
 }
 
-module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS, STREAK_GIFTS, RATE };
+module.exports = { Gamify, ITEMS, ACHIEVEMENTS, CATS, TIERS, STREAK_GIFTS, RATE, QUEST_POOL };
 
 };
 
 __defs["core/gauge"] = function (module, exports, require) {
 // 고양이의 배부름 게이지 (0~100).
 //  - 시간이 지나면 천천히 준다. 밥을 먹으면 크게, 간식은 조금 오른다. 놀면 아주 조금 준다
-//  - 벌이 아니라 덤이다 (2026-10-10): 배가 든든하면(FULL 이상) 깜짝 이벤트(보물)와 동네 친구 방문이 더 잦다.
-//    배가 고파도 손해는 없다. 조르는 말풍선만 나온다 (main/treasure.js 의 roll · main/friends.js 의 tick)
+//  - 벌이 아니라 덤이다: 배가 고파도 손해는 없다. 조르는 말풍선만 나온다
+//    (2.0.0 에 깜짝 이벤트 · 동네 친구를 없애서 '든든하면 더 잦다'도 없어졌다)
 //  - 예전 '기운' 게이지는 2026-10-10 에 없앴다 (졸면 금방 차서 하는 일이 없었다). state 에 남은 energy 값은 무시한다
 // 값은 state.json 의 gauge 에 { food, at, foodLockUntil } 로 남긴다.
 const HOUR = 60 * 60_000;
@@ -1729,6 +1358,7 @@ __defs["core/goals"] = function (module, exports, require) {
 //  - 채운 날은 state.goalLog 에 남는다. 이어서 채운 날 수(목표 연속)는 출석과 따로 센다
 // 집중 시간: 15 · 25 · 50분 타이머. 그동안 고양이는 말을 아끼고(방해 금지) 머리 위에 남은 시간을 띄운다.
 //  다 마치면 축하 + 코인 · 경험치. 중간에 그만둬도 벌은 없다
+// 쉬는 시간 (2.0.0): 집중을 마치면 홈에서 5분 · 10분 쉬기를 이어서 켤 수 있다 (상은 없다. 끝나면 고양이가 다시 하자고 한다)
 const { dayOf } = require('./usage');
 
 const MIN = 60_000;
@@ -1748,6 +1378,7 @@ const GOAL_XP = 50;
 const GOAL_LOG_KEEP = 400; // 날짜 기록은 400일치까지
 
 const FOCUS_LENGTHS = [15, 25, 50];
+const BREAK_LENGTHS = [5, 10];
 const FOCUS_COINS_PER_MIN = 2; // 25분 = 50코인
 const FOCUS_XP_PER_MIN = 1; // 25분 = 25 XP
 // 옵시디언을 껐다 켰는데 끝날 시각이 이만큼 넘게 지났으면 (끝까지 했는지 모르니) 상 없이 조용히 접는다
@@ -1854,19 +1485,47 @@ class Goals {
   // 지금 집중 중이면 { on, min, start, end, left(ms) }
   focusInfo(now = Date.now()) {
     const f = this.state.get('focus');
-    if (!f || !f.end) return { on: false, min: this.focusLength(), lengths: FOCUS_LENGTHS, total: this.focusTotal() };
-    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), lengths: FOCUS_LENGTHS, total: this.focusTotal() };
+    const b = this.state.get('focusBreak');
+    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now } : null;
+    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk };
+    if (!f || !f.end) return { on: false, min: this.focusLength(), ...base };
+    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), ...base };
   }
 
-  focusTotal() {
+  // 지금까지 마친 집중 시간 + 오늘 마친 횟수 · 분 (2.0.0)
+  focusTotal(now = Date.now()) {
     const st = this.state.get('focusStats') || {};
-    return { sessions: st.n || 0, minutes: st.min || 0 };
+    const today = st.day === dayOf(new Date(now));
+    return { sessions: st.n || 0, minutes: st.min || 0, today: today ? st.todayN || 0 : 0, todayMin: today ? st.todayMin || 0 : 0 };
+  }
+
+  // 쉬는 시간 시작 · 그만두기 · 끝났나 (2.0.0). 집중 중이면 쉬기를 켜지 않는다
+  breakStart(min, now = Date.now()) {
+    if (this.focusInfo(now).on) return null;
+    const m = BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
+    const b = { min: m, start: now, end: now + m * MIN };
+    this.state.set({ focusBreak: b });
+    return b;
+  }
+
+  breakStop() {
+    const b = this.state.get('focusBreak');
+    this.state.set({ focusBreak: null });
+    return b && b.end ? b : null;
+  }
+
+  // 쉬는 시간이 막 끝났으면 { min } (너무 오래 지났으면 조용히 접어서 null)
+  breakTick(now = Date.now()) {
+    const b = this.state.get('focusBreak');
+    if (!b || !b.end || now < b.end) return null;
+    this.state.set({ focusBreak: null });
+    return now - b.end > FOCUS_STALE ? null : { min: b.min };
   }
 
   focusStart(min, now = Date.now()) {
     const m = FOCUS_LENGTHS.includes(Number(min)) ? Number(min) : this.focusLength();
     const f = { min: m, start: now, end: now + m * MIN };
-    this.state.set({ focus: f });
+    this.state.set({ focus: f, focusBreak: null });
     return f;
   }
 
@@ -1884,12 +1543,14 @@ class Goals {
     this.state.set({ focus: null });
     if (now - f.end > FOCUS_STALE) return { stale: true, min: f.min };
     const st = this.state.get('focusStats') || {};
-    this.state.set({ focusStats: { n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now } });
+    const day = dayOf(new Date(now));
+    const same = st.day === day;
+    this.state.set({ focusStats: { ...st, n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now, day, todayN: (same ? st.todayN || 0 : 0) + 1, todayMin: (same ? st.todayMin || 0 : 0) + f.min } });
     return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN };
   }
 }
 
-module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };
+module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };
 
 };
 
@@ -2012,6 +1673,50 @@ function computeGrowth(since, usage, bonusXp = () => 0) {
 }
 
 module.exports = { FURS, EAR_SHAPES, STAGES, STAGE_FOLD, foldStage, computeGrowth, xpOf, levelOf, starsOf, MAX_LEVEL, XP_AT_MAX, STAR_XP, STAR_COINS, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK };
+
+};
+
+__defs["core/migrate2"] = function (module, exports, require) {
+// 2.0.0 으로 옮기기 (한 번만). 보물 공방 · 동네 친구 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 없앴다.
+//  - 남은 보물(상자 + 바닥에 두고 끈 것)은 등급마다 정한 값만큼 코인으로 준다
+//  - 공방에서 만든 코스튬은 옷장에 남는다. 친구에게 선물해서 옷장에 없던 것도 돌려준다 (공방 코스튬은 이제 상점 코스튬이다)
+//  - 지운 모션을 산 값은 shop.migrate 가 돌려준다 (RETIRED_MOTIONS). 남은 모션은 이제 공짜라 돌려주지 않는다
+//  - 없앤 기능의 기록은 data.json 에서 지운다
+// state · settings 는 plugin/store.js 의 Store. 무엇을 했는지 돌려준다 (이미 옮겼으면 null)
+const TREASURE_COINS = { common: 15, rare: 40, legend: 120 };
+// 2.0.0 이전에 있던 보물 등급 (core/treasure.js 를 지웠으니 여기 남긴다. 없는 키는 흔함으로 친다)
+const RARE = new Set(['worm', 'acorn', 'cicada', 'crayon', 'coin10', 'keycap', 'eartip', 'lego', 'postit', 'googlyeye', 'ddakji', 'marble', 'deadbattery']);
+const LEGEND = new Set(['shinycap', 'clover3', 'lottery', 'usbcap', 'oldkey']);
+const rarityOf = (key) => (LEGEND.has(key) ? 'legend' : RARE.has(key) ? 'rare' : 'common');
+
+const GONE_STATE = ['treasures', 'treasureSeen', 'eventLoot', 'eventLog', 'friends', 'guests', 'craving', 'temper', 'news', 'workshopMade'];
+
+function migrateV2(state) {
+  if (state.get('v2')) return null;
+  const out = { coins: 0, treasures: 0, restored: [] };
+  const box = { ...(state.get('treasures') || {}) };
+  for (const x of state.get('eventLoot') || []) if (x && x.key) box[x.key] = (box[x.key] || 0) + 1;
+  for (const [key, n] of Object.entries(box)) {
+    const k = Math.max(0, Math.floor(Number(n) || 0));
+    out.treasures += k;
+    out.coins += k * TREASURE_COINS[rarityOf(key)];
+  }
+  const items = state.get('items') || [];
+  const made = [...new Set((state.get('workshopMade') || []).map((x) => x && x.key).filter(Boolean))];
+  out.restored = made.filter((k) => !items.includes(k));
+  const patch = { v2: true };
+  if (out.restored.length) patch.items = [...items, ...out.restored];
+  if (out.coins) {
+    patch.walletBonus = (state.get('walletBonus') || 0) + out.coins;
+    patch.refundNote = (state.get('refundNote') || 0) + out.coins;
+  }
+  state.set(patch);
+  for (const k of GONE_STATE) delete state.data[k];
+  state.saveSoon();
+  return out;
+}
+
+module.exports = { migrateV2, TREASURE_COINS };
 
 };
 
@@ -2423,31 +2128,31 @@ const ACCESSORIES = [
   { key: 'surfboard', price: 1200, level: 52, slot: 'back' },
   { key: 'ninetails', price: 3600, level: 74, slot: 'back' },
   { key: 'monkeytail', price: 700, level: 36, slot: 'back' },
-  // 보물 공방 전용 (2026-09-24): 상점에서는 안 판다. 조합표는 main/workshop.js, 그림은 renderer/accessories-workshop-*.js
-  { key: 'capcrown', price: 0, slot: 'head', workshop: true },
-  { key: 'rubberslingshot', price: 0, slot: 'hand', workshop: true },
-  { key: 'receiptcape', price: 0, slot: 'back', workshop: true },
-  { key: 'bubblearmor', price: 0, slot: 'neck', workshop: true },
-  { key: 'dustscarf', price: 0, slot: 'neck', workshop: true },
-  { key: 'strawglasses', price: 0, slot: 'face', workshop: true },
-  { key: 'leafwreath', price: 0, slot: 'head', workshop: true },
-  { key: 'buttonnecklace', price: 0, slot: 'neck', workshop: true },
-  { key: 'toothpickrapier', price: 0, slot: 'hand', workshop: true },
-  { key: 'pigeonhat', price: 0, slot: 'head', workshop: true },
-  { key: 'candysparkle', price: 0, slot: 'effect', workshop: true },
-  { key: 'socksock', price: 0, slot: 'hand', workshop: true },
-  { key: 'esckeycap', price: 0, slot: 'neck', workshop: true },
-  { key: 'legohelm', price: 0, slot: 'head', workshop: true },
-  { key: 'coinmedal', price: 0, slot: 'neck', workshop: true },
-  { key: 'crayondoodle', price: 0, slot: 'effect', workshop: true },
-  { key: 'ddakjicape', price: 0, slot: 'back', workshop: true },
-  { key: 'staticshock', price: 0, slot: 'effect', workshop: true },
-  { key: 'cicadasuit', price: 0, slot: 'set', covers: ['head', 'neck'], workshop: true },
-  { key: 'acorncheeks', price: 0, slot: 'face', workshop: true },
-  { key: 'legendcapcrown', price: 0, slot: 'head', workshop: true },
-  { key: 'lotteryfan', price: 0, slot: 'hand', workshop: true },
-  { key: 'usbantenna', price: 0, slot: 'head', workshop: true },
-  { key: 'gatekeeper', price: 0, slot: 'set', covers: ['head', 'neck', 'back'], workshop: true },
+  // 예전 보물 공방 코스튬 (2026-09-24). 2.0.0 에 공방을 없애면서 상점 코스튬으로 옮겼다. 그림은 kit/accessories-workshop-*.js
+  { key: 'capcrown', price: 450, level: 12, slot: 'head' },
+  { key: 'rubberslingshot', price: 450, level: 12, slot: 'hand' },
+  { key: 'receiptcape', price: 450, level: 12, slot: 'back' },
+  { key: 'bubblearmor', price: 450, level: 12, slot: 'neck' },
+  { key: 'dustscarf', price: 450, level: 12, slot: 'neck' },
+  { key: 'strawglasses', price: 450, level: 12, slot: 'face' },
+  { key: 'leafwreath', price: 450, level: 12, slot: 'head' },
+  { key: 'buttonnecklace', price: 450, level: 12, slot: 'neck' },
+  { key: 'toothpickrapier', price: 450, level: 12, slot: 'hand' },
+  { key: 'pigeonhat', price: 450, level: 12, slot: 'head' },
+  { key: 'candysparkle', price: 450, level: 12, slot: 'effect' },
+  { key: 'socksock', price: 900, level: 30, slot: 'hand' },
+  { key: 'esckeycap', price: 900, level: 30, slot: 'neck' },
+  { key: 'legohelm', price: 900, level: 30, slot: 'head' },
+  { key: 'coinmedal', price: 900, level: 30, slot: 'neck' },
+  { key: 'crayondoodle', price: 900, level: 30, slot: 'effect' },
+  { key: 'ddakjicape', price: 900, level: 30, slot: 'back' },
+  { key: 'staticshock', price: 900, level: 30, slot: 'effect' },
+  { key: 'cicadasuit', price: 900, level: 30, slot: 'set', covers: ['head', 'neck'] },
+  { key: 'acorncheeks', price: 900, level: 30, slot: 'face' },
+  { key: 'legendcapcrown', price: 1600, level: 50, slot: 'head' },
+  { key: 'lotteryfan', price: 1600, level: 50, slot: 'hand' },
+  { key: 'usbantenna', price: 1600, level: 50, slot: 'head' },
+  { key: 'gatekeeper', price: 1600, level: 50, slot: 'set', covers: ['head', 'neck', 'back'] },
   // --- 7차 (2026-09-24 확정): 세트 6 · 얼굴 22 · 몸 11 · 손 6 · 효과 14. 그림은 renderer/accessories-7.js ---
   { key: 'nyangwarts', price: 2800, level: 40, slot: 'set', covers: ['head', 'neck', 'hand'] },
   { key: 'cyberhacker', price: 3800, level: 45, slot: 'set', covers: ['head', 'face', 'neck'] },
@@ -2690,7 +2395,6 @@ const FOODS = [
   { key: 'cloudMallow', group: 'snack', price: 400, fill: 12, premium: true }, // 먹고 잠깐 뒤 깜짝 이벤트 (2026-10-10, 예전엔 기운 +50)
   { key: 'tunaCone', group: 'snack', price: 450, fill: 40, premium: true }, // 5단이라 든든
   { key: 'macaronTower', group: 'snack', price: 500, fill: 50, premium: true }, // 10단
-  { key: 'inviteCookie', group: 'snack', price: 500, fill: 12, premium: true }, // 30% 확률로 친구가 바로 놀러 온다
   { key: 'afternoonTea', group: 'snack', price: 650, fill: 20, premium: true }, // 배부름 2시간 고정
   { key: 'dragonCandy', group: 'snack', price: 700, fill: 12, premium: true }, // 배부름 6시간 고정 = 그동안 든든 (2026-10-10, 예전엔 기운 가득)
   { key: 'goldMouseChoco', group: 'snack', price: 800, fill: 20, premium: true }, // 보물 1개 확정 (흔함·드묾)
@@ -2700,7 +2404,8 @@ FOODS.sort((a, b) => a.price - b.price);
 
 // 상점에서 뺀 간식 (2026-09-21 개편: 츄르·멸치·아이스크림만 남겼다). 창고에 남은 건 산 값만큼 코인으로 돌려준다
 // 2026-09-22 에 뺀 간식도 같은 식으로 (아이스크림·생쥐 앞다리·도마뱀 떡볶이·테이프 캔디·쥐돌이 크림빵)
-const RETIRED_FOODS = {'icecream': 100, 'mouseleg': 30, 'lizardtteok': 45, 'tapecandy': 20, 'goldfishjelly': 50, 'fishcookie': 40, 'strawberry': 45, 'cheese': 50, 'jerky': 60, 'yogurt': 65, 'taiyaki': 70, 'dango': 75, 'watermelon': 80, 'pudding': 90, 'croissant': 95, 'macaron': 100, 'catjelly': 110, 'catnip': 120, 'donut': 130, 'cake': 180};
+// 2.0.0: 초대장 쿠키(친구를 부르던 간식)는 동네 친구를 없애면서 뺐다
+const RETIRED_FOODS = {'inviteCookie': 500, 'icecream': 100, 'mouseleg': 30, 'lizardtteok': 45, 'tapecandy': 20, 'goldfishjelly': 50, 'fishcookie': 40, 'strawberry': 45, 'cheese': 50, 'jerky': 60, 'yogurt': 65, 'taiyaki': 70, 'dango': 75, 'watermelon': 80, 'pudding': 90, 'croissant': 95, 'macaron': 100, 'catjelly': 110, 'catnip': 120, 'donut': 130, 'cake': 180};
 
 // 이름이 바뀐 옛 간식. 창고에 남은 건 새 이름으로 옮긴다
 const RENAMED_FOODS = { cookie: 'fishcookie', fish: 'fishgrill', shrimp: 'tempura' };
@@ -2740,6 +2445,13 @@ const TOYS = [
   { key: 'whackcat', price: 850, level: 30 },
   { key: 'domino', price: 950, level: 39 },
   { key: 'trampoline', price: 1100, level: 48 },
+  // 4차 (2026-10-17): 지켜보는 것 둘 + 같이 하는 놀이 넷. 동작은 kit/toyplay5.js
+  { key: 'sunbeam', price: 200, level: 3 },
+  { key: 'quilt', price: 550, level: 12 },
+  { key: 'fishbowl', price: 700, level: 22 },
+  { key: 'shellgame', price: 900, level: 34 },
+  { key: 'volley', price: 1250, level: 54 },
+  { key: 'simon', price: 1600, level: 64 },
 ];
 
 // 상점에서 뺀 장난감 (2026-09-22: 종이봉투·방울공·요요). 산 사람에게는 코인을 돌려준다 (migrate)
@@ -2821,7 +2533,6 @@ const SET_MOTIONS = {
     'reboot'
   ],
   'overtimer': [
-    'sojushot',
     'nightcall',
     'fighting'
   ],
@@ -2890,88 +2601,88 @@ const RETIRED_MOTIONS = [
   { key: 'cry', price: 550 },
   { key: 'spider', price: 1300 },
   { key: 'ninja', price: 900 },
+  // 2.0.0: 옵시디언에서 하는 일과 상관없거나 어색한 모션 (술 · 담배 · 주식 · 개발 도구 · 과격한 것 · 맥락 없는 것)
+  { key: 'sojuchug', price: 900 },
+  { key: 'stockdown', price: 800 },
+  { key: 'stockup', price: 1000 },
+  { key: 'callbell', price: 550 },
+  { key: 'enterwait', price: 650 },
+  { key: 'cicheck', price: 600 },
+  { key: 'deployrocket', price: 1050 },
+  { key: 'giantfist', price: 1100 },
+  { key: 'laptoptoss', price: 1050 },
+  { key: 'drums', price: 1050 },
+  { key: 'piano', price: 1050 },
+  { key: 'electricjam', price: 1100 },
+  { key: 'ropeskip', price: 800 },
+  { key: 'fart', price: 350 },
+  { key: 'soul', price: 1150 },
+  { key: 'karaoke', price: 450 },
+  { key: 'gum', price: 400 },
+  { key: 'ghost', price: 350 },
+  { key: 'rocket', price: 1200 },
+  { key: 'explode', price: 1100 },
+  { key: 'smoke', price: 850 },
+  { key: 'soju', price: 850 },
+  { key: 'ufo', price: 1200 },
+  { key: 'skullsmoke', price: 950 },
+  { key: 'lightning', price: 900 },
+  { key: 'monitors', price: 750 },
+  { key: 'grumpy', price: 400 },
+  { key: 'soulcode', price: 1150 },
+  { key: 'ivcoffee', price: 1150 },
+  { key: 'pray', price: 450 },
+  { key: 'bigbutton', price: 550 },
+  { key: 'airpunch', price: 550 },
 ];
 
-// 상점에서 파는 모션 (전부 B급). rec = 권장 자리. 권장일 뿐이고 산 모션은 어느 자리에든 끼울 수 있다
+// 모션 (2.0.0): 돈 주고 사는 물건이 아니다. 처음부터 모두 열려 있고, 상점에는 안 나온다. 하우스 설정에서 상황마다 고르고 끈다.
+// rec = 권장 자리. 권장일 뿐이고 어느 자리에든 끼울 수 있다
 const MOTIONS = [
-  // --- 10차 (2026-09-29 확정) ---
-  { key: 'sojuchug', rec: ['idle', 'rest'], price: 900, level: 36 },
-  { key: 'ramenslurp', rec: ['idle', 'hungry'], price: 650, level: 20 },
-  { key: 'darkmode', rec: ['idle'], price: 750, level: 25 },
-  { key: 'stockdown', rec: ['idle', 'workHour'], price: 800, level: 30 },
-  { key: 'stockup', rec: ['idle', 'done'], price: 1000, level: 45 },
-  { key: 'callbell', rec: ['waiting'], price: 550, level: 10 },
-  { key: 'enterwait', rec: ['waiting'], price: 650, level: 20 },
-  { key: 'staticfur', rec: ['poke'], price: 850, level: 33 },
-  { key: 'bowlcarry', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'cicheck', rec: ['done'], price: 600, level: 15 },
-  { key: 'deployrocket', rec: ['done', 'levelup'], price: 1050, level: 48 },
-  { key: 'donebell', rec: ['done'], price: 450, level: 5 },
-  // --- 6차 (2026-09-23 확정) ---
-  { key: 'giantfist', rec: ['workLong', 'workHour'], price: 1100, level: 54 },
-  { key: 'trophy', rec: ['done', 'levelup'], price: 1000, level: 45 },
-  { key: 'laptoptoss', rec: ['rest'], price: 1050, level: 50 },
-  { key: 'smokereveal', rec: ['wear'], price: 950, level: 42 },
-  { key: 'curtainreveal', rec: ['wear'], price: 1050, level: 48 },
-  { key: 'drums', rec: ['idle'], price: 1050, level: 48 },
-  { key: 'piano', rec: ['idle'], price: 1050, level: 50 },
-  { key: 'electricjam', rec: ['idle'], price: 1100, level: 52 },
-  { key: 'ropeskip', rec: ['idle'], price: 800, level: 30 },
-  { key: 'sneeze', rec: ['idle'], price: 300 },
-  { key: 'hiccup', rec: ['idle'], price: 300 },
-  { key: 'fart', rec: ['idle'], price: 350 },
-  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'], price: 600, level: 15 },
-  { key: 'snot', rec: ['sleep'], price: 1000, level: 45 },
-  { key: 'workout', rec: ['rest', 'idle'], price: 1050, level: 48 },
-  { key: 'soul', rec: ['rest', 'workHour'], price: 1150, level: 56 },
-  { key: 'cafe', rec: ['rest', 'idle'], price: 600, level: 15 },
-  { key: 'karaoke', rec: ['idle', 'levelup'], price: 450, level: 5 },
-  { key: 'gum', rec: ['idle'], price: 400 },
-  { key: 'ghost', rec: ['idle'], price: 350 },
-  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'], price: 400 },
-  { key: 'rocket', rec: ['levelup', 'done'], price: 1200, level: 60 },
-  { key: 'explode', rec: ['hungry', 'workHour'], price: 1100, level: 52 },
-  { key: 'smoke', rec: ['rest'], price: 850, level: 33 },
-  { key: 'soju', rec: ['rest', 'idle'], price: 850, level: 33 },
-  { key: 'bubbleplay', rec: ['idle'], price: 350 }, // 2026-10-04 'bubbles' → 'bubbleplay' (장난감 비눗방울과 키가 겹쳤다. migrateKeys)
-  { key: 'ufo', rec: ['idle'], price: 1200, level: 60 },
-  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'], price: 1050, level: 50 },
-  { key: 'skullsmoke', rec: ['rest'], price: 950, level: 42 },
-  { key: 'lightning', rec: ['idle', 'workHour'], price: 900, level: 39 },
-  { key: 'monitors', rec: ['work', 'workLong'], price: 750, level: 25 },
-  { key: 'papers', rec: ['workLong', 'workHour'], price: 950, level: 42 },
-  { key: 'aura', rec: ['workHour'], price: 1150, level: 58 },
-  { key: 'tapfoot', rec: ['waiting'], price: 550, level: 10 },
-  { key: 'blanket', rec: ['sleep'], price: 550, level: 10 },
-  { key: 'grumpy', rec: ['poke'], price: 400 },
-  { key: 'startle', rec: ['poke'], price: 900, level: 36 },
-  { key: 'melt', rec: ['poke'], price: 900, level: 39 },
-  { key: 'popper', rec: ['done', 'levelup'], price: 800, level: 30 },
-  { key: 'coronation', rec: ['levelup', 'wear'], price: 1100, level: 52 },
-  { key: 'levelbanner', rec: ['levelup'], price: 900, level: 36 },
-  { key: 'hammock', rec: ['rest', 'sleep'], price: 900, level: 36 },
-  { key: 'fooddream', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'sipcode', rec: ['work'], price: 800, level: 30 },
-  { key: 'headbang', rec: ['work', 'workLong'], price: 750, level: 25 },
-  { key: 'eureka', rec: ['work'], price: 600, level: 15 },
-  { key: 'smokingkeys', rec: ['workLong', 'workHour'], price: 1000, level: 45 },
-  { key: 'soulcode', rec: ['workHour'], price: 1150, level: 58 },
-  { key: 'ivcoffee', rec: ['workHour'], price: 1150, level: 56 },
-  { key: 'overheat', rec: ['workHour'], price: 1150, level: 56 },
-  { key: 'raisehand', rec: ['waiting'], price: 450, level: 5 },
-  { key: 'pray', rec: ['waiting'], price: 450, level: 5 },
-  { key: 'fishdream', rec: ['sleep'], price: 650, level: 20 },
-  { key: 'slowblink', rec: ['poke'], price: 850, level: 33 },
-  { key: 'shinyfur', rec: ['poke', 'wear'], price: 800, level: 30 },
-  { key: 'donebanner', rec: ['done'], price: 600, level: 15 },
-  { key: 'bigbutton', rec: ['done'], price: 550, level: 10 },
-  { key: 'glowup', rec: ['levelup', 'wear'], price: 1100, level: 54 },
-  { key: 'fireworksbg', rec: ['levelup', 'done'], price: 1100, level: 54 },
-  { key: 'teatime', rec: ['rest'], price: 900, level: 39 },
-  { key: 'foodsign', rec: ['hungry'], price: 650, level: 20 },
-  { key: 'paperplane', rec: ['idle'], price: 750, level: 25 },
-  { key: 'airpunch', rec: ['idle'], price: 550, level: 10 },
-  { key: 'knitting', rec: ['idle', 'rest'], price: 750, level: 25 },
+  { key: 'ramenslurp', rec: ['idle', 'hungry'] },
+  { key: 'darkmode', rec: ['idle'] },
+  { key: 'staticfur', rec: ['poke'] },
+  { key: 'bowlcarry', rec: ['hungry'] },
+  { key: 'donebell', rec: ['done'] },
+  { key: 'trophy', rec: ['done', 'levelup'] },
+  { key: 'smokereveal', rec: ['wear'] },
+  { key: 'curtainreveal', rec: ['wear'] },
+  { key: 'sneeze', rec: ['idle'] },
+  { key: 'hiccup', rec: ['idle'] },
+  { key: 'codefrenzy', rec: ['work', 'workLong', 'workHour'] },
+  { key: 'snot', rec: ['sleep'] },
+  { key: 'workout', rec: ['rest', 'idle'] },
+  { key: 'cafe', rec: ['rest', 'idle'] },
+  { key: 'dealwithit', rec: ['done', 'levelup', 'wear'] },
+  { key: 'bubbleplay', rec: ['idle'] }, // 2026-10-04 'bubbles' → 'bubbleplay' (장난감 비눗방울과 키가 겹쳤다. migrateKeys)
+  { key: 'codeflame', rec: ['work', 'workLong', 'workHour'] },
+  { key: 'papers', rec: ['workLong', 'workHour'] },
+  { key: 'aura', rec: ['workHour'] },
+  { key: 'tapfoot', rec: ['waiting'] },
+  { key: 'blanket', rec: ['sleep'] },
+  { key: 'startle', rec: ['poke'] },
+  { key: 'melt', rec: ['poke'] },
+  { key: 'popper', rec: ['done', 'levelup'] },
+  { key: 'coronation', rec: ['levelup', 'wear'] },
+  { key: 'levelbanner', rec: ['levelup'] },
+  { key: 'hammock', rec: ['rest', 'sleep'] },
+  { key: 'fooddream', rec: ['hungry'] },
+  { key: 'sipcode', rec: ['work'] },
+  { key: 'headbang', rec: ['work', 'workLong'] },
+  { key: 'eureka', rec: ['work'] },
+  { key: 'smokingkeys', rec: ['workLong', 'workHour'] },
+  { key: 'overheat', rec: ['workHour'] },
+  { key: 'raisehand', rec: ['waiting'] },
+  { key: 'fishdream', rec: ['sleep'] },
+  { key: 'slowblink', rec: ['poke'] },
+  { key: 'shinyfur', rec: ['poke', 'wear'] },
+  { key: 'donebanner', rec: ['done'] },
+  { key: 'glowup', rec: ['levelup', 'wear'] },
+  { key: 'fireworksbg', rec: ['levelup', 'done'] },
+  { key: 'teatime', rec: ['rest'] },
+  { key: 'foodsign', rec: ['hungry'] },
+  { key: 'paperplane', rec: ['idle'] },
+  { key: 'knitting', rec: ['idle', 'rest'] },
 ];
 
 // 모션의 권장 자리들. '일할 때' · '30분 넘게' · '1시간 넘게' 는 서로 호환이라 셋 중 하나에 맞으면 셋 다 권장
@@ -3124,7 +2835,7 @@ class Shop {
   blocker(key) {
     const it = find(key);
     if (!it) return 'missing';
-    if (it.workshop) return 'workshop'; // 공방에서만 만든다
+    if (it.kind === 'motion') return 'motion'; // 모션은 사는 물건이 아니다 (2.0.0: 처음부터 다 열려 있다)
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
     if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
     if (this.dev()) return null;
@@ -3200,15 +2911,14 @@ class Shop {
     return it;
   }
 
-  // 이 자리에 이 모션을 끼울 수 있나. 그 자리의 기본 모션, 공짜 모션, 산 모션이면 어디든 된다
+  // 이 자리에 이 모션을 끼울 수 있나. 2.0.0 부터 모션은 모두 열려 있어서 어느 자리에든 된다
   // (기본 자세 type·curl 등은 원래 자리에서만)
   canUseMotion(slot, key) {
     const s = slotOf(slot);
     if (!s) return false;
     if (s.free.includes(key)) return true;
     if (BASIC_POSES.has(key)) return false;
-    if (FREE_MOTIONS.has(key)) return true;
-    return !!find(key, 'motion') && this.owned(key);
+    return FREE_MOTIONS.has(key) || !!find(key, 'motion');
   }
 
   // 업적 보상 넣어 주기. { food: { 키: 개수 } } 는 창고에, { item: 키 } 는 옷장에.
@@ -3374,8 +3084,10 @@ class Shop {
     const items = this.state.get('items') || [];
     const gone = [...RETIRED_ACCESSORIES, ...RETIRED_TOYS, ...RETIRED_MOTIONS].filter((r) => items.includes(r.key));
     if (gone.length) {
-      refund += gone.reduce((a, r) => a + r.price, 0);
-      this.state.set({ items: items.filter((k) => !gone.some((r) => r.key === k)) });
+      // 2.0.0: 돌려준 물건은 retiredPaid 에 적는다. 다른 기기(옛 버전)의 옷장이 합쳐지며 그 키가 되살아나도 두 번 돌려주지 않는다
+      const paid = this.state.get('retiredPaid') || [];
+      refund += gone.filter((r) => !paid.includes(r.key)).reduce((a, r) => a + r.price, 0);
+      this.state.set({ items: items.filter((k) => !gone.some((r) => r.key === k)), retiredPaid: [...new Set([...paid, ...gone.map((r) => r.key)])] });
     }
     if (refund) {
       // 쓴 코인보다 돌려줄 게 많으면 남는 건 보너스로 (잃는 코인이 없게)
@@ -3410,13 +3122,12 @@ class Shop {
     return {
       wallet: this.wallet(),
       dev: this.dev(),
-      // 보물 공방 코스튬(workshop)은 상점에 안 나온다. 공방에서 보물로 만든다 (main/workshop.js)
-      acc: ACCESSORIES.filter((x) => !x.workshop && !isStar(x) && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
+      acc: ACCESSORIES.filter((x) => !isStar(x) && (!x.exclusive || this.owned(x.key))).map((x) => row({ ...x, kind: 'acc' })),
       // 별 상점: 털색 먼저, 그다음 코스튬. 별 값 순
       star: [...STAR_FURS.map((x) => row({ ...x, kind: 'fur' })), ...ACCESSORIES.filter(isStar).map((x) => row({ ...x, kind: 'acc' }))].sort((a, b) => a.stars - b.stars),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
-      motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })),
+      motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })), // 상점에는 안 나온다. 설정의 모션 고르기가 이름 · 권장 자리를 쓴다
       slots: MOTION_SLOTS,
       setMotions: SET_MOTIONS, // 세트 카드의 '전용 모션' 버튼이 쓴다
     };
@@ -3424,6 +3135,44 @@ class Shop {
 }
 
 module.exports = { STAR_FURS, isStar, furItemKey, PREMIUM_FOODS: FOODS.filter((x) => x.premium).map((x) => x.key), SET_MOTIONS, RENAMED_MOTIONS, duplicateKeys, kindOfKey, blankStats, addStat, COSTUME_SLOTS, COSTUME_TABS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, BASIC_POSES, FREE_MOTIONS, find, slotOf, slotsOf, coinsForDay, coinsSince, WELCOME_COINS, TASK_COINS, SLOT_PRICE };
+
+};
+
+__defs["core/skills"] = function (module, exports, require) {
+// 옵시디언 기술 목록 (2.0.0). 퀘스트 · 업적 · 홈이 같은 이름표를 쓴다.
+// 다음 단계(고양이가 회차별로 옵시디언 쓰는 법을 안내하는 교육 자료)가 "이 기술을 해 봤나"를 여기서 그대로 읽는다.
+//  how  : 처음 해 보는 사람을 위한 안내 문구 키 (i18n 'skill.<key>.how')
+//  used : gamify 의 context(c) 로 지금까지 몇 번 했는지
+
+// 옵시디언 화면(뷰) 중 열어 본 걸 세는 것. 키 = 옵시디언 뷰 종류 (plugin/main.js 가 view_<종류> 로 센다)
+const VIEWS = ['graph', 'localgraph', 'search', 'backlink', 'outgoing-link', 'outline', 'tag', 'bookmarks'];
+
+const cnt = (c, k) => (c.st && c.st.cnt && c.st.cnt[k]) || 0;
+const feat = (c, k) => ((c.use && c.use.feat) || {})[k] || 0;
+
+const SKILLS = [
+  { key: 'write', used: (c) => c.all.c },
+  { key: 'link', used: (c) => c.all.l },
+  { key: 'tag', used: (c) => feat(c, 'tag') },
+  { key: 'heading', used: (c) => feat(c, 'head') },
+  { key: 'task', used: (c) => feat(c, 'done') },
+  { key: 'daily', used: (c) => feat(c, 'daily') + feat(c, 'dailyc') },
+  { key: 'property', used: (c) => feat(c, 'prop') },
+  { key: 'embed', used: (c) => feat(c, 'embed') },
+  { key: 'callout', used: (c) => feat(c, 'callout') },
+  { key: 'canvas', used: (c) => feat(c, 'canvas') },
+  { key: 'organize', used: (c) => cnt(c, 'move') + cnt(c, 'retitle') },
+  { key: 'orphan', used: (c) => cnt(c, 'orphanFix') },
+  { key: 'graph', used: (c) => cnt(c, 'view_graph') + cnt(c, 'view_localgraph') },
+  { key: 'search', used: (c) => cnt(c, 'view_search') },
+  { key: 'backlink', used: (c) => cnt(c, 'view_backlink') + cnt(c, 'view_outgoing-link') },
+  { key: 'outline', used: (c) => cnt(c, 'view_outline') },
+];
+
+// 해 본 기술 키 목록
+const triedSkills = (c) => SKILLS.filter((s) => s.used(c) > 0).map((s) => s.key);
+
+module.exports = { VIEWS, SKILLS, triedSkills };
 
 };
 
@@ -3623,240 +3372,113 @@ module.exports = { summary, heatmap, weekly, focus, coinFlow, insight, dashboard
 
 };
 
-__defs["core/treasure"] = function (module, exports, require) {
-// 깜짝 이벤트와 하찮은 보물.
-//
-// 켜 두기만 해도 가끔 뭔가 일어난다:
-//  fetch : 고양이가 화면 밖으로 나갔다가 뭔가를 물고 돌아온다
-//  bird  : 새가 날아가다가 뭔가를 떨어뜨린다
-//  rare  : 아주 가끔 평소엔 안 하는 모션을 한다 (보물 없음)
-// (동네 친구가 놀러 오는 건 7차부터 main/friends.js 가 따로 맡는다)
-// 보물은 전부 정말 하찮은 것들이다. 바닥에 떨어진 걸 눌러서 줍는다(10분 넘게 안 누르면 고양이가 챙겨 둔다).
-// 자리를 비운 동안(5분 넘게 키보드·마우스를 안 만짐)에는 이벤트가 일어나지 않는다 (main.js 의 maybeEvent).
-// 도트는 renderer/pixelart.js 의 TREASURE, 이름은 renderer/i18n.js 의 'treasure.<key>'.
+__defs["core/todos"] = function (module, exports, require) {
+// 홈의 할 일 (2.0.0). 플러그인 data.json 안에만 있는 목록이다. 볼트의 노트 · 체크박스는 만들지도 고치지도 않는다.
+//  state.todos = [{ id, text, done, at(만든 시각), up(마지막으로 고친 시각), doneAt, counted }]
+//  - 끝내면 업적 · 퀘스트용 'todoDone' 이 한 번 오른다. 만든 지 1분이 안 된 할 일, 이미 한 번 센 할 일은 안 센다
+//    (만들자마자 끝내기 · 껐다 켜기로 숫자만 올리지 않게)
+//  - 지운 할 일은 tomb 에 id 만 잠깐 남겨 둔다. 다른 기기의 목록과 합칠 때 되살아나지 않게 (plugin/sync.js)
+const MAX_TODOS = 100;
+const MAX_TEXT = 200;
+const TOMB_MAX = 200;
+const COUNT_AFTER_MS = 60_000;
 
-// from: 어느 이벤트에서 나오나
-const TREASURES = [
-  // 흔함
-  { key: 'bottlecap', rarity: 'common', from: ['fetch'] },
-  { key: 'rubberband', rarity: 'common', from: ['fetch'] },
-  { key: 'breadtie', rarity: 'common', from: ['fetch'] },
-  { key: 'receipt', rarity: 'common', from: ['fetch', 'bird'] },
-  { key: 'button', rarity: 'common', from: ['fetch'] },
-  { key: 'dustball', rarity: 'common', from: ['fetch'] },
-  { key: 'toothpick', rarity: 'common', from: ['fetch'] },
-  { key: 'clip', rarity: 'common', from: ['fetch'] },
-  { key: 'dryleaf', rarity: 'common', from: ['fetch', 'bird'] },
-  { key: 'pebble', rarity: 'common', from: ['fetch'] },
-  { key: 'crumb', rarity: 'common', from: ['fetch', 'bird'] },
-  { key: 'candywrap', rarity: 'common', from: ['fetch'] },
-  { key: 'pigeonfeather', rarity: 'common', from: ['bird'] },
-  { key: 'seedshell', rarity: 'common', from: ['bird'] },
-  { key: 'twig', rarity: 'common', from: ['bird'] },
-  // 드묾
-  { key: 'worm', rarity: 'rare', from: ['bird'] },
-  { key: 'acorn', rarity: 'rare', from: ['bird'] },
-  { key: 'cicada', rarity: 'rare', from: ['fetch', 'bird'] },
-  { key: 'crayon', rarity: 'rare', from: ['fetch'] },
-  { key: 'coin10', rarity: 'rare', from: ['fetch'] },
-  { key: 'keycap', rarity: 'rare', from: ['fetch'] },
-  { key: 'eartip', rarity: 'rare', from: ['fetch'] },
-  { key: 'lego', rarity: 'rare', from: ['fetch'] },
-  { key: 'postit', rarity: 'rare', from: ['fetch', 'bird'] },
-  // 전설 (그래도 하찮다)
-  { key: 'shinycap', rarity: 'legend', from: ['fetch', 'bird'] },
-  { key: 'clover3', rarity: 'legend', from: ['fetch'] },
-  { key: 'lottery', rarity: 'legend', from: ['bird'] },
-  { key: 'usbcap', rarity: 'legend', from: ['fetch'] },
-  // 7차 (2026-09-23): 하찮은 공작 재료로 10종 더
-  { key: 'lonesock', rarity: 'common', from: ['fetch'] },
-  { key: 'bubblewrap', rarity: 'common', from: ['fetch'] },
-  { key: 'drinkstraw', rarity: 'common', from: ['fetch', 'bird'] },
-  { key: 'pinecone', rarity: 'common', from: ['bird'] },
-  { key: 'bandaid', rarity: 'common', from: ['fetch'] },
-  { key: 'googlyeye', rarity: 'rare', from: ['fetch'] },
-  { key: 'ddakji', rarity: 'rare', from: ['fetch'] },
-  { key: 'marble', rarity: 'rare', from: ['fetch', 'bird'] },
-  { key: 'deadbattery', rarity: 'rare', from: ['fetch'] },
-  { key: 'oldkey', rarity: 'legend', from: ['fetch', 'bird'] },
-];
-const RARITY_WEIGHT = { common: 70, rare: 25, legend: 5 };
+const clean = (text) => String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
+const newId = (now) => now.toString(36) + Math.random().toString(36).slice(2, 6);
 
-// 이벤트 종류와 뽑힐 비율
-const EVENTS = [
-  { type: 'fetch', w: 45 },
-  { type: 'bird', w: 40 },
-  { type: 'rare', w: 15 },
-];
-// 이벤트 때만 나오는 모션 (rare). renderer/reactions.js 에 있고 설정·상점에는 없다
-const RARE_MOTIONS = ['backflip', 'levitate'];
-
-// 얼마나 자주: 1분마다 이 확률로 (평균 한 시간에 한 번쯤), 이벤트끼리는 최소 이만큼 띄우고, 하루 최대 몇 번
-const CHANCE_PER_MIN = 1 / 60;
-const MIN_GAP_MS = 20 * 60_000;
-const MAX_PER_DAY = 8;
-// 배가 든든하면(main/gauge.js 의 full) 더 자주: 확률 ×1.5 · 간격 15분 · 하루 10번 (2026-10-10, 배부름은 덤)
-const FULL_CHANCE = 1.5;
-const FULL_GAP_MS = 15 * 60_000;
-const FULL_MAX_PER_DAY = 10;
-// 바닥에 떨어졌는데 아직 안 주운 보물 기록 (state.eventLoot). 앱을 껐다 켜면 고양이가 챙겨 둔 셈으로 상자에 넣는다
-const LOOT_MAX = 20;
-
-const weighted = (list, w) => {
-  let r = Math.random() * list.reduce((a, x) => a + w(x), 0);
-  for (const x of list) if ((r -= w(x)) < 0) return x;
-  return list[list.length - 1];
-};
-
-function pickTreasure(from) {
-  const pool = TREASURES.filter((t) => t.from.includes(from));
-  return weighted(pool, (t) => RARITY_WEIGHT[t.rarity]).key;
-}
-
-const find = (key) => TREASURES.find((t) => t.key === key) || null;
-
-// 이름이 바뀐 보물 (2026-09-24). 장난감 깃털·UI 나뭇잎 도트와 키가 겹쳐서 엉뚱한 그림이 나왔다.
-// 이미 주운 건 새 이름으로 옮긴다 (Treasures 를 만들 때 한 번)
-const RENAMED = { feather: 'pigeonfeather', leaf: 'dryleaf' };
-
-class Treasures {
-  constructor(state) {
+class Todos {
+  // state 는 plugin/store.js 의 Store. onDone(item) 은 처음 끝낸 할 일마다 (업적 · 퀘스트 숫자)
+  constructor(state, onDone = null) {
     this.state = state;
-    this.migrate();
-    // 지난번에 바닥에 두고 끈 보물 → 상자로. main 이 recovered 를 보고 알려 줄 수 있다 ([키, …])
-    this.recovered = this.recoverLoot();
+    this.onDone = onDone;
   }
 
-  // 바닥에 남아 있던 보물(주우러 가기 전에 앱을 껐다)을 상자에 넣는다. 넣은 키 목록
-  recoverLoot() {
-    const loot = this.state.get('eventLoot') || [];
-    if (!loot.length) return [];
-    this.state.set({ eventLoot: [] });
-    const keys = [];
-    for (const l of loot) if (this.add(l.key)) keys.push(l.key);
-    return keys;
+  list() {
+    const raw = this.state.get('todos');
+    return Array.isArray(raw) ? raw.filter((x) => x && typeof x.id === 'string') : [];
   }
 
-  migrate() {
-    const box = { ...this.box() };
-    let moved = false;
-    for (const [from, to] of Object.entries(RENAMED)) {
-      if (!box[from]) continue;
-      box[to] = (box[to] || 0) + box[from];
-      delete box[from];
-      moved = true;
-    }
-    if (moved) this.state.set({ treasures: box });
-    // 한 번이라도 주운 보물 기록 (2026-09-24). 공방 재료·친구 교환으로 개수가 0 이 돼도 도감과 업적은 그대로 남긴다.
-    // 상자에서 채우는 건 기록이 처음 생길 때 한 번뿐이다 (2026-10-10: 교환소에서 바꾼 보물은 도감에 안 들어가야 해서.
-    // 그 전에는 켤 때마다 상자를 다시 훑었다). 이름이 바뀐 보물은 기록도 새 이름으로
-    const had = this.state.get('treasureSeen');
-    const seen = new Set((had || []).map((k) => RENAMED[k] || k));
-    if (!had) for (const [k, n] of Object.entries(box)) if (n > 0) seen.add(RENAMED[k] || k);
-    if (!had || seen.size !== had.length || had.some((k) => RENAMED[k])) this.state.set({ treasureSeen: [...seen] });
+  save(list, tomb = null) {
+    const patch = { todos: list };
+    if (tomb) patch.todoTomb = [...(this.state.get('todoTomb') || []), ...tomb].slice(-TOMB_MAX);
+    this.state.set(patch);
   }
 
-  // 한 번이라도 주운 보물 종류
-  seen() {
-    return new Set(this.state.get('treasureSeen') || []);
-  }
-
-  // 보물을 쓴다 (공방 재료). { key: 개수 } 를 받아 모자라면 false, 되면 빼고 true
-  spend(need) {
-    const box = { ...this.box() };
-    for (const [k, n] of Object.entries(need)) if ((box[k] || 0) < n) return false;
-    for (const [k, n] of Object.entries(need)) {
-      box[k] -= n;
-      if (!box[k]) delete box[k];
-    }
-    this.state.set({ treasures: box });
-    return true;
-  }
-
-  box() {
-    return this.state.get('treasures') || {};
-  }
-
-  // 교환소에서 받았다: 상자에만 넣고 도감(주운 기록)에는 안 넣는다
-  gain(key, n = 1) {
-    if (!find(key)) return false;
-    const box = { ...this.box() };
-    box[key] = (box[key] || 0) + n;
-    this.state.set({ treasures: box });
-    return true;
-  }
-
-  // 주웠다. { count: 이 보물 몇 개째, kinds: 모은 종류 수 } 를 돌려준다
-  // 바닥 보물 기록(eventLoot)에 같은 키가 있으면 하나 지운다 (주웠으니 다음에 켤 때 또 넣지 않게)
-  add(key) {
-    if (!find(key)) return null;
-    const loot = this.state.get('eventLoot') || [];
-    const i = loot.findIndex((l) => l.key === key);
-    if (i >= 0) this.state.set({ eventLoot: loot.filter((_, j) => j !== i) });
-    const box = { ...this.box() };
-    box[key] = (box[key] || 0) + 1;
-    const seen = this.seen();
-    const fresh = !seen.has(key);
-    seen.add(key);
-    this.state.set({ treasures: box, treasureSeen: [...seen] });
-    return { count: box[key], kinds: seen.size, total: TREASURES.length, fresh };
-  }
-
-  // 이번에 일어날 이벤트. 조건이 안 맞으면 null
-  //  ctx = { asleep, busy, force, full }  (force = 개발자 모드에서 바로 일으키기, full = 배가 든든함)
-  // 돌려주는 이벤트에는 id 가 있다. 펫 창이 바빠서 못 보여 줬으면 skip(id) 로 하루 횟수를 돌려받는다.
-  // 보물이 나오는 이벤트는 주울 때까지 eventLoot 에 적어 둔다 (끄면 다음에 켤 때 상자로)
-  roll(ctx = {}) {
-    const now = Date.now();
-    const today = new Date().toDateString();
-    const log = { ...(this.state.get('eventLog') || { day: today, n: 0, last: 0 }) };
-    if (log.day !== today) Object.assign(log, { day: today, n: 0, ids: [] });
-    if (!ctx.force) {
-      const [max, gap, chance] = ctx.full ? [FULL_MAX_PER_DAY, FULL_GAP_MS, CHANCE_PER_MIN * FULL_CHANCE] : [MAX_PER_DAY, MIN_GAP_MS, CHANCE_PER_MIN];
-      if (ctx.busy || log.n >= max || now - log.last < gap) return null;
-      if (Math.random() >= chance) return null;
-    }
-    // 자는 동안에는 고양이가 안 움직인다. 새만 지나간다
-    const kinds = ctx.asleep ? EVENTS.filter((e) => e.type === 'bird') : EVENTS;
-    const type = ctx.type || weighted(kinds, (e) => e.w).type;
-    const id = now.toString(36) + Math.floor(Math.random() * 1296).toString(36);
-    this.state.set({ eventLog: { day: log.day, n: log.n + 1, last: now, ids: [...(log.ids || []), id].slice(-MAX_PER_DAY * 2) } });
-    if (type === 'rare') return { id, type, motion: RARE_MOTIONS[Math.floor(Math.random() * RARE_MOTIONS.length)] };
-    const treasure = pickTreasure(type);
-    this.state.set({ eventLoot: [...(this.state.get('eventLoot') || []), { id, key: treasure, at: now }].slice(-LOOT_MAX) });
-    return { id, type, treasure };
-  }
-
-  // 이벤트 말고 다른 데서 바닥에 떨어진 보물도 적어 둔다 (친구가 두고 간 것. main 의 pet:friend-bye)
-  noteLoot(key) {
-    if (!find(key)) return;
-    this.state.set({ eventLoot: [...(this.state.get('eventLoot') || []), { id: 'f' + Date.now().toString(36), key, at: Date.now() }].slice(-LOOT_MAX) });
-  }
-
-  // 펫 창이 이벤트를 못 보여 줬다 (고양이가 바빴다 · 드문 모션을 1분 안에 못 했다). 오늘 횟수를 하나 돌려주고
-  // 바닥 보물 기록도 지운다. 오늘 굴린 이벤트가 아니면 아무것도 안 한다. 돌려줬으면 true
-  skip(id) {
-    const log = this.state.get('eventLog');
-    if (!log || log.day !== new Date().toDateString() || !(log.ids || []).includes(id)) return false;
-    this.state.set({ eventLog: { ...log, n: Math.max(0, log.n - 1), ids: log.ids.filter((x) => x !== id) } });
-    const loot = this.state.get('eventLoot') || [];
-    if (loot.some((l) => l.id === id)) this.state.set({ eventLoot: loot.filter((l) => l.id !== id) });
-    return true;
-  }
-
+  // 화면에 줄 것: 안 끝낸 것 먼저(놓은 순서), 끝낸 것은 끝낸 시각 늦은 순
   summary() {
-    const box = this.box();
-    const seen = this.seen();
-    return {
-      // seen: 한 번이라도 주웠나 (다 써서 0개여도 도감에는 보인다)
-      list: TREASURES.map((t) => ({ key: t.key, rarity: t.rarity, count: box[t.key] || 0, seen: seen.has(t.key) || !!box[t.key] })),
-      kinds: TREASURES.filter((t) => seen.has(t.key) || box[t.key]).length,
-      total: TREASURES.length,
-    };
+    const list = this.list();
+    const open = list.filter((x) => !x.done);
+    const done = list.filter((x) => x.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    return { open: open.map(view), done: done.map(view), max: MAX_TODOS, maxText: MAX_TEXT };
+  }
+
+  add(text, now = Date.now()) {
+    const t = clean(text);
+    if (!t) return { ok: false, reason: 'empty' };
+    const list = this.list();
+    if (list.length >= MAX_TODOS) return { ok: false, reason: 'full' };
+    const item = { id: newId(now), text: t, done: false, at: now, up: now };
+    this.save([...list, item]);
+    return { ok: true, item };
+  }
+
+  edit(id, text, now = Date.now()) {
+    const t = clean(text);
+    if (!t) return { ok: false, reason: 'empty' };
+    return this.patch(id, { text: t }, now);
+  }
+
+  toggle(id, now = Date.now()) {
+    const it = this.list().find((x) => x.id === id);
+    if (!it) return { ok: false, reason: 'missing' };
+    const done = !it.done;
+    const count = done && !it.counted && now - (it.at || 0) >= COUNT_AFTER_MS;
+    const r = this.patch(id, { done, doneAt: done ? now : null, ...(count ? { counted: true } : {}) }, now);
+    if (count && this.onDone) this.onDone(r.item);
+    return { ...r, counted: count };
+  }
+
+  remove(id) {
+    const list = this.list();
+    if (!list.some((x) => x.id === id)) return { ok: false, reason: 'missing' };
+    this.save(list.filter((x) => x.id !== id), [id]);
+    return { ok: true };
+  }
+
+  // 끝낸 것 한꺼번에 지우기
+  clearDone() {
+    const list = this.list();
+    const gone = list.filter((x) => x.done).map((x) => x.id);
+    if (gone.length) this.save(list.filter((x) => !x.done), gone);
+    return { ok: true, n: gone.length };
+  }
+
+  // 순서 바꾸기: id 를 안 끝낸 목록의 to 번째로
+  move(id, to) {
+    const list = this.list();
+    const it = list.find((x) => x.id === id);
+    if (!it || it.done) return { ok: false, reason: 'missing' };
+    const open = list.filter((x) => !x.done && x.id !== id);
+    const i = Math.max(0, Math.min(open.length, Math.floor(Number(to) || 0)));
+    open.splice(i, 0, it);
+    this.save([...open, ...list.filter((x) => x.done)]);
+    return { ok: true };
+  }
+
+  patch(id, fields, now) {
+    const list = this.list();
+    const i = list.findIndex((x) => x.id === id);
+    if (i < 0) return { ok: false, reason: 'missing' };
+    const item = { ...list[i], ...fields, up: now };
+    list[i] = item;
+    this.save(list);
+    return { ok: true, item };
   }
 }
 
-module.exports = { Treasures, TREASURES, find };
+const view = (x) => ({ id: x.id, text: x.text, done: !!x.done, at: x.at || 0, doneAt: x.doneAt || 0 });
+
+module.exports = { Todos, MAX_TODOS, MAX_TEXT, COUNT_AFTER_MS };
 
 };
 
@@ -3871,7 +3493,8 @@ __defs["core/usage"] = function (module, exports, require) {
 //  s : 글쓰기 세션 수 (30분 넘게 쉬었다가 다시 쓰기 시작하면 하나)
 //  v : 노트를 연 횟수
 //  e : 기록 횟수 (글이 늘어난 저장 한 번 = 하나. 히트맵·출석·시간대 업적이 쓴다)
-//  t : 옵시디언 기능 활용 { tag 태그, task 할 일, done 끝낸 할 일, head 제목, embed 임베드, callout 콜아웃, daily 데일리 노트, canvas 캔버스 }
+//  t : 옵시디언 기능 활용 { tag 태그, task 할 일, done 끝낸 할 일, head 제목, embed 임베드, callout 콜아웃, daily 데일리 노트, canvas 캔버스,
+//      prop 속성(프로퍼티) · dailyc 데일리 노트에 쓴 글자 (2.0.0) }
 //
 // 막는 것 (경험치 농사 방지)
 //  - 노트마다 "지금까지 가장 많았던 값"(최고 기록)을 기억해서 그보다 늘어난 만큼만 센다.
@@ -3896,6 +3519,8 @@ const FEATURES = ['tag', 'task', 'done', 'head', 'embed', 'callout'];
 const F0 = 4;
 // 최고 단어는 1.5.0 에 맨 뒤에 붙였다. 그 전 기록에는 없어서, 처음 볼 때는 기준만 잡는다 (예전 글이 한꺼번에 단어로 세지지 않게)
 const W_AT = F0 + FEATURES.length;
+// 최고 속성 수는 2.0.0 에 단어 뒤에 붙였다. 단어처럼 처음 볼 때는 기준만 잡는다 (이미 달아 둔 속성이 한꺼번에 세지지 않게)
+const P_AT = W_AT + 1;
 // 지운 노트의 기록을 이만큼까지 남겨 둔다. 같은 자리에 다시 생기면(휴지통 복원·동기화·git) 이어서 센다
 const GONE_MAX = 3000;
 
@@ -3917,7 +3542,13 @@ function stripFrontmatter(text) {
 
 const EXCALIDRAW_RE = /(^|\n)excalidraw-plugin\s*:/;
 const BLOB_LINE = 1000; // 코드 블록 안에서 이보다 긴 한 줄은 데이터 덩어리로 보고 세지 않는다
-const EMPTY = () => ({ chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0 });
+const EMPTY = () => ({ chars: 0, words: 0, links: 0, tag: 0, task: 0, done: 0, head: 0, embed: 0, callout: 0, prop: 0 });
+
+// 앞머리(frontmatter)의 맨 윗단 속성 수 (2.0.0). "tags:" 도 속성 하나다
+function countProps(front) {
+  const body = front.replace(/^---\r?\n/, '').replace(/\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n)?$/, '');
+  return (body.match(/^[^\s#:'"-][^:\n]*:/gm) || []).length;
+}
 
 // 단어 수. 띄어 쓰는 말(영어·한국어…)은 글자·숫자 덩어리 하나가 한 단어, 중국어·일본어 글자는 한 글자가 한 단어 (옵시디언 단어 세기와 비슷하게)
 const CJ_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿]/g;
@@ -3932,7 +3563,8 @@ function countWords(text) {
 function measure(text) {
   const raw = String(text || '');
   const body = stripFrontmatter(raw);
-  if (EXCALIDRAW_RE.test(raw.slice(0, raw.length - body.length))) return EMPTY();
+  const front = raw.slice(0, raw.length - body.length);
+  if (EXCALIDRAW_RE.test(front)) return EMPTY();
   const prose = [];
   const code = [];
   let fence = null;
@@ -3963,7 +3595,7 @@ function measure(text) {
   const chars = plain.replace(/[\s#*_>`~=|[\]!-]+/g, '').length;
   // 할 일 표시(- [ ] · - [x])의 x 는 단어가 아니다
   const words = countWords(plain.replace(/^\s*[-*+] \[[ xX]\]/gm, ' '));
-  return { chars, words, links: wiki.length + md.length, tag: tags.length, task: tasks.length, done: done.length, head: heads.length, embed: embeds.length, callout: callouts.length };
+  return { chars, words, links: wiki.length + md.length, tag: tags.length, task: tasks.length, done: done.length, head: heads.length, embed: embeds.length, callout: callouts.length, prop: front ? countProps(front) : 0 };
 }
 
 // 경로 토막 해시 (FNV 두 개를 이어 붙인다)
@@ -4032,6 +3664,11 @@ class UsageTracker extends EventEmitter {
     return this.d;
   }
 
+  // 데일리 노트인가. 플러그인이 코어 '데일리 노트' 설정(폴더 · 날짜 형식)으로 바꿔 끼운다 (plugin/main.js dailyTest)
+  isDaily(path) {
+    return this.dailyTest ? this.dailyTest(path) : DAILY_RE.test(path);
+  }
+
   setExcluded(list) {
     this.excluded = new Set(list || []);
   }
@@ -4069,6 +3706,8 @@ class UsageTracker extends EventEmitter {
     // 단어 기록이 없는 예전 기록(1.4 이하)은 이번에 기준만 잡는다. 기록 자체가 없던 새 노트는 0 에서 센다
     const hadWords = !f || f[W_AT] !== undefined;
     fresh[W_AT] = Math.max(hadWords ? prev(W_AT) : 0, m.words || 0);
+    const hadProps = !f || f[P_AT] !== undefined;
+    fresh[P_AT] = Math.max(hadProps ? prev(P_AT) : 0, m.prop || 0);
     if (opts.baseline) {
       this.d.files[key] = fresh;
       return { dc: 0, dw: 0, dl: 0, dn: 0, skipped: { c: 0, l: 0, w: 0 } };
@@ -4105,7 +3744,13 @@ class UsageTracker extends EventEmitter {
       const d = Math.max(0, (m[k] || 0) - prev(F0 + i));
       if (d) feat[k] = Math.min(d, 50);
     });
-    if (dn && DAILY_RE.test(path)) feat.daily = 1;
+    if (hadProps) {
+      const d = Math.max(0, (m.prop || 0) - prev(P_AT));
+      if (d) feat.prop = Math.min(d, 20);
+    }
+    const daily = this.isDaily(path);
+    if (dn && daily) feat.daily = 1;
+    if (dc && daily) feat.dailyc = dc; // 데일리 노트에 쓴 글자 (2.0.0. 붙여넣기 · 상한을 뺀 뒤의 값)
     this.d.files[key] = fresh;
     if (dc || dl || dn || Object.keys(feat).length) this.add(path, when, dc, dl, dn, feat, opts, dw);
     return { dc, dw, dl, dn, feat, skipped };
@@ -4226,9 +3871,9 @@ class UsageTracker extends EventEmitter {
     }
   }
 
-  // sinceMs 이후의 합계. w = 단어, k = 끝낸 할 일 (1.5.0 부터 경험치·코인이 된다)
+  // sinceMs 이후의 합계. w = 단어, k = 끝낸 할 일 (1.5.0 부터 경험치·코인이 된다), f = 옵시디언 기능별 횟수 (2.0.0 퀘스트)
   totals(sinceMs = 0) {
-    const sum = { c: 0, w: 0, l: 0, n: 0, s: 0, v: 0, e: 0, k: 0 };
+    const sum = { c: 0, w: 0, l: 0, n: 0, s: 0, v: 0, e: 0, k: 0, f: {} };
     for (const [, b] of this.eachBucket(sinceMs)) {
       sum.c += b.c;
       sum.w += b.w || 0;
@@ -4238,6 +3883,7 @@ class UsageTracker extends EventEmitter {
       sum.v += b.v || 0;
       sum.e += b.e || 0;
       sum.k += (b.t && b.t.done) || 0;
+      if (b.t) for (const [k, v] of Object.entries(b.t)) sum.f[k] = (sum.f[k] || 0) + v;
     }
     return sum;
   }
@@ -4363,232 +4009,6 @@ module.exports = {
 
 };
 
-__defs["core/workshop"] = function (module, exports, require) {
-// 보물 공방 (2026-09-24). 깜짝 이벤트로 주운 하찮은 보물을 재료로 공방 전용 코스튬을 만든다.
-// 만들면 재료 보물의 개수가 준다. 도감(한 번이라도 주운 기록)과 '보물 모으기' 업적은 그대로 남는다 (treasure.js 의 treasureSeen).
-// 코스튬은 main/shop.js 의 ACCESSORIES 에 workshop: true 로 들어 있다 (상점에서는 안 판다). 그림은 renderer/accessories-workshop-*.js
-//
-// 재료 개수는 보물이 하루 4개쯤 들어온다고 보고 잡았다 (깜짝 이벤트 하루 최대 8번, 흔함 70 · 드묾 25 · 전설 5).
-//  특정 흔한 보물 하나는 하루 0.14개, 드문 것 0.08개, 전설 0.04개꼴
-//  2026-09-25: 모이기 힘들어서 줄였다 (any 절반, 따로 적힌 재료 약 30%↓ · 쉬움은 2개, 전설 1개) → 쉬움 2주 · 보통 3~4주 · 어려움 5~6주
-//  any = '흔한 보물 아무거나'. 이 조합에 따로 적힌 재료는 빼고, 가장 많이 쌓인 흔한 보물부터 쓴다
-const { TREASURES } = require('./treasure');
-const { ACCESSORIES } = require('./shop');
-const slotOf = (key) => (ACCESSORIES.find((a) => a.key === key) || {}).slot || null;
-
-const RECIPES = [
-  // ---------- 쉬움 ----------
-  { key: 'capcrown', tier: 'easy', need: { bottlecap: 2 }, any: 4 },
-  { key: 'rubberslingshot', tier: 'easy', need: { rubberband: 2, twig: 2 }, any: 3 },
-  { key: 'receiptcape', tier: 'easy', need: { receipt: 2 }, any: 4 },
-  { key: 'bubblearmor', tier: 'easy', need: { bubblewrap: 2, breadtie: 2 }, any: 3 },
-  { key: 'dustscarf', tier: 'easy', need: { dustball: 2 }, any: 4 },
-  { key: 'strawglasses', tier: 'easy', need: { drinkstraw: 2, clip: 2 }, any: 3 },
-  { key: 'leafwreath', tier: 'easy', need: { dryleaf: 2, pinecone: 2 }, any: 3 },
-  { key: 'buttonnecklace', tier: 'easy', need: { button: 2, breadtie: 2 }, any: 3 },
-  { key: 'toothpickrapier', tier: 'easy', need: { toothpick: 2, bandaid: 2 }, any: 3 },
-  { key: 'pigeonhat', tier: 'easy', need: { pigeonfeather: 2, seedshell: 2 }, any: 3 },
-  { key: 'candysparkle', tier: 'easy', need: { candywrap: 2, crumb: 2 }, any: 3 },
-  // ---------- 보통 ----------
-  { key: 'socksock', tier: 'normal', need: { lonesock: 3, googlyeye: 2 }, any: 4 },
-  { key: 'esckeycap', tier: 'normal', need: { keycap: 2, breadtie: 2, clip: 2 }, any: 4 },
-  { key: 'legohelm', tier: 'normal', need: { lego: 3 }, any: 6 },
-  { key: 'coinmedal', tier: 'normal', need: { coin10: 3 }, any: 3 },
-  { key: 'crayondoodle', tier: 'normal', need: { crayon: 2, postit: 2 }, any: 4 },
-  { key: 'ddakjicape', tier: 'normal', need: { ddakji: 2, marble: 2 }, any: 4 },
-  { key: 'staticshock', tier: 'normal', need: { deadbattery: 2, clip: 3 }, any: 4 },
-  { key: 'cicadasuit', tier: 'normal', need: { cicada: 2, worm: 2, acorn: 2 }, any: 4 },
-  { key: 'acorncheeks', tier: 'normal', need: { acorn: 3, seedshell: 3 }, any: 4 },
-  // ---------- 어려움 (전설 보물) ----------
-  { key: 'legendcapcrown', tier: 'hard', need: { shinycap: 1, bottlecap: 6 }, any: 5 },
-  { key: 'lotteryfan', tier: 'hard', need: { lottery: 1, receipt: 4 }, any: 5 },
-  { key: 'usbantenna', tier: 'hard', need: { usbcap: 1, eartip: 2 }, any: 5 },
-  { key: 'gatekeeper', tier: 'hard', need: { oldkey: 1, ddakji: 2, marble: 2 }, any: 6 },
-];
-
-const COMMON = TREASURES.filter((t) => t.rarity === 'common').map((t) => t.key);
-const RARE = TREASURES.filter((t) => t.rarity === 'rare').map((t) => t.key);
-const rarityOf = (key) => (TREASURES.find((t) => t.key === key) || {}).rarity || null;
-
-// 보물 교환소 (2026-10-10): 쌓인 보물을 원하는 보물로 바꾼다. 전설은 못 받는다(어려움 단계를 지킨다).
-// 받는 쪽 등급 → 내는 방법들 (앞에 있는 것부터). 낼 보물은 많이 쌓인 것부터 골고루 (pickAny 와 같은 방식)
-const RATES = {
-  common: [{ pay: 'common', n: 3 }],
-  rare: [{ pay: 'rare', n: 3 }, { pay: 'common', n: 8 }],
-};
-
-// pool 에서 n 개를 많이 쌓인 것부터 골고루 고른다. keep = { 키: 남겨 둘 개수 }. 모자라면 null
-function takeEven(box, pool, n, keep = {}) {
-  const have = Object.fromEntries(pool.map((k) => [k, Math.max(0, (box[k] || 0) - (keep[k] || 0))]));
-  const order = pool.filter((k) => have[k] > 0).sort((a, b) => have[b] - have[a]);
-  const out = {};
-  let left = n;
-  while (left > 0) {
-    let took = false;
-    for (const k of order) {
-      if (left <= 0) break;
-      if (have[k] > 0) {
-        have[k]--;
-        out[k] = (out[k] || 0) + 1;
-        left--;
-        took = true;
-      }
-    }
-    if (!took) return null;
-  }
-  return out;
-}
-
-// target 하나를 받으려면 무엇을 내야 하나. { pay: { 키: 개수 }, rate } 또는 null
-//  avoid = 내지 않을 키들 (받을 것 · 조합에 따로 적힌 재료), keep = 남겨 둘 개수
-function quote(box, target, { avoid = [], keep = {} } = {}) {
-  const rates = RATES[rarityOf(target)];
-  if (!rates) return null;
-  for (const r of rates) {
-    const pool = (r.pay === 'rare' ? RARE : COMMON).filter((k) => k !== target && !avoid.includes(k));
-    const pay = takeEven(box, pool, r.n, keep);
-    if (pay) return { pay, rate: r };
-  }
-  return null;
-}
-
-// 흔한 보물 아무거나 n 개를 고른다: 이 조합에 따로 적힌 재료는 빼고, 많이 쌓인 것부터. 모자라면 null
-function pickAny(box, recipe, n) {
-  if (!n) return {};
-  const pool = COMMON.filter((k) => !(k in recipe.need) && (box[k] || 0) > 0).sort((a, b) => box[b] - box[a]);
-  const out = {};
-  let left = n;
-  // 한 종류를 다 털지 않게 골고루: 많은 것부터 하나씩 돌아가며 뺀다
-  const have = Object.fromEntries(pool.map((k) => [k, box[k]]));
-  while (left > 0) {
-    let took = false;
-    for (const k of pool) {
-      if (left <= 0) break;
-      if (have[k] > 0) {
-        have[k]--;
-        out[k] = (out[k] || 0) + 1;
-        left--;
-        took = true;
-      }
-    }
-    if (!took) return null;
-  }
-  return out;
-}
-const anyHave = (box, recipe) => COMMON.filter((k) => !(k in recipe.need)).reduce((a, k) => a + (box[k] || 0), 0);
-
-class Workshop {
-  constructor(state, treasures, shop) {
-    this.state = state;
-    this.treasures = treasures;
-    this.shop = shop;
-  }
-
-  // 실제로 옷장에 있나. 개발자 모드의 '다 가진 척'(shop.owned)은 공방에서는 치지 않는다
-  hasMade(key) {
-    return (this.state.get('items') || []).includes(key);
-  }
-  // 한 번이라도 만든 적 있나 (친구에게 선물해서 지금은 없어도 공방 진행도는 남는다). 가진 게 없으면 다시 만들 수 있다
-  everMade(key) {
-    return this.hasMade(key) || (this.state.get('workshopMade') || []).some((x) => x.key === key);
-  }
-
-  // 화면에 보여 줄 조합 목록: 재료마다 가진 개수, 만들 수 있나, 이미 만들었나
-  summary() {
-    const box = this.treasures.box();
-    return {
-      recipes: RECIPES.map((r) => {
-        const need = Object.entries(r.need).map(([key, n]) => ({ key, n, have: box[key] || 0 }));
-        const anyN = anyHave(box, r);
-        const owned = this.hasMade(r.key);
-        const ready = need.every((x) => x.have >= x.n) && anyN >= r.any;
-        const fillable = !ready && !owned && need.some((x) => x.have < x.n) && this.fill(r.key, { dry: true }).ok;
-        const made = (this.state.get('workshopMade') || []).filter((x) => x.key === r.key).pop() || null;
-        return { key: r.key, slot: slotOf(r.key), tier: r.tier, need, any: r.any, anyHave: anyN, made: this.everMade(r.key), madeAt: made ? made.at : 0, used: made ? made.used || null : null, owned, ready, fillable };
-      }),
-      // 교환소: 받을 수 있는 보물과 지금 바꿀 수 있나
-      exchange: TREASURES.filter((t) => RATES[t.rarity]).map((t) => {
-        const q = quote(box, t.key);
-        return { key: t.key, rarity: t.rarity, have: box[t.key] || 0, ok: !!q, pay: q ? q.rate : RATES[t.rarity][0] };
-      }),
-      made: RECIPES.filter((r) => this.everMade(r.key)).length,
-      total: RECIPES.length,
-    };
-  }
-
-  // 보물 하나를 바꿔 받는다. { ok, reason?, key, paid? }
-  exchange(target) {
-    if (!RATES[rarityOf(target)]) return { ok: false, reason: rarityOf(target) ? 'legend' : 'missing' };
-    const q = quote(this.treasures.box(), target);
-    if (!q || !this.treasures.spend(q.pay)) return { ok: false, reason: 'short' };
-    this.treasures.gain(target);
-    return { ok: true, key: target, paid: q.pay };
-  }
-
-  // 이 조합에 모자란 재료(따로 적힌 것)를 한 번에 바꿔 채운다.
-  // 조합 재료와 '아무 보물' 몫은 남겨 두고 나머지에서 낸다. 전설 재료가 모자라면 못 채운다.
-  // dry = true 면 바꾸지 않고 되는지만 본다. { ok, reason?, got?: { 키: 개수 }, paid? }
-  fill(key, { dry = false } = {}) {
-    const r = RECIPES.find((x) => x.key === key);
-    if (!r) return { ok: false, reason: 'missing' };
-    const box = { ...this.treasures.box() };
-    const short = Object.entries(r.need).filter(([k, n]) => (box[k] || 0) < n);
-    if (!short.length) return { ok: false, reason: 'enough' };
-    if (short.some(([k]) => rarityOf(k) === 'legend')) return { ok: false, reason: 'legend' };
-    const avoid = Object.keys(r.need);
-    const got = {};
-    const paid = {};
-    for (const [k, n] of short) {
-      for (let i = box[k] || 0; i < n; i++) {
-        // '아무 보물' 몫(흔한 것 r.any 개)은 남긴다: 흔한 보물로 낼 때 그만큼은 빼고 센다
-        const spare = anyHave(box, r) - r.any;
-        const q = quote(box, k, { avoid });
-        if (!q) return { ok: false, reason: 'short' };
-        const commonsPaid = Object.entries(q.pay).filter(([pk]) => COMMON.includes(pk)).reduce((a, [, v]) => a + v, 0);
-        if (commonsPaid > spare) {
-          // 흔한 보물로는 '아무 보물' 몫을 깎으니, 드문 보물로만 낼 수 있나 다시 본다
-          const rareOnly = rarityOf(k) === 'rare' ? takeEven(box, RARE.filter((x) => x !== k && !avoid.includes(x)), 3) : null;
-          if (!rareOnly) return { ok: false, reason: 'short' };
-          q.pay = rareOnly;
-        }
-        for (const [pk, pv] of Object.entries(q.pay)) {
-          box[pk] -= pv;
-          paid[pk] = (paid[pk] || 0) + pv;
-        }
-        box[k] = (box[k] || 0) + 1;
-        got[k] = (got[k] || 0) + 1;
-      }
-    }
-    if (dry) return { ok: true, got, paid };
-    if (!this.treasures.spend(paid)) return { ok: false, reason: 'short' };
-    for (const [k, n] of Object.entries(got)) this.treasures.gain(k, n);
-    return { ok: true, got, paid };
-  }
-
-  // 만든다. { ok, reason?, key, used? }
-  craft(key) {
-    const r = RECIPES.find((x) => x.key === key);
-    if (!r) return { ok: false, reason: 'missing' };
-    if (this.hasMade(key)) return { ok: false, reason: 'made' };
-    const box = this.treasures.box();
-    if (!Object.entries(r.need).every(([k, n]) => (box[k] || 0) >= n)) return { ok: false, reason: 'short' };
-    const extra = pickAny(box, r, r.any);
-    if (!extra) return { ok: false, reason: 'short' };
-    const used = { ...r.need };
-    for (const [k, n] of Object.entries(extra)) used[k] = (used[k] || 0) + n;
-    if (!this.treasures.spend(used)) return { ok: false, reason: 'short' };
-    this.state.set({
-      items: [...(this.state.get('items') || []), key],
-      workshopMade: [...(this.state.get('workshopMade') || []), { key, at: Date.now(), used }], // used = 쓴 재료 (카드의 '재료' 꼬리표)
-    });
-    return { ok: true, key, used };
-  }
-}
-
-module.exports = { Workshop, RECIPES, RATES, quote };
-
-};
-
 __defs["plugin/events"] = function (module, exports, require) {
 // node 의 events 모듈 대신 쓰는 작은 EventEmitter. 모바일 옵시디언에는 node 가 없어서 직접 둔다.
 class EventEmitter {
@@ -4659,18 +4079,8 @@ const API = [
   ['toyRecord', 'send', 'pet:toy-record'],
   ['stat', 'send', 'pet:stat'],
   ['treatEaten', 'send', 'pet:treat-eaten'],
-  ['treasure', 'send', 'pet:treasure'],
   ['rub', 'send', 'pet:rub'],
-  ['onFriend', 'on', 'pet:friend'],
-  ['onFriendLeave', 'on', 'pet:friend-leave'],
-  ['onFriendWear', 'on', 'pet:friend-wear'],
-  ['friendInfo', 'invoke', 'pet:friend-info'],
-  ['friendTrade', 'invoke', 'pet:friend-trade'],
-  ['friendFeed', 'invoke', 'pet:friend-feed'],
-  ['friendBye', 'invoke', 'pet:friend-bye'],
-  ['eventSay', 'send', 'pet:event-say'],
-  ['onEvent', 'on', 'pet:event'],
-  ['eventSkip', 'send', 'pet:event-skip'], // 바빠서 못 보여 준 깜짝 이벤트 (오늘 횟수를 돌려받는다)
+  ['eventSay', 'send', 'pet:event-say'], // 들어 올리기 · 떨어뜨리기 · 커서 사냥 말 (깜짝 이벤트는 2.0.0 에 없앴다)
   ['slot', 'invoke', 'pet:slot'],
   ['onPlay', 'on', 'pet:play'],
   ['onTreat', 'on', 'pet:treat'],
@@ -4694,9 +4104,6 @@ const API = [
   ['onboarded', 'invoke', 'house:onboarded'],
   ['whatsNewSeen', 'invoke', 'house:whats-new-seen'], // '새로 생긴 것' 창을 봤다
   ['refreshQuests', 'invoke', 'quest:refresh'],
-  ['friendCall', 'invoke', 'house:friend-call'],
-  ['friendGift', 'invoke', 'house:friend-gift'],
-  ['devEvent', 'invoke', 'dev:event'],
   ['saveCard', 'invoke', 'card:save'],
   ['copyCard', 'invoke', 'card:copy'],
   ['recap', 'invoke', 'card:recap'], // 리캡 카드 숫자 (core/recap.js)
@@ -4705,9 +4112,6 @@ const API = [
   ['preview', 'invoke', 'house:preview'],
   ['feed', 'invoke', 'pet:feed'],
   ['buy', 'invoke', 'shop:buy'],
-  ['craft', 'invoke', 'workshop:craft'],
-  ['exchange', 'invoke', 'workshop:exchange'], // 보물 교환소: 원하는 보물 하나 받기
-  ['fillRecipe', 'invoke', 'workshop:fill'], // 조합에 모자란 재료를 바꿔 채우기
   ['useFood', 'invoke', 'shop:use'],
   ['play', 'invoke', 'house:play'],
   ['setLogin', 'invoke', 'login:set'],
@@ -4723,6 +4127,17 @@ const API = [
   ['onToast', 'on', 'house:toast'], // 호스트가 보내는 하우스 알림 (별 · 출석 선물 · 리캡 카드)
   ['focusStart', 'invoke', 'focus:start'], // 집중 시간 시작 (분) (1.5.0)
   ['focusStop', 'invoke', 'focus:stop'],
+  // 2.0.0 홈: 쉬는 시간 · 할 일(플러그인 안 목록) · 노트 열기 · 그래프 열기. 볼트에 노트를 만들지 않는다
+  ['breakStart', 'invoke', 'focus:break'],
+  ['breakStop', 'invoke', 'focus:break-stop'],
+  ['todoAdd', 'invoke', 'todo:add'],
+  ['todoEdit', 'invoke', 'todo:edit'],
+  ['todoToggle', 'invoke', 'todo:toggle'],
+  ['todoRemove', 'invoke', 'todo:remove'],
+  ['todoMove', 'invoke', 'todo:move'],
+  ['todoClear', 'invoke', 'todo:clear'],
+  ['openNote', 'invoke', 'note:open'],
+  ['openGraph', 'invoke', 'graph:open'],
 ];
 
 class KitFrame {
@@ -4869,19 +4284,19 @@ module.exports = { KitFrame, API };
 __defs["plugin/host"] = function (module, exports, require) {
 // 킷커밋 데스크톱판 main.js 의 옵시디언판.
 // 창·트레이·IPC 로 하던 일을 옵시디언의 오버레이(펫 무대)·상태 표시줄·메뉴·iframe 다리로 옮겼다.
-// 성장·상점·퀘스트·업적·친구·보물·게이지는 core/* (데스크톱판과 같은 코드)가 그대로 한다.
+// 성장·상점·퀘스트·업적·게이지는 core/* (데스크톱판과 같은 코드)가 그대로 한다.
+// 2.0.0: 동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 없앴다. 홈의 할 일 · 노트 지도 · 쉬는 시간을 더했다
 const { Menu, Notice, setIcon } = require('obsidian');
 const { computeGrowth, xpOf, levelOf, FURS, EAR_SHAPES, STAGES, foldStage, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK } = require('../core/growth');
-const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS } = require('../core/goals');
+const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS } = require('../core/goals');
 const { Brain } = require('../core/brain');
 const { Gamify } = require('../core/gamify');
 const { SET_MOTIONS, COSTUME_SLOTS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, slotOf, find: findItem } = require('../core/shop');
 const stats = require('../core/stats');
-const { Treasures, TREASURES } = require('../core/treasure');
-const { Workshop } = require('../core/workshop');
-const { Friends, FRIENDS, FRIEND_STEPS } = require('../core/friends');
 const { Gauge } = require('../core/gauge');
-const { Craving } = require('../core/craving');
+const { Todos } = require('../core/todos');
+const { migrateV2 } = require('../core/migrate2');
+const { triedSkills } = require('../core/skills');
 const { recap, cleanCardPrefs } = require('../core/recap');
 const { TASK_COINS } = require('../core/shop');
 const { dayOf } = require('../core/usage');
@@ -4902,30 +4317,26 @@ const OMAKASE_LOCK = 4 * HOUR_MS; // 참치 뱃살 오마카세: 4시간 배부�
 // 배부름을 고정하는 음식: 비쌀수록 길다 (2026-09-27 가격 정리. 데스크톱판 0.4.0: 기운이 없어져 배부름만 고정).
 // 용 사탕은 기운 가득 대신 6시간 '든든' 고정
 const BOTH_LOCK = { afternoonTea: 2 * HOUR_MS, dragonCandy: 6 * HOUR_MS, royalTable: 8 * HOUR_MS, dragonKingFeast: 24 * HOUR_MS };
-// 구름 마시멜로: 먹고 잠깐 뒤 깜짝 이벤트 하나 (예전엔 기운 +50)
-const MALLOW_EVENT_MS = 25_000;
-const GOLD_MOUSE_RARE = 0.3; // 황금 쥐 초콜릿: 보물 1개 확정. 이 확률로 드문 보물, 아니면 흔한 보물
-const INVITE_CHANCE = 0.3; // 초대장 쿠키: 먹는 즉시 친구가 놀러 올 확률
+// 구름 마시멜로: 먹고 잠깐 뒤 둥실 신나서 우다다 (2.0.0: 깜짝 이벤트를 없애서)
+const MALLOW_ZOOM_MS = 6_000;
+const GOLD_MOUSE_COINS = [40, 120]; // 황금 쥐 초콜릿: 코인 (2.0.0: 예전엔 보물)
 const MYSTERY_PREMIUM = 0.15; // 미스터리 간식 상자: 프리미엄 간식이 나올 확률
-const FORTUNE_GIFT = 0.2; // 포춘 쿠키: 보물이나 코인을 같이 받을 확률
+const FORTUNE_GIFT = 0.2; // 포춘 쿠키: 코인을 같이 받을 확률
 const FORTUNE_COINS = 50;
 // 기본 '냠냠' 대신 자기 말을 하는 간식
-const PREMIUM_TALK = new Set(['fortuneCookie', 'mysteryBox', 'inviteCookie']);
+const PREMIUM_TALK = new Set(['fortuneCookie', 'mysteryBox']);
 const MOTION_HOLD = 5 * MIN;
 // focus = 집중 시간 시작 · 끝 (집중하는 동안은 방해 금지라, 그래도 꼭 보여야 하는 말) · goal = 하루 목표를 채웠다
 const ALWAYS = new Set(['notify', 'focus']);
 const REWARD = new Set(['grow', 'achieve', 'item', 'quest', 'attend', 'retro', 'goal']);
 // 말풍선 상한 (데스크톱판 0.4.0). 수다 등급은 시간당 1번, 그리고 꼭 필요하지 않은 말풍선(COUNTED)이 지난 한 시간에
 // 3번 이상이었으면 수다는 건너뛴다. 수다를 2초 안에 눌러 닫는 일이 세 번 이어지면 수다를 3시간 쉰다
-const CHATTY_KINDS = new Set(['chatter', 'tip', 'memory', 'crave', 'reply']);
+const CHATTY_KINDS = new Set(['chatter', 'tip', 'memory', 'reply']);
 const COUNTED = new Set([...CHATTY_KINDS, 'hungry', 'lunch', 'dinner', 'rest', 'late', 'drowsy', 'greet', 'end', 'event', 'groom', 'toyAsk']);
 const CHATTY_PER_HOUR = 1;
 const COUNTED_PER_HOUR = 3;
 const QUICK_DISMISS_MS = 2000;
 const CHATTER_MUTE_MS = 3 * HOUR_MS;
-// 오늘의 소식에 남길 것 (못 띄운 것도 남는다): 레벨 · 업적 · 보상 · 퀘스트 · 출석 · 친구 · 보물
-const NEWS_KINDS = new Set(['grow', 'achieve', 'item', 'quest', 'attend', 'retro', 'event', 'goal', 'focus']);
-const NEWS_MAX = 40;
 // 업적 · 보상은 한 말풍선으로 묶는다. 마지막 업적 뒤 2초, 처음 것 뒤 늦어도 10초에 한 번에
 const NEWS_WAIT = 2000;
 const NEWS_MAX_WAIT = 10_000;
@@ -4945,17 +4356,13 @@ const TOY_OFFER_IDLE_S = [60, 300];
 const TOY_OFFER_GAP = 60 * MIN;
 const TOY_OFFER_PER_DAY = 3;
 const TOY_OFFER_MS = 20_000;
-// 바닥 보물은 하루를 넉넉히 기다리고, LOOT_KEEP 개까지만 기억한다
-const LOOT_TTL = 24 * HOUR_MS;
-const LOOT_KEEP = 20;
 const THEMES = ['auto', 'cream', 'cocoa', 'mint', 'sakura', 'choco'];
-const TEMPERS = [
-  { key: 'calm', w: 45 },
-  { key: 'playful', w: 40 },
-  { key: 'grumpy', w: 15 },
-];
-const EVENT_LINES = new Set(['eventFetchOut', 'eventFetchBack', 'eventBird', 'eventGuest', 'eventGuestBye', 'eventRare', 'heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
-const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline']);
+// 펫 판이 부탁하는 말 (들어 올리기 · 떨어뜨리기 · 커서 사냥). 깜짝 이벤트 · 친구 말은 2.0.0 에 없앴다
+const EVENT_LINES = new Set(['heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
+// 모션을 끈 상황 (설정 motionsOff). 고양이가 그 상태로 있어야 하는 상황(같이 쓸 때 · 기다릴 때 · 잘 때)은 끄면 기본 자세로,
+// 잠깐 하는 상황(다 썼을 때 · 레벨 업 · 쓰다듬기 …)은 끄면 아무 모션도 안 한다
+const MOOD_SLOTS = new Set(['work', 'workLong', 'workHour', 'waiting', 'sleep']);
+const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']); // 줄넘기 · 4차 장난감 넷
 // 처음 설치한 날 이만큼은 밥 · 배고픔 알림을 쉰다 (만나자마자 '밥 줘' 부터 하지 않게)
 const FIRST_GRACE = 2 * HOUR_MS;
 const scaleStep = (v) => Math.max(1, Math.min(5, Math.round(Number(v) || 3)));
@@ -4980,20 +4387,17 @@ class KitHost {
     this.lastWorkSlot = 'work';
     this.pokes = [];
     this.sleepPokes = [];
-    this.grumpyPokes = [];
     this.hideTimer = null;
     this.timers = [];
-    // 바닥에 떨어뜨렸는데 아직 안 먹은 먹이 · 안 주운 보물. 'pet:treat-eaten' · 'pet:treasure' 는 여기 있는 것만 믿는다
+    // 바닥에 떨어뜨렸는데 아직 안 먹은 먹이. 'pet:treat-eaten' 은 여기 있는 것만 믿는다
     this.floorTreats = [];
-    this.pendingLoot = [];
-    // 말풍선 상한 · 소식 묶기 · 장난감 권하기 · 하우스 알림
+    // 말풍선 상한 · 업적 말풍선 묶기 · 장난감 권하기 · 하우스 알림
     this.bubbleLog = [];
     this.chatterMuteUntil = 0;
     this.quickDismiss = 0;
     this.newsBuf = [];
     this.newsTimer = null;
     this.newsFirst = 0;
-    this.pushSoonTimer = null;
     this.growthTimer = null;
     this.toyOffer = null;
     this.toastQueue = [];
@@ -5007,9 +4411,6 @@ class KitHost {
     this.syncStrings();
     this.gamify = new Gamify(state, usage, () => settings.data, () => this.T);
     this.shop = new Shop(state, usage, () => settings.data, () => this.growth);
-    this.treasures = new Treasures(state);
-    this.workshop = new Workshop(state, this.treasures, this.shop);
-    this.friends = new Friends(state);
     // 평생 산 횟수(bought)·한 번이라도 가졌던 코스튬 수(accEver)는 gamify 가 purchaseStats·옷장에서 직접 읽는다
     this.gamify.extra = () => {
       const w = this.shop.wallet();
@@ -5022,8 +4423,8 @@ class KitHost {
       return {
         owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none' && !a.exclusive && !a.stars).length, totalToy: TOYS.length,
         spent: w.spent, earned: w.earned, balance: w.balance,
-        treasureKinds: this.treasures.summary().kinds,
         maxBacklinks: this.plugin.linkStats().max,
+        orphans: this.plugin.orphanList ? this.plugin.orphanList().length : 0,
       };
     };
     this.gamify.rewarder = (reward) => this.shop.give(reward);
@@ -5034,15 +4435,12 @@ class KitHost {
       state.set({ stageScheme: STAGES.length });
     }
     this.migrateShop();
+    // 2.0.0: 보물 → 코인, 공방 코스튬은 옷장에, 없앤 기능의 기록은 지운다 (한 번만. core/migrate2.js)
+    this.v2 = migrateV2(state);
     this.goals = new Goals(state, settings, usage);
     this.gauge = new Gauge(state);
-    // 오늘 먹고 싶은 것: 적게 사 먹인 음식일수록 잘 뽑힌다. 사람마다 다르게 처음 만난 시각을 씨앗으로
-    this.craving = new Craving(state, {
-      fedCounts: () => Object.fromEntries(Object.entries((state.get('purchaseStats') || {}).keys || {}).map(([k, v]) => [k, v.n || 0])),
-      seed: () => state.get('startedAt') || 0,
-    });
-    // 지난번 바닥에 두고 끈 보물은 상자로 들어갔다 (treasure.js 의 recoverLoot)
-    if (this.treasures.recovered.length) this.houseToast(this.T.t('toast.lootKept', { n: this.treasures.recovered.length }), 'gift');
+    // 홈의 할 일 (플러그인 안에만 있는 목록). 처음 끝낸 할 일마다 업적 · 퀘스트 숫자
+    this.todos = new Todos(state, () => this.noteSkill('todoDone'));
 
     const brain = new Brain(() => settings.data, () => ({ today: usage.today() }), () => this.T);
     this.brain = brain;
@@ -5052,31 +4450,18 @@ class KitHost {
     brain.graceUntil = (state.get('startedAt') || 0) + FIRST_GRACE;
     // 옵시디언판은 타이핑을 hook 처럼 늘 알려 준다 (plugin/main.js 의 onType). 그래서 '같이 쓰는 중'은 타이핑할 때만이다
     brain.lastHookAt = Date.now();
-    // 공방에서 만든 옷을 입고 있으면 그 이름 (수다에 가끔 섞인다)
-    brain.workshopWorn = () => {
-      const made = Object.values(settings.get('outfit') || {}).filter((k) => (ACCESSORIES.find((a) => a.key === k) || {}).workshop);
-      return made.length ? this.T.t('item.' + made[Math.floor(Math.random() * made.length)]) : null;
-    };
     // 기억해서 하는 말에 끼울 실제 있었던 일
     brain.memoryVars = () => this.memoryVars();
-    // 하루 한 번 말하는 오늘 먹고 싶은 것 (둘 다 이미 먹었으면 말 안 한다)
-    brain.cravingToday = () => {
-      const c = this.craving.today();
-      if (c.fed.length >= 2) return null;
-      return { meal: this.T.t('item.' + c.meal), snack: this.T.t('item.' + c.snack) };
-    };
-    // 배고파서 조를 때 가끔 오늘 먹고 싶은 밥 이름을 댄다 (아직 안 들어줬으면)
-    brain.cravingMeal = () => {
-      const c = this.craving.today();
-      return c.fed.includes(c.meal) ? null : this.T.t('item.' + c.meal);
-    };
     brain.on('bubble', ({ text, kind, extra }) => this.bubble(text, kind, undefined, undefined, extra && extra.ms, extra));
     brain.on('life', (life) => {
       state.set({ life });
       this.pushState();
       this.pushHouse();
     });
-    brain.on('action', (a) => this.send('pet:action', this.resolveAction(a)));
+    brain.on('action', (a) => {
+      const m = this.resolveAction(a);
+      if (m) this.send('pet:action', m);
+    });
     let prevMood = null;
     brain.on('mood', () => {
       const sleepy = ['sleepy', 'sleeping'].includes(brain.mood);
@@ -5252,15 +4637,6 @@ class KitHost {
     if (!text) return;
     if (this.houses.size) this.sendHouse('house:toast', { text, icon });
     else this.toastQueue = [...this.toastQueue, { text, icon }].slice(-3);
-  }
-
-  // 소식처럼 잇달아 생기는 건 모아서 한 번 (하우스가 열려 있을 때만 의미가 있다)
-  pushHouseSoon() {
-    if (this.pushSoonTimer || !this.houses.size) return;
-    this.pushSoonTimer = setTimeout(() => {
-      this.pushSoonTimer = null;
-      this.pushHouse();
-    }, 800);
   }
 
   detachHouse(frame) {
@@ -5439,27 +4815,12 @@ class KitHost {
     this.pushHouse();
   }
 
-  // 펫 판에 떨군 보물 (깜짝 이벤트 · 친구 선물). 'pet:treasure' 는 여기 있는 것만 받는다
-  expectLoot(key, id = null) {
-    if (key) this.pendingLoot = [...this.pendingLoot, { key, id, at: Date.now() }].slice(-LOOT_KEEP);
-  }
-
-  takeLoot(key) {
-    const now = Date.now();
-    this.pendingLoot = this.pendingLoot.filter((x) => now - x.at < LOOT_TTL);
-    const i = this.pendingLoot.findIndex((x) => x.key === key);
-    if (i < 0) return false;
-    this.pendingLoot.splice(i, 1);
-    return true;
-  }
-
-  // 하우스의 '밥 주기' 버튼. 창고에 있는 밥 중 오늘 먹고 싶은 밥 → 마지막에 준 밥 → 싼 것 순서로 하나 꺼낸다
+  // 하우스의 '밥 주기' 버튼. 창고에 있는 밥 중 마지막에 준 밥 → 싼 것 순서로 하나 꺼낸다
   feed() {
     const wasHungry = this.brain.hungry();
     const pantry = this.state.get('pantry') || {};
-    const c = this.craving.today();
     const has = (k) => k && pantry[k] > 0 && FOODS.some((x) => x.key === k && x.group === 'meal');
-    const pickKey = [!c.fed.includes(c.meal) && c.meal, this.state.get('lastMeal')].find(has);
+    const pickKey = [this.state.get('lastMeal')].find(has);
     const meal = pickKey ? FOODS.find((x) => x.key === pickKey) : FOODS.find((x) => x.group === 'meal' && pantry[x.key] > 0);
     if (!meal) return { ok: false, wasHungry };
     this.giveFood(meal.key);
@@ -5494,10 +4855,6 @@ class KitHost {
     if (fed) v.fav = T.t('item.' + fed[0]);
     const worn = Object.values(this.cleanOutfit(settings.get('outfit')) || {});
     if (worn.length) v.outfit = T.t('item.' + worn[Math.floor(Math.random() * worn.length)]);
-    // 이틀 안에 다녀간 동네 친구
-    const list = (state.get('friends') || {}).list || {};
-    const recent = Object.entries(list).filter(([, o]) => o.lastAt && Date.now() - o.lastAt < 2 * 86_400_000).sort((a, b) => b[1].lastAt - a[1].lastAt)[0];
-    if (recent) v.friend = T.t('fr.' + recent[0] + '.name');
     // 어제 점심을 걸렀다고 대답했으면
     const lunch = (state.get('replies') || {}).lunch;
     if (lunch && lunch.day === yKey && lunch.ans === 'no') v.skipped = ''; // 빈 글자 (대사의 {skipped} 는 '이 대사를 골라도 된다'는 표시)
@@ -5541,9 +4898,17 @@ class KitHost {
 
   // ---------- 모션 ----------
 
+  // 이 상황의 모션을 껐나 (설정 motionsOff, 2.0.0)
+  motionOff(slot) {
+    const off = this.settings.get('motionsOff');
+    return Array.isArray(off) && off.includes(slot);
+  }
+
   motionList(slot) {
     const s = slotOf(slot);
     if (!s) return [];
+    // 끈 상황: 고양이가 머무는 상황은 기본 자세 하나, 잠깐 하는 상황은 빈 목록 (motionFor 가 null)
+    if (this.motionOff(slot)) return MOOD_SLOTS.has(slot) ? [s.free[0]] : [];
     const raw = slot === 'idle' ? this.settings.get('idleMotions') : (this.settings.get('motions') || {})[slot];
     const list = (Array.isArray(raw) ? raw : raw ? [raw] : slot === 'idle' ? s.free : [s.free[0]]).filter((k) => this.shop.canUseMotion(slot, k));
     return list.length || slot === 'idle' ? list : [s.free[0]];
@@ -5553,7 +4918,7 @@ class KitHost {
     const s = slotOf(slot);
     if (!s) return slot;
     const list = this.motionList(slot);
-    if (!list.length) return s.free[0];
+    if (!list.length) return this.motionOff(slot) ? null : s.free[0];
     const now = Date.now();
     const st = this.motionTurn[slot] || (this.motionTurn[slot] = { i: 0, at: now });
     if (list.length > 1 && now - st.at >= MOTION_HOLD) {
@@ -5563,24 +4928,18 @@ class KitHost {
     return list[st.i % list.length];
   }
 
-  // 산 모션을 바로 상황 칸에 넣는다 (데스크톱판 0.4.0). 상점에서 어떤 상황 칸(from)을 보다가 샀으면 그 칸 하나에,
-  // '전체'나 다른 페이지에서 샀으면 그 모션의 첫 번째 추천 상황 하나에. 이미 들어 있으면 그대로. 넣은 칸 키를 돌려준다
-  placeBoughtMotion(key, from) {
-    const m = MOTIONS.find((x) => x.key === key);
-    if (!m) return null;
-    const slot = from && from !== 'all' && slotOf(from) ? from : (m.rec || [])[0];
-    if (!slot || !slotOf(slot) || !this.shop.canUseMotion(slot, key)) return null;
-    const list = this.motionList(slot); // 비어 있었으면 기본 모션이 들어 있다 (기본 모션은 그대로 앞에)
-    if (list.includes(key)) return slot;
-    const next = [...list, key];
-    if (slot === 'idle') this.settings.set({ idleMotions: next });
-    else this.settings.set({ motions: { ...(this.settings.get('motions') || {}), [slot]: next } });
-    return slot;
-  }
-
+  // 세트 옷 전용 모션 (설정 '세트 옷 모션 섞기'를 끄면 안 섞는다. '심심할 때'를 꺼도 안 섞는다)
   setMotions() {
+    if (this.settings.get('setMotionsOn') === false || this.motionOff('idle')) return [];
     const set = this.cleanOutfit(this.settings.get('outfit')).set;
     return (set && SET_MOTIONS[set]) || [];
+  }
+
+  // 상황 모션 하나를 펫 판에 보낸다. 그 상황 모션을 껐으면 아무것도 안 한다
+  act(slot, fallback = null) {
+    const m = this.motionFor(slot) || fallback;
+    if (m) this.send('pet:action', m);
+    return m;
   }
 
   idlePool() {
@@ -5609,53 +4968,12 @@ class KitHost {
     return typeof a === 'string' && a.startsWith('slot:') ? this.motionFor(a.slice(5)) : a;
   }
 
-  // ---------- 깜짝 이벤트·동네 친구 ----------
-
-  maybeEvent(force = false, type = null) {
-    if (!this.pet || !this.petVisible() || this.loading) return null;
-    if (!force && this.plugin.idleSeconds() > 5 * 60) return null;
-    const busy = !!this.playing || this.isQuiet();
-    const still = ['sleeping', 'sleepy', 'thinking', 'waiting'].includes(this.brain.mood);
-    // 배가 든든하면(full) 깜짝 이벤트가 더 잦다 (데스크톱판 0.4.0)
-    const ev = this.treasures.roll({ busy, asleep: still, force, type, full: this.gauge.full() });
-    if (ev) {
-      this.expectLoot(ev.treasure, ev.id);
-      this.send('pet:event', ev);
-    }
-    return ev;
-  }
-
-  friendTick() {
-    if (!this.friends || !this.pet || this.loading) return;
-    const v0 = this.friends.st().visit;
-    // 펫 판이 인사를 못 하고 시간이 한참 지났으면 여기서 보낸다. 두고 간 보물은 상자로 바로 (keep)
-    if (v0 && v0.until + MIN <= Date.now()) {
-      this.friends.finish({ keep: true });
-      this.send('pet:friend-leave');
-      this.pushHouse();
-    } else if (v0 && v0.until > Date.now() - MIN) return; // 아직 놀러 와 있거나, 펫 판이 인사하고 보물을 떨굴 1분
-    const away = this.plugin.idleSeconds() > 5 * 60;
-    const v = this.friends.tick({ away, busy: this.isQuiet() || !this.petVisible(), full: this.gauge.full() });
-    // tick 이 시간 다 된 친구를 보냈으면 펫 판에서도 내보낸다
-    if (this.friends.takeLeft()) {
-      this.send('pet:friend-leave');
-      this.pushHouse();
-    }
-    if (v) this.friendArrive(v);
-  }
-
   // 프리미엄 밥·간식을 먹었다. 먹은 횟수·종류는 업적용으로 센다
   premiumEaten(it) {
     const { T, gamify } = this;
     gamify.count('premium');
     gamify.count('pf_' + it.key);
     const later = (fn) => this.later(fn, 2600);
-    const pickTreasure = (rarity) => {
-      const pool = TREASURES.filter((x) => x.rarity === rarity);
-      const tk = pool[Math.floor(Math.random() * pool.length)].key;
-      this.treasures.add(tk);
-      return tk;
-    };
     if (it.key === 'otoroOmakase') {
       this.gauge.lockFood(OMAKASE_LOCK);
       later(() => this.bubble(T.line('omakaseLock'), 'fed'));
@@ -5664,22 +4982,19 @@ class KitHost {
       later(() => this.bubble(T.line('bothLock', { h: BOTH_LOCK[it.key] / HOUR_MS }), 'fed'));
     } else if (it.key === 'cloudMallow') {
       later(() => this.bubble(T.line('mallowEvent'), 'fed'));
-      this.later(() => this.maybeEvent(true), MALLOW_EVENT_MS);
+      this.later(() => this.send('pet:action', 'zoomies'), MALLOW_ZOOM_MS);
     } else if (it.key === 'goldMouseChoco') {
-      const tk = pickTreasure(Math.random() < GOLD_MOUSE_RARE ? 'rare' : 'common');
-      later(() => this.bubble(T.line('goldMouseTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
+      const [lo, hi] = GOLD_MOUSE_COINS;
+      const n = lo + Math.floor(Math.random() * (hi - lo + 1));
+      this.shop.give({ coins: n });
+      later(() => this.bubble(T.line('goldMouseCoins', { n }), 'item'));
     } else if (it.key === 'roomService') {
       this.bubble(T.line('roomService'), 'fed');
     } else if (it.key === 'fortuneCookie') {
       this.bubble(T.line('fortune'), 'treat');
       if (Math.random() < FORTUNE_GIFT) {
-        if (Math.random() < 0.5) {
-          const tk = pickTreasure('common');
-          later(() => this.bubble(T.line('fortuneTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
-        } else {
-          this.shop.give({ coins: FORTUNE_COINS });
-          later(() => this.bubble(T.line('fortuneCoins', { n: FORTUNE_COINS }), 'item'));
-        }
+        this.shop.give({ coins: FORTUNE_COINS });
+        later(() => this.bubble(T.line('fortuneCoins', { n: FORTUNE_COINS }), 'item'));
       }
     } else if (it.key === 'mysteryBox') {
       const premium = Math.random() < MYSTERY_PREMIUM;
@@ -5688,69 +5003,8 @@ class KitHost {
       this.shop.give({ food: { [got]: 1 } });
       if (premium) gamify.count('mysteryPremium');
       this.bubble(T.line(premium ? 'mysteryJackpot' : 'mysteryGot', { name: T.t('item.' + got) }), 'item');
-    } else if (it.key === 'inviteCookie') {
-      const v = !this.friends.current() && Math.random() < INVITE_CHANCE ? this.friends.start(FRIENDS[Math.floor(Math.random() * FRIENDS.length)].id, 'visit') : null;
-      if (v) {
-        gamify.count('invite');
-        this.friendArrive(v);
-      } else this.bubble(T.line('inviteMiss'), 'treat');
     }
     this.pushHouse();
-  }
-
-  friendArrive(v) {
-    this.sendFriend(v);
-    if (v.up && v.level > 0) this.later(() => this.bubble(this.T.line('guestFriend', { guest: this.T.t('fr.' + v.id + '.name'), level: this.T.t('friend.' + v.level) }), 'event'), 9000);
-    this.pushHouse();
-  }
-
-  sendFriend(v) {
-    const f = FRIENDS.find((x) => x.id === v.id);
-    if (f) this.send('pet:friend', { id: v.id, fur: f.fur != null ? f.fur : null, art: f.art || null, kind: v.kind, until: v.until, wear: this.friends.wearList(v.id) });
-  }
-
-  friendInfo() {
-    const v = this.friends.current();
-    if (!v) return null;
-    const f = FRIENDS.find((x) => x.id === v.id);
-    const one = this.friends.summary().list.find((x) => x.id === v.id);
-    const box = this.state.get('treasures') || {};
-    const pantry = Object.entries(this.state.get('pantry') || {})
-      .filter(([k, n]) => n > 0 && FOODS.find((x) => x.key === k))
-      .map(([k, n]) => ({ key: k, n, group: FOODS.find((x) => x.key === k).group }));
-    return { id: v.id, fur: f.fur, art: f.art, kind: v.kind, until: v.until, level: one.level, pts: one.pts, prev: FRIEND_STEPS[one.level], next: one.next, want: { ...v.want, have: box[v.want.key] || 0 }, gift: v.gift, traded: v.traded, feeds: v.feeds, maxFeeds: 3, pantry };
-  }
-
-  friendResult(r) {
-    if (r && r.ok && r.up && r.level > 0) this.later(() => this.bubble(this.T.line('guestFriend', { guest: this.T.t('fr.' + r.id + '.name'), level: this.T.t('friend.' + r.level) }), 'event'), 2500);
-    this.pushState();
-    this.pushHouse();
-    return r;
-  }
-
-  // ---------- 그날의 기분 ----------
-
-  temper() {
-    const today = new Date().toDateString();
-    let t = this.state.get('temper');
-    if (!t || t.day !== today) {
-      // 처음 만난 날, 그리고 어제가 쓰다듬기 싫은 날이었으면 뽑지 않는다 (처음 눌러 봤는데 맞으면 첫인상이 나쁘고,
-      // 며칠씩 이어지면 고양이가 고장 난 것 같다 — 이슈 #7)
-      const pool = t && t.key !== 'grumpy' ? TEMPERS : TEMPERS.filter((x) => x.key !== 'grumpy');
-      let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
-      const key = (pool.find((x) => (r -= x.w) < 0) || pool[0]).key;
-      t = { day: today, key, said: false };
-      this.state.set({ temper: t });
-    }
-    return t.key;
-  }
-
-  announceTemper() {
-    const key = this.temper();
-    const t = this.state.get('temper');
-    if (t.said || this.loading) return;
-    this.state.set({ temper: { ...t, said: true } });
-    this.later(() => this.bubble(this.T.line('temper_' + key), 'hello'), 3000);
   }
 
   setQuiet(min) {
@@ -5818,7 +5072,6 @@ class KitHost {
       personality: s.get('personality'),
       moodMotions: this.moodMotions(),
       idleMotions: this.idlePool(),
-      temper: this.temper(),
     };
   }
 
@@ -5826,22 +5079,10 @@ class KitHost {
     this.send('pet:state', { mood: this.brain.mood, growth: this.growth, quiet: this.isQuiet(), streak: this.gamify.streaks().current });
   }
 
-  // 오늘의 소식 (홈). 방해 금지 등으로 못 띄운 말풍선도 여기 남는다
-  logNews(text, kind, link) {
-    const day = new Date().toDateString();
-    const n = this.state.get('news') || {};
-    const list = n.day === day ? n.list || [] : [];
-    this.state.set({ news: { day, list: [...list, { at: Date.now(), kind, link: link || null, text: String(text).split('||').join(' ') }].slice(-NEWS_MAX) } });
-  }
-
   // merge: 같은 표식의 말풍선이 아직 줄에 서 있으면 쌓지 않고 새것으로 바꾼다 (연달아 사거나 먹일 때)
   // ms: 보일 시간을 정해서 (없으면 글 길이로). extra: 고를 것이 있는 질문 ({ ask, choices })
   bubble(text, kind, link, merge, ms, extra) {
     if (!text) return;
-    if (NEWS_KINDS.has(kind)) {
-      this.logNews(text, kind, link);
-      this.pushHouseSoon();
-    }
     if (!ALWAYS.has(kind)) {
       if (!this.settings.get('bubblesEnabled') && !REWARD.has(kind)) return;
       if (this.isQuiet()) return;
@@ -5886,7 +5127,7 @@ class KitHost {
     this.shop.give({ coins: GOAL_COINS });
     gamify.count('goal');
     gamify.best('goalStreak', r.streak);
-    this.send('pet:action', this.motionFor('levelup'));
+    this.act('levelup');
     this.sound('levelup');
     const v = { n: r.target.toLocaleString(), coins: GOAL_COINS, d: r.streak };
     this.bubble(T.line(r.streak > 1 ? 'goalStreak' : r.unit === 'words' ? 'goalDoneW' : 'goalDoneC', v), 'goal', 'home');
@@ -5951,11 +5192,37 @@ class KitHost {
       this.shop.give({ coins: r.coins });
       this.gamify.count('focus');
       this.gamify.count('focusMin', r.min);
-      this.send('pet:action', this.motionFor('levelup'));
+      this.act('levelup');
       this.sound('achieve');
       this.bubble(this.T.line('focusDone', { m: r.min, coins: r.coins }), 'focus', 'home');
       this.growthSoon();
     }
+    this.afterFocusChange();
+    return r;
+  }
+
+  // 쉬는 시간 (2.0.0): 집중을 마친 뒤 홈에서 켠다. 끝나면 고양이가 다시 해 보자고 한다 (상은 없다)
+  breakStart(min) {
+    const b = this.goals.breakStart(min);
+    if (b) {
+      this.act('rest', 'stretch');
+      this.bubble(this.T.line('breakStart', { m: b.min }), 'focus');
+    }
+    this.afterFocusChange();
+    return this.goals.focusInfo();
+  }
+
+  breakStop() {
+    this.goals.breakStop();
+    this.afterFocusChange();
+    return this.goals.focusInfo();
+  }
+
+  breakTick(now = Date.now()) {
+    const r = this.goals.breakTick(now);
+    if (!r) return null;
+    this.send('pet:action', 'wave');
+    this.bubble(this.T.line('breakDone', { m: r.min }), 'focus', 'home');
     this.afterFocusChange();
     return r;
   }
@@ -5992,7 +5259,7 @@ class KitHost {
         this.sound('evolve');
         this.later(() => this.bubble(this.T.line('grow', { name, stage: this.stageName(g) }), 'grow'), 1700);
       } else if (g.level > lastLevel) {
-        this.send('pet:action', this.motionFor('levelup'));
+        this.act('levelup');
         this.sound('levelup');
         this.bubble(this.T.line('levelup', { lv: g.level }), 'grow');
         const opened = FURS.filter((f) => f.level > lastLevel && f.level <= g.level);
@@ -6069,6 +5336,8 @@ class KitHost {
     const motion = {
       chosen: Object.fromEntries(MOTION_SLOTS.map((x) => [x.key, this.motionList(x.key)[0] || x.free[0]])),
       lists: Object.fromEntries(MOTION_SLOTS.map((x) => [x.key, this.motionList(x.key)])),
+      off: MOTION_SLOTS.filter((x) => this.motionOff(x.key)).map((x) => x.key), // 끈 상황 (2.0.0)
+      setOn: this.settings.get('setMotionsOn') !== false,
       idle: this.motionList('idle'),
       mood: this.moodMotions(),
     };
@@ -6102,18 +5371,15 @@ class KitHost {
       mood: brain.mood,
       hungry: brain.hungry(),
       gauge: this.gauge.get(),
-      craving: this.craving.today(), // 오늘 먹고 싶은 것 { meal, snack, fed }
-      news: ((n) => (n.day === new Date().toDateString() ? n.list || [] : []))(state.get('news') || {}), // 오늘의 소식
+      todos: this.todos.summary(), // 홈의 할 일 (2.0.0)
+      home: this.plugin.homeData ? this.plugin.homeData() : null, // 노트 지도 · 최근 노트 · 외톨이 노트 (2.0.0)
+      skills: gamify.lastGrowth ? triedSkills(gamify.context({})) : [], // 해 본 옵시디언 기술 (다음 단계 안내가 쓴다)
       quiet: this.isQuiet(),
       petShown: !!settings.get('showPet'),
       firstRun: !state.get('onboarded'),
       version: this.plugin.manifest ? this.plugin.manifest.version : '',
       whatsNew: state.get('whatsNew') || null, // 업데이트 뒤 아직 안 본 '새로 생긴 것' (버전 문자열)
       vault: this.vaultStats(),
-      temper: this.temper(),
-      treasures: this.treasures.summary(),
-      workshop: this.workshop.summary(),
-      friends: this.friends.summary(),
       toyRecords: state.get('toyRecords') || {},
     };
   }
@@ -6132,7 +5398,7 @@ class KitHost {
         this.sound('quest');
         this.bubble(T().line('quest', { text: e.quest.text, xp: e.quest.xp }), 'quest', 'quests');
       } else if (e.type === 'allclear') {
-        this.send('pet:action', this.motionFor('levelup'));
+        this.act('levelup');
         this.sound('achieve');
         this.bubble(T().line('questAll', { xp: e.xp }), 'quest', 'quests');
       }
@@ -6195,7 +5461,7 @@ class KitHost {
     // 받은 게 코스튬뿐이면 옷장으로, 아니면 업적 탭으로
     const onlyAcc = list.every((x) => x.reward && x.reward.item && x.reward.kind !== 'motion' && !x.reward.coins);
     const lv = this.motionFor('levelup');
-    this.send('pet:action', lv === 'levelup' ? 'achieve' : lv);
+    if (lv) this.send('pet:action', lv === 'levelup' ? 'achieve' : lv);
     this.sound('achieve');
     this.bubble(got.length ? `${head} · ${T.t('news.reward', { what: got.join(', ') })}` : head, 'achieve', onlyAcc ? 'wardrobe' : 'achievements');
   }
@@ -6207,14 +5473,6 @@ class KitHost {
     if (this.loading) return;
     this.recapNudge();
     this.askTick();
-    const day = this.state.get('temper') && this.state.get('temper').day;
-    if (day !== new Date().toDateString()) {
-      this.temper();
-      this.send('pet:config', this.petConfig());
-    }
-    this.announceTemper();
-    this.maybeEvent();
-    this.friendTick();
     this.gamify.tick(this.brain.lastActivity, this.brain.streakMs());
     this.recomputeGrowth();
   }
@@ -6229,6 +5487,16 @@ class KitHost {
     this.checkWorkTier();
     this.toyOfferTick();
     this.focusTick();
+    this.breakTick();
+  }
+
+  // 옵시디언 습관 하나 (plugin/main.js · 할 일): 업적 · 퀘스트 숫자를 올리고 조금 뒤 다시 판정한다 (2.0.0).
+  // key = move · retitle · orphanFix · todoDone · view_<옵시디언 화면 종류>
+  noteSkill(key, n = 1) {
+    if (!this.gamify) return false;
+    const ok = this.gamify.count(key, n);
+    if (ok) this.growthSoon();
+    return ok;
   }
 
   // 기록이 늘었다 (plugin.flush)
@@ -6249,7 +5517,6 @@ class KitHost {
     for (const id of this.timers) clearTimeout(id);
     clearTimeout(this.hideTimer);
     clearTimeout(this.newsTimer);
-    clearTimeout(this.pushSoonTimer);
     clearTimeout(this.growthTimer);
     if (this.brain) {
       clearTimeout(this.brain.groomTimer);
@@ -6271,14 +5538,11 @@ class KitHost {
         this.dragging = false;
         this.playing = null;
         this.refundTreats();
-        this.pendingLoot = [];
         this.send('pet:config', this.petConfig());
         this.pushState();
         this.send('pet:quiet', this.isQuiet());
         this.sendFocus();
         if (this.loading) this.send('pet:loading', this.plugin.loadingProgress || 0);
-        const visit = this.friends.current();
-        if (visit) this.sendFriend(visit);
         const refund = state.get('refundNote');
         if (refund) {
           state.set({ refundNote: 0 });
@@ -6326,23 +5590,13 @@ class KitHost {
         state.set({ lastFood: key, ...(it.group === 'meal' ? { lastMeal: key } : {}) }); // "아까 그거 또 없어?" · '밥 주기' 순서에 쓴다
         this.sound('quest');
         if (it.premium) this.premiumEaten(it);
-        // 오늘 먹고 싶던 거면 반가워하고, 산 값의 절반을 코인으로 돌려준다
-        const wish = this.craving.eaten(key);
-        if (wish) {
-          if (wish.refund) state.set({ walletBonus: (state.get('walletBonus') || 0) + wish.refund });
-          gamify.count('craving');
-          if (wish.first) gamify.best('cravingRun', wish.run);
-          this.send('pet:action', 'hooray');
-          this.bubble(T.line(wish.both ? 'cravingBoth' : 'cravingYes', { name: T.t(`item.${key}`), n: wish.refund }), 'item', 'home', 'fed');
-          this.pushHouse();
-        }
         if (it.group === 'meal') {
-          if (key !== 'roomService' && !wish) this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'fed', undefined, 'fed');
+          if (key !== 'roomService') this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'fed', undefined, 'fed');
           this.gauge.eat('meal', fillOf(it));
           gamify.count('fed');
           brain.meal();
         } else {
-          if (!PREMIUM_TALK.has(key) && !wish) this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'treat', undefined, 'treat');
+          if (!PREMIUM_TALK.has(key)) this.bubble(T.line('treat', { name: T.t(`item.${key}`) }), 'treat', undefined, 'treat');
           this.gauge.eat('snack', fillOf(it));
           gamify.count('snack');
           brain.treat();
@@ -6378,9 +5632,7 @@ class KitHost {
       case 'pet:rub': {
         const counted = gamify.poke();
         gamify.count('rub');
-        if (a[0] === 'swat') {
-          if (brain.ready('rubSwat', 10_000)) this.bubble(T.line('rubSwat'), 'poke');
-        } else if (brain.ready('rub', 12_000)) this.bubble(T.line(brain.mood === 'sleeping' ? 'rubSleep' : 'rub'), 'poke');
+        if (brain.ready('rub', 12_000)) this.bubble(T.line(brain.mood === 'sleeping' ? 'rubSleep' : 'rub'), 'poke');
         if (counted) this.growthSoon();
         return;
       }
@@ -6407,33 +5659,11 @@ class KitHost {
         }
         return;
       }
-      // 펫 판이 깜짝 이벤트를 못 보여 줬다 (고양이가 바빴다). 오늘 횟수를 돌려받고 그 보물은 안 기다린다
-      case 'pet:event-skip': {
-        if (a[0] == null) return;
-        const k = String(a[0]);
-        if (this.treasures.skip(k)) this.pendingLoot = this.pendingLoot.filter((x) => x.id !== k);
-        return;
-      }
-      case 'pet:treasure': {
-        const key = a[0];
-        if (!this.takeLoot(key)) return;
-        const r = this.treasures.add(key);
-        if (!r) return;
-        const item = T.t('treasure.' + key);
-        this.bubble(T.line(r.fresh ? 'treasureNew' : 'treasureGot', { item, n: r.kinds, total: r.total }), 'item', 'workshop');
-        this.sound('quest');
-        gamify.count('treasure');
-        this.pushHouse();
-        return;
-      }
       case 'pet:event-say': {
-        const [kind, vars] = a;
+        const [kind] = a;
         if (!EVENT_LINES.has(kind)) return;
         if (['dropHigh', 'huntMiss', 'heldLong'].includes(kind) && !brain.ready('say:' + kind, 30_000)) return;
-        const v = {};
-        if (vars && vars.item) v.item = T.t('treasure.' + vars.item);
-        if (vars && vars.friend && FRIENDS.some((x) => x.id === vars.friend)) v.guest = T.t('fr.' + vars.friend + '.name');
-        this.bubble(T.line(kind, v), 'event');
+        this.bubble(T.line(kind), 'event');
         return;
       }
     }
@@ -6458,24 +5688,8 @@ class KitHost {
       if (counted) this.growthSoon();
       return;
     }
-    const tp = this.temper();
-    if (tp === 'grumpy') {
-      const now = Date.now();
-      this.grumpyPokes.push(now);
-      while (this.grumpyPokes.length && now - this.grumpyPokes[0] > 20_000) this.grumpyPokes.shift();
-      const counted = gamify.poke();
-      if (this.grumpyPokes.length >= 2) {
-        this.send('pet:action', 'swat');
-        if (brain.ready('pokeSwat', 8_000)) this.bubble(T.line('pokeSwat'), 'poke');
-      } else {
-        this.send('pet:action', 'perk');
-        if (brain.ready('pokeGrumpy', 15_000)) this.bubble(T.line('pokeGrumpy'), 'poke');
-      }
-      if (counted) this.growthSoon();
-      return;
-    }
-    this.send('pet:action', tp === 'calm' && Math.random() < 0.5 ? 'purr' : this.motionFor('poke'));
-    if (tp === 'playful' && Math.random() < 0.3) this.later(() => this.send('pet:action', 'zoomies'), 1400);
+    // 2.0.0: 그날의 기분을 없앴다. 고른 쓰다듬기 모션 (껐으면 가르릉만)
+    this.act('poke', 'purr');
     const counted = gamify.poke();
     const now = Date.now();
     this.pokes.push(now);
@@ -6492,7 +5706,7 @@ class KitHost {
   // ---------- IPC: 답을 돌려주는 것 (ipcMain.handle) ----------
 
   async onInvoke(ch, frame, ...a) {
-    const { settings, state, gamify, shop, friends, T } = this;
+    const { settings, state, gamify, shop, T } = this;
     switch (ch) {
       case 'house:get':
         return this.housePayload();
@@ -6508,6 +5722,27 @@ class KitHost {
       case 'focus:stop':
         this.focusStop();
         return this.housePayload();
+      case 'focus:break':
+        this.breakStart(a[0]);
+        return this.housePayload();
+      case 'focus:break-stop':
+        this.breakStop();
+        return this.housePayload();
+      // 홈의 할 일 (2.0.0): 플러그인 data 안에서만 만들고 고치고 지운다
+      case 'todo:add':
+      case 'todo:edit':
+      case 'todo:toggle':
+      case 'todo:remove':
+      case 'todo:move':
+      case 'todo:clear': {
+        const r = this.todoOp(ch.slice(5), a);
+        return { ...r, payload: this.housePayload() };
+      }
+      // 이미 있는 노트 열기 · 옵시디언 그래프 열기 (홈의 노트 지도 · 최근 노트)
+      case 'note:open':
+        return this.plugin.openNote ? this.plugin.openNote(String(a[0] || '')) : false;
+      case 'graph:open':
+        return this.plugin.openGraph ? !!(await this.plugin.openGraph(!!a[0])) : false;
       // '새로 생긴 것' 창을 봤다 (하우스가 창을 여는 순간 부른다. 설정에서 다시 볼 수는 있다)
       case 'house:whats-new-seen':
         state.set({ whatsNew: null });
@@ -6519,40 +5754,6 @@ class KitHost {
         const ok = gamify.refreshQuests();
         this.recomputeGrowth();
         return { ok, payload: this.housePayload() };
-      }
-      case 'house:friend-call': {
-        const v = friends.call(String(a[0]));
-        if (v && !v.error) {
-          this.showPet();
-          this.friendArrive(v);
-        }
-        return { result: v, data: this.housePayload() };
-      }
-      case 'house:friend-gift': {
-        const r = friends.gift(String(a[0]), String(a[1]));
-        if (r.ok) {
-          settings.set({ outfit: this.cleanOutfit(settings.get('outfit')) });
-          this.syncAccessory();
-          this.sound('achieve');
-          const v = friends.current();
-          if (v && v.id === r.id) this.send('pet:friend-wear', { id: r.id, wear: friends.wearList(r.id) });
-          this.pushState();
-        }
-        return { result: r, data: this.housePayload() };
-      }
-      case 'dev:event': {
-        if (!settings.get('devMode')) return null;
-        const type = a[0];
-        if (type === 'guest' || type === 'friend') {
-          if (friends.current()) {
-            friends.finish();
-            this.send('pet:friend-leave');
-          }
-          const v = friends.start(FRIENDS[Math.floor(Math.random() * FRIENDS.length)].id, 'visit');
-          if (v) this.friendArrive(v);
-          return v;
-        }
-        return this.maybeEvent(true, type);
       }
       case 'card:save':
         return this.plugin.saveCard(String(a[0] || ''), String(a[1] || 'cat'));
@@ -6571,9 +5772,7 @@ class KitHost {
       case 'shop:buy': {
         const [key, from] = a;
         const r = shop.buy(key);
-        // 모션은 사자마자 상황 칸에 넣고, 어디에 넣었는지 하우스가 알려 준다
-        const placed = r.ok && r.item.kind === 'motion' ? this.placeBoughtMotion(key, typeof from === 'string' ? from : null) : null;
-        if (placed) this.send('pet:config', this.petConfig()); // 펫 판이 새 모션 목록을 쓰게
+        const placed = null; // 2.0.0: 모션은 사지 않는다 (처음부터 다 열려 있다)
         // 먹이에 쓴 코인 (업적 '큰손 집사'). 개발자 모드의 공짜 구매는 안 센다
         if (r.ok && r.item.kind === 'food' && !shop.dev()) gamify.count('foodSpent', r.item.price);
         if (r.ok) {
@@ -6583,27 +5782,6 @@ class KitHost {
           if (r.item.kind !== 'food') this.bubble(T.line('bought', { title: r.item.kind === 'fur' ? T.t(`fur.${r.item.fur}`) : T.t(`item.${key}`) }), 'item', 'wardrobe', 'bought');
         }
         return { payload: this.housePayload(), ok: r.ok, reason: r.reason || null, placed };
-      }
-      // 보물 교환소: 쌓인 보물을 원하는 보물로. 바꿔 받은 건 도감에 안 들어간다
-      case 'workshop:exchange': {
-        const r = this.workshop.exchange(String(a[0]));
-        if (r.ok) this.sound('pop');
-        return { payload: this.housePayload(), ...r };
-      }
-      case 'workshop:fill': {
-        const r = this.workshop.fill(String(a[0]));
-        if (r.ok) this.sound('pop');
-        return { payload: this.housePayload(), ...r };
-      }
-      case 'workshop:craft': {
-        const key = a[0];
-        const r = this.workshop.craft(key);
-        if (r.ok) {
-          this.sound('achieve');
-          this.send('pet:action', 'happy');
-          this.bubble(T.t('workshop.crafted', { name: T.t(`item.${key}`) }), 'item', 'wardrobe');
-        }
-        return { payload: this.housePayload(), ok: r.ok, reason: r.reason || null };
       }
       case 'shop:use':
         return { ok: this.giveFood(a[0]), payload: this.housePayload() };
@@ -6625,29 +5803,6 @@ class KitHost {
         }
         return r;
       }
-      case 'pet:friend-info':
-        return this.friendInfo();
-      case 'pet:friend-trade': {
-        const v = friends.current();
-        const r = friends.trade();
-        if (r && r.ok && v) this.bubble(T.t('fr.gotGift', { name: T.t('fr.' + v.id + '.name'), food: T.t('item.' + r.gift.key), n: r.gift.n }), 'item');
-        return this.friendResult(r);
-      }
-      case 'pet:friend-feed': {
-        const it = FOODS.find((x) => x.key === a[0]);
-        if (!it) return { error: 'none' };
-        return this.friendResult(friends.feed(a[0], it.group));
-      }
-      case 'pet:friend-bye': {
-        const r = friends.finish();
-        // 펫 판이 떠나는 자리에 떨군다. 줍기 전에 끄면 다음에 켤 때 상자로 (treasure.js 의 eventLoot)
-        if (r && r.gift) {
-          this.expectLoot(r.gift);
-          this.treasures.noteLoot(r.gift);
-        }
-        this.pushHouse();
-        return r;
-      }
       // 데스크톱판의 자동 실행·Claude Code 연결. 옵시디언판에는 없다 (화면에서도 뺐다)
       case 'login:set':
       case 'hooks:install':
@@ -6666,6 +5821,24 @@ class KitHost {
         return true;
     }
     return null;
+  }
+
+  // 할 일 하나 조작 (todo:add · edit · toggle · remove · move · clear). 끝냈으면 고양이가 폴짝
+  todoOp(op, a) {
+    const id = String(a[0] || '');
+    let r;
+    if (op === 'add') r = this.todos.add(a[0]);
+    else if (op === 'edit') r = this.todos.edit(id, a[1]);
+    else if (op === 'toggle') r = this.todos.toggle(id);
+    else if (op === 'remove') r = this.todos.remove(id);
+    else if (op === 'move') r = this.todos.move(id, a[1]);
+    else if (op === 'clear') r = this.todos.clearDone();
+    else r = { ok: false, reason: 'op' };
+    if (op === 'toggle' && r.ok && r.item && r.item.done) {
+      this.act('done', 'happy');
+      this.sound('quest');
+    }
+    return { ok: !!r.ok, reason: r.reason || null };
   }
 
   // house:set — 데스크톱판과 같은 규칙으로 설정을 고친다. from = 고친 하우스 창 (나머지 하우스 창·옵시디언 설정 탭에서 고쳤을 때는 하우스를 다시 그린다)
@@ -6770,6 +5943,10 @@ class KitHost {
       }
       allowed.motions = next;
     }
+    // 모션을 끈 상황 (2.0.0): 상황 키 목록만
+    if ('motionsOff' in allowed) {
+      allowed.motionsOff = Array.isArray(allowed.motionsOff) ? [...new Set(allowed.motionsOff)].filter((k) => !!slotOf(k)) : [];
+    }
     if ('idleMotions' in allowed) {
       allowed.idleMotions = Array.isArray(allowed.idleMotions) ? [...new Set(allowed.idleMotions)].filter((k) => shop.canUseMotion('idle', k)) : null;
     }
@@ -6792,7 +5969,7 @@ class KitHost {
       this.plugin.relabel();
     }
     const wearMotion = wore ? this.motionFor('wear') : null;
-    if (['petName', 'outfit', 'fur', 'ears', 'soundEnabled', 'language', 'personality', 'motions', 'idleMotions', 'devMode', 'bubblesEnabled', 'lowPower'].some((k) => k in allowed)) this.send('pet:config', { ...this.petConfig(), wearMotion });
+    if (['petName', 'outfit', 'fur', 'ears', 'soundEnabled', 'language', 'personality', 'motions', 'idleMotions', 'motionsOff', 'setMotionsOn', 'devMode', 'bubblesEnabled', 'lowPower'].some((k) => k in allowed)) this.send('pet:config', { ...this.petConfig(), wearMotion });
     if (wearMotion) this.send('pet:action', wearMotion);
     if ('excludedProjects' in allowed) {
       // 다시 넣은 폴더는 그동안 안 읽었으니 지금 크기로 기준만 잡는다
@@ -6926,12 +6103,14 @@ __defs["plugin/main"] = function (module, exports, require) {
  * Kit Commit (킷커밋) — Obsidian plugin
  *
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 데스크톱 앱 킷커밋의 옵시디언판이다.
- * 고양이·모션·코스튬·장난감·상점·퀘스트·업적·동네 친구·보물 공방은 데스크톱판과 같은 코드(src/kit, src/core)를 쓰고,
+ * 고양이·모션·코스튬·장난감·상점·퀘스트·업적은 데스크톱판과 같은 코드(src/kit, src/core)를 쓰고,
  * Claude Code 토큰 대신 옵시디언 사용량(쓴 글자·링크·새 노트·글쓰기 세션)으로 자라고 코인을 번다.
+ * 2.0.0: 옵시디언을 잘 쓰게 돕는 고양이. 홈에 집중 타이머 · 할 일 · 노트 지도 · 최근 노트, 퀘스트 · 업적은 옵시디언 습관으로.
+ * 동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식은 없앴다.
  *
  * 구조
  *  - src/kit   : 데스크톱판 화면 코드 (펫 창·하우스 창). iframe 안에서 돈다 (plugin/frame.js)
- *  - src/core  : 데스크톱판 로직 (성장·상점·퀘스트·업적·친구·보물·게이지·기분) + 옵시디언 사용량 집계(usage.js)
+ *  - src/core  : 데스크톱판 로직 (성장·상점·퀘스트·업적·게이지) + 옵시디언 사용량 집계(usage.js) · 할 일(todos.js)
  *  - src/plugin: 데스크톱판 main.js·preload.js 자리 (host.js·frame.js·stage.js) 와 옵시디언 연결(이 파일)
  */
 const obsidian = require('obsidian');
@@ -6943,6 +6122,8 @@ const { PetStage } = require('./stage');
 const { isLegacy, legacySummary, legacySettings, LEGACY_COSTUME } = require('./legacy');
 const { loadSafe, backupDaily, readJson } = require('./safedata');
 const { SyncBook } = require('./sync');
+const vaultmap = require('./vaultmap');
+const { VIEWS } = require('../core/skills');
 const PixelArt = require('../kit/pixelart');
 const { UsageTracker, measure, folderKey, pathKey, inFolders, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 const { goalConfig, GOAL_PRESETS, GOAL_RANGE, FOCUS_LENGTHS } = require('../core/goals');
@@ -6961,6 +6142,8 @@ const FOREIGN_WAIT = 30_000;
 const LOCAL_EDIT = 2 * MIN; // 이 안에 이 기기 편집기에서 손댄 노트는 이 기기에서 쓴 글
 const PREMERGE_EVERY = 10 * MIN; // 합치기 전 자료(data.premerge.json)를 남기는 간격
 const SUB_MAX = 500; // 설정에 보이는 하위 폴더 수 상한 (1.6.0)
+const ORPHAN_FIXED_KEEP = 2000; // 외톨이에서 벗어난 노트를 이만큼 기억한다 (같은 노트로 두 번 세지 않게, 2.0.0)
+const HOME_PUSH_WAIT = 1500; // 노트를 열거나 링크가 바뀌면 이만큼 모아서 홈(노트 지도 · 최근 노트)을 다시 그린다
 
 // 사용자가 옵시디언에 설정해 둔 언어 ('ko', 'en', 'ja'…). 처음 설치할 때 고양이 언어를 이걸로 고른다.
 // getLanguage() 는 옵시디언 1.8.7 부터 있다. 그 전에는 옵시디언이 화면 언어에 맞춰 둔 moment 로케일을 본다
@@ -7313,6 +6496,7 @@ class KitCommitPlugin extends Plugin {
     window.clearTimeout(this.flushTimer);
     window.clearTimeout(this.stopTimer);
     window.clearTimeout(this.emptyTimer);
+    window.clearTimeout(this.homeTimer);
     window.clearInterval(this.focusTimer);
     // 바닥에 떨어진 채 안 먹은 먹이는 창고로 돌려 둔 뒤 저장한다
     if (this.host) this.host.refundTreats();
@@ -7372,6 +6556,7 @@ class KitCommitPlugin extends Plugin {
         .filter((x) => x instanceof TFile && x.extension === 'md' && !this.usage.known(old + x.path.slice(f.path.length)));
       this.usage.rename(old, f.path);
       for (const x of fresh) this.baselineFile(x);
+      this.noteRename(f, old);
       this.saveSoon();
     }));
     // 붙여넣기·끌어다 놓기로 들어온 글은 경험치·코인이 되지 않는다 (README '공정하게')
@@ -7384,9 +6569,21 @@ class KitCommitPlugin extends Plugin {
       this.onType();
     }));
     this.registerEvent(workspace.on('file-open', (f) => f && this.onOpen(f)));
+    // 옵시디언 화면(그래프 · 검색 · 백링크 · 개요 …)을 열어 본 것 (2.0.0 퀘스트 · 업적 · 다음 단계 안내)
+    this.registerEvent(workspace.on('active-leaf-change', (leaf) => this.noteView(leaf)));
+    // 링크가 바뀌면 외톨이 노트 · 노트 지도를 다시 본다
+    this.registerEvent(this.app.metadataCache.on('resolved', () => {
+      this.linksDirty = true;
+      this._links = null;
+      this.homeSoon();
+    }));
+    this.usage.dailyTest = vaultmap.dailyMatcher(this.app);
     this.registerInterval(window.setInterval(() => this.host.fastTick(), 5000));
     this.registerInterval(window.setInterval(() => {
       this.host.minuteTick();
+      this.orphanTick();
+      // 데일리 노트 설정을 바꿨을 수 있다
+      this.usage.dailyTest = vaultmap.dailyMatcher(this.app);
       this.saveSoon();
     }, MIN));
 
@@ -7716,6 +6913,8 @@ class KitCommitPlugin extends Plugin {
   onOpen(f) {
     const brain = this.host.brain;
     brain.activity(Date.now());
+    if (f.extension === 'md') this.lastNote = f.path;
+    this.homeSoon();
     // 다른 노트로 가면 빈 노트를 기다리던 건 그만
     if (this.emptyNote && f.path !== this.emptyNote) {
       this.emptyNote = null;
@@ -7779,6 +6978,110 @@ class KitCommitPlugin extends Plugin {
     }
     this._links = { at: now, max: Math.max(0, ...Object.values(counts)), total };
     return this._links;
+  }
+
+  /* ── 홈 (2.0.0): 노트 지도 · 최근 노트 · 외톨이 노트. 읽고 열기만 한다 ── */
+
+  // 노트 지도의 가운데: 지금 연 노트, 없으면 마지막으로 연 노트, 그것도 없으면(막 켰을 때) 옵시디언이 기억하는 최근 노트
+  graphCenter() {
+    const { workspace, vault } = this.app;
+    const f = workspace.getActiveFile && workspace.getActiveFile();
+    if (f && f.extension === 'md') return f.path;
+    if (this.lastNote && vault.getAbstractFileByPath(this.lastNote)) return this.lastNote;
+    const recent = typeof workspace.getLastOpenFiles === 'function' ? workspace.getLastOpenFiles() : [];
+    return recent.find((p) => p.endsWith('.md') && vault.getAbstractFileByPath(p) && !this.isExcludedPath(p)) || null;
+  }
+
+  homeData() {
+    const ex = (p) => this.isExcludedPath(p);
+    const orphans = this.orphanList();
+    return {
+      graph: vaultmap.localGraph(this.app, this.graphCenter(), ex),
+      recent: vaultmap.recentNotes(this.app, ex),
+      orphans: vaultmap.orphanSummary(this.app, orphans),
+      editedToday: vaultmap.editedToday(this.app, ex),
+      notes: this.app.vault.getMarkdownFiles().length,
+      links: this.linkStats().total,
+    };
+  }
+
+  // 노트를 열거나 링크가 바뀌면 열린 홈을 조금 뒤에 한 번 다시 그린다
+  homeSoon() {
+    if (!this.host || !this.host.houses.size) return;
+    window.clearTimeout(this.homeTimer);
+    this.homeTimer = window.setTimeout(() => this.host.pushHouse(), HOME_PUSH_WAIT);
+  }
+
+  // 이미 있는 노트만 연다 (없는 경로를 openLinkText 로 열면 새 노트가 생기니 쓰지 않는다).
+  // 하우스 탭을 덮지 않게 편집기 탭에서 연다: 그 노트가 열린 탭 → 아무 편집기 탭 → 새 탭
+  async openNote(path) {
+    const f = typeof path === 'string' && this.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) return false;
+    const { workspace } = this.app;
+    const editors = typeof workspace.getLeavesOfType === 'function' ? workspace.getLeavesOfType('markdown') : [];
+    const leaf = editors.find((l) => l.view && l.view.file && l.view.file.path === f.path) || editors[0] || workspace.getLeaf('tab');
+    if (!(leaf.view && leaf.view.file && leaf.view.file.path === f.path)) await leaf.openFile(f);
+    if (typeof workspace.setActiveLeaf === 'function') workspace.setActiveLeaf(leaf, { focus: true });
+    return true;
+  }
+
+  // 옵시디언 그래프 뷰 · 로컬 그래프 열기 (코어 그래프 플러그인의 명령. 꺼져 있으면 false)
+  async openGraph(local) {
+    const id = local ? 'graph:open-local' : 'graph:open';
+    const cmds = this.app.commands;
+    if (!cmds || !cmds.commands || !cmds.commands[id]) return false;
+    // 로컬 그래프는 지금 노트가 있어야 열린다. 하우스가 앞에 있으면 노트 지도의 가운데 노트를 먼저 앞으로
+    if (local && !(this.app.workspace.getActiveFile && this.app.workspace.getActiveFile())) {
+      const center = this.graphCenter();
+      if (!center || !(await this.openNote(center))) return false;
+    }
+    return cmds.executeCommandById(id);
+  }
+
+  // 외톨이 노트 (링크가 바뀐 뒤에만 다시 센다)
+  orphanList() {
+    if (!this._orphans || this.linksDirty) {
+      this._orphans = vaultmap.orphanNotes(this.app, (p) => this.isExcludedPath(p));
+      this.linksDirty = false;
+    }
+    return this._orphans;
+  }
+
+  // 1분마다: 외톨이였던 노트가 링크를 얻었으면 '외톨이 노트 이어 주기'. 한 노트는 한 번만 센다 (state.orphanFixed 에 경로 해시)
+  orphanTick() {
+    if (!this.host || this.host.loading) return;
+    const before = this._orphanSeen;
+    const now = new Set(this.orphanList());
+    this._orphanSeen = now;
+    if (!before) return;
+    const fixed = new Set(this.state.get('orphanFixed') || []);
+    let n = 0;
+    for (const p of before) {
+      if (now.has(p) || !this.app.vault.getAbstractFileByPath(p)) continue;
+      const k = pathKey(p);
+      if (fixed.has(k)) continue;
+      fixed.add(k);
+      n++;
+    }
+    if (!n) return;
+    this.state.set({ orphanFixed: [...fixed].slice(-ORPHAN_FIXED_KEEP) });
+    this.host.noteSkill('orphanFix', n);
+  }
+
+  // 노트 이름 바꾸기 · 다른 폴더로 옮기기 (뺀 폴더 · 숨김 폴더는 안 센다). 폴더째 옮기면 한 번
+  noteRename(f, old) {
+    if (!this.host || this.host.loading || this.isExcludedPath(f.path)) return;
+    if (f instanceof TFile && !['md', 'canvas'].includes(f.extension)) return;
+    const dir = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+    this.host.noteSkill(dir(old) !== dir(f.path) ? 'move' : 'retitle');
+  }
+
+  // 옵시디언 화면을 열어 봤다 (VIEWS 에 있는 것만. 같은 화면을 다시 누른 건 안 센다)
+  noteView(leaf) {
+    const type = leaf && leaf.view && typeof leaf.view.getViewType === 'function' ? leaf.view.getViewType() : null;
+    if (!type || type === this._lastView) return;
+    this._lastView = type;
+    if (this.host && !this.host.loading && VIEWS.includes(type)) this.host.noteSkill('view_' + type);
   }
 
   // 볼트 전체 숫자 (통계의 누적 기록 · 자랑 카드)
@@ -8366,6 +7669,8 @@ const DEFAULT_SETTINGS = {
   outfitSaves: [null, null, null],
   motions: {},
   idleMotions: null,
+  motionsOff: [], // 모션을 끈 상황 (2.0.0. 상황 키 목록 — core/shop.js 의 MOTION_SLOTS)
+  setMotionsOn: true, // 세트 옷을 입으면 그 세트 전용 모션을 '심심할 때'에 섞는다 (2.0.0)
   soundEnabled: true,
   bubblesEnabled: true,
   chatter: true,
@@ -8449,8 +7754,8 @@ __defs["plugin/sync"] = function (module, exports, require) {
 
 const DEVICE_SETTINGS = ['position', 'showPet', 'houseInSidebar', 'lowPower'];
 const DEVICE_STATE = [
-  'quietUntil', 'focus', 'focusQuiet', 'lastVersion', 'whatsNew', 'ui', 'temper', 'news', 'lineMemory', 'brainDaily', 'eventLog',
-  'craving', 'pending', 'replies', 'recapNudged', 'refundNote', 'toyOffers', 'guests', 'lastFood', 'lastMeal', 'eventLoot',
+  'quietUntil', 'focus', 'focusQuiet', 'focusBreak', 'lastVersion', 'whatsNew', 'ui', 'lineMemory', 'brainDaily',
+  'pending', 'replies', 'recapNudged', 'refundNote', 'toyOffers', 'lastFood', 'lastMeal',
 ];
 const TIMED_STATE = ['gauge', 'life'];
 const HISTORY_MAX = 12;
@@ -8572,6 +7877,22 @@ const QUESTS = custom((b, l, r) => {
   if (l.id !== r.id) return num(r.at) > num(l.at) ? r : l;
   return { ...l, claimed: [...new Set([...(l.claimed || []), ...(r.claimed || [])])] };
 });
+// 홈의 할 일 (2.0.0, core/todos.js): id 로 합친다. 같은 할 일은 늦게 고친 쪽, 어느 쪽이든 지운 할 일(todoTomb)은 뺀다.
+// 순서는 내 목록 순서에 상대에만 있는 것을 뒤에 붙인다
+const TODOS = custom((b, l, r, ctx) => {
+  if (!Array.isArray(l)) return r;
+  if (!Array.isArray(r)) return l;
+  const gone = new Set([...(ctx.tombs || [])]);
+  const theirs = new Map(r.filter(isObj).map((x) => [x.id, x]));
+  const out = [];
+  for (const x of l.filter(isObj)) {
+    const y = theirs.get(x.id);
+    theirs.delete(x.id);
+    out.push(y && num(y.up) > num(x.up) ? y : x);
+  }
+  out.push(...theirs.values());
+  return out.filter((x) => !gone.has(x.id));
+});
 // [날짜, 그날 횟수] 짝: 늦은 날 쪽, 같은 날이면 횟수를 합친다
 const dayPair = (dayKey, countKey) => (b, l, r, ctx) => {
   const dl = l[dayKey] || '';
@@ -8612,25 +7933,25 @@ function bonusKey(x) {
 const STATE = objOf({
   // 코인 · 별 · 횟수: 양쪽에서 늘어난 만큼
   walletSpent: SUM, walletBonus: SUM, starsSpent: SUM, questsDone: SUM, pokes: SUM, mealsTaken: SUM, restsTaken: SUM,
-  pantry: mapOf(SUM), treasures: mapOf(SUM), cnt: mapOf(SUM),
+  pantry: mapOf(SUM), cnt: mapOf(SUM),
   focusStats: objOf({ n: SUM, min: SUM, last: MAX }),
   purchaseStats: objOf({ v: MAX }, DEEP_SUM),
-  friends: objOf({ list: mapOf(objOf({ pts: SUM, visits: SUM, lastAt: MAX })), visit: DEVICE, nextAt: DEVICE, callReadyAt: DEVICE }),
   // 한 번 오르면 안 내려가는 것
   lastLevel: MAX, lastStage: MAX, stageScheme: MAX, starsPaid: MAX, maxStreakMin: MAX, attendDay: MAX, mealDay: MAX, restDay: MAX, earlyDay: MAX,
   goalLog: mapOf(MAX), toyRecords: DEEP_MAX,
   startedAt: MIN_NZ,
-  greeted: OR, onboarded: OR, initialized: OR, bubbleSplit: OR, keyFix1004: OR, keyFix1009: OR,
+  greeted: OR, onboarded: OR, initialized: OR, bubbleSplit: OR, keyFix1004: OR, keyFix1009: OR, v2: OR,
   // 모으는 것: 합집합
   items: unionOf(String),
-  treasureSeen: unionOf(String),
+  retiredPaid: unionOf(String),
+  todoTomb: unionOf(String, 200),
   bonus: unionOf(bonusKey),
   purchases: unionOf((p) => `${p.at}|${p.key}|${p.price}`, 300),
   starLog: unionOf((p) => `${p.at}|${p.key}`, 200),
-  workshopMade: unionOf((p) => `${p.at}|${p.key}`),
   achievements: mapOf({ t: 'min' }),
   rewarded: mapOf(OR), achRetro: mapOf(OR), achNoCoins: mapOf(OR), streakGifts: mapOf(OR),
   questSet: QUESTS,
+  todos: TODOS,
   gauge: GAUGE,
   life: LIFE,
   ...Object.fromEntries(DEVICE_STATE.map((k) => [k, DEVICE])),
@@ -8716,6 +8037,8 @@ function merge(spec, b, l, r, ctx) {
  */
 function mergeData(base, local, remote, { now = Date.now(), legacy = false } = {}) {
   const ctx = { exact: !!base, now };
+  // 어느 기기에서든 지운 할 일은 합친 목록에 다시 넣지 않는다 (TODOS)
+  ctx.tombs = [...((local.state || {}).todoTomb || []), ...((remote.state || {}).todoTomb || [])];
   const b = base || {};
   const settings = merge(SETTINGS, b.settings, local.settings || {}, remote.settings || {}, ctx);
   const state = merge(STATE, b.state, local.state || {}, remote.state || {}, ctx);
@@ -8789,6 +8112,132 @@ class SyncBook {
 }
 
 module.exports = { SyncBook, mergeData, sharedOf, same, DEVICE_SETTINGS, DEVICE_STATE, TIMED_STATE };
+
+};
+
+__defs["plugin/vaultmap"] = function (module, exports, require) {
+// 홈이 보여 주는 볼트 모습 (2.0.0): 노트 지도(미니 그래프) · 최근 노트 · 외톨이 노트 · 데일리 노트 알아보기.
+// 모두 읽기만 한다. 노트를 만들거나 고치지 않는다 (홈에서 누르면 이미 있는 노트를 열 뿐이다).
+// app 은 옵시디언 App. isExcluded(path) 는 설정에서 뺀 폴더 · 숨김 폴더 (plugin/main.js 의 isExcludedPath)
+const GRAPH_MAX = 36; // 지도에 그리는 노트 수 (사이드바에서도 알아볼 만큼)
+const ORPHAN_SHOWN = 6;
+const RECENT_MAX = 6;
+
+const nameOf = (path) => {
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  return base.replace(/\.md$/, '');
+};
+
+// 옵시디언이 알아낸 링크로 이웃 표를 만든다. out: 노트 → 거기서 건 노트들, inn: 노트 → 그 노트를 건 노트들 (자기 자신 · 없는 노트는 뺀다)
+function linkTable(app) {
+  const resolved = app.metadataCache.resolvedLinks || {};
+  const out = new Map();
+  const inn = new Map();
+  for (const [src, targets] of Object.entries(resolved)) {
+    for (const dst of Object.keys(targets || {})) {
+      if (dst === src) continue;
+      if (!out.has(src)) out.set(src, new Set());
+      out.get(src).add(dst);
+      if (!inn.has(dst)) inn.set(dst, new Set());
+      inn.get(dst).add(src);
+    }
+  }
+  return { out, inn };
+}
+
+// 지금 노트 둘레의 지도: 가운데 노트에서 링크 두 걸음까지, 가까운 것부터 GRAPH_MAX 개.
+// { center, nodes: [{ path, name, hop, deg, missing }], edges: [[i, j]], more } (center 가 없으면 null)
+function localGraph(app, center, isExcluded = () => false, max = GRAPH_MAX) {
+  if (!center || !app.vault.getAbstractFileByPath(center)) return null;
+  const { out, inn } = linkTable(app);
+  const near = (p) => new Set([...(out.get(p) || []), ...(inn.get(p) || [])]);
+  const hop = new Map([[center, 0]]);
+  let ring = [center];
+  let more = 0;
+  for (let h = 1; h <= 2 && ring.length; h++) {
+    const next = [];
+    // 이웃이 많은 노트부터 (허브가 먼저 보이게)
+    const cand = [...new Set(ring.flatMap((p) => [...near(p)]))].filter((p) => !hop.has(p) && !isExcluded(p));
+    cand.sort((a, b) => near(b).size - near(a).size || a.localeCompare(b));
+    for (const p of cand) {
+      if (hop.size >= max) {
+        more++;
+        continue;
+      }
+      hop.set(p, h);
+      next.push(p);
+    }
+    ring = next;
+  }
+  const paths = [...hop.keys()];
+  const index = new Map(paths.map((p, i) => [p, i]));
+  const edges = [];
+  for (const p of paths) for (const q of out.get(p) || []) if (index.has(q)) edges.push([index.get(p), index.get(q)]);
+  const nodes = paths.map((p) => ({ path: p, name: nameOf(p), hop: hop.get(p), deg: near(p).size }));
+  return { center, nodes, edges, more };
+}
+
+// 외톨이 노트: 거는 링크도 받는 링크도 없는 노트 (뺀 폴더는 안 본다). 경로 목록
+function orphanNotes(app, isExcluded = () => false) {
+  const { out, inn } = linkTable(app);
+  return app.vault
+    .getMarkdownFiles()
+    .filter((f) => !isExcluded(f.path) && !(out.get(f.path) || new Set()).size && !(inn.get(f.path) || new Set()).size)
+    .map((f) => f.path);
+}
+
+// 외톨이 노트 요약: 수와 최근에 고친 것부터 몇 개 (퀘스트 카드의 '어떤 노트?')
+function orphanSummary(app, paths) {
+  const files = paths.map((p) => app.vault.getAbstractFileByPath(p)).filter((f) => f && f.stat);
+  files.sort((a, b) => b.stat.mtime - a.stat.mtime);
+  return { n: paths.length, list: files.slice(0, ORPHAN_SHOWN).map((f) => ({ path: f.path, name: nameOf(f.path) })) };
+}
+
+// 최근 연 노트 (옵시디언이 기억하는 순서). 지금 있는 파일만
+function recentNotes(app, isExcluded = () => false, n = RECENT_MAX) {
+  const list = typeof app.workspace.getLastOpenFiles === 'function' ? app.workspace.getLastOpenFiles() : [];
+  const out = [];
+  for (const p of list) {
+    if (out.length >= n) break;
+    const f = app.vault.getAbstractFileByPath(p);
+    if (!f || !f.stat || isExcluded(p) || !/\.(md|canvas)$/.test(p)) continue;
+    out.push({ path: p, name: nameOf(p).replace(/\.canvas$/, ''), canvas: p.endsWith('.canvas'), mtime: f.stat.mtime });
+  }
+  return out;
+}
+
+// 오늘 고친 노트 수
+function editedToday(app, isExcluded = () => false, now = new Date()) {
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return app.vault.getMarkdownFiles().filter((f) => f.stat.mtime >= from && !isExcluded(f.path)).length;
+}
+
+// 코어 '데일리 노트' 설정(폴더 · 날짜 형식)으로 데일리 노트를 알아본다. 설정이 없거나 읽을 수 없으면 null (이름이 YYYY-MM-DD 인 노트로 본다)
+function dailyMatcher(app) {
+  try {
+    const dn = app.internalPlugins && app.internalPlugins.getPluginById && app.internalPlugins.getPluginById('daily-notes');
+    const opt = dn && dn.enabled && dn.instance && dn.instance.options;
+    const moment = typeof window !== 'undefined' && window.moment;
+    if (!opt || !moment) return null;
+    const format = (opt.format || 'YYYY-MM-DD').trim();
+    const folder = String(opt.folder || '').replace(/^\/+|\/+$/g, '');
+    return (path) => {
+      if (!path.endsWith('.md')) return false;
+      const slash = path.lastIndexOf('/');
+      const dir = slash < 0 ? '' : path.slice(0, slash);
+      // 형식에 '/' 가 들어 있으면(YYYY/MM/YYYY-MM-DD) 폴더 아래 경로 전체를 날짜로 읽는다
+      const rest = folder ? (path.startsWith(folder + '/') ? path.slice(folder.length + 1) : null) : path;
+      if (rest == null) return false;
+      const stem = format.includes('/') ? rest.replace(/\.md$/, '') : rest.slice(rest.lastIndexOf('/') + 1).replace(/\.md$/, '');
+      if (!format.includes('/') && folder && dir !== folder) return false;
+      return moment(stem, format, true).isValid();
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+module.exports = { localGraph, orphanNotes, orphanSummary, recentNotes, editedToday, dailyMatcher, linkTable, GRAPH_MAX };
 
 };
 
@@ -17819,6 +17268,474 @@ __defs["kit/i18n"] = function (module, exports, require) {
   for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
+;
+// Vault Pet 2.0.0 글: 옵시디언을 잘 쓰게 돕는 고양이 (홈 · 할 일 · 노트 지도 · 옵시디언 습관 퀘스트 · 업적 · 모션 켜고 끄기 · 장난감 4차).
+// i18n-goals.js 다음에 읽힌다. 호스트에서는 require('../kit/i18n') 한 모듈에 이어 붙고, iframe 에서는 i18n-goals.js 다음 스크립트로 돈다.
+(function (root) {
+  const I = typeof module === 'object' && module.exports && module.exports.UI ? module.exports : root.I18N;
+  if (!I) return;
+  const lines = (arr) => ({ angel: arr });
+
+  /* ───────────── 대사 ───────────── */
+  const LINE = {
+    ko: {
+      breakStart: lines(['{m}분만 쉬자! 물 한 잔 어때?', '좋아, {m}분 쉬는 시간!||눈도 좀 쉬어 줘', '{m}분 기지개 타임!']),
+      breakDone: lines(['쉬는 시간 끝! 다시 집중해 볼까?', '{m}분 잘 쉬었어?||이제 한 번 더 가 보자', '충전 완료! 다음 집중도 같이 하자']),
+      goldMouseCoins: lines(['초콜릿 쥐 속에 코인 {n}개가 들어 있었어!']),
+      mallowEvent: lines(['몸이 구름처럼 가벼워… 우다다 하고 싶어!', '푹신푹신… 기운이 막 솟아!']),
+    },
+    en: {
+      breakStart: lines(['A {m}-minute break! Maybe a glass of water?', 'Okay, {m} minutes off!||Rest your eyes too', '{m}-minute stretch time!']),
+      breakDone: lines(['Break over! Ready to focus again?', 'Good {m}-minute break?||Let’s go one more round', 'Recharged! Let’s do the next focus together']),
+      goldMouseCoins: lines(['There were {n} coins inside the chocolate mouse!']),
+      mallowEvent: lines(['I feel light as a cloud… I want to zoom around!', 'So fluffy… I’m full of energy!']),
+    },
+    zh: {
+      breakStart: lines(['休息 {m} 分钟吧！喝杯水怎么样？', '好，休息 {m} 分钟！||眼睛也歇一歇', '{m} 分钟伸懒腰时间！']),
+      breakDone: lines(['休息结束！再专注一次吧？', '{m} 分钟休息得好吗？||再来一轮吧', '充电完毕！下一次专注也一起吧']),
+      goldMouseCoins: lines(['巧克力老鼠里藏着 {n} 枚金币！']),
+      mallowEvent: lines(['身体轻得像云朵…好想到处跑！', '软绵绵的…一下子精神满满！']),
+    },
+  };
+  for (const lang of Object.keys(LINE)) Object.assign(I.LINE[lang], LINE[lang]);
+
+  /* ───────────── 화면 글 ───────────── */
+  // 업적 [id, 한국어 [이름, 설명, 팁?], 영어, 중국어]
+  const ACH = [
+    ['todo_1', ['첫 체크', '홈의 할 일을 처음 끝냈어요'], ['First check', 'Finish a to-do on Home for the first time'], ['第一个勾', '第一次完成主页上的待办']],
+    ['todo_50', ['체크 마스터', '홈의 할 일 50개를 끝냈어요'], ['Check master', 'Finish 50 to-dos on Home'], ['打勾达人', '完成主页上的 50 个待办']],
+    ['todo_300', ['해낸 일 300', '홈의 할 일 300개를 끝냈어요'], ['300 things done', 'Finish 300 to-dos on Home'], ['完成 300 件事', '完成主页上的 300 个待办']],
+    ['todo_1000', ['천 개의 체크', '홈의 할 일 1,000개를 끝냈어요'], ['A thousand checks', 'Finish 1,000 to-dos on Home'], ['一千个勾', '完成主页上的 1,000 个待办']],
+    ['dailyc_1k', ['일기 한 장', '데일리 노트에 1,000자를 썼어요'], ['A page of the day', 'Write 1,000 characters in daily notes'], ['一页日记', '在日记里写满 1,000 字']],
+    ['dailyc_10k', ['기록하는 하루', '데일리 노트에 10,000자를 썼어요'], ['Days on record', 'Write 10,000 characters in daily notes'], ['记录每一天', '在日记里写满 10,000 字']],
+    ['graph_1', ['별자리 관측', '그래프 뷰나 로컬 그래프를 열어 봤어요', '노트 사이 링크가 별자리처럼 보여요'], ['Stargazer', 'Open the graph view or local graph', 'Your links look like constellations'], ['观星', '打开过关系图谱或局部图谱', '笔记之间的链接像星座一样']],
+    ['search_1', ['찾아라!', '검색 창을 열어 봤어요'], ['Seek and find', 'Open the search pane'], ['找找看', '打开过搜索面板']],
+    ['backlink_1', ['누가 날 불렀지', '백링크나 나가는 링크 창을 열어 봤어요'], ['Who called me?', 'Open the backlinks or outgoing links pane'], ['谁在叫我', '打开过反向链接或出链面板']],
+    ['outline_1', ['한눈에 보기', '개요 창을 열어 봤어요'], ['At a glance', 'Open the outline pane'], ['一目了然', '打开过大纲面板']],
+    ['views_all', ['옵시디언 탐험가', '그래프 · 로컬 그래프 · 검색 · 백링크 · 나가는 링크 · 개요 · 태그 · 북마크 창을 다 열어 봤어요', '오른쪽 · 왼쪽 사이드바에 숨은 창들이에요'], ['Obsidian explorer', 'Open graph, local graph, search, backlinks, outgoing links, outline, tags and bookmarks', 'They live in the left and right sidebars'], ['Obsidian 探险家', '打开过关系图谱、局部图谱、搜索、反向链接、出链、大纲、标签和书签面板', '它们都藏在左右侧边栏里']],
+    ['prop_1', ['꼬리표 달기', '노트에 속성을 처음 달았어요', 'Ctrl+; 로 속성을 바로 달 수 있어요'], ['Tagged with care', 'Add a property to a note for the first time', 'Ctrl+; adds a property right away'], ['贴个标签', '第一次给笔记添加属性', '按 Ctrl+; 就能添加属性']],
+    ['prop_50', ['정리 정돈', '속성을 50개 달았어요'], ['Neat and tidy', 'Add 50 properties'], ['井井有条', '添加 50 个属性']],
+    ['prop_300', ['메타데이터 장인', '속성을 300개 달았어요'], ['Metadata artisan', 'Add 300 properties'], ['元数据工匠', '添加 300 个属性']],
+    ['move_1', ['이사 완료', '노트를 다른 폴더로 처음 옮겼어요'], ['Moved in', 'Move a note to another folder for the first time'], ['搬家完成', '第一次把笔记移到别的文件夹']],
+    ['move_50', ['서랍 정리', '노트를 50번 옮겼어요'], ['Drawer tidy', 'Move notes 50 times'], ['整理抽屉', '移动笔记 50 次']],
+    ['move_300', ['정리의 달인', '노트를 300번 옮겼어요'], ['Master organizer', 'Move notes 300 times'], ['整理大师', '移动笔记 300 次']],
+    ['retitle_10', ['이름 짓기', '노트 이름을 10번 다듬었어요'], ['Name giver', 'Rename notes 10 times'], ['起名高手', '修改笔记名称 10 次']],
+    ['orphan_1', ['외톨이 구조대', '링크가 하나도 없던 노트를 처음 이어 줬어요', '외톨이 노트는 나중에 찾기 어려워요'], ['Rescue squad', 'Link a note that had no links for the first time', 'Notes without links are hard to find later'], ['孤岛救援队', '第一次把没有任何链接的笔记连起来', '没有链接的笔记以后很难找到']],
+    ['orphan_30', ['다리 놓는 고양이', '외톨이 노트 30개를 이어 줬어요'], ['Bridge builder', 'Link 30 orphan notes'], ['搭桥猫咪', '连起 30 篇孤立笔记']],
+    ['orphan_100', ['아무도 혼자가 아니야', '외톨이 노트 100개를 이어 줬어요'], ['No note left behind', 'Link 100 orphan notes'], ['没有笔记落单', '连起 100 篇孤立笔记']],
+  ];
+
+  const UI = {
+    ko: {
+      'ach.cat.organize': '정리 습관',
+      'ach.cat.focus': '목표·집중·할 일',
+      // 퀘스트 (core/gamify.js 의 QUEST_POOL)
+      'quest.tags': '태그 {n}개 달기',
+      'quest.heads': '제목(#) {n}개 달기',
+      'quest.daily': '데일리 노트에 {n}자 쓰기',
+      'quest.tasks': '노트 속 할 일 {n}개 체크하기',
+      'quest.props': '속성 {n}개 달기',
+      'quest.embeds': '임베드나 콜아웃 {n}번 써 보기',
+      'quest.organize': '노트 {n}개 정리하기 (옮기기 · 이름 다듬기)',
+      'quest.orphans': '외톨이 노트 {n}개 이어 주기',
+      'quest.focus': '집중 시간 {n}번 마치기',
+      'quest.todos': '홈 할 일 {n}개 끝내기',
+      'quest.graph': '그래프 뷰로 노트 사이 둘러보기',
+      // 처음 해 보는 사람을 위한 안내 (core/skills.js)
+      'skill.write.how': '노트를 열고 떠오르는 대로 적어 보세요. 완벽하지 않아도 돼요',
+      'skill.link.how': '[[ 를 치고 노트 이름을 고르면 링크가 걸려요',
+      'skill.tag.how': '#회의 처럼 # 뒤에 단어를 붙이면 태그예요. 태그 창에서 모아 볼 수 있어요',
+      'skill.heading.how': '줄 맨 앞에 # (큰 제목)이나 ## (작은 제목)을 쓰고 한 칸 띄워요',
+      'skill.task.how': '- [ ] 로 할 일을 적고, 끝나면 네모를 눌러 체크해요',
+      'skill.daily.how': '왼쪽 리본의 달력 아이콘(오늘의 일일 노트)을 눌러 오늘 노트에 적어요. 안 보이면 설정 → 코어 플러그인에서 켜요',
+      'skill.property.how': 'Ctrl+; 를 누르거나 노트 맨 위에 --- 를 쳐서 날짜 · 상태 같은 속성을 달아요',
+      'skill.embed.how': '![[노트]] 로 다른 노트를 끼워 넣거나, > [!note] 로 콜아웃 상자를 만들어요',
+      'skill.organize.how': '파일 탐색기에서 노트를 폴더로 끌어 옮기거나, 노트 제목을 눌러 이름을 다듬어요',
+      'skill.orphan.how': '아래 노트 하나를 열어 어울리는 노트로 [[링크]]를 하나 걸어 주세요',
+      'skill.focus.how': '홈 맨 위의 집중 버튼을 누르면 타이머가 시작돼요',
+      'skill.todo.how': '홈의 할 일에 적어 두고, 끝나면 체크해요',
+      'skill.graph.how': '홈 노트 지도의 「그래프 뷰」를 누르거나 왼쪽 리본의 그래프 아이콘을 눌러요',
+      // 홈 (2.0.0)
+      'home.focusMin': '{m}분',
+      'home.focusToday': '오늘 {n}번 · {m}분 집중',
+      'home.breakOn': '쉬는 중 · {left} 남음',
+      'home.breakStop': '쉬기 그만',
+      'home.focusAgain': '다시 집중',
+      'home.breakBtn': '{m}분 쉬기',
+      'home.fold': '접기',
+      'home.unfold': '펼치기',
+      'home.mapTitle': '노트 지도',
+      'home.localGraph': '로컬 그래프',
+      'home.graphView': '그래프 뷰',
+      'home.mapSum': '볼트 노트 {n}개 · 링크 {l}개 · 외톨이 노트 {o}개',
+      'home.mapNone': '노트를 하나 열면 그 노트와 이어진 노트들이 여기 지도로 보여요',
+      'home.mapMore': '+{n}개 더',
+      'home.mapNear': '이어진 노트 {n}개',
+      'home.recentTitle': '최근 노트',
+      'home.recentNone': '아직 연 노트가 없어요',
+      'home.editedToday': '오늘 고친 노트 {n}개',
+      'home.agoNow': '방금',
+      'home.agoMin': '{n}분 전',
+      'home.agoHour': '{n}시간 전',
+      'home.noteGone': '그 노트를 찾을 수 없어요 (지웠거나 옮긴 것 같아요)',
+      'home.graphNeedNote': '로컬 그래프는 노트를 하나 연 뒤에 열 수 있어요',
+      'home.graphOff': '그래프 뷰가 꺼져 있어요. 설정 → 코어 플러그인에서 켜 주세요',
+      // 할 일 (core/todos.js)
+      'todo.title': '할 일',
+      'todo.placeholder': '할 일 적기… (Enter)',
+      'todo.add': '추가',
+      'todo.empty': '아직 할 일이 없어요. 오늘 할 일 하나를 적어 볼까요?',
+      'todo.doneShow': '끝낸 것 {n}개 보기',
+      'todo.doneHide': '끝낸 것 접기',
+      'todo.clear': '끝낸 것 지우기',
+      'todo.note': 'Vault Pet 안에만 저장돼요. 노트를 만들거나 고치지 않아요',
+      'todo.editLbl': '할 일 고치기',
+      'todo.editHint': '두 번 누르면 고칠 수 있어요',
+      'todo.up': '위로',
+      'todo.down': '아래로',
+      'todo.del': '지우기',
+      'todo.full': '할 일은 100개까지예요. 끝낸 것을 지워 주세요',
+      // 모션 (2.0.0: 모두 열림 · 상황마다 끄기)
+      'set.motionsSub': '모션은 처음부터 모두 열려 있어요. 상황마다 고르고, 스위치를 끄면 그 상황엔 모션을 하지 않아요. 그림을 누르면 크게 볼 수 있어요',
+      'set.setMotions': '세트 옷 전용 모션 섞기',
+      'set.setMotionsSub': '세트 옷을 입으면 그 세트만의 모션을 심심할 때 가끔 해요',
+      'mot.offNote': '꺼 뒀어요 · 이 상황엔 따로 모션을 하지 않아요',
+      'mot.turnOn': '켜기',
+      'mot.turnOff': '끄기',
+      'toast.motionOn': '「{slot}」 모션을 켰어요',
+      'toast.motionOff': '「{slot}」 모션을 껐어요',
+      'motion.headbang': '헤드폰 리듬 타자',
+      'motion.aura': '초사이언 집필',
+      // 친구 · 보물이 없어져서 고친 글
+      'gauge.fullNote': '든든해요! 오늘도 같이 힘내 봐요',
+      'gauge.okNote': '배부름은 벌이 아니라 덤이에요. 배가 고프면 가끔 밥 달라고 조를 뿐이에요',
+      'gauge.hungryNote': '배가 고파요. 밥을 주면 다시 든든해져요',
+      'foodFx.cloudMallow': '곧 우다다',
+      'foodFxTip.cloudMallow': '먹고 잠깐 뒤 신나서 우다다 뛰어요',
+      'foodFx.goldMouseChoco': '코인 40~120',
+      'foodFxTip.goldMouseChoco': '먹으면 코인 40~120개가 나와요',
+      'foodFx.fortuneCookie': '운세 · 가끔 코인',
+      'foodFxTip.fortuneCookie': '운세 한마디 · 가끔 코인 50',
+      'legacy.body': '이제 Vault Pet은 옷을 갈아입고, 장난감으로 놀고, 옵시디언 쓰는 습관을 같이 들이는 도트 고양이예요. 성장은 새로 시작하지만, 처음부터 함께해 주신 분께 작은 선물을 드려요.',
+      // 새로 생긴 것 (2.0.0)
+      'wn.home2.t': '홈이 새로워졌어요',
+      'wn.home2.d': '집중 타이머 · 할 일 · 오늘 퀘스트 · 노트 지도 · 최근 노트를 한 화면에. 칸마다 접을 수 있어요',
+      'wn.todo2.t': '할 일',
+      'wn.todo2.d': 'Vault Pet 안에만 저장되는 할 일 목록이에요. 노트를 만들지 않아요. 두 번 누르면 고치고, 끝내면 고양이가 폴짝',
+      'wn.map2.t': '노트 지도',
+      'wn.map2.d': '지금 연 노트와 이어진 노트들을 작은 그래프로 보여 줘요. 점을 누르면 그 노트가 열려요',
+      'wn.quest2.t': '옵시디언 습관 퀘스트 · 업적',
+      'wn.quest2.d': '태그 · 데일리 노트 · 속성 · 노트 정리 · 외톨이 노트 잇기 같은 퀘스트와 업적이 생겼어요. 처음이면 퀘스트 아래 안내를 봐요',
+      'wn.motion2.t': '모션은 모두 공짜',
+      'wn.motion2.d': '모든 모션이 처음부터 열려 있어요. 설정에서 상황마다 고르고 끌 수 있어요. 옵시디언과 어울리지 않는 모션은 뺐고, 산 값은 코인으로 돌려드렸어요',
+      'wn.toys2.t': '새 장난감 6종',
+      'wn.toys2.d': '햇살 조각 · 이불 속 손 · 어항 · 고양이 찾기 · 비치볼 배구 · 냥냥 피아노. 레이저 · 비눗방울도 다시 잘 쫓아요',
+      'wn.gone2.t': '정리한 것',
+      'wn.gone2.d': '동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 뺐어요. 남은 보물은 코인으로 바꿔 드렸고, 공방에서 만든 옷은 옷장에 그대로 있어요 (이제 상점에서도 팔아요)',
+      // 장난감 4차 (킷커밋 9차)
+      'item.sunbeam': '햇살 조각',
+      'item.quilt': '이불 속 손',
+      'item.fishbowl': '어항',
+      'item.shellgame': '고양이 찾기',
+      'item.volley': '비치볼 배구',
+      'item.simon': '냥냥 피아노',
+      'toyHow.sunbeam': '햇살을 바닥에 깔아 두면 고양이가 와서 낮잠 · 끌어서 옮기고, 톡 누르면 반응해요 (배를 보일 땐 조심)',
+      'toyHow.quilt': '이불 위에 마우스를 올리면 이불 속 손이 꼼지락 · 고양이가 덮칠 때 손을 빼서 얼마나 오래 버티나',
+      'toyHow.fishbowl': '어항을 두면 고양이가 물고기 구경 · 어항을 누르면 밥 주기, 바닥에 튀어나온 물고기를 누르면 돌려보내기',
+      'toyHow.shellgame': '고양이가 숨은 상자가 섞여요 · 고양이가 든 상자를 눌러 맞히면 연속 기록',
+      'toyHow.volley': '내 쪽으로 넘어온 공을 클릭해서 넘겨요 · 고양이와 랠리를 얼마나 이어 가나',
+      'toyHow.simon': '고양이가 밟아 들려준 가락을 같은 순서로 판을 눌러 따라 쳐요 · 한 음씩 늘어나요',
+      'toyDo.sunbeam': '#일광욕 #벌러덩 #나비 #에취',
+      'toyDo.quilt': '#이불 속 손 #엉덩이 씰룩 #덥석',
+      'toyDo.fishbowl': '#물멍 #톡톡 #첨벙 #파닥파닥',
+      'toyDo.shellgame': '#야바위 #어디 있게 #메롱',
+      'toyDo.volley': '#랠리 #폴짝 #불꽃 공',
+      'toyDo.simon': '#도미솔도 #따라 치기 #앙코르',
+      'game.rec.quilt': '최고 {n}초',
+      'game.rec.shellgame': '최고 {n}연속',
+      'game.rec.volley': '최고 랠리 {n}',
+      'game.rec.simon': '최고 {n}음',
+      'game.rec.jumprope': '최고 {n}콤보',
+      'toyHow.bananapeel': '고양이가 가는 길에 몰래 놓아 두세요 · 고양이는 마우스 쪽으로 걸어와요 (한 번 미끄러지면 조심하니, 발밑에 휙 던져 보세요)',
+      'toyHow.vacuum': '클릭하면 켜고 끄기 · 청소기를 몰아 보세요 (자꾸 켜면 고양이가 용감해져요)',
+      'toyHow.boxtower': '상자를 눌러 한 층씩 쌓아요 (최대 7층) · 높을수록 고양이가 망설이고, 꼭대기에 성공하면 왕관',
+      'toyHow.magichat': '모자를 누를 때마다 뭔가 튀어나와요 · 아주 가끔은 황금 물고기',
+      'toyHow.rccar': '자동차가 마우스를 따라 달려요 · 클릭하면 부스터, 세 번 잡히면 고양이가 올라타요',
+      'toyHow.jumprope': '클릭할 때마다 줄이 한 바퀴 · 일정한 박자로 누르면 콤보 (박자가 딱 맞으면 PERFECT)',
+    },
+    en: {
+      'ach.cat.organize': 'Tidy habits',
+      'ach.cat.focus': 'Goals, focus & to-dos',
+      'quest.tags': 'Add tags ({n})',
+      'quest.heads': 'Add headings with # ({n})',
+      'quest.daily': 'Write {n} characters in your daily note',
+      'quest.tasks': 'Check off tasks in your notes ({n})',
+      'quest.props': 'Add properties ({n})',
+      'quest.embeds': 'Use embeds or callouts ({n})',
+      'quest.organize': 'Tidy notes: move or rename ({n})',
+      'quest.orphans': 'Link orphan notes ({n})',
+      'quest.focus': 'Finish focus sessions ({n})',
+      'quest.todos': 'Finish to-dos on Home ({n})',
+      'quest.graph': 'Look around your notes in the graph view',
+      'quest.notes': 'Fill new notes ({n})',
+      'quest.links': 'Add links ({n})',
+      'skill.write.how': 'Open a note and write whatever comes to mind. It doesn’t have to be perfect',
+      'skill.link.how': 'Type [[ and pick a note name to make a link',
+      'skill.tag.how': 'A word after # (like #meeting) is a tag. The Tags pane gathers them',
+      'skill.heading.how': 'Start a line with # (big heading) or ## (smaller) and a space',
+      'skill.task.how': 'Write a task as - [ ] and click the box when it’s done',
+      'skill.daily.how': 'Click the calendar icon (Open today’s daily note) in the left ribbon. If it’s missing, turn it on in Settings → Core plugins',
+      'skill.property.how': 'Press Ctrl+; or type --- at the very top of a note to add properties like date or status',
+      'skill.embed.how': 'Use ![[note]] to embed another note, or > [!note] for a callout box',
+      'skill.organize.how': 'Drag a note into a folder in the file explorer, or click its title to rename it',
+      'skill.orphan.how': 'Open one of the notes below and add a [[link]] to a related note',
+      'skill.focus.how': 'Press the focus button at the top of Home to start the timer',
+      'skill.todo.how': 'Write it in the to-do list on Home and check it off when done',
+      'skill.graph.how': 'Click “Graph view” on the Home note map, or the graph icon in the left ribbon',
+      'home.focusMin': '{m} min',
+      'home.focusToday': 'Today: {n}× · {m} min',
+      'home.breakOn': 'On a break · {left} left',
+      'home.breakStop': 'End break',
+      'home.focusAgain': 'Focus again',
+      'home.breakBtn': '{m}-min break',
+      'home.fold': 'Collapse',
+      'home.unfold': 'Expand',
+      'home.mapTitle': 'Note map',
+      'home.localGraph': 'Local graph',
+      'home.graphView': 'Graph view',
+      'home.mapSum': '{n} notes · {l} links · {o} orphan notes in this vault',
+      'home.mapNone': 'Open a note and the notes linked to it show up here as a map',
+      'home.mapMore': '+{n} more',
+      'home.mapNear': '{n} linked notes',
+      'home.recentTitle': 'Recent notes',
+      'home.recentNone': 'No notes opened yet',
+      'home.editedToday': '{n} notes edited today',
+      'home.agoNow': 'just now',
+      'home.agoMin': '{n} min ago',
+      'home.agoHour': '{n} h ago',
+      'home.noteGone': 'Can’t find that note (it may have been deleted or moved)',
+      'home.graphNeedNote': 'Open a note first to see its local graph',
+      'home.graphOff': 'The graph view is off. Turn it on in Settings → Core plugins',
+      'todo.title': 'To-do',
+      'todo.placeholder': 'Add a to-do… (Enter)',
+      'todo.add': 'Add',
+      'todo.empty': 'Nothing here yet. Want to write down one thing for today?',
+      'todo.doneShow': 'Show {n} done',
+      'todo.doneHide': 'Hide done',
+      'todo.clear': 'Clear done',
+      'todo.note': 'Saved inside Vault Pet only. No notes are created or changed',
+      'todo.editLbl': 'Edit to-do',
+      'todo.editHint': 'Double-click to edit',
+      'todo.up': 'Move up',
+      'todo.down': 'Move down',
+      'todo.del': 'Delete',
+      'todo.full': 'Up to 100 to-dos. Clear the done ones first',
+      'set.motionsSub': 'Every motion is unlocked from the start. Pick them for each moment, or switch a moment off to skip its motion. Click a picture to see it bigger',
+      'set.setMotions': 'Mix in set-only motions',
+      'set.setMotionsSub': 'When wearing a full set, the cat sometimes does that set’s own motions when idle',
+      'mot.offNote': 'Off · no special motion here',
+      'mot.turnOn': 'Turn on',
+      'mot.turnOff': 'Turn off',
+      'toast.motionOn': '“{slot}” motions on',
+      'toast.motionOff': '“{slot}” motions off',
+      'motion.headbang': 'Headphone rhythm typing',
+      'motion.aura': 'Super-saiyan writing',
+      'gauge.fullNote': 'Full and happy! Let’s keep going together',
+      'gauge.okNote': 'Fullness is a bonus, not a penalty. A hungry cat just asks for food now and then',
+      'gauge.hungryNote': 'Hungry. A meal fills it right back up',
+      'foodFx.cloudMallow': 'Zoomies soon',
+      'foodFxTip.cloudMallow': 'Shortly after eating, the cat gets the zoomies',
+      'foodFx.goldMouseChoco': '40–120 coins',
+      'foodFxTip.goldMouseChoco': 'Gives 40–120 coins',
+      'foodFx.fortuneCookie': 'Fortune · coins',
+      'foodFxTip.fortuneCookie': 'A fortune · sometimes 50 coins',
+      'legacy.body': 'Vault Pet is now a pixel cat that wears costumes, plays with toys and builds good Obsidian habits with you. Growth starts fresh, so here is a small thank-you for being here from the start.',
+      'wn.home2.t': 'A new Home',
+      'wn.home2.d': 'Focus timer, to-dos, today’s quests, a note map and recent notes on one screen. Each section folds',
+      'wn.todo2.t': 'To-dos',
+      'wn.todo2.d': 'A to-do list saved inside Vault Pet only — it never creates notes. Double-click to edit; finish one and the cat hops',
+      'wn.map2.t': 'Note map',
+      'wn.map2.d': 'A small graph of the note you have open and the notes linked to it. Click a dot to open that note',
+      'wn.quest2.t': 'Obsidian habit quests & badges',
+      'wn.quest2.d': 'New quests and badges for tags, daily notes, properties, tidying notes and linking orphan notes. New to it? Read the hint under each quest',
+      'wn.motion2.t': 'All motions are free',
+      'wn.motion2.d': 'Every motion is unlocked. Pick or switch them off per moment in Settings. Motions that didn’t fit Obsidian are gone, and what you paid for them came back as coins',
+      'wn.toys2.t': '6 new toys',
+      'wn.toys2.d': 'Sunbeam, hand under the quilt, fishbowl, find the cat, beach ball volley and paw piano. The laser and bubbles get chased properly again',
+      'wn.gone2.t': 'What’s gone',
+      'wn.gone2.d': 'Neighbor friends, the treasure workshop, the daily mood, food cravings and today’s news are gone. Leftover treasures became coins, and costumes you crafted stay in your wardrobe (they’re in the shop now too)',
+      'item.sunbeam': 'Sunbeam',
+      'item.quilt': 'Hand under the quilt',
+      'item.fishbowl': 'Fishbowl',
+      'item.shellgame': 'Find the cat',
+      'item.volley': 'Beach ball volley',
+      'item.simon': 'Paw piano',
+      'toyHow.sunbeam': 'Lay the sunbeam down and the cat comes to nap · drag it around, click for reactions (careful with the belly)',
+      'toyHow.quilt': 'Hover over the quilt and your hand wiggles underneath · pull away when the cat pounces — how long can you last?',
+      'toyHow.fishbowl': 'The cat watches the fish · click the bowl to feed them, click a flopping fish to put it back',
+      'toyHow.shellgame': 'The boxes shuffle with the cat hiding under one · click the right box to keep your streak',
+      'toyHow.volley': 'Click the ball when it comes to your side · how long a rally can you keep with the cat?',
+      'toyHow.simon': 'The cat hops out a tune on the pads · click them back in the same order, one more note each round',
+      'toyDo.sunbeam': '#sunbathing #belly up #butterfly #achoo',
+      'toyDo.quilt': '#hand under blanket #butt wiggle #gotcha',
+      'toyDo.fishbowl': '#fish TV #tap tap #splash #flop',
+      'toyDo.shellgame': '#shell game #where am I #blep',
+      'toyDo.volley': '#rally #hop #fireball',
+      'toyDo.simon': '#do mi sol do #copy me #encore',
+      'game.rec.quilt': 'Best {n}s',
+      'game.rec.shellgame': 'Best streak {n}',
+      'game.rec.volley': 'Best rally {n}',
+      'game.rec.simon': 'Best {n} notes',
+      'game.rec.jumprope': 'Best combo {n}',
+      'toyHow.bananapeel': 'Sneak it into the cat’s path · the cat walks toward your mouse (after one slip it gets careful — try tossing it right under its feet)',
+      'toyHow.vacuum': 'Click to switch it on and off · drive it around (keep at it and the cat gets braver)',
+      'toyHow.boxtower': 'Click the boxes to stack them (up to 7) · the taller it gets the more the cat hesitates — make the top for a crown',
+      'toyHow.magichat': 'Something pops out every time you click the hat · very rarely, a golden fish',
+      'toyHow.rccar': 'The car chases your mouse · click for a boost, and after three catches the cat hops on for a ride',
+      'toyHow.jumprope': 'Each click swings the rope once · keep a steady beat for combos (spot-on timing is PERFECT)',
+    },
+    zh: {
+      'ach.cat.organize': '整理习惯',
+      'ach.cat.focus': '目标·专注·待办',
+      'quest.tags': '添加 {n} 个标签',
+      'quest.heads': '添加 {n} 个标题 (#)',
+      'quest.daily': '在日记里写 {n} 字',
+      'quest.tasks': '勾选笔记里的 {n} 个任务',
+      'quest.props': '添加 {n} 个属性',
+      'quest.embeds': '用 {n} 次嵌入或标注框',
+      'quest.organize': '整理 {n} 篇笔记（移动或改名）',
+      'quest.orphans': '把 {n} 篇孤立笔记连起来',
+      'quest.focus': '完成 {n} 次专注',
+      'quest.todos': '完成主页上的 {n} 个待办',
+      'quest.graph': '用关系图谱逛一逛笔记',
+      'skill.write.how': '打开一篇笔记，想到什么写什么。不需要完美',
+      'skill.link.how': '输入 [[ 再选一个笔记名，就建立了链接',
+      'skill.tag.how': '像 #会议 这样在 # 后面接一个词就是标签，可以在标签面板里集中查看',
+      'skill.heading.how': '在行首写 #（大标题）或 ##（小标题），再空一格',
+      'skill.task.how': '用 - [ ] 写下任务，完成后点一下方框打勾',
+      'skill.daily.how': '点击左侧功能区的日历图标（打开今天的日记）。看不到的话，在 设置 → 核心插件 里打开',
+      'skill.property.how': '按 Ctrl+; 或在笔记最上方输入 ---，添加日期、状态之类的属性',
+      'skill.embed.how': '用 ![[笔记]] 嵌入另一篇笔记，或用 > [!note] 做一个标注框',
+      'skill.organize.how': '在文件列表里把笔记拖进文件夹，或点击笔记标题来改名',
+      'skill.orphan.how': '打开下面的一篇笔记，给它加一个指向相关笔记的 [[链接]]',
+      'skill.focus.how': '点主页最上方的专注按钮就会开始计时',
+      'skill.todo.how': '写进主页的待办里，完成后打勾',
+      'skill.graph.how': '点主页笔记地图里的「关系图谱」，或左侧功能区的图谱图标',
+      'home.focusMin': '{m} 分钟',
+      'home.focusToday': '今天 {n} 次 · {m} 分钟',
+      'home.breakOn': '休息中 · 剩余 {left}',
+      'home.breakStop': '结束休息',
+      'home.focusAgain': '再专注一次',
+      'home.breakBtn': '休息 {m} 分钟',
+      'home.fold': '收起',
+      'home.unfold': '展开',
+      'home.mapTitle': '笔记地图',
+      'home.localGraph': '局部图谱',
+      'home.graphView': '关系图谱',
+      'home.mapSum': '库里有笔记 {n} 篇 · 链接 {l} 个 · 孤立笔记 {o} 篇',
+      'home.mapNone': '打开一篇笔记，和它相连的笔记就会在这里显示成地图',
+      'home.mapMore': '还有 {n} 篇',
+      'home.mapNear': '相连笔记 {n} 篇',
+      'home.recentTitle': '最近的笔记',
+      'home.recentNone': '还没有打开过笔记',
+      'home.editedToday': '今天修改了 {n} 篇笔记',
+      'home.agoNow': '刚刚',
+      'home.agoMin': '{n} 分钟前',
+      'home.agoHour': '{n} 小时前',
+      'home.noteGone': '找不到那篇笔记（可能已删除或移动）',
+      'home.graphNeedNote': '先打开一篇笔记才能看局部图谱',
+      'home.graphOff': '关系图谱没有开启。请在 设置 → 核心插件 里打开',
+      'todo.title': '待办',
+      'todo.placeholder': '写下待办…（回车）',
+      'todo.add': '添加',
+      'todo.empty': '还没有待办。写下今天要做的一件事吧？',
+      'todo.doneShow': '查看已完成 {n} 个',
+      'todo.doneHide': '收起已完成',
+      'todo.clear': '清除已完成',
+      'todo.note': '只保存在 Vault Pet 里，不会新建或修改笔记',
+      'todo.editLbl': '修改待办',
+      'todo.editHint': '双击即可修改',
+      'todo.up': '上移',
+      'todo.down': '下移',
+      'todo.del': '删除',
+      'todo.full': '待办最多 100 个。请先清除已完成的',
+      'set.motionsSub': '所有动作一开始就全部解锁。为每个时刻挑选动作，关掉开关后那个时刻就不做动作。点击图片可以放大查看',
+      'set.setMotions': '混入套装专属动作',
+      'set.setMotionsSub': '穿上整套服装时，猫咪闲着会偶尔做这套服装专属的动作',
+      'mot.offNote': '已关闭 · 这个时刻不做特别动作',
+      'mot.turnOn': '打开',
+      'mot.turnOff': '关闭',
+      'toast.motionOn': '已打开「{slot}」动作',
+      'toast.motionOff': '已关闭「{slot}」动作',
+      'motion.headbang': '戴耳机打节奏',
+      'motion.aura': '超级赛亚写作',
+      'gauge.fullNote': '吃饱饱！今天也一起加油',
+      'gauge.okNote': '饱腹度只是小奖励，不是惩罚。饿了的猫咪只会偶尔讨饭吃',
+      'gauge.hungryNote': '肚子饿了。喂一顿饭就又饱饱的了',
+      'foodFx.cloudMallow': '马上撒欢',
+      'foodFxTip.cloudMallow': '吃完不久猫咪会兴奋地跑来跑去',
+      'foodFx.goldMouseChoco': '金币 40~120',
+      'foodFxTip.goldMouseChoco': '吃了会得到 40~120 枚金币',
+      'foodFx.fortuneCookie': '运势 · 偶尔金币',
+      'foodFxTip.fortuneCookie': '一句运势 · 偶尔 50 金币',
+      'legacy.body': '现在的 Vault Pet 是一只会换装、玩玩具、陪你养成 Obsidian 好习惯的像素猫。成长将重新开始，所以给从一开始就陪伴我们的你准备了一份小小谢礼。',
+      'wn.home2.t': '全新的主页',
+      'wn.home2.d': '专注计时、待办、今日任务、笔记地图和最近的笔记都在一个页面上。每一栏都可以收起',
+      'wn.todo2.t': '待办',
+      'wn.todo2.d': '只保存在 Vault Pet 里的待办清单，不会新建笔记。双击修改，完成一个猫咪就会蹦一下',
+      'wn.map2.t': '笔记地图',
+      'wn.map2.d': '把当前笔记和与它相连的笔记画成一张小图谱。点一个点就打开那篇笔记',
+      'wn.quest2.t': 'Obsidian 习惯任务和成就',
+      'wn.quest2.d': '新增了标签、日记、属性、整理笔记、连起孤立笔记等任务和成就。第一次做的话，看看任务下面的提示',
+      'wn.motion2.t': '动作全部免费',
+      'wn.motion2.d': '所有动作一开始就解锁。可以在设置里为每个时刻挑选或关闭。和 Obsidian 不搭的动作已经去掉，买它们花的金币已经退还',
+      'wn.toys2.t': '6 个新玩具',
+      'wn.toys2.d': '一片阳光、被子里的手、鱼缸、找猫咪、沙滩排球、喵喵钢琴。激光和泡泡也能好好追了',
+      'wn.gone2.t': '去掉的功能',
+      'wn.gone2.d': '邻居好友、宝物工坊、今日心情、想吃的东西和今日动态都去掉了。剩下的宝物换成了金币，做好的服装还在衣柜里（现在商店也有卖）',
+      'item.sunbeam': '一片阳光',
+      'item.quilt': '被子里的手',
+      'item.fishbowl': '鱼缸',
+      'item.shellgame': '找猫咪',
+      'item.volley': '沙滩排球',
+      'item.simon': '喵喵钢琴',
+      'toyHow.sunbeam': '把阳光铺在地上，猫咪会过来打盹 · 可以拖动挪位置，点一下会有反应（露肚皮的时候要小心）',
+      'toyHow.quilt': '鼠标放到被子上，被子里的手就会动来动去 · 猫咪扑过来时把手抽走，看你能坚持多久',
+      'toyHow.fishbowl': '放下鱼缸，猫咪会盯着鱼看 · 点鱼缸喂鱼，点蹦到地上的鱼把它放回去',
+      'toyHow.shellgame': '猫咪躲进一个箱子，箱子会被打乱 · 点中猫咪所在的箱子就能续上连胜',
+      'toyHow.volley': '球飞到你这边时点击把它打回去 · 看你和猫咪能来回多少回合',
+      'toyHow.simon': '猫咪踩着琴键弹出一段旋律 · 按同样的顺序点琴键跟着弹，每轮多一个音',
+      'toyDo.sunbeam': '#晒太阳 #翻肚皮 #蝴蝶 #阿嚏',
+      'toyDo.quilt': '#被子里的手 #扭屁股 #一把抓住',
+      'toyDo.fishbowl': '#看鱼发呆 #拍拍 #扑通 #扑腾扑腾',
+      'toyDo.shellgame': '#猜箱子 #猜猜我在哪 #吐舌头',
+      'toyDo.volley': '#对打 #蹦蹦 #火球',
+      'toyDo.simon': '#哆咪嗦哆 #跟着弹 #再来一首',
+      'game.rec.quilt': '最高 {n} 秒',
+      'game.rec.shellgame': '最高 {n} 连胜',
+      'game.rec.volley': '最高 {n} 回合',
+      'game.rec.simon': '最高 {n} 个音',
+      'game.rec.jumprope': '最高 {n} 连击',
+      'toyHow.bananapeel': '偷偷放在猫咪必经之路上 · 猫咪会朝鼠标方向走（滑过一次就会提防，试试直接扔到它脚下）',
+      'toyHow.vacuum': '点击开关 · 开着吸尘器到处跑（开得越多，猫咪越勇敢）',
+      'toyHow.boxtower': '点箱子一层层往上叠（最多 7 层）· 越高猫咪越犹豫，爬到顶就有王冠',
+      'toyHow.magichat': '每点一下帽子都会蹦出点什么 · 极少数时候是金色小鱼',
+      'toyHow.rccar': '小车追着鼠标跑 · 点击加速，被抓到三次后猫咪会骑上去',
+      'toyHow.jumprope': '每点一下绳子甩一圈 · 节奏稳定就能连击（踩准节拍就是 PERFECT）',
+    },
+  };
+  const LANG_AT = { ko: 1, en: 2, zh: 3 };
+  for (const row of ACH) {
+    for (const [lang, i] of Object.entries(LANG_AT)) {
+      const [name, desc, tip] = row[i];
+      UI[lang][`ach.${row[0]}.name`] = name;
+      UI[lang][`ach.${row[0]}.desc`] = desc;
+      if (tip) UI[lang][`ach.${row[0]}.tip`] = tip;
+    }
+  }
+  for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
 };
 
 __defs["kit/pixelart"] = function (module, exports, require) {
@@ -20632,9 +20549,124 @@ __defs["kit/pixelart"] = function (module, exports, require) {
       'KKKK........KKKK',
       '................',
     ],
+    // ---------- 4차 (2026-10-17): 지켜보는 것 둘 + 같이 하는 놀이 넷 (renderer/toyplay5.js) ----------
+    // 햇살 조각 (해 + 바닥에 비친 창문 빛)
+    sunbeam: [
+      '.......Y........',
+      '..Y....Y....Y...',
+      '...Y..KKK..Y....',
+      '.....KYYYK......',
+      '.YY.KYHYYYK.YY..',
+      '....KYYYYEK.....',
+      '.....KYYEK......',
+      '...Y..KKK..Y....',
+      '..Y....Y....Y...',
+      '.......Y........',
+      '................',
+      '...KKKKKKKKKKKK.',
+      '...KYYYYKKYYYYK.',
+      '..KEEEEKKEEEEK..',
+      '.KKKKKKKKKKKK...',
+      '................',
+    ],
+    // 이불 속 손 (볼록한 분홍 이불 위로 덮치는 앞발)
+    quilt: [
+      '....KKK.KKK.....',
+      '...KOPOKOPOK....',
+      '..KKOOOKOOOKK...',
+      '.KOPOKKKKKOPOK..',
+      '.KOOOKPPPKOOOK..',
+      '..KKKPPPPPKKK...',
+      '....KPPPPPK.....',
+      '.....KKKKK......',
+      '......KKKK......',
+      '.....KPQPQK.....',
+      '....KQPQPQPK....',
+      '..KKPQPQPQPQKK..',
+      '.KQPQPQPQPQPQPK.',
+      'KPQPQPQPQPQPQPQK',
+      'KppppppppppppppK',
+      '.KKKKKKKKKKKKKK.',
+    ],
+    // 어항 (금붕어 한 마리와 수초)
+    fishbowl: [
+      '................',
+      '.....KKKKKK.....',
+      '....KUHUUUUK....',
+      '.....KUUUUK.....',
+      '...KKU....UKK...',
+      '..KU........UK..',
+      '.KUBBBBBBBBBBUK.',
+      '.KBBBKKKBBBBBBK.',
+      'KBBBKOOOKBKBBBBK',
+      'KBBKOKOOOKKBBBBK',
+      'KBBBKOOOKBKBNBBK',
+      '.KBBBKKKBBBBNBK.',
+      '.KSSSSSSSSSNSSK.',
+      '..KSsSSSSsSSSK..',
+      '...KKKKKKKKKK...',
+      '................',
+    ],
+    // 고양이 찾기 (들린 상자 밑에서 빼꼼)
+    shellgame: [
+      '.....KKKKKK.....',
+      '.....KSSSSK.....',
+      '.....KTTwTK.....',
+      '.....KTTwTK.....',
+      '.....KTTTTK.....',
+      '.....KKKKKK.....',
+      '................',
+      '.....KK..KK.....',
+      '.....KOKKOK.....',
+      'KKKKKOOOOOOKKKKK',
+      'KSSSKOKOOKOKSSSK',
+      'KTwTKOOPPOOKTwTK',
+      'KTwTKOOOOOOKTwTK',
+      'KTTTKOOOOOOKTTTK',
+      'KKKKKKKKKKKKKKKK',
+      '................',
+    ],
+    // 비치볼 배구 (비치볼과 작은 네트)
+    volley: [
+      '................',
+      '....KKKK........',
+      '..KKRRWWKK......',
+      '.KRRRRWWWBK.....',
+      '.KRRRRWWBBK.....',
+      'KYYYRHWWBBBK....',
+      'KYYYYWWWBBBK....',
+      '.KYYYWWWBBK.KKKK',
+      '.KYYWWWWWBK.DHHH',
+      '..KKWWWWKK..DKWK',
+      '....KKKK....DWKW',
+      '............DKWK',
+      '............DWKW',
+      '............D...',
+      '............D...',
+      '...........KKK..',
+    ],
+    // 냥냥 피아노 (음표와 소리판 넷)
+    simon: [
+      '................',
+      '.........KK.....',
+      '.........KYK....',
+      '.........KYYK...',
+      '.........K.YK...',
+      '.........K..K...',
+      '.........K......',
+      '......KKKK......',
+      '.....KPPPK......',
+      '.....KPPK.......',
+      '......KK........',
+      '................',
+      '.KK..KK..KK..KK.',
+      'KRRKKYYKKNNKKBBK',
+      'KrrKKyyKKnnKKbbK',
+      '.KK..KK..KK..KK.',
+    ],
   };
 
-  // 깜짝 이벤트로 줍는 하찮은 보물 (main/treasure.js) 과 보물을 떨어뜨리고 가는 새. 먹이 팔레트를 쓴다
+  // 하찮은 보물 아이콘 (하우스가 쓴다). 먹이 팔레트를 쓴다
   const TREASURE = {
     // ---------- 7차 (2026-09-23): 하찮은 공작 재료 10종 ----------
     lonesock: [
@@ -21169,30 +21201,6 @@ __defs["kit/pixelart"] = function (module, exports, require) {
       '............',
       '............',
     ],
-    bird1: [
-      '..............',
-      '...KK.....KK..',
-      '...KGK...KGK..',
-      '....KGK.KGK...',
-      '.....KGKGK..K.',
-      '..KKKGGGGKKKY.',
-      '.KDGGGGGGGKK..',
-      'KKDgGGGGGK....',
-      '...KKKKKKK....',
-      '....K...K.....',
-    ],
-    bird2: [
-      '..............',
-      '..............',
-      '..............',
-      '..........KK..',
-      '..KKKKKKKKGKY.',
-      '.KDGGGGGGGKK..',
-      'KKDgGGGGGK....',
-      '...KGKKKGK....',
-      '....KGK.KGK...',
-      '.....K...K....',
-    ],
   };
 
   // 이름 → [도트, 팔레트]. 먹이가 먼저다
@@ -21295,7 +21303,7 @@ __defs["kit/pixelart"] = function (module, exports, require) {
 };
 
 __defs["plugin/kit-assets"] = function (module, exports, require) {
-module.exports = {"petBody":"\n    <div id=\"bubble\" class=\"bubble\" hidden>\n      <span class=\"ico\"></span>\n      <span class=\"text\"></span>\n      <span class=\"hint\"></span>\n    </div>\n    <div id=\"loading\" class=\"loading\" hidden></div>\n    <div id=\"focus\" class=\"focus-pill\" hidden></div>\n    <div id=\"playhint\" class=\"playhint\" hidden></div>\n    <canvas id=\"pet\"></canvas>\n    <canvas id=\"field\"></canvas>","houseBody":"\n    <header class=\"top\">\n      <button id=\"dev\" class=\"dev-toggle\" type=\"button\"></button>\n      <div class=\"hero\">\n        <canvas id=\"hero\" class=\"pixel\"></canvas>\n        <div class=\"hero-info\">\n          <div class=\"hero-name\"><b id=\"h-name\"></b> <span id=\"h-lv\" class=\"lv\"></span></div>\n          <div id=\"h-mood\" class=\"mood\"></div>\n          <div class=\"xp\">\n            <div class=\"xp-bar\"><i id=\"h-xpbar\"></i></div>\n            <span id=\"h-xptext\"></span>\n          </div>\n        </div>\n        <div class=\"hero-streak\" id=\"h-streak\"></div>\n      </div>\n      <nav class=\"tabs\" id=\"tabs\" role=\"tablist\">\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"home\" data-icon=\"home\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"achievements\" data-icon=\"medal\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"wardrobe\" data-icon=\"ribbon\"><span class=\"tx\"></span><span class=\"dot\" id=\"dot-wardrobe\" hidden></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"shop\" data-icon=\"coin\"><span class=\"tx\"></span><span class=\"dot\" id=\"dot-shop\" hidden></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"friends\" data-icon=\"paw\"><span class=\"tx\"></span><span class=\"dot\" id=\"dot-friends\" hidden></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"workshop\" data-icon=\"gem\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"stats\" data-icon=\"chart\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"settings\" data-icon=\"gear\"><span class=\"tx\"></span></button>\n      </nav>\n    </header>\n    <main id=\"view\" role=\"tabpanel\"></main>\n    <div id=\"welcome\" class=\"welcome\" hidden></div>\n    <div id=\"modal\" class=\"modal\" hidden></div>\n    <div id=\"toast\" class=\"toast\" role=\"status\" aria-live=\"polite\" hidden></div>","petCss":":root {\n  --ink: #3a2118;\n  --paper: #fffaf3;\n  --accent: #d97757;\n  --muted: #8b6f60;\n}\n\nhtml,\nbody {\n  margin: 0;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  background: transparent;\n  user-select: none;\n  font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;\n  cursor: default;\n}\n\n/* 중국어: 프리텐다드에 없는 한자는 중국어 글꼴로 (맑은 고딕의 한자가 섞이거나 두부 글자가 나오지 않게) */\nhtml:lang(zh),\nhtml:lang(zh) body {\n  font-family: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n}\n\n/* 창은 화면 전체다. 고양이 자리(left·bottom)는 pet.js 가 정한다 */\n#pet {\n  position: absolute;\n  z-index: 2;\n  bottom: 0;\n  left: 0;\n  image-rendering: pixelated;\n  cursor: grab;\n}\n\nbody.dragging #pet {\n  cursor: grabbing;\n}\n\n/* 떠 있는 고양이의 바닥 그림자 (pet.js 의 updateFloorShadow) */\n#floor-shadow {\n  position: absolute;\n  z-index: 1;\n  image-rendering: pixelated;\n  pointer-events: none;\n}\n\n/* ---------- 말풍선 ---------- */\n\n.bubble {\n  position: absolute;\n  left: 50%;\n  max-width: 260px;\n  width: max-content;\n  box-sizing: border-box;\n  padding: 7px 10px 8px;\n  background: var(--paper);\n  color: var(--ink);\n  font-size: 12px;\n  line-height: 1.45;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);\n  transform: translateX(-50%) scale(0.6);\n  transform-origin: 50% 100%;\n  opacity: 0;\n  transition: transform 0.18s steps(3), opacity 0.12s;\n  cursor: pointer;\n}\n\n/* 홍보 모드 연출 패널에서 띄운 말풍선은 줄바꿈을 그대로 */\n.bubble.promo .text {\n  white-space: pre-line;\n}\n\n.bubble.show {\n  transform: translateX(-50%) scale(1);\n  opacity: 1;\n}\n\n/* 꼬리: 도트 계단 모양 */\n/* --tail-x: 말풍선이 화면 끝에 붙었을 때 꼬리를 고양이 쪽으로 옮기는 값 (pet.js placeOverlays) */\n.bubble::before,\n.bubble::after {\n  content: '';\n  position: absolute;\n  left: calc(50% + var(--tail-x, 0px));\n  width: 0;\n  height: 0;\n  border: solid transparent;\n}\n.bubble::before {\n  bottom: -10px;\n  margin-left: -7px;\n  border-width: 8px 7px 0;\n  border-top-color: var(--ink);\n}\n.bubble::after {\n  bottom: -6px;\n  margin-left: -4px;\n  border-width: 5px 4px 0;\n  border-top-color: var(--paper);\n}\n\n/* 머리 위에 자리가 없어 발 밑에 뜬 말풍선: 꼬리가 위로 */\n.bubble.below {\n  transform-origin: 50% 0;\n}\n.bubble.below::before {\n  bottom: auto;\n  top: -10px;\n  border-width: 0 7px 8px;\n  border-top-color: transparent;\n  border-bottom-color: var(--ink);\n}\n.bubble.below::after {\n  bottom: auto;\n  top: -6px;\n  border-width: 0 4px 5px;\n  border-top-color: transparent;\n  border-bottom-color: var(--paper);\n}\n\n.bubble.reward {\n  background: #fff4c7;\n  --paper: #fff4c7;\n}\n.bubble.notify {\n  background: #ffe1d6;\n  --paper: #ffe1d6;\n}\n\n/* 말풍선 왼쪽에 붙는 도트 아이콘 */\n.bubble .ico {\n  float: left;\n  margin: 1px 5px 0 0;\n}\n.bubble .ico:empty {\n  display: none;\n}\n\n.bubble .hint {\n  display: block;\n  margin-top: 2px;\n  color: var(--muted);\n  font-size: 10px;\n}\n.bubble .hint:empty {\n  display: none;\n}\n\n.loading {\n  position: absolute;\n  left: 50%;\n  bottom: 4px;\n  transform: translateX(-50%);\n  padding: 2px 6px;\n  background: rgba(58, 33, 24, 0.8);\n  color: #fff;\n  font-size: 10px;\n  border-radius: 3px;\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */\n[hidden]:not(#kc-a):not(#kc-b) {\n  display: none;\n}\n\n/* ---------- 장난감 놀이 ---------- */\n\nbody.playing #pet {\n  cursor: default;\n}\n\n/* 바닥에 놓인 것 — 던지는 장난감과 간식이 같은 모양새를 쓴다.\n   고양이보다 위에 있어야 끌어서 집을 수 있다 */\n.toy {\n  position: absolute;\n  z-index: 3;\n  transform: translate(-50%, -50%);\n  image-rendering: pixelated;\n  cursor: grab;\n  filter: drop-shadow(1px 2px 0 rgba(58, 33, 24, 0.3));\n}\n.toy.held {\n  cursor: grabbing;\n  filter: drop-shadow(2px 4px 0 rgba(58, 33, 24, 0.28));\n}\n\n/* 놀이판: 낚싯줄·깃털·비눗방울·레이저·털실 가닥을 그리는 화면 전체 캔버스. 마우스는 통과시킨다 */\n#field {\n  position: absolute;\n  z-index: 3;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  pointer-events: none;\n}\n\n/* 상자·봉투·스크래처는 그림자 대신 바닥에 딱 붙는다 */\n.toy.placed {\n  filter: none;\n}\n\n/* 놀이 안내는 고양이 머리 위에 붙어 다닌다 (자리는 pet.js) */\n/* [옵시디언 1.5.0] 집중 시간: 머리 위의 남은 시간 알약 */\n.focus-pill {\n  position: absolute;\n  z-index: 4;\n  left: 50%;\n  transform: translateX(-50%);\n  padding: 2px 7px 2px 20px;\n  background: rgba(58, 33, 24, 0.82) no-repeat 6px 50% / 9px 11px;\n  background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 11' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffd88a' d='M0 0h9v1H0zM0 10h9v1H0zM1 1h7v2H1zM2 3h5v1H2zM3 4h3v1H3zM4 5h1v1H4zM3 6h3v1H3zM2 7h5v1H2zM1 8h7v2H1z'/%3E%3C/svg%3E\");\n  color: #fff;\n  font-size: 11px;\n  font-weight: 700;\n  font-variant-numeric: tabular-nums;\n  letter-spacing: 0.02em;\n  border-radius: 999px;\n  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n.playhint {\n  position: absolute;\n  z-index: 4;\n  left: 50%;\n  transform: translateX(-50%);\n  padding: 3px 8px;\n  background: rgba(58, 33, 24, 0.75);\n  color: #fff;\n  font-size: 10px;\n  border-radius: 3px;\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n/* 상자·봉투·스크래처를 톡 두드렸을 때 */\n.toy.knock {\n  animation: knock 0.32s steps(4);\n}\n@keyframes knock {\n  25% {\n    translate: -3px 0;\n  }\n  50% {\n    translate: 3px -2px;\n  }\n  75% {\n    translate: -2px 0;\n  }\n}\n\n/* ---------- 깜짝 이벤트 ---------- */\n\n/* 바닥에 떨어진 보물: 눌러서 줍는다. 살짝 반짝인다 */\n.toy.loot {\n  cursor: pointer;\n  animation: lootGlow 1.4s ease-in-out infinite;\n}\n@keyframes lootGlow {\n  50% {\n    filter: drop-shadow(0 0 3px rgba(255, 236, 160, 0.95)) drop-shadow(1px 2px 0 rgba(58, 33, 24, 0.3));\n  }\n}\n/* 주우면 위로 톡 튀며 사라진다 */\n.toy.collect {\n  animation: lootUp 0.5s ease-out forwards;\n  pointer-events: none;\n}\n@keyframes lootUp {\n  to {\n    translate: 0 -34px;\n    scale: 1.5;\n    opacity: 0;\n  }\n}\n/* 보물을 떨어뜨리고 가는 새 */\n.bird {\n  position: absolute;\n  z-index: 3;\n  image-rendering: pixelated;\n  pointer-events: none;\n  transform: translate(-50%, -50%);\n}\n.bird.left {\n  transform: translate(-50%, -50%) scaleX(-1);\n}\n/* 놀러 온 손님 고양이 (자리는 pet.js) */\n.guest {\n  position: absolute;\n  z-index: 1;\n  bottom: 0;\n  image-rendering: pixelated;\n  pointer-events: none;\n}\n\n/* ---------- 동네 친구 (7차) ---------- */\n.friend { position: absolute; z-index: 1; bottom: 0; image-rendering: pixelated; cursor: grab; }\nbody.dragging .friend { cursor: grabbing; }\n.friend-food { position: absolute; z-index: 1; image-rendering: pixelated; pointer-events: none; }\n.fbubble { z-index: 7; pointer-events: none; }\n.fbubble.cat { background: #fff4e0; }\n/* 친구 카드: 윗줄(이름 칸)이 손잡이. 글자를 키우고 칸마다 옅은 상자로 나눠 한눈에 읽히게 */\n.fcard { position: absolute; z-index: 6; width: 272px; box-sizing: border-box; overflow: hidden; background: var(--paper); color: var(--ink);\n  border: 2px solid var(--ink); border-radius: 8px; box-shadow: 4px 4px 0 rgba(58, 33, 24, 0.25); font-size: 13px; line-height: 1.45; }\n.fcard.moving { box-shadow: 6px 7px 0 rgba(58, 33, 24, 0.22); }\n.fcard svg { image-rendering: pixelated; vertical-align: middle; flex: none; }\n.fc-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 8px; background: #f6e3d3; border-bottom: 2px solid var(--ink); cursor: grab; user-select: none; }\n.fcard.moving .fc-head { cursor: grabbing; }\n/* 손잡이 표시: 점 여섯 개 */\n.fc-grip { flex: none; width: 8px; height: 14px; opacity: 0.45;\n  background: radial-gradient(circle, var(--ink) 1.2px, transparent 1.6px) 0 0 / 4px 5px; }\n.fc-id { flex: 1; min-width: 0; }\n.fc-name { font-size: 16px; font-weight: 800; line-height: 1.25; }\n.fc-sp { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.fc-x { flex: none; align-self: flex-start; width: 24px; height: 24px; border: 0; border-radius: 4px; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); }\n.fc-x:hover { background: rgba(58, 33, 24, 0.08); color: var(--ink); }\n.fc-body { padding: 8px 12px 12px; }\n.fc-time { display: inline-flex; gap: 4px; align-items: center; padding: 2px 8px; border-radius: 10px; background: #fbe5dc; color: #a33f25; font-size: 12px; font-weight: 700; }\n.fc-bond { margin-top: 8px; }\n.fc-bond-top { display: flex; align-items: center; gap: 6px; }\n.fc-bond-top b { font-size: 13px; }\n.fc-bond-top .fc-note { margin-left: auto; }\n.fc-hearts { display: inline-flex; gap: 1px; }\n.fc-hearts span { opacity: 0.25; }\n.fc-hearts span.on { opacity: 1; }\n.fc-bar { height: 8px; margin: 5px 0 0; background: #efe3d4; border: 1px solid #e0cdb8; border-radius: 4px; overflow: hidden; }\n.fc-bar i { display: block; height: 100%; background: var(--accent); }\n.fc-sec { margin-top: 10px; padding: 8px 9px 9px; background: #f7eee4; border-radius: 6px; }\n.fc-title { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }\n.fc-title b { font-size: 13.5px; }\n.fc-title small { color: var(--muted); font-size: 11.5px; text-align: right; }\n.fc-title small.lack { color: #a33f25; font-weight: 700; }\n.fc-trade { display: flex; align-items: center; gap: 6px; margin-top: 6px; }\n.fc-box { flex: 1; display: flex; align-items: center; gap: 6px; padding: 5px 7px; background: #fff; border: 1px solid #e6d6c4; border-radius: 6px; min-width: 0; }\n.fc-box.gift { flex: 0 0 auto; }\n.fc-box > span { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }\n.fc-box b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.fc-box small { color: var(--muted); font-size: 11.5px; }\n.fc-box small.ok { color: #3f7a3a; font-weight: 700; }\n.fc-box small.lack { color: #a33f25; font-weight: 700; }\n.fc-arrow { color: var(--muted); font-weight: 700; }\n.fc-row { margin-top: 7px; display: flex; gap: 8px; align-items: center; }\n.fc-btn { border: 2px solid var(--ink); background: var(--accent); color: #fff; font: inherit; font-weight: 700; padding: 4px 16px; border-radius: 4px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }\n.fc-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }\n.fc-btn:disabled { background: #d8cfc4; color: #fff; cursor: default; box-shadow: none; transform: none; }\n.fc-note { color: var(--muted); font-size: 11.5px; }\n.fc-foods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; padding: 0 5px 5px 0; max-height: 118px; overflow-y: auto; }\n.fc-food { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border: 1px solid #e6d6c4; background: #fff; border-radius: 6px; padding: 0; cursor: pointer; font: inherit; }\n.fc-food:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }\n.fc-food:disabled { opacity: 0.4; cursor: default; }\n/* 가진 개수: 오른쪽 아래 작은 딱지 */\n.fc-food small { position: absolute; right: -4px; bottom: -4px; min-width: 16px; padding: 0 3px; border: 1px solid var(--ink); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 14px; }\n\n/* ---------- 함께 하는 놀이 (toyplay4.js): 버튼·말풍선 ---------- */\n\n/* 뿅망치를 든 동안은 진짜 커서를 숨긴다 (놀이판에 망치를 그린다) */\nbody.no-cursor,\nbody.no-cursor #pet {\n  cursor: none;\n}\n\n.toygame {\n  position: absolute;\n  z-index: 5;\n  left: 0;\n  top: 0;\n  color: var(--ink);\n  font-size: 12px;\n  line-height: 1.35;\n}\n\n.tg-btn {\n  display: inline-flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 3px;\n  min-width: 52px;\n  padding: 6px 8px 5px;\n  font: inherit;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--paper);\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 2px 2px 0 rgba(58, 33, 24, 0.3);\n  cursor: pointer;\n}\n.tg-btn:hover:not(:disabled) {\n  background: #fff1dc;\n  transform: translateY(-1px);\n}\n.tg-btn:active:not(:disabled) {\n  transform: translate(1px, 1px);\n  box-shadow: 1px 1px 0 rgba(58, 33, 24, 0.3);\n}\n.tg-btn:disabled {\n  opacity: 0.45;\n  cursor: default;\n}\n.tg-btn.picked:disabled {\n  opacity: 1;\n  background: #ffe2a8;\n}\n.tg-btn.wide {\n  flex-direction: row;\n  min-width: 0;\n  padding: 4px 12px;\n}\n.toygame .pix {\n  image-rendering: pixelated;\n  display: block;\n}\n\n/* 가위바위보: 고양이 옆 버튼판 */\n.rps-pad {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 5px;\n}\n.rps-btns {\n  display: flex;\n  gap: 6px;\n}\n.rps-rec {\n  padding: 2px 8px;\n  font-size: 11px;\n  color: #fff;\n  background: rgba(58, 33, 24, 0.78);\n  border-radius: 3px;\n  white-space: nowrap;\n}\n\n/* 서로 낸 것 (말풍선) */\n.rps-bubble {\n  padding: 6px 8px;\n  background: var(--paper);\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);\n  font-weight: 700;\n  white-space: nowrap;\n}\n.rps-bubble::after {\n  content: '';\n  position: absolute;\n  left: 50%;\n  bottom: -8px;\n  margin-left: -6px;\n  border: solid transparent;\n  border-width: 7px 6px 0;\n  border-top-color: var(--ink);\n}\n.rps-result {\n  padding: 3px 10px;\n  font-size: 14px;\n  font-weight: 800;\n  color: #fff;\n  background: var(--ink);\n  border-radius: 4px;\n  white-space: nowrap;\n}\n.rps-result.win {\n  background: #3d8c5a;\n}\n.rps-result.lose {\n  background: #b0413a;\n}\n\n/* 고양이 질문의 고를 것 두 개 (2026-10-10) */\n.bubble .choices {\n  display: flex;\n  gap: 6px;\n  margin-top: 6px;\n}\n.bubble .choices:empty {\n  display: none;\n}\n.bubble .choices button {\n  flex: 1 0 auto;\n  white-space: nowrap;\n  font: inherit;\n  font-size: 11.5px;\n  padding: 3px 10px;\n  color: var(--ink);\n  background: var(--paper);\n  border: 1.5px solid var(--ink);\n  border-radius: 99px;\n  cursor: pointer;\n}\n.bubble .choices button:hover {\n  background: #ffe9c7;\n}\n","houseCss":":root {\n  --bg: #faf6ef;\n  --panel: #fffdf9;\n  --ink: #3a2118;\n  --muted: #8b6f60;\n  --line: #3a2118;\n  --soft: #efe4d6;\n  --accent: #d97757;\n  --accent-2: #e89a7c;\n  --accent-line: #7a3a24; /* 주 버튼 테두리 */\n  --accent-hover: #c9674a;\n  --top-tint: #f6e3d3; /* 맨 위 영역 그러데이션 */\n  --good: #3fa37a;\n  --gold: #e9b93a;\n  --shadow: rgba(58, 33, 24, 0.22);\n  /* 글꼴은 하나로 통일한다. --pixel 은 '조금 더 또렷하게 쓰는 자리'라는 뜻만 남았다 */\n  --pixel: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;\n  --body: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;\n  color-scheme: light;\n}\n\n/* 중국어: 프리텐다드에 없는 한자는 중국어 글꼴로 (맑은 고딕의 한자가 섞이거나 두부 글자가 나오지 않게) */\n:root:lang(zh) {\n  --pixel: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n  --body: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n}\n\n\n:root.dark {\n    --bg: #1e1814;\n    --panel: #29211c;\n    --ink: #f4e9df;\n    --muted: #b49c8d;\n    --line: #6a5446;\n    --soft: #3a2f28;\n    --shadow: rgba(0, 0, 0, 0.45);\n    --top-tint: #3a2a21;\n    color-scheme: dark;\n  }\n\n\n/* ---------- 테마 (8차 후속, settings.theme) ----------\n   house.js 의 applyTheme 이 <html data-theme> 를 단다. 크림이 기본(:root), 코코아는 위 :root.dark,\n   'auto' 는 윈도우가 다크면 코코아 · 아니면 크림. 아래 셋은 밝은 테마라 토큰만 바꾼다 */\n:root[data-theme='mint'] {\n  --bg: #eef7f2;\n  --panel: #fbfffd;\n  --ink: #1f3b33;\n  --muted: #5e7f74;\n  --line: #1f3b33;\n  --soft: #d8ece2;\n  --accent: #2f9e7e;\n  --accent-2: #6cc3a6;\n  --accent-line: #17604c;\n  --accent-hover: #278a6d;\n  --top-tint: #d6ede1;\n  --shadow: rgba(31, 59, 51, 0.2);\n}\n:root[data-theme='sakura'] {\n  --bg: #fdf2f4;\n  --panel: #fffafb;\n  --ink: #4a2330;\n  --muted: #9a6b79;\n  --line: #4a2330;\n  --soft: #f7dfe5;\n  --accent: #e0708c;\n  --accent-2: #f0a3b6;\n  --accent-line: #8e3550;\n  --accent-hover: #cf5f7b;\n  --top-tint: #f9dce3;\n  --shadow: rgba(74, 35, 48, 0.2);\n}\n:root[data-theme='choco'] {\n  --bg: #f3e7da;\n  --panel: #fbf4ec;\n  --ink: #3b2416;\n  --muted: #86664f;\n  --line: #3b2416;\n  --soft: #e4d0bb;\n  --accent: #8b4f2c;\n  --accent-2: #b57a52;\n  --accent-line: #4d2a14;\n  --accent-hover: #7a4424;\n  --top-tint: #e6cfb7;\n  --shadow: rgba(59, 36, 22, 0.25);\n}\n\n* {\n  box-sizing: border-box;\n}\n\nhtml,\nbody {\n  margin: 0;\n  background: var(--bg);\n  color: var(--ink);\n  font: 13px/1.55 var(--body);\n}\n\nbody {\n  display: flex;\n  flex-direction: column;\n  height: 100vh;\n}\n\n.pixel {\n  image-rendering: pixelated;\n}\n\n/* 도트 아이콘(PixelArt.svg). 글줄 가운데에 맞춰 앉힌다 */\n.pxi {\n  flex: none;\n  vertical-align: -0.18em;\n  shape-rendering: crispEdges;\n}\n.ico-row {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n}\n\nh2,\nh3,\n.pix {\n  font-family: var(--pixel);\n  font-weight: 400;\n}\n\nh2 {\n  font-size: 15px;\n  font-weight: 700;\n  margin: 18px 0 10px;\n}\nh2:first-child {\n  margin-top: 4px;\n}\nh3 {\n  font-size: 13px;\n  margin: 0 0 6px;\n}\n\nbutton {\n  font: inherit;\n  color: inherit;\n}\n\n.btn {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  padding: 7px 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  box-shadow: 2px 2px 0 var(--shadow);\n  cursor: pointer;\n}\n.btn:hover {\n  background: var(--soft);\n}\n.btn:active {\n  transform: translate(2px, 2px);\n  box-shadow: none;\n}\n.btn.primary {\n  background: var(--accent);\n  border-color: var(--accent-line);\n  color: #fff;\n}\n.btn.primary:hover {\n  background: var(--accent-hover);\n}\n/* 보조 버튼: 그림자 없이 옅은 실선 (예전 점선은 꺼진 버튼처럼 보였다) */\n.btn.ghost {\n  box-shadow: none;\n  border-width: 1.5px;\n  border-color: color-mix(in srgb, var(--line) 45%, transparent);\n}\n.btn.ghost:hover {\n  border-color: var(--line);\n}\n.btn:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.panel {\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 var(--shadow);\n  padding: 12px 14px;\n}\n\n/* ---------- 상단 ---------- */\n\n.top {\n  position: relative;\n  flex: none;\n  background: linear-gradient(180deg, var(--top-tint), var(--bg));\n  border-bottom: 2px solid var(--line);\n  padding: 14px 16px 0;\n}\n\n.hero {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n}\n#hero {\n  width: 96px;\n  height: 96px;\n  flex: none;\n  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%);\n  border-radius: 8px;\n}\n.hero-info {\n  flex: 1;\n  min-width: 0;\n}\n.hero-name {\n  font-family: var(--pixel);\n  font-size: 18px;\n}\n.lv {\n  color: var(--accent);\n}\n/* 만렙 뒤 별 (house.js renderTop) */\n.lv-stars {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-family: var(--pixel);\n  vertical-align: -1px;\n}\n.mood {\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  color: var(--muted);\n  font-size: 12px;\n  margin: 2px 0 6px;\n}\n.xp {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n}\n.xp-bar,\n.bar {\n  position: relative;\n  flex: 1;\n  height: 10px;\n  background: var(--soft);\n  border: 2px solid var(--line);\n  border-radius: 2px;\n  overflow: hidden;\n}\n.xp-bar i,\n.bar i {\n  display: block;\n  height: 100%;\n  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, var(--accent-2) 6px 8px);\n  transition: width 0.6s steps(12);\n}\n.bar.good i {\n  background: repeating-linear-gradient(90deg, var(--good) 0 6px, #5fc295 6px 8px);\n}\n.bar.gold i {\n  background: repeating-linear-gradient(90deg, var(--gold) 0 6px, #f3d271 6px 8px);\n}\n.hero-streak {\n  flex: none;\n  text-align: center;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n}\n.hero-streak b {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  font-size: 22px;\n  color: var(--accent);\n  font-weight: 400;\n}\n\n.tabs {\n  display: flex;\n  gap: 2px;\n  margin-top: 12px;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n.tabs::-webkit-scrollbar {\n  display: none;\n}\n.tabs button {\n  position: relative;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  flex: none;\n  font-family: var(--pixel);\n  font-size: 12px;\n  padding: 7px 8px 6px;\n  background: transparent;\n  border: 2px solid transparent;\n  border-bottom: none;\n  border-radius: 4px 4px 0 0;\n  color: var(--muted);\n  cursor: pointer;\n  margin-bottom: -2px;\n}\n.tabs button:hover {\n  color: var(--ink);\n}\n.tabs button.on {\n  background: var(--bg);\n  border-color: var(--line);\n  color: var(--ink);\n}\n.dot {\n  position: absolute;\n  top: 4px;\n  right: 3px;\n  width: 7px;\n  height: 7px;\n  background: #ff5a5a;\n  border: 1px solid var(--line);\n}\n\nmain {\n  flex: 1;\n  overflow-y: auto;\n  padding: 16px;\n}\n\n/* ---------- 홈 ---------- */\n\n.banner {\n  display: flex;\n  gap: 10px;\n  align-items: center;\n  padding: 10px 12px;\n  margin-bottom: 14px;\n  background: #fff1d6;\n  border: 2px dashed #c8912a;\n  border-radius: 4px;\n  color: #6b4a10;\n}\n\n:root.dark .banner {\n    background: #3b2f18;\n    color: #f2d9a4;\n  }\n\n.banner p {\n  flex: 1;\n  margin: 0;\n}\n.banner .pxi {\n  flex: none;\n}\n\n.cards {\n  display: grid;\n  /* 가장 좁은 창(460)에서도 네 칸이 한 줄에 (110 이면 3 + 1 로 하나가 혼자 떨어졌다) */\n  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));\n  gap: 10px;\n}\n.stat {\n  padding: 10px 12px;\n}\n.stat .k {\n  color: var(--muted);\n  font-size: 11px;\n}\n.stat .v {\n  font-family: var(--pixel);\n  font-size: 20px;\n}\n.stat .d {\n  font-size: 11px;\n  color: var(--muted);\n}\n\n.road {\n  display: flex;\n  gap: 6px;\n  align-items: flex-end;\n  justify-content: space-between;\n}\n.road .step {\n  flex: 1;\n  text-align: center;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  opacity: 0.45;\n}\n.road .step.done {\n  opacity: 1;\n}\n.road .step.now {\n  opacity: 1;\n  color: var(--accent);\n}\n.road .step canvas {\n  width: 86px;\n  height: 86px;\n  display: block;\n  margin: 0 auto;\n}\n.road .step.locked canvas {\n  filter: brightness(0) opacity(0.35);\n}\n\n:root.dark .road .step.locked canvas {\n    filter: brightness(0) invert(1) opacity(0.25);\n  }\n\n\n/* 단계가 하나뿐일 때 로드맵 대신 들어가는 레벨 칸 */\n.levelnow {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n}\n.levelnow canvas {\n  width: 86px;\n  height: 86px;\n  flex: none;\n}\n.lvbig {\n  font-family: var(--pixel);\n  font-size: 26px;\n  color: var(--accent);\n}\n\n.actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.feed {\n  list-style: none;\n  padding: 0;\n  margin: 0;\n}\n.feed li {\n  display: flex;\n  justify-content: space-between;\n  padding: 5px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.feed li:last-child {\n  border: none;\n}\n.feed .xp-plus {\n  font-family: var(--pixel);\n  color: var(--good);\n}\n\n/* ---------- 퀘스트 ---------- */\n\n.quest {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  margin-bottom: 10px;\n}\n.quest .icon {\n  display: flex;\n  justify-content: center;\n  width: 36px;\n}\n.quest .body {\n  flex: 1;\n}\n.quest .row {\n  display: flex;\n  justify-content: space-between;\n  gap: 8px;\n  margin-bottom: 5px;\n}\n.quest .reward {\n  font-family: var(--pixel);\n  color: var(--accent);\n  white-space: nowrap;\n}\n.quest.done {\n  background: #eaf7ef;\n}\n\n:root.dark .quest.done {\n    background: #1f3329;\n  }\n\n.quest.done .reward {\n  color: var(--good);\n}\n.quest.done .reward .pxi {\n  margin-right: 3px;\n}\n.allclear {\n  text-align: center;\n  font-family: var(--pixel);\n  padding: 14px;\n}\n.allclear.done {\n  background: #fff4c7;\n}\n\n:root.dark .allclear.done {\n    background: #3d3417;\n  }\n\n.muted {\n  color: var(--muted);\n}\n.center {\n  text-align: center;\n}\n\n/* ---------- 업적 ---------- */\n\n.badges {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));\n  gap: 10px;\n}\n.badge {\n  padding: 10px;\n  text-align: center;\n}\n.badge .ic {\n  display: flex;\n  justify-content: center;\n  height: 32px;\n  align-items: center;\n}\n.badge .nm {\n  font-family: var(--pixel);\n  margin: 4px 0 2px;\n}\n.badge .ds {\n  font-size: 11px;\n  color: var(--muted);\n  min-height: 2.9em;\n}\n.badge .when {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  font-size: 10px;\n  color: var(--good);\n  margin-top: 4px;\n}\n.badge.locked {\n  background: var(--soft);\n  box-shadow: none;\n  border-style: dashed;\n}\n.badge.locked .ic {\n  filter: grayscale(1);\n  opacity: 0.4;\n}\n.badge .bar {\n  height: 8px;\n  margin-top: 6px;\n}\n.badge .xpb {\n  font-family: var(--pixel);\n  font-size: 10px;\n  color: var(--accent);\n}\n\n/* ---------- 꾸미기 ---------- */\n\n.wardrobe {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));\n  gap: 10px;\n}\n.item {\n  padding: 8px;\n  text-align: center;\n  cursor: pointer;\n}\n.item canvas {\n  width: 96px;\n  height: 96px;\n  display: block;\n  margin: 0 auto;\n}\n.item .nm {\n  font-family: var(--pixel);\n  font-size: 12px;\n}\n.item .hint {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: 6px;\n  font-size: 10px;\n  color: var(--muted);\n}\n.item .hint:empty {\n  display: none;\n}\n\n.item.on {\n  border-color: var(--accent);\n  box-shadow: 3px 3px 0 var(--accent);\n}\n.item.locked {\n  cursor: default;\n  background: var(--soft);\n  box-shadow: none;\n  border-style: dashed;\n}\n.item.locked canvas,\ncanvas.lv-locked {\n  /* 10-10: 검은 실루엣 대신 반투명. 무엇인지는 보이되 아직 내 것이 아닌 느낌 (레벨이 되면 열릴 걸 미리 보고 갖고 싶어지게) */\n  filter: grayscale(0.4) opacity(0.42);\n}\n/* 별 카드는 짙은 보라 바탕이라 같은 값이면 너무 어둡다. 조금 덜 흐리게 */\n.panel.item.k-star.locked canvas {\n  filter: grayscale(0.25) opacity(0.62);\n}\n/* 잠긴 카드 오른쪽 위 자물쇠 딱지 (몇 레벨에 열리는지) */\n.lv-tag {\n  position: absolute;\n  top: 5px;\n  right: 5px;\n  z-index: 1;\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-size: 9px;\n  font-weight: 700;\n  padding: 1px 4px;\n  border-radius: 3px;\n  /* 자물쇠 그림의 고리가 짙은 색이라, 어두운 테마에서도 딱지는 밝게 둔다 */\n  border: 1px solid #3a2118;\n  background: #fffaf3;\n  color: #3a2118;\n}\n/* 설정의 모션 미리보기: 캔버스 바탕까지 그림자가 되지 않게, 바탕은 감싼 상자가 대신 깐다\n   [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 감싼 상자에 lv-locked-box 를 붙인다 */\n.medit-preview canvas.lv-locked,\n.motion-peek canvas.lv-locked {\n  background: transparent;\n}\n.medit-preview.lv-locked-box,\n.motion-peek.lv-locked-box {\n  background-image: linear-gradient(var(--soft), var(--soft));\n  background-repeat: no-repeat;\n  background-origin: content-box;\n  background-position: top center;\n}\n.medit-preview.lv-locked-box {\n  background-size: 108px 108px;\n}\n.motion-peek.lv-locked-box {\n  background-size: 144px 144px;\n}\n.item .new {\n  font-family: var(--pixel);\n  font-size: 10px;\n  color: #fff;\n  background: #ff5a5a;\n  padding: 0 4px;\n  border-radius: 2px;\n}\n\n/* 상점 맨 위 바로가기. 스크롤해도 위에 붙어 있다.\n   top 은 main 의 위 여백(16px)만큼 끌어올려서 탭 줄 바로 밑에 붙인다 (-1px 이면 그 여백만큼 틈이 생겨 뒤 카드가 비쳤다) */\n.shop-jump {\n  position: sticky;\n  top: -16px;\n  z-index: 5;\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  padding: 8px 0;\n  margin: 4px 0 6px;\n  background: var(--bg);\n}\n.jump-to {\n  scroll-margin-top: 96px;\n}\n/* 모션 카드의 상황 해시태그 */\n.item .tags {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: 4px;\n  font-size: 11px;\n  color: var(--accent);\n  margin: 1px 0;\n}\n/* 코스튬·모션은 고양이 그림이 그림 칸을 꽉 채워서 이름이 바로 붙는다: 이름 위에 6px 띄운다\n   (먹이·장난감 그림은 칸보다 작아 원래 그만큼 떨어져 있다. 이름 칸은 모두 6px 더 크게 잡았다) */\n.shop-grid > .item.k-acc .nm,\n.shop-grid > .item.k-motion .nm,\n.inv-uni > .witem .nm {\n  padding-top: 6px;\n}\n/* 카드 정보 칸의 글줄은 조금 촘촘히 (카드 세로를 줄이려고) */\n.shop-grid > .item .fx,\n.inv-uni > .item .fx {\n  line-height: 1.25;\n}\n.shop-grid > .item .food-fx,\n.inv-uni > .item .food-fx {\n  line-height: 1.25;\n}\n/* 카드 규격 안에서: 해시태그는 최대 두 줄 (기록 줄이 있으면 한 줄). 넘치는 태그는 통째로 가린다 */\n.shop-grid > .item .tags,\n.inv-uni > .item .tags {\n  max-height: 32px;\n  overflow: hidden;\n}\n/* [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 기록·난이도 줄이 붙는 태그에 tags-1 을 붙인다 */\n.shop-grid > .item .tags.tags-1,\n.inv-uni > .item .tags.tags-1 {\n  max-height: 16px;\n}\n.inv-uni > .item .tug-lv {\n  flex-wrap: nowrap;\n  margin: 0;\n}\n.inv-uni > .item .tug-lv button {\n  padding: 1px 3px;\n  white-space: nowrap;\n}\n\n/* 홈: 한 줄 레벨 */\n.panel.lvline {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin-top: 14px;\n  padding: 10px 14px;\n}\n.lvline .lvtag {\n  color: var(--accent);\n  white-space: nowrap;\n}\n.lvline .bar {\n  flex: 1;\n  margin: 0;\n}\n.lvline .muted {\n  font-size: 12px;\n  white-space: nowrap;\n}\n\n/* 보물 공방 카드: 재료 이름이 잘리지 않게 상점 카드보다 넓게 (한 줄 3장) */\n.wardrobe.ws-grid {\n  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));\n}\n/* 보물 공방 카드: 재료 목록 (가진 개수 / 필요한 개수) */\n.ws-card .ws-mats {\n  list-style: none;\n  margin: 4px 0 2px;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  width: 100%;\n  font-size: 11px;\n}\n.ws-card .ws-mats li {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  color: var(--muted);\n}\n.ws-card .ws-mats li .nm {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  text-align: left;\n  font-size: 11px;\n}\n.ws-card .ws-mats li b {\n  font-weight: 700;\n}\n.ws-card .ws-mats li.ok {\n  color: var(--good);\n}\n.ws-card.ready {\n  border-color: var(--good);\n  box-shadow: 3px 3px 0 var(--good);\n}\n/* 한 번 주웠지만 공방 재료로 다 써서 0개인 보물 */\n.tcell.used {\n  opacity: 0.55;\n}\n\n/* 함께 하는 놀이 카드: 최고 기록 · 줄다리기 난이도 */\n.item .toy-rec {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  margin: 2px auto 0;\n  padding: 1px 7px;\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--soft);\n  border-radius: 999px;\n}\n.item .tug-lv {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  margin: 4px 0 1px;\n  font-size: 11px;\n  color: var(--muted);\n}\n/* 하·중·상 버튼만 한 줄로 ('고양이 힘' 이름표는 마우스를 올리면. 카드 규격 안에 들어가게) */\n.item .tug-lv button {\n  min-width: 22px;\n  padding: 1px 4px;\n  font: inherit;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--panel);\n  border: 1.5px solid var(--line);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.item .tug-lv button.on {\n  color: #fff;\n  background: var(--accent);\n  border-color: var(--accent);\n}\n\n/* 상점 먹이 묶음 제목 (밥 / 간식) */\nh3.sub {\n  margin: 12px 0 8px;\n}\nh3.sub small {\n  font-family: inherit;\n  font-size: 11px;\n  margin-left: 6px;\n}\n.item .btn.ghost.buy {\n  margin-left: 0;\n}\n\n/* ---------- 설정: 모션 고르기 ---------- */\n\n.field.motion-row {\n  flex-direction: column;\n  align-items: stretch;\n  gap: 8px;\n  text-align: left;\n}\n.chips {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: flex-start;\n  gap: 6px;\n}\n.chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px 9px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.chip:hover {\n  background: var(--soft);\n}\n.chip.on {\n  border-color: var(--accent);\n  box-shadow: 2px 2px 0 var(--accent);\n}\n.chip.locked {\n  border-style: dashed;\n  color: var(--muted);\n}\n.chip small {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-size: 10px;\n}\n\n/* 모션 칩을 우클릭하면 뜨는 미리보기 창 */\n.motion-peek {\n  position: fixed;\n  z-index: 50;\n  width: 170px;\n  padding: 8px 8px 10px;\n  text-align: center;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 6px;\n  box-shadow: 4px 4px 0 rgba(58, 33, 24, 0.25);\n  animation: peek-in 0.16s steps(3);\n  pointer-events: none;\n}\n.motion-peek canvas {\n  display: block;\n  width: 144px;\n  height: 144px;\n  margin: 0 auto;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.motion-peek .nm {\n  margin-top: 6px;\n  font-family: var(--pixel);\n  font-size: 13px;\n}\n.motion-peek .st {\n  margin-top: 2px;\n  font-size: 11px;\n  color: var(--muted);\n}\n@keyframes peek-in {\n  from {\n    transform: scale(0.6);\n    opacity: 0;\n  }\n  to {\n    transform: scale(1);\n    opacity: 1;\n  }\n}\n\n/* ---------- 통계 ---------- */\n\n.chart {\n  display: flex;\n  align-items: flex-end;\n  gap: 4px;\n  height: 130px;\n  padding-top: 16px;\n}\n.chart .col {\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: flex-end;\n  height: 100%;\n  min-width: 0;\n}\n.chart .b {\n  width: 100%;\n  max-width: 26px;\n  background: var(--accent);\n  border: 2px solid var(--line);\n  border-bottom: none;\n  min-height: 2px;\n  position: relative;\n}\n.chart .b.today {\n  background: var(--gold);\n}\n.chart .n {\n  font-family: var(--pixel);\n  font-size: 9px;\n  color: var(--muted);\n  margin-bottom: 2px;\n}\n.chart .lab {\n  font-size: 9px;\n  color: var(--muted);\n  margin-top: 3px;\n  border-top: 2px solid var(--line);\n  width: 100%;\n  text-align: center;\n  padding-top: 2px;\n}\n.chart.hours {\n  height: 90px;\n  gap: 2px;\n}\n.chart.hours .b {\n  border-width: 1px;\n}\n\n.table {\n  width: 100%;\n  border-collapse: collapse;\n}\n.table td {\n  padding: 6px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.table td:last-child {\n  text-align: right;\n  font-family: var(--pixel);\n}\n\n/* ---------- 설정 ---------- */\n\n.field {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 9px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.field:last-child {\n  border: none;\n}\n.field .lbl small {\n  display: block;\n  color: var(--muted);\n  font-size: 11px;\n}\n.field input[type='text'],\n.field input[type='time'],\n.field input[type='number'],\n.field select {\n  font: inherit;\n  color: inherit;\n  background: var(--bg);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  padding: 4px 6px;\n}\n.field input[type='number'] {\n  width: 72px;\n}\n.field input[type='text'] {\n  width: 140px;\n}\n.inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  white-space: nowrap;\n}\n/* 이름표는 남는 폭을 쓰고, 오른쪽 조작부(값·스위치·버튼)는 줄지 않게. 안 그러면 '2 단계' 가 한 글자씩 세로로 꺾인다 */\n.field .lbl {\n  flex: 1;\n  min-width: 0;\n}\n.field > select,\n.field > .btn,\n.field > input {\n  flex: none;\n}\n.field.motion-row .lbl {\n  flex: none;\n}\n#scale-v {\n  white-space: nowrap;\n  flex: none;\n  min-width: 3.5em;\n}\n\n/* 도트 스위치 */\n.switch {\n  position: relative;\n  width: 40px;\n  height: 22px;\n  flex: none;\n}\n.switch input {\n  opacity: 0;\n  width: 0;\n  height: 0;\n}\n.switch span {\n  position: absolute;\n  inset: 0;\n  background: var(--soft);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  cursor: pointer;\n}\n.switch span::after {\n  content: '';\n  position: absolute;\n  top: 2px;\n  left: 2px;\n  width: 14px;\n  height: 14px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  transition: left 0.12s steps(3);\n}\n.switch input:checked + span {\n  background: var(--accent);\n}\n.switch input:checked + span::after {\n  left: 20px;\n}\n\n.radio {\n  display: block;\n  padding: 8px 10px;\n  margin-bottom: 6px;\n  border: 2px solid var(--soft);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.radio small {\n  display: block;\n  color: var(--muted);\n  margin-left: 22px;\n}\n\n.status {\n  display: inline-block;\n  font-family: var(--pixel);\n  font-size: 11px;\n  padding: 1px 6px;\n  border: 2px solid currentColor;\n  border-radius: 3px;\n}\n.status.ok {\n  color: var(--good);\n}\n.status.no {\n  color: #c0533a;\n}\n\n.projects label {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 5px 0;\n  border-bottom: 1px dashed var(--soft);\n  word-break: break-all;\n}\n.projects label span {\n  flex: 1;\n}\n.projects small {\n  color: var(--muted);\n  white-space: nowrap;\n}\n\ncode {\n  font-size: 11px;\n  background: var(--soft);\n  padding: 1px 4px;\n  border-radius: 3px;\n  word-break: break-all;\n}\n\n/* ---------- 첫 실행 ---------- */\n\n.welcome {\n  position: fixed;\n  inset: 0;\n  background: rgba(30, 18, 12, 0.55);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 20px;\n  z-index: 10;\n}\n.welcome .panel {\n  width: 100%;\n  max-width: 440px;\n  max-height: 100%;\n  overflow-y: auto;\n  padding: 20px;\n}\n.welcome canvas {\n  width: 144px;\n  height: 144px;\n  display: block;\n  margin: 0 auto 6px;\n}\n.welcome h2 {\n  text-align: center;\n  font-size: 17px;\n}\n.welcome .steps {\n  display: flex;\n  justify-content: center;\n  gap: 6px;\n  margin-bottom: 12px;\n}\n.welcome .steps i {\n  width: 10px;\n  height: 10px;\n  background: var(--soft);\n  border: 2px solid var(--line);\n}\n.welcome .steps i.on {\n  background: var(--accent);\n}\n.welcome .nav {\n  display: flex;\n  justify-content: space-between;\n  margin-top: 16px;\n}\n\n.toast {\n  position: fixed;\n  left: 50%;\n  bottom: 18px;\n  transform: translateX(-50%);\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  background: var(--ink);\n  color: var(--bg);\n  padding: 8px 14px;\n  border-radius: 3px;\n  box-shadow: 3px 3px 0 var(--shadow);\n  z-index: 20;\n}\n\n/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */\n[hidden]:not(#kc-a):not(#kc-b) {\n  display: none;\n}\n\ninput {\n  accent-color: var(--accent);\n}\n\n.chart .b.zero {\n  border: none;\n  min-height: 0;\n}\n\n/* ---------- 상점 ---------- */\n\n.wallet {\n  text-align: center;\n  padding: 14px;\n}\n.wallet .coins {\n  font-family: var(--pixel);\n  font-size: 26px;\n  color: var(--accent);\n  margin-bottom: 2px;\n}\n/* 간식·장난감 미리보기. 악세사리는 고양이가 쓴 모습(canvas)으로 보여 준다 */\n.item .art {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  height: 82px;\n}\n.item .price {\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 2px;\n}\n.item .own {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-family: var(--pixel);\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--accent);\n}\n.item .need {\n  font-size: 10px;\n  color: var(--muted);\n}\n.item .btn.buy {\n  font-size: 11px;\n  /* 사기 | 사용법 두 개가 좁은 카드에서도 한 줄에 들어가게 */\n  padding: 3px 8px;\n  margin-top: 2px;\n}\n\n/* ---------- 통계 도표 ---------- */\n\n/* 고양이가 읽어 주는 한 줄 */\n.insight {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 10px 14px;\n}\n.insight canvas {\n  /* 쓰고 있는 악세사리가 보일 만큼 크게.\n     고양이는 캔버스 아래쪽에 서 있어서(발이 44/48 줄) 그대로 두면 글보다 낮아 보인다. 몸 가운데가 상자 가운데에 오게 끌어올린다 */\n  /* 고양이 몸 가운데는 캔버스 위에서 80% 쯤. 바깥 여백으로 그 점이 글줄 가운데에 오게 한다 */\n  width: 104px;\n  height: 104px;\n  margin: -63px 0 -1px;\n  flex: none;\n  image-rendering: pixelated;\n}\n.insight p {\n  margin: 0;\n  font-size: 13px;\n  line-height: 1.5;\n}\n\n.stat .d .up {\n  color: #3f9d6a;\n}\n.stat .d .down {\n  color: #c0533a;\n}\n\n/* 요일 × 시간 히트맵 */\n.heat {\n  display: grid;\n  grid-template-columns: 22px repeat(24, 1fr);\n  gap: 2px;\n  align-items: center;\n}\n.heat .lab {\n  font-size: 9px;\n  color: var(--muted);\n  text-align: right;\n  padding-right: 3px;\n}\n.heat .cell {\n  aspect-ratio: 1;\n  border-radius: 2px;\n  background: color-mix(in srgb, var(--accent) calc(var(--a) * 100%), var(--line) 22%);\n}\n.heathours {\n  display: grid;\n  grid-template-columns: 22px repeat(24, 1fr);\n  gap: 2px;\n  margin-top: 4px;\n  font-size: 9px;\n  color: var(--muted);\n  text-align: center;\n}\n\n/* 집중 구간 분포 */\n.chart.focus {\n  height: 90px;\n}\n\n/* 코인 흐름 */\n.flow {\n  display: flex;\n  align-items: flex-end;\n  gap: 4px;\n  height: 90px;\n}\n.flow .fcol {\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  height: 100%;\n}\n.flow .pair {\n  flex: 1;\n  width: 100%;\n  display: flex;\n  align-items: flex-end;\n  justify-content: center;\n  gap: 1px;\n}\n.flow .e,\n.flow .s {\n  width: 45%;\n  min-height: 1px;\n  border-radius: 2px 2px 0 0;\n}\n/* 번 코인은 파랑, 쓴 코인은 빨강. 나란히 서 있어도 한눈에 갈리게 */\n.flow .e {\n  background: #2f7de1;\n}\n.flow .s {\n  background: #e5383b;\n}\n.flow-legend {\n  display: flex;\n  gap: 12px;\n  margin-top: 8px;\n  font-size: 11px;\n  color: var(--muted);\n}\n.flow-legend i {\n  display: inline-block;\n  width: 10px;\n  height: 10px;\n  border-radius: 2px;\n  margin-right: 4px;\n  vertical-align: -1px;\n}\n.flow .lab {\n  font-size: 9px;\n  color: var(--muted);\n  margin-top: 3px;\n}\n\n\n/* 배부름·기운 게이지 */\n.gauge {\n  display: grid;\n  grid-template-columns: 96px 1fr 34px;\n  align-items: center;\n  gap: 10px;\n  margin: 4px 0;\n}\n.gauge .gl {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  font-weight: 600;\n}\n.gauge b {\n  text-align: right;\n  font-variant-numeric: tabular-nums;\n}\n.gauge.low .bar i {\n  background: #e5383b;\n}\n.gauge-note {\n  margin: 6px 0 0;\n  font-size: 12px;\n}\n\n/* 연결할 도구 고르기 (첫 안내·설정). 지금 모드는 눌린 버튼 */\n.tool-pick {\n  display: flex;\n  gap: 8px;\n  margin: 6px 0 10px;\n}\n.tool-pick .btn {\n  flex: 1;\n  justify-content: center;\n}\n.tool-pick .btn small {\n  opacity: 0.8;\n  font-weight: 400;\n}\n\n/* 첫 안내의 개인정보 안내 상자 */\n.privacy {\n  display: flex;\n  gap: 10px;\n  align-items: flex-start;\n  margin: 10px 0;\n  padding: 10px 12px;\n  background: #eef6ff;\n  border: 2px solid #2f7de1;\n  border-radius: 6px;\n  text-align: left;\n}\n.privacy p {\n  margin: 0;\n  font-size: 13px;\n  line-height: 1.55;\n}\n/* 하위 폴더 (1.6.0) */\n.projects .sub-toggle {\n  display: block;\n  margin: 2px 0 2px 26px;\n  padding: 2px 8px;\n  font-size: 11px;\n}\n.projects label.sub {\n  font-size: 12px;\n}\n.projects label.sub input:disabled + span {\n  color: var(--muted);\n}\n/* 프로젝트 더보기 */\n.projects .more {\n  margin-top: 6px;\n  width: 100%;\n}\n\n/* ---------- 통계: 대시보드 ---------- */\n.dash {\n  padding: 4px 14px;\n}\n.dash-row {\n  display: grid;\n  grid-template-columns: 76px 1fr 1fr;\n  align-items: center;\n  gap: 12px;\n  padding: 12px 0;\n  border-bottom: 1px dashed color-mix(in srgb, var(--line) 18%, transparent);\n}\n.dash-row:last-child {\n  border-bottom: 0;\n}\n.dash-when {\n  font-weight: 700;\n  font-size: 14px;\n}\n.dash-cell {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n.dash-k {\n  font-size: 11px;\n  color: var(--muted);\n}\n.dash-v {\n  font-size: 20px;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  letter-spacing: -0.3px;\n}\n\n/* ---------- 통계: 고양이의 가계부 (줄 공책) ---------- */\n.ledger {\n  background:\n    repeating-linear-gradient(180deg, transparent 0 27px, #eadfcd 27px 28px),\n    #fffdf7;\n  border-left: 6px double #e5a3a3;\n  padding: 12px 16px 14px 18px;\n}\n.ledger-cat + .ledger-cat {\n  margin-top: 12px;\n}\n.ledger-head {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 14px;\n}\n.ledger-head .muted {\n  font-size: 11px;\n}\n.ledger-sum {\n  margin-left: auto;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n}\n.ledger-sum::after {\n  content: ' C';\n  font-size: 11px;\n  color: var(--muted);\n}\n.ledger ul {\n  list-style: none;\n  margin: 4px 0 0;\n  padding: 0 0 0 24px;\n}\n.ledger li {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  line-height: 28px;\n  font-size: 13px;\n}\n.ledger-x {\n  color: var(--muted);\n  font-size: 12px;\n}\n.ledger-dots {\n  flex: 1;\n  border-bottom: 2px dotted #cdbda6;\n  transform: translateY(-4px);\n}\n.ledger-amt {\n  font-variant-numeric: tabular-nums;\n}\n.ledger-total {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-top: 12px;\n  padding-top: 8px;\n  border-top: 3px double #3a2118;\n  font-size: 15px;\n}\n.ledger-total .muted {\n  font-size: 12px;\n}\n\n/* 상점 페이지 버튼 */\n.shop-jump .chip small {\n  margin-left: 4px;\n  font-size: 10px;\n  color: var(--muted);\n}\n.shop-jump .chip.on small {\n  color: inherit;\n}\n.shop-page-sub {\n  margin: 10px 0 8px;\n}\n\n/* 어두운 화면에서도 가계부·안내 상자가 읽히게 */\n\n:root.dark .ledger {\n    background:\n      repeating-linear-gradient(180deg, transparent 0 27px, #3a2f28 27px 28px),\n      var(--panel);\n    border-left-color: #8a4b4b;\n  }\n:root.dark .ledger-dots {\n    border-bottom-color: #5a4a3e;\n  }\n:root.dark .ledger-total {\n    border-top-color: var(--ink);\n  }\n:root.dark .privacy {\n    background: #1f2a38;\n    border-color: #5a8fd6;\n  }\n\n\n/* 장난감 미리보기 */\n.toy-peek {\n  width: 200px;\n}\n.toy-peek .stagebox {\n  position: relative;\n}\n.toy-peek .toyart {\n  position: absolute;\n  right: 14px;\n  bottom: 8px;\n  animation: toy-bob 0.7s steps(2) infinite;\n}\n@keyframes toy-bob {\n  50% {\n    transform: translateY(-5px);\n  }\n}\n\n/* ---------- 업적: 묶음·난이도·보상 ---------- */\n.ach-cat {\n  display: flex;\n  align-items: baseline;\n  gap: 8px;\n  margin: 18px 0 8px;\n  font-size: 15px;\n}\n.ach-cat .muted {\n  font-size: 12px;\n  font-weight: 400;\n}\n.badge {\n  position: relative;\n}\n.badge .tier {\n  position: absolute;\n  top: 6px;\n  left: 6px;\n  padding: 1px 5px;\n  font-size: 10px;\n  font-weight: 700;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n}\n.tier-normal .tier {\n  background: #e6f0fb;\n  color: #2f6fb8;\n}\n.tier-hard .tier {\n  background: #fde7e3;\n  color: #c0533a;\n}\n.tier-legend .tier {\n  background: #fff2c4;\n  color: #9a6b00;\n}\n.tier-legend:not(.locked) {\n  border-color: #e9b93a;\n  box-shadow: 3px 3px 0 #e9b93a;\n}\n.badge .reward {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: 3px;\n  margin: 4px 0 2px;\n  padding: 3px 4px;\n  font-size: 11px;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.badge .reward small {\n  color: var(--muted);\n  font-size: 10px;\n}\n.badge .prog {\n  font-size: 10px;\n}\n.ach-filter {\n  margin-bottom: 4px;\n}\n\n/* ---------- 개발자 모드 버튼 (배포 전에 지운다) ---------- */\n\n.dev-toggle {\n  position: absolute;\n  top: 6px;\n  right: 8px;\n  z-index: 2;\n  font-family: var(--pixel);\n  font-size: 10px;\n  padding: 2px 7px;\n  background: var(--panel);\n  color: var(--muted);\n  border: 2px dashed var(--line);\n  border-radius: 3px;\n  cursor: pointer;\n  opacity: 0.7;\n}\n.dev-toggle:hover {\n  opacity: 1;\n}\n.dev-toggle.on {\n  opacity: 1;\n  color: #fff;\n  background: #6b4fd8;\n  border: 2px solid #3a2a86;\n}\n\n/* ---------- 통계: 위로 한마디 (누르면 다른 말) ---------- */\n\n.panel.insight {\n  cursor: pointer;\n}\n\n/* ---------- 설정: 초기화 ---------- */\n\n.panel.danger {\n  border-color: #c0533a;\n}\n.btn.danger {\n  background: #c0533a;\n  border-color: #7a2a1a;\n  color: #fff;\n}\n.btn.danger:hover {\n  background: #a8452f;\n}\n#reset-input {\n  width: 100%;\n  box-sizing: border-box;\n  border-color: #c0533a;\n}\n\n/* ---------- 퀘스트: 머리의 새로고침 버튼, 난이도 딱지 ---------- */\n\n.quest-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 10px;\n}\n/* 새 퀘스트 버튼은 소제목과 같은 줄 높이에 */\n.quest-head .btn {\n  flex: none;\n  margin-top: 0;\n}\n.qtier {\n  display: inline-block;\n  font-family: var(--pixel);\n  font-size: 10px;\n  line-height: 1;\n  padding: 3px 5px;\n  margin-right: 6px;\n  border-radius: 3px;\n  color: #fff;\n  vertical-align: 1px;\n}\n.qtier-hard { background: #c0533a; }\n.qtier-normal { background: #d99a2b; }\n.qtier-easy { background: #4f9d6c; }\n\n/* ---------- 팝업 (가계부 자세히 보기·모션 설정하기) ---------- */\n\n.modal {\n  position: fixed;\n  inset: 0;\n  background: rgba(30, 18, 12, 0.55);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 16px;\n  z-index: 20;\n}\n.modal[hidden] {\n  display: none;\n}\n.modal-box {\n  width: 100%;\n  max-width: 500px;\n  max-height: 100%;\n  overflow-y: auto;\n  padding: 16px;\n}\n.modal-top {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  margin-bottom: 8px;\n}\n.modal-top h2 {\n  margin: 0;\n}\n.h2-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n.btn.small {\n  padding: 3px 8px;\n  font-size: 11px;\n}\n.ledger li.ledger-more {\n  color: var(--muted);\n  font-size: 12px;\n  justify-content: flex-start;\n}\n\n.insight-txt p {\n  margin: 0;\n}\n.insight-txt .book-line {\n  font-weight: 700;\n  margin-bottom: 4px;\n}\n.insight-txt .book-line small {\n  display: block;\n  font-weight: 400;\n  color: var(--muted);\n  font-size: 11px;\n}\n\n/* ---------- 어려운 말 옆 (i) 와 설명 말풍선 ---------- */\n\n.info {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 13px;\n  height: 13px;\n  margin-left: 4px;\n  border: 1.5px solid var(--muted);\n  border-radius: 50%;\n  color: var(--muted);\n  font-family: Georgia, serif;\n  font-style: italic;\n  font-weight: 700;\n  font-size: 9px;\n  line-height: 1;\n  vertical-align: 1px;\n  cursor: help;\n}\n.info:hover,\n.info:focus {\n  border-color: var(--accent);\n  color: var(--accent);\n  outline: none;\n}\n.tip {\n  position: fixed;\n  z-index: 30;\n  max-width: 260px;\n  padding: 8px 10px;\n  background: var(--ink);\n  color: var(--bg);\n  font-size: 12px;\n  line-height: 1.5;\n  border-radius: 4px;\n  box-shadow: 2px 2px 0 var(--shadow);\n  pointer-events: none;\n}\n.tip[hidden] {\n  display: none;\n}\n\n/* ---------- 설정: 모션 카드 ---------- */\n\n.mcards {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));\n  gap: 10px;\n}\n.mcard {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 10px 12px;\n  min-width: 0;\n}\n.mcard-top {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n}\n.mcard small {\n  font-size: 11px;\n  line-height: 1.4;\n  min-height: 2.8em;\n}\n.mtag {\n  flex: none;\n  font-family: var(--pixel);\n  font-size: 10px;\n  padding: 2px 6px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n}\n/* 여러 개 고르는 칸은 글씨만 강조 (진한 딱지는 카드 제목보다 튀었다) */\n.mcard.multi .mtag {\n  color: var(--accent);\n}\n/* 고른 모션들. 여러 개면 옆으로 넘겨 본다 */\n.mstrip {\n  display: flex;\n  justify-content: safe center; /* 하나뿐이면 가운데, 넘치면 처음부터 */\n  gap: 6px;\n  overflow-x: auto;\n  scroll-snap-type: x mandatory;\n  padding: 4px 0 6px;\n  min-height: 104px;\n}\n.mthumb {\n  flex: none;\n  width: 84px;\n  scroll-snap-align: start;\n  text-align: center;\n  font-size: 11px;\n  line-height: 1.3;\n  cursor: zoom-in;\n}\n.mthumb canvas {\n  display: block;\n  width: 72px;\n  height: 72px;\n  margin: 0 auto 2px;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.mcard-empty {\n  margin: auto 0;\n  font-size: 12px;\n}\n.mcard-btn {\n  align-self: stretch;\n  justify-content: center;\n  margin-top: auto; /* 같은 줄 카드끼리 버튼 높이를 맞춘다 (모션 이름이 두 줄이어도) */\n}\n\n/* ---------- 모션 편집 창 ---------- */\n\n.modal-motion .modal-box {\n  max-width: 540px;\n}\n.medit-sub {\n  font-size: 12px;\n  margin: 0 0 10px;\n}\n.medit-top {\n  display: flex;\n  gap: 10px;\n  align-items: stretch;\n}\n.medit-preview {\n  flex: none;\n  width: 116px;\n  text-align: center;\n  font-size: 11px;\n}\n.medit-preview canvas {\n  display: block;\n  width: 108px;\n  height: 108px;\n  margin: 0 auto 4px;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.mzone-wrap {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n}\n.mzone-lbl,\n.mpool-lbl {\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  margin-bottom: 4px;\n}\n.mzone {\n  flex: 1;\n  display: flex;\n  flex-wrap: wrap;\n  align-content: flex-start;\n  gap: 6px;\n  padding: 8px;\n  min-height: 90px;\n  border: 2px dashed var(--line);\n  border-radius: 4px;\n  background: var(--soft);\n}\n.mzone.over,\n.mpool.over {\n  border-color: var(--accent);\n  background: color-mix(in srgb, var(--accent) 12%, transparent);\n}\n.mzone-empty {\n  margin: auto;\n  color: var(--muted);\n  font-size: 12px;\n}\n.msearch {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 10px 0 6px;\n}\n.mpool {\n  border: 2px dashed transparent;\n  border-radius: 4px;\n  padding: 2px;\n  max-height: 260px;\n  overflow-y: auto;\n}\n.mpool-lbl {\n  margin-top: 6px;\n}\n.mpool-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.mchip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px 8px;\n  font-size: 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  cursor: grab;\n  user-select: none;\n}\n.mchip:hover {\n  border-color: var(--accent);\n}\n.mchip.picked {\n  opacity: 0.45;\n}\n.mchip.locked {\n  cursor: pointer;\n  border-style: dashed;\n  color: var(--muted);\n}\n.mchip.dragging {\n  opacity: 0.3;\n}\n.mchip small {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n}\n.mchip .mx {\n  font-style: normal;\n  color: var(--muted);\n  margin-left: 2px;\n}\n.modal-foot {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  margin-top: 12px;\n}\n\n/* ---------- 모든 탭: 소제목(섹션) 사이를 넉넉히 띄우고 점선으로 나눈다 (처음엔 통계·설정만 그랬다) ---------- */\n/* 탭 맨 위 제목은 빼고, 탭 바로 아래 소제목과 탭 안 묶음(section)의 첫 소제목에 건다 */\n#view > h2,\n#view > .h2-row,\n#view > section > h2:first-child,\n#view > section > .h2-row:first-child,\n#view > section > .quest-head:first-child,\n#view > .ach-cat {\n  margin-top: 30px;\n  padding-top: 18px;\n  border-top: 2px dashed var(--soft-line, rgba(58, 33, 24, 0.18));\n}\n#view > .h2-row h2,\n#view > section > .h2-row h2,\n#view > section > .quest-head h2 {\n  margin-top: 0;\n}\n/* 업적은 필터 바로 아래 첫 묶음 위에는 선을 긋지 않는다 */\n#view > .shop-jump + .ach-cat {\n  margin-top: 12px;\n  padding-top: 0;\n  border-top: none;\n}\n#view > h2:first-child,\n#view > .h2-row:first-child,\n#view > section:first-child > h2:first-child,\n#view > section:first-child > .h2-row:first-child {\n  margin-top: 4px;\n  padding-top: 0;\n  border-top: none;\n}\n\n:root.dark #view > h2,\n:root.dark #view > .h2-row,\n:root.dark #view > section > h2:first-child,\n:root.dark #view > section > .h2-row:first-child,\n:root.dark #view > section > .quest-head:first-child,\n:root.dark #view > .ach-cat {\n    border-top-color: rgba(244, 233, 223, 0.16);\n  }\n\n/* 소제목 줄: 제목은 왼쪽, 그 구역의 버튼(head-act)은 오른쪽 끝에 세로 가운데로 */\n.h2-row {\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 10px;\n}\n.h2-row h2 {\n  margin-bottom: 0;\n}\n/* 소제목 옆 버튼: 제목보다 튀지 않게 작고 차분하게. 지금 눌러야 하는 것(밥이 모자람·퀘스트 새로 받기)만 alert 로 색을 준다 */\n.btn.head-act {\n  flex: none;\n  padding: 3px 9px;\n  font-size: 11px;\n  color: var(--ink);\n  background: var(--panel);\n  border-width: 1.5px;\n  border-color: color-mix(in srgb, var(--line) 45%, transparent);\n  box-shadow: none;\n}\n.btn.head-act:hover {\n  border-color: var(--line);\n  background: var(--soft);\n}\n.btn.head-act.alert {\n  color: #fff;\n  background: var(--accent);\n  border-color: var(--accent);\n}\n.btn.head-act.alert:hover {\n  background: var(--accent-hover);\n}\n\n/* ---------- 상점: 먹이 카드의 배부름·기운 ---------- */\n\n.panel.item {\n  position: relative;\n}\n.food-gain {\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 2px;\n}\n/* 프리미엄 먹이의 효과 한 줄 (배부름·기운 줄 밑) */\n.food-fx {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  line-height: 1.35;\n  color: #b07a12;\n  margin-top: 1px;\n}\n/* 배부름·기운: 아이콘 + 숫자 한 줄 */\n.food-gain {\n  display: inline-flex;\n  gap: 8px;\n  white-space: nowrap;\n}\n.food-gain span {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n}\n.panel.item.premium {\n  box-shadow: inset 0 0 0 2px #f2cf63;\n}\n/* ---------- 알림: 누르면 스르륵 ---------- */\n\n.toast {\n  cursor: pointer;\n  transition: opacity 0.3s ease, translate 0.3s ease;\n}\n.toast.out {\n  opacity: 0;\n  translate: 0 10px;\n}\n\n/* ---------- 대시보드 맨 위: 전체 토큰 ---------- */\n\n.dash-total {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 10px;\n  padding-bottom: 10px;\n  margin-bottom: 4px;\n  border-bottom: 1px dashed var(--line);\n}\n.dash-total-v b {\n  font-size: 24px;\n}\n.dash-total-v .muted {\n  margin-left: 8px;\n  font-size: 13px;\n}\n\n/* ---------- 자랑 카드 ---------- */\n\n.modal-card .modal-box {\n  max-width: 820px;\n}\n/* 8차: 왼쪽 미리보기 · 오른쪽 고르기. 창이 좁으면 위아래로 */\n.card-edit {\n  display: grid;\n  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);\n  gap: 14px;\n  align-items: start;\n}\n@media (max-width: 720px) {\n  .card-edit { grid-template-columns: 1fr; }\n}\n.card-opts .copt { margin-bottom: 10px; }\n.card-opts .copt > b { display: block; font-size: 12px; margin-bottom: 4px; }\n.card-opts .chips { display: flex; flex-wrap: wrap; gap: 4px; }\n.card-opts .chip { font-size: 12px; }\n.card-opts .chip.swatch i { display: inline-block; width: 10px; height: 10px; border: 2px solid; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }\n.card-opts input[type='text'] { width: 100%; }\n.card-img {\n  display: block;\n  width: 100%;\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 var(--shadow);\n}\n.card-actions {\n  flex-wrap: wrap;\n}\n\n/* ---------- 보물 상자 ---------- */\n\n.tbox {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));\n  gap: 8px;\n}\n.tcell {\n  position: relative;\n  text-align: center;\n  padding: 10px 6px 8px;\n}\n.tcell .pxi {\n  display: block;\n  margin: 4px auto 6px;\n}\n.tnm {\n  font-size: 11px;\n  line-height: 1.3;\n  word-break: keep-all;\n}\n.tcnt {\n  font-size: 11px;\n  color: var(--muted);\n}\n.tcell.unknown .pxi {\n  filter: brightness(0);\n  opacity: 0.18;\n}\n.tcell.unknown .tnm {\n  color: var(--muted);\n}\n.trar {\n  position: absolute;\n  top: 5px;\n  left: 5px;\n  font-size: 9px;\n  padding: 1px 4px;\n  border-radius: 3px;\n  color: #fff;\n  background: #9aa0aa;\n}\n.tr-rare .trar {\n  background: #3a6fb0;\n}\n.tr-legend .trar {\n  background: #e0a91e;\n}\n.tr-legend {\n  border-color: #e0a91e;\n}\n\n/* ---------- 동네 친구 도감 ---------- */\n\n/* 카드 크기를 모두 같게: 줄 높이를 똑같이(1fr) 두고, 부르기 칸은 카드 바닥에 붙인다.\n   TMI 를 펼친 카드만 두 줄을 차지한다 (dense 로 빈칸을 메운다) */\n.gbox {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));\n  grid-auto-rows: 1fr;\n  grid-auto-flow: row dense;\n  gap: 8px;\n}\n.gcell {\n  text-align: center;\n  padding: 8px 10px 10px;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  min-width: 0;\n}\n.gcell.open { grid-row: span 2; }\n.gcell.unknown { justify-content: center; }\n.gcell .fr-call { margin-top: auto; padding-top: 6px; }\n.fr-bar { width: 80%; height: 6px; margin: 3px 0 2px; background: var(--soft); border-radius: 3px; overflow: hidden; }\n.fr-bar i { display: block; height: 100%; background: var(--accent); }\n.gcell canvas {\n  display: block;\n  width: 96px;\n  height: 96px;\n  margin: -14px auto -4px;\n  image-rendering: pixelated;\n}\n.gcell.unknown canvas {\n  filter: brightness(0);\n  opacity: 0.16;\n}\n.gnm {\n  font-weight: 700;\n  font-size: 14px;\n}\n.glv {\n  font-size: 10px;\n  font-weight: 400;\n  padding: 1px 5px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n  vertical-align: 1px;\n}\n.gsub {\n  font-size: 11px;\n  color: var(--muted);\n  line-height: 1.4;\n  margin-top: 2px;\n}\n.ghearts {\n  margin-top: 4px;\n}\n.ghearts span {\n  opacity: 0.2;\n  margin: 0 1px;\n}\n.ghearts span.on {\n  opacity: 1;\n}\n\n/* ---------- 오늘 기분 딱지 ---------- */\n\n.temper {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  padding: 1px 6px 1px 4px;\n  margin-right: 6px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--ink);\n}\n.temper.t-playful {\n  background: #fff1c9;\n}\n.temper.t-grumpy {\n  background: #f9d9d2;\n}\n\n:root.dark .temper.t-playful,\n:root.dark .temper.t-grumpy {\n    color: #3a2118;\n  }\n\n\n/* ---------- 옷장: 왼쪽 고양이 · 오른쪽 인벤토리 ---------- */\n\n.closet {\n  display: grid;\n  grid-template-columns: 190px 1fr;\n  gap: 12px;\n  align-items: start;\n}\n/* 좁은 창(최소 460)에서도 두 칸을 유지한다. 한 칸으로 접으면 왼쪽 패널이 첫 화면을 다 차지해서 코스튬이 안 보였다 */\n@media (max-width: 540px) {\n  .closet {\n    grid-template-columns: 160px 1fr;\n    gap: 10px;\n  }\n  .closet-cat {\n    width: 144px;\n    height: 144px;\n  }\n}\n@media (max-width: 380px) {\n  .closet {\n    grid-template-columns: 1fr;\n  }\n}\n.closet-left {\n  position: sticky;\n  top: 0;\n  padding: 10px;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.closet-cat {\n  display: block;\n  width: 168px;\n  height: 168px;\n  margin: -20px auto -6px;\n  image-rendering: pixelated;\n}\n.wslots {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  font-size: 12px;\n}\n.wslot {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  padding: 3px 4px;\n  border-radius: 3px;\n}\n.wslot.on {\n  background: var(--soft);\n}\n.wslot-k {\n  flex: none;\n  width: 34px;\n  color: var(--muted);\n  font-size: 11px;\n}\n.wslot-v {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.wslot-v i {\n  color: var(--muted);\n  font-style: normal;\n  font-size: 11px;\n}\n.wslot-x {\n  flex: none;\n  border: none;\n  background: none;\n  color: var(--muted);\n  cursor: pointer;\n  font-size: 14px;\n  line-height: 1;\n  padding: 0 2px;\n}\n.wslot-x:hover {\n  color: var(--accent);\n}\n.btn.wide {\n  justify-content: center;\n}\n.wsaves-title {\n  font-size: 11px;\n  color: var(--muted);\n  /* 입은 칸 목록과 코디 저장을 점선으로 나눈다 (다른 탭 소제목과 같은 구분) */\n  margin-top: 10px;\n  padding-top: 10px;\n  border-top: 2px dashed var(--soft-line, rgba(58, 33, 24, 0.18));\n}\n.wsaves {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n}\n.wsave {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n}\n/* 코디 지우기: 좁은 왼쪽 패널에 들어가게 × 한 글자짜리 */\n.wsave .wsave-del {\n  padding: 3px 6px;\n  color: var(--muted);\n}\n.wsave .wsave-del:not(:disabled):hover {\n  color: #c0533a;\n  border-color: #c0533a;\n}\n.wsave span {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  line-height: 1.2;\n}\n.wsave small {\n  color: var(--muted);\n  font-size: 10px;\n}\n.wsave .btn.small {\n  padding: 2px 6px;\n  font-size: 10px;\n}\n.closet-right {\n  min-width: 0;\n}\n.closet-right .wardrobe {\n  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));\n}\n.ward-tabs,\n.costume-tabs {\n  flex-wrap: wrap;\n  margin-bottom: 8px;\n}\n/* 인벤토리의 분류 줄(코스튬·밥… / 전체·세트·머리…)은 따라 붙지 않고 처음 자리에 둔다.\n   둘 다 붙으면 두 줄이 겹쳤고, 큰 분류 줄만 붙여도 따라 붙는 왼쪽 패널 아래쪽(코디 저장)이 창 밖으로 밀렸다 */\n.inv-pages,\n.closet-right .ward-tabs {\n  position: static;\n}\n.closet-right .ward-tabs {\n  padding-top: 0;\n  margin-top: 0;\n}\n/* 카드 왼쪽 위 칸 딱지 (머리·얼굴…) */\n.wtag {\n  position: absolute;\n  top: 5px;\n  left: 5px;\n  font-size: 9px;\n  padding: 1px 4px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n  z-index: 1;\n}\n.witem {\n  position: relative;\n}\n/* 인벤토리 큰 분류 (코스튬 · 밥 · 간식 · 장난감 · 보물 재료) */\n.inv-pages {\n  flex-wrap: wrap;\n  margin-bottom: 10px;\n}\n/* 보물 공방 탭의 하위 메뉴 (보물 공방 · 보물 상자). 바로 밑 제목에는 점선을 긋지 않는다 */\n#view > .ws-pages {\n  margin-top: 0;\n}\n#view > .ws-pages + h2 {\n  margin-top: 8px;\n  padding-top: 0;\n  border-top: none;\n}\n/* 밥·간식·장난감 카드는 버튼이 두 개라 코스튬 카드보다 조금 넓게 */\n.closet-right .wardrobe.inv-grid {\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n}\n.inv-item {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  cursor: default;\n}\n.inv-item .hint {\n  margin-top: auto;\n  padding-top: 6px;\n}\n/* 인벤토리 카드(코스튬 · 밥 · 간식 · 장난감)도 상점처럼 한 규격: 그림 · 이름 · 정보 · 버튼 네 칸의 높이를 고정해\n   모든 카드가 같다 (2026-09-27. 탭마다 가장 큰 내용을 재서 정했다).\n   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */\n.wardrobe.inv-uni {\n  row-gap: 12px;\n}\n.inv-uni > .panel.item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  padding: 10px 8px 12px;\n}\n.inv-uni > .item > * {\n  margin: 0;\n  flex: none;\n}\n/* 그림 96 (코스튬) · 이름 두 줄 · 정보 38 (줄다리기: 설명 + 난이도 한 줄) · 버튼 29 */\n.inv-uni > .item .pv {\n  height: 96px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n.inv-uni > .item .nm {\n  height: 36px;\n}\n.inv-uni > .item .fx {\n  height: 38px;\n  overflow: hidden;\n}\n.inv-uni > .item .hint {\n  height: 29px;\n}\n/* 인벤토리 코스튬은 가운데 칸에 세트 전용 모션 버튼만, 아래 칸에 '착용 중' 글자만 들어가서 따로 더 낮게 */\n.inv-uni.inv-cos > .item .fx {\n  height: 22px;\n}\n.inv-uni.inv-cos > .item .hint {\n  height: 16px;\n  min-height: 0;\n}\n.inv-uni > .item .nm {\n  align-self: stretch;\n  text-align: center;\n  line-height: 1.25;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n.inv-uni > .item .fx {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  align-self: start;\n}\n.inv-uni > .item .fx > * {\n  margin: 0;\n}\n.inv-uni > .item .hint {\n  display: flex;\n  flex-wrap: nowrap;\n  justify-content: center;\n  align-items: center;\n  gap: 4px;\n  align-self: start;\n  min-height: 24px;\n  margin: 0;\n  padding: 0;\n}\n/* 왼쪽 좁은 패널의 배부름·기운 게이지: 이름 칸을 줄이고 줄마다 한 칸씩 */\n.inv-gauge .gauge {\n  grid-template-columns: 58px 1fr 26px;\n  gap: 6px;\n  font-size: 12px;\n}\n.inv-note {\n  margin: 0;\n  font-size: 11px;\n  line-height: 1.45;\n  word-break: keep-all;\n}\n\n/* 7차: 세트 전용 모션 · 장난감 시연 */\n.btn.setmo { margin: 4px auto 0; display: inline-flex; }\n.setmo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }\n.setmo-cell { background: var(--soft); border-radius: 10px; padding: 8px; text-align: center; }\n.setmo-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }\n.setmo-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }\n.setmo-cell.locked canvas { filter: grayscale(0.4) opacity(0.42); }\n/* 친구에게 선물하기 */\n.gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; max-height: 52vh; overflow: auto; }\n.gift-cell { position: relative; background: var(--soft); border: 2px solid transparent; border-radius: 10px; padding: 8px; text-align: center; cursor: pointer; font: inherit; color: inherit; }\n.gift-cell.on { border-color: var(--accent); }\n.gift-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }\n.gift-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }\n.gift-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }\n/* 장난감 사용법 (글로만 설명) */\n.toy-guide-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; }\n.toy-guide-head svg { flex: none; image-rendering: pixelated; }\n.toy-guide-head p { margin: 0; font-size: 12px; }\n.toy-guide { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }\n.toy-guide li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--soft); border-radius: 8px; }\n.toy-guide li svg { flex: none; margin-top: 2px; }\n.toy-guide b { display: block; font-size: 13px; }\n.toy-guide p { margin: 2px 0 0; font-size: 12px; line-height: 1.5; word-break: keep-all; }\n\n/* 7차 업적 카드의 팁 */\n.badge .ach-tip { display: flex; gap: 4px; align-items: flex-start; font-size: 11px; color: #8a6a3a; background: #fff6dc; border-radius: 6px; padding: 3px 6px; margin: 4px 0; text-align: left; line-height: 1.35; }\n.badge.locked .ach-tip { opacity: 0.9; }\n\n/* 7차: 털색 고르기 */\n.fur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; max-height: 60vh; overflow: auto; }\n.fur-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--panel); border: 2px solid color-mix(in srgb, var(--line) 20%, transparent); border-radius: 10px; padding: 6px; cursor: pointer; font: inherit; color: inherit; }\n/* 48칸 캔버스에서 고양이 둘레(가운데 아래 24칸)만 두 배로 보여 준다 */\n.fur-cell .fur-view { display: block; width: 100%; aspect-ratio: 1; overflow: hidden; }\n.fur-cell canvas { display: block; width: 200%; margin: -104% 0 0 -50%; image-rendering: pixelated; }\n.fur-cell.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }\n.fur-cell.locked { cursor: default; opacity: 0.55; filter: grayscale(0.6); }\n.fur-cell .nm { font-weight: 700; font-size: 12px; }\n.fur-cell .lv { font-size: 10px; color: var(--muted); display: inline-flex; gap: 2px; align-items: center; min-height: 12px; }\n/* 첫 실행 안내의 귀 고르기 (2026-10-10): 이름 칸 밑에 작게, 넘치면 안에서 스크롤 */\n/* 새로 생긴 것 (업데이트 뒤 처음 한 번, 2026-10-10) */\n.wn-list { list-style: none; margin: 6px 0 12px; padding: 0; display: grid; gap: 6px; max-height: 58vh; overflow: auto; }\n.wn-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; background: var(--soft); }\n.wn-row b { font-size: 13px; }\n.wn-row .muted { font-size: 11px; line-height: 1.4; word-break: keep-all; }\n.wn-row .btn { white-space: nowrap; }\n.fur-grid.w-ears { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 4px; max-height: 236px; }\n.w-ears .fur-cell { padding: 4px; }\n.w-ears .fur-cell .nm { font-size: 10px; line-height: 1.2; word-break: keep-all; }\n\n/* 7차: 동네 친구 */\n.gcell { cursor: pointer; }\n.gcell canvas.fart { display: block; width: 96px; height: 96px; margin: -14px auto -4px; image-rendering: pixelated; }\n.fr-nick { font-size: 11px; color: var(--muted); }\n.fr-tmi { text-align: left; font-size: 11px; margin: 6px 0 4px; padding-left: 16px; line-height: 1.45; }\n.fr-tmi li + li { margin-top: 3px; }\n/* 친구 좌우명: TMI 위에 옅은 상자로 */\n.fr-motto { align-self: stretch; margin: 8px 0 2px; padding: 6px 8px; background: var(--soft); border-radius: 6px; font-size: 12px; font-weight: 700; line-height: 1.4; word-break: keep-all; }\n.fr-motto small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-bottom: 1px; }\n.fr-call { margin-top: 6px; }\n.fr-call .btn { display: inline-flex; gap: 4px; align-items: center; }\n.fr-now { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }\n\n/* ---------- UI 점검 (2026-09-24): 좁은 창·정렬·다크 모드·키보드 ---------- */\n\n/* 탭 일곱 개가 가장 좁은 창(460)에서도 다 보이게. 예전엔 '설정' 탭이 오른쪽으로 밀려 숨었다 */\n@media (max-width: 560px) {\n  .tabs {\n    gap: 0;\n  }\n  .tabs button {\n    gap: 3px;\n    padding: 7px 5px 6px;\n  }\n}\n/* 탭이 여덟 개(보물 공방 추가)라 아주 좁은 창에서는 아이콘을 빼고 글자만 */\n@media (max-width: 540px) {\n  .tabs button > svg,\n  .tabs button > .pxi {\n    display: none;\n  }\n}\n\n/* 키보드로 옮겨 다닐 때 지금 어디인지 보이게 */\n.btn:focus-visible,\n.chip:focus-visible,\n.tabs button:focus-visible,\n.mchip:focus-visible,\n.fur-cell:focus-visible,\n[role='button']:focus-visible,\nselect:focus-visible,\ninput:focus-visible {\n  outline: 2px solid var(--accent);\n  outline-offset: 2px;\n}\n\n/* 0개인 칸 거르기 버튼은 흐리게 (눌러도 빈 목록) */\n.chip.empty {\n  color: var(--muted);\n  border-style: dashed;\n}\n\n/* 코스튬 카드: 48칸 캔버스에서 고양이와 옷이 있는 곳(가로 7~41, 세로 14~48)만 크게 보여 준다.\n   예전엔 고양이가 카드 아래쪽에 작게 앉아 있고 위가 비었다. 하늘을 덮는 효과 몇 개만 윗부분이 잘린다 */\n.acc-view {\n  display: block;\n  width: 96px;\n  height: 96px;\n  margin: 0 auto;\n  overflow: hidden;\n}\n.item .acc-view canvas {\n  width: 135.5px;\n  height: 135.5px;\n  margin: -39.5px 0 0 -19.8px;\n}\n\n/* 카드 안 가격·버튼을 바닥에 맞춘다 (이름이 한 줄·두 줄이어도 버튼 줄이 가지런하게) */\n.panel.item {\n  display: flex;\n  flex-direction: column;\n}\n.item .price {\n  align-self: center;\n  margin-top: auto;\n  padding-top: 2px;\n}\n@media (max-width: 540px) {\n  .stat {\n    padding: 8px 9px;\n  }\n}\n.witem .hint {\n  margin-top: auto;\n}\n.btn.setmo {\n  align-self: center;\n}\n\n/* 상점: 지갑은 한 줄로 */\n.panel.wallet {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 10px 14px;\n  text-align: left;\n}\n.wallet .coins {\n  flex: none;\n  margin: 0;\n}\n.wallet-meta {\n  min-width: 0;\n  color: var(--muted);\n  font-size: 12px;\n  line-height: 1.45;\n}\n.wallet-meta .small {\n  font-size: 11px;\n}\n/* 분류 버튼 + 칸 거르기는 한 덩어리로 따라 붙는다 (예전엔 둘 다 따로 붙어서 아래 줄이 위 줄을 덮었다) */\n.shop-sticky {\n  position: sticky;\n  top: -16px;\n  z-index: 5;\n  margin: 8px 0 0;\n  padding: 6px 0 4px;\n  background: var(--bg);\n  border-bottom: 1px dashed var(--soft);\n}\n.shop-sticky .shop-jump {\n  position: static;\n  margin: 0;\n  padding: 2px 0 4px;\n  align-items: center;\n}\n.shop-sticky .costume-tabs {\n  margin: 2px 0 2px;\n  padding: 0;\n}\n/* 상위 분류(밥·간식·코스튬·모션·장난감)와 그 아래 칸 거르기 사이 옅은 구분선 */\n.shop-sticky .shop-jump + .costume-tabs {\n  margin-top: 6px;\n  padding-top: 8px;\n  border-top: 1px solid color-mix(in srgb, var(--line) 28%, transparent);\n}\n.shop-sticky .costume-tabs .chip {\n  padding: 2px 7px;\n  font-size: 11px;\n}\n.jump-coins {\n  margin-left: auto;\n  font-family: var(--pixel);\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--accent);\n}\n.modal .own {\n  font-family: var(--pixel);\n  font-size: 12px;\n  color: var(--accent);\n}\n.toy-modal .modal-foot {\n  align-items: center;\n}\n\n/* 업적: 거르기 줄 오른쪽의 '묶음으로 가기'. 묶음 제목이 따라 붙는 줄에 가려지지 않게 */\n.jump-select {\n  margin-left: auto;\n  max-width: 55%;\n  font: inherit;\n  font-size: 12px;\n  color: inherit;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  padding: 3px 6px;\n  cursor: pointer;\n}\n.ach-filter {\n  align-items: center;\n}\n.ach-cat {\n  scroll-margin-top: 52px;\n}\n\n/* 설정: 맨 위 섹션 바로 가기 */\n.set-toc {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  margin: 0 0 6px;\n}\n.set-toc .chip {\n  padding: 2px 8px;\n  font-size: 11px;\n}\n#view[data-tab='settings'] > .set-toc + h2 {\n  margin-top: 12px;\n  padding-top: 0;\n  border-top: none;\n}\n#view[data-tab='settings'] > h2 {\n  scroll-margin-top: 8px;\n}\n\n/* 모션 편집 창의 찾기 칸 */\n.msearch {\n  font: inherit;\n  color: inherit;\n  background: var(--bg);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  padding: 5px 8px;\n}\n\n/* 상점 '새로 열림' 칩: 새로 열린 게 있을 때만 맨 앞에 뜬다 */\n.chip.chip-new {\n  border-color: #e0463a;\n  color: #e0463a;\n}\n.chip.chip-new.on {\n  background: #e0463a;\n  color: #fff;\n}\n\n/* 동네 친구 카드: 위쪽 빈칸을 줄이고, 누르면 펼쳐진다는 걸 보여 준다 */\n.gcell canvas,\n.gcell canvas.fart {\n  margin-top: -30px;\n}\n.fr-more {\n  margin-top: 4px;\n  font-size: 11px;\n  color: var(--accent);\n}\n.fr-more::after {\n  content: ' ▾';\n}\n.gcell.open .fr-more::after {\n  content: ' ▴';\n}\n\n/* 어두운 화면: 밝은 색을 박아 둔 곳들 */\n\n:root.dark .badge .ach-tip {\n    background: #3a3120;\n    color: #e8cf9a;\n  }\n:root.dark .fur-cell {\n    background: var(--panel);\n    border-color: var(--line);\n  }\n:root.dark .fur-cell.on {\n    background: #3d2a20;\n    border-color: var(--accent);\n  }\n:root.dark .fur-cell .lv {\n    color: var(--muted);\n  }\n:root.dark .setmo-cell {\n    background: var(--soft);\n  }\n:root.dark .dash-row {\n    border-bottom-color: var(--line);\n  }\n:root.dark .tier-normal .tier {\n    background: #1f3048;\n    color: #9cc3f0;\n  }\n:root.dark .tier-hard .tier {\n    background: #4a2620;\n    color: #f0a595;\n  }\n:root.dark .tier-legend .tier {\n    background: #43381a;\n    color: #f0cf6a;\n  }\n\n\n/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼 다섯 칸의 높이를 고정해 모든 카드가 같은 규격이다.\n   이름이 한 줄이든 두 줄이든, 효과가 있든 없든 가격·버튼 줄이 가지런하다.\n   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */\n.wardrobe.shop-grid {\n  row-gap: 12px;\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n}\n.shop-grid > .panel.item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  padding: 10px 8px 14px; /* 아래는 더 넉넉히: 가격·버튼이 테두리에 붙지 않게 */\n}\n.shop-grid > .item > * {\n  margin: 0;\n  flex: none;\n}\n/* 모든 상점 카드(밥·간식·코스튬·모션·장난감)를 같은 규격으로: 다섯 칸 높이를 고정한다.\n   탭마다 가장 큰 내용을 재서 정했다 (2026-09-27: 그림 96 코스튬·모션 · 이름 두 줄 · 정보 두 줄 · 가격 · 버튼 한 줄).\n   정보가 두 줄에 들어가도록 배부름·기운은 아이콘 한 줄, 효과는 짧게, 줄다리기 난이도는 인벤토리에서만 */\n.shop-grid > .item .pv {\n  align-self: center;\n  height: 96px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n/* 이름은 칸 위쪽(그림 쪽)에 붙이고 최대 두 줄: 그림 → 이름 간격이 모든 카드에서 같다 */\n.shop-grid > .item .nm {\n  align-self: stretch;\n  height: 36px;\n  text-align: center;\n  line-height: 1.25;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n.shop-grid > .item .fx {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  height: 36px;\n  overflow: hidden;\n}\n.shop-grid > .item .fx > * {\n  margin: 0;\n}\n.shop-grid > .item .fx:empty {\n  display: block;\n}\n.shop-grid > .item .price {\n  height: 17px;\n  padding: 0;\n}\n.shop-grid > .item .hint,\n.shop-grid > .item .hint:empty {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 4px;\n  height: 27px;\n  min-height: 24px;\n}\n.shop-grid > .item .btn.buy {\n  margin: 0;\n}\n\n/* 보물 공방 카드: 그림 · 이름 · 재료 · 버튼을 세로로 쌓고, 버튼은 맨 아래로 밀어 같은 줄 카드끼리 맞춘다 (요소 사이 10px).\n   [옵시디언] flex 로 쌓는다 */\n.wardrobe.ws-grid {\n  row-gap: 14px;\n}\n.ws-grid > .panel.ws-card {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  /* 카드 너비를 넘지 않게 (줄바꿈 안 하는 재료 이름이 테두리 밖으로 삐져나가지 않게) */\n  min-width: 0;\n  gap: 10px;\n  padding: 12px 10px;\n}\n.ws-grid > .ws-card > * {\n  margin: 0;\n  min-width: 0;\n  max-width: 100%;\n}\n.ws-grid > .ws-card .pv {\n  align-self: center;\n}\n.ws-grid > .ws-card .nm {\n  line-height: 1.35;\n  text-align: center;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.ws-grid > .ws-card .ws-mats {\n  align-self: stretch;\n  margin: 0;\n  padding: 7px 8px;\n  gap: 5px;\n  background: var(--soft);\n  border-radius: 6px;\n  box-sizing: border-box;\n}\n.ws-grid > .ws-card .ws-mats li {\n  line-height: 1.3;\n}\n/* 재료 이름은 말줄임 대신 두 줄로 (어느 보물인지 다 보이게) */\n.ws-grid > .ws-card .ws-mats li .nm {\n  white-space: normal;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.ws-grid > .ws-card .ws-mats li .pxi,\n.ws-grid > .ws-card .ws-mats li b {\n  flex: none;\n}\n.ws-grid > .ws-card .hint {\n  display: flex;\n  margin-top: auto;\n  justify-content: center;\n  align-items: center;\n  gap: 6px;\n  min-height: 26px;\n}\n.ws-grid > .ws-card .btn.buy {\n  margin: 0;\n}\n\n/* 별 상점 (8차): Lv80 뒤 별로만 사는 한정품. 남색 판 · 금빛 테두리로 코인 상점과 구별한다 */\n.panel.star-wallet { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 14px; background: linear-gradient(135deg, #241c4a, #3b2a7a); color: #fff3c4; border-color: #c9a227; }\n.panel.star-wallet .pix { font-size: 20px; color: #ffd84a; }\n.panel.star-wallet .muted { color: #d8cff5; }\n.panel.item.k-star { border-color: #c9a227; background: linear-gradient(180deg, #fffaf0, #f3ecff); }\n.panel.item.k-star .pv { background: radial-gradient(circle at 50% 40%, #3b2a7a, #1a1338); border-radius: 8px; }\n.star-price { display: inline-flex; align-items: center; gap: 3px; color: #8a6a00; }\n.star-price b { font-weight: 800; }\n\n:root.dark .panel.item.k-star { background: linear-gradient(180deg, #2a2440, #1f1a33); }\n:root.dark .star-price { color: #ffd84a; }\n\n\n/* ---------- 정돈 (8차 후속): 굵은 선 · 도장 그림자를 덜어 내고, 큰 분류와 작은 거르기를 다르게 ----------\n   위 규칙은 그대로 두고 여기서 덮는다 (되돌리려면 이 묶음만 지우면 된다) */\n:root {\n  --edge: color-mix(in srgb, var(--line) 18%, transparent);\n  --edge-strong: color-mix(in srgb, var(--line) 34%, transparent);\n  --lift: 0 1px 0 color-mix(in srgb, var(--line) 6%, transparent), 0 6px 16px -10px var(--shadow);\n  --r: 12px;\n  --r-sm: 8px;\n}\n:root.dark {\n  --edge: rgba(244, 233, 223, 0.12);\n  --edge-strong: rgba(244, 233, 223, 0.24);\n}\n.panel {\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: var(--lift);\n}\n.btn {\n  border: 1.5px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n  box-shadow: none;\n}\n.btn:active {\n  transform: translateY(1px);\n}\n.btn.primary {\n  border-color: transparent;\n}\n.btn.ghost {\n  border-width: 1px;\n  border-color: var(--edge-strong);\n}\n.btn.ghost:hover,\n.btn.head-act:hover {\n  border-color: var(--edge-strong);\n}\n.xp-bar,\n.bar {\n  border: 0;\n  border-radius: 99px;\n  height: 8px;\n}\n.xp-bar i,\n.bar i {\n  border-radius: 99px;\n  background: var(--accent);\n}\n.bar.good i {\n  background: var(--good);\n}\n.bar.gold i {\n  background: var(--gold);\n}\n/* 맨 위: 탭 8개가 창 폭에 다 들어가게 그림 위 · 글씨 아래, 고른 탭은 밑줄 */\n.top {\n  border-bottom: 1px solid var(--edge);\n}\n.tabs {\n  gap: 0;\n  margin-top: 10px;\n}\n.tabs button {\n  flex: 1 1 0;\n  min-width: 50px;\n  flex-direction: column;\n  justify-content: center;\n  gap: 2px;\n  font-size: 11px;\n  padding: 5px 2px 7px;\n  border: 0;\n  border-radius: 0;\n  margin-bottom: 0;\n}\n.tabs button.on {\n  background: none;\n  color: var(--ink);\n  font-weight: 700;\n  box-shadow: inset 0 -2.5px 0 var(--accent);\n}\n.tabs .dot {\n  top: 3px;\n  right: calc(50% - 16px);\n  border-radius: 50%;\n  border: 0;\n}\n/* 칩: 작은 거르기는 알약, 고르면 진하게 */\n.chip {\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n  padding: 4px 10px;\n}\n.chip:hover {\n  background: var(--soft);\n}\n.chip.on {\n  background: var(--ink);\n  color: var(--bg);\n  border-color: var(--ink);\n  box-shadow: none;\n}\n.chip.on small {\n  color: inherit;\n  opacity: 0.7;\n}\n.chip.locked,\n.chip.empty {\n  border-style: dashed;\n}\n/* 큰 분류 줄(상점 · 인벤토리 · 업적)은 하나로 묶인 버튼 */\n.shop-jump:not(.costume-tabs):not(.ward-tabs) {\n  gap: 2px;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip {\n  border-color: transparent;\n  background: transparent;\n  border-radius: var(--r-sm);\n  padding: 5px 10px;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip:hover {\n  background: var(--soft);\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on {\n  background: var(--panel);\n  color: var(--ink);\n  border-color: var(--edge);\n  box-shadow: 0 1px 4px var(--shadow);\n  font-weight: 700;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on small {\n  color: var(--muted);\n  opacity: 1;\n}\n.shop-sticky {\n  border-bottom: 1px solid var(--edge);\n}\n.shop-sticky .shop-jump + .costume-tabs {\n  border-top-color: var(--edge);\n}\n/* 카드 */\n.item.on {\n  border-color: var(--accent);\n  box-shadow: 0 0 0 1.5px var(--accent), var(--lift);\n}\n.item.locked {\n  border: 1px dashed var(--edge-strong);\n  box-shadow: none;\n}\n.item .new {\n  border-radius: 99px;\n  padding: 0 6px;\n}\n.ws-card.ready {\n  box-shadow: 0 0 0 1.5px var(--good), var(--lift);\n}\n.tier-legend:not(.locked) {\n  box-shadow: 0 0 0 1.5px var(--gold), var(--lift);\n}\n/* 입력 · 고르기 · 토글 */\n.field select,\n.jump-select,\n.msearch,\ninput[type='text'],\ninput[type='number'],\ninput[type='time'],\n.field input[type='text'],\n.field input[type='time'],\n.field input[type='number'] {\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.switch span {\n  border: 0;\n  border-radius: 99px;\n  background: var(--edge-strong);\n}\n.switch span::after {\n  top: 3px;\n  left: 3px;\n  width: 16px;\n  height: 16px;\n  border: 0;\n  border-radius: 50%;\n  background: #fff;\n  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);\n  transition: left 0.15s ease;\n}\n.switch input:checked + span::after {\n  left: 21px;\n}\n.radio {\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.mchip {\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n}\n.mzone {\n  border: 1.5px dashed var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.motion-peek {\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: 0 12px 30px -8px var(--shadow);\n}\n.toast,\n.tip,\n.card-img {\n  border-radius: var(--r-sm);\n  box-shadow: var(--lift);\n}\n.modal-box {\n  border-radius: var(--r);\n}\n.chart .b {\n  border: 0;\n  border-radius: 3px 3px 0 0;\n}\n.chart .lab {\n  border-top: 1px solid var(--edge-strong);\n}\n.welcome .steps i {\n  border: 1px solid var(--edge-strong);\n}\n.dev-toggle {\n  border-radius: var(--r-sm);\n}\n.banner {\n  border-radius: var(--r);\n}\n.fur-cell {\n  border-width: 1px;\n}\n/* 섹션 사이 구분선은 실선 한 줄로 */\n#view > h2,\n#view > .h2-row,\n#view > section > h2:first-child,\n#view > section > .h2-row:first-child,\n#view > section > .quest-head:first-child,\n#view > .ach-cat {\n  border-top: 1px solid var(--edge);\n}\n/* 설정: 테마 고르기 */\n.theme-field {\n  flex-direction: column;\n  align-items: stretch;\n  gap: 8px;\n}\n.theme-picks {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.theme-pick {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 4px 10px 4px 5px;\n  font-size: 12px;\n  background: var(--panel);\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n  cursor: pointer;\n}\n.theme-pick:hover {\n  background: var(--soft);\n}\n.theme-pick.on {\n  border-color: var(--accent);\n  box-shadow: 0 0 0 1.5px var(--accent);\n  font-weight: 700;\n}\n.theme-pick .sw {\n  position: relative;\n  width: 18px;\n  height: 18px;\n  border-radius: 50%;\n  border: 1px solid rgba(0, 0, 0, 0.18);\n  overflow: hidden;\n}\n.theme-pick .sw b {\n  position: absolute;\n  right: -1px;\n  bottom: -1px;\n  width: 10px;\n  height: 10px;\n  border-radius: 50% 0 0 0;\n}\n.theme-pick .sw-auto {\n  background: linear-gradient(135deg, #faf6ef 50%, #1e1814 50%);\n}\n/* 오늘 먹고 싶은 것 (홈) */\n.crave-row {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n.crave-cell {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 8px 10px;\n  background: var(--soft);\n  border-radius: var(--r-sm);\n  min-width: 0;\n}\n.crave-cell.done {\n  opacity: 0.7;\n}\n.crave-txt {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  line-height: 1.3;\n}\n.crave-txt small {\n  color: var(--muted);\n  font-size: 10.5px;\n}\n.crave-txt b {\n  font-size: 13px;\n  line-height: 1.25;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.crave-txt span {\n  color: var(--accent);\n  font-size: 11px;\n}\n.crave-done {\n  color: var(--good);\n  font-size: 12px;\n  font-weight: 700;\n}\n.crave-sub {\n  margin: 8px 0 0;\n}\n.wtag.crave-tag {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  background: var(--accent);\n  color: #fff;\n}\n@media (max-width: 500px) {\n  .crave-row {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* 보물 교환소 · 공방 코스튬 이야기 */\n.ws-exchange {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 8px 10px;\n}\n.ws-exchange select {\n  flex: 1 1 180px;\n  min-width: 0;\n  font: inherit;\n  font-size: 12px;\n  padding: 5px 8px;\n  color: var(--ink);\n  background: var(--panel);\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.ws-story {\n  font-size: 10.5px;\n  line-height: 1.35;\n  color: var(--muted);\n  margin: 2px 4px 4px;\n}\n.ws-fill {\n  margin-top: 4px;\n}\n.ws-stamp {\n  position: absolute;\n  top: 5px;\n  right: 5px;\n  font-size: 9px;\n  padding: 1px 5px;\n  border-radius: 99px;\n  color: var(--good);\n  border: 1px solid color-mix(in srgb, var(--good) 50%, transparent);\n}\n\n/* 오늘의 소식 (홈) */\n.news-list {\n  list-style: none;\n  margin: 0 0 4px;\n  padding: 0;\n}\n.news-list li {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  padding: 5px 2px;\n  font-size: 12px;\n  border-bottom: 1px solid var(--edge);\n}\n.news-list li:last-child {\n  border-bottom: 0;\n}\n.news-list li[data-news-link] {\n  cursor: pointer;\n}\n.news-list li[data-news-link]:hover .nx {\n  color: var(--accent);\n}\n.news-list .nt {\n  flex: none;\n  width: 58px;\n  font-size: 10.5px;\n  color: var(--muted);\n}\n.news-list .nx {\n  flex: 1;\n  min-width: 0;\n  line-height: 1.35;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n\n/* 설정: 모션 4묶음 */\n.mgroups {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.mgroup {\n  background: var(--panel);\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: var(--lift);\n}\n.mgroup > summary {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 4px 10px;\n  padding: 11px 14px;\n  cursor: pointer;\n  list-style: none;\n}\n.mgroup > summary::-webkit-details-marker {\n  display: none;\n}\n.mgroup > summary::before {\n  content: '▸';\n  color: var(--muted);\n  font-size: 11px;\n  transition: transform 0.15s;\n}\n.mgroup[open] > summary::before {\n  transform: rotate(90deg);\n}\n.mgroup > summary .mtag {\n  margin-left: auto;\n}\n.mgroup > .mcards {\n  padding: 0 12px 12px;\n}\n\n/* 별 상점 카드 (2026-10-10): 그림 영역을 카드 위쪽 가장자리까지 꽉 채우고 3배(144px) 통째로 그린다.\n   날개 · 후광처럼 넓은 효과도 잘리지 않게. 카드가 좁으면(150px 미만) 2배로 */\n.shop-grid > .panel.item.k-star {\n  padding-top: 0;\n  overflow: hidden;\n  container-type: inline-size;\n}\n.panel.item.k-star .pv {\n  justify-self: stretch;\n  align-self: stretch;\n  margin: 0 -8px 4px;\n  height: 156px;\n  border-radius: 0;\n  display: flex;\n  align-items: flex-end;\n  justify-content: center;\n  overflow: hidden;\n}\n.panel.item.k-star .acc-view,\n.panel.item.k-star .acc-view canvas {\n  width: 144px;\n  height: 144px;\n  margin: 0;\n}\n.panel.item.k-star .wtag {\n  z-index: 1;\n  background: rgba(255, 255, 255, 0.85);\n  color: #3b2a7a;\n}\n@container (max-width: 150px) {\n  .panel.item.k-star .pv {\n    height: 108px;\n  }\n  .panel.item.k-star .acc-view,\n  .panel.item.k-star .acc-view canvas {\n    width: 96px;\n    height: 96px;\n  }\n}\n\n/* [옵시디언] 오른쪽 사이드바처럼 좁은 폭: 탭은 지금 탭만 이름을 보이고 나머지는 아이콘만, 머리의 상태 글은 줄을 바꾼다 */\n@media (max-width: 480px) {\n  .top {\n    padding: 10px 8px 0;\n  }\n  .hero {\n    gap: 8px;\n  }\n  #hero {\n    width: 72px;\n    height: 72px;\n  }\n  .mood {\n    flex-wrap: wrap;\n    row-gap: 2px;\n  }\n  .mood > * {\n    white-space: nowrap;\n  }\n  .tabs button {\n    padding: 7px 4px 6px;\n  }\n  /* 위의 540px 규칙은 아이콘을 빼고 글자만 남기는데, 여기서는 거꾸로 아이콘을 남긴다 */\n  .tabs button > svg,\n  .tabs button > .pxi {\n    display: block;\n    flex: none;\n    width: 15px;\n    height: 15px;\n  }\n  .tabs button:not(.on) .tx {\n    display: none;\n  }\n}\n\n/* ---------- [옵시디언 1.5.0] 오늘의 목표 + 집중 시간 (홈 맨 위) ---------- */\n.panel.goal-hero {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  align-items: center;\n  gap: 14px;\n  padding: 14px 16px;\n  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, var(--panel)), var(--panel) 60%);\n}\n.panel.goal-hero.done {\n  background: linear-gradient(135deg, color-mix(in srgb, var(--good) 12%, var(--panel)), var(--panel) 60%);\n}\n.panel.goal-hero.off {\n  grid-template-columns: minmax(0, 1fr) auto;\n}\n.goal-ring {\n  --p: 0;\n  position: relative;\n  width: 64px;\n  height: 64px;\n  border-radius: 50%;\n  background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--soft) 0);\n  display: grid;\n  place-items: center;\n  flex: none;\n}\n.goal-hero.done .goal-ring {\n  background: conic-gradient(var(--good) 100%, var(--soft) 0);\n}\n.goal-ring::before {\n  content: '';\n  position: absolute;\n  inset: 7px;\n  border-radius: 50%;\n  background: var(--panel);\n}\n.goal-ring > span {\n  position: relative;\n  font-family: var(--pixel);\n  font-size: 14px;\n  font-weight: 700;\n  color: var(--ink);\n}\n.goal-hero.done .goal-ring > span {\n  color: var(--good);\n}\n.goal-main {\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n.goal-main p {\n  margin: 0;\n}\n.goal-main > .btn {\n  align-self: flex-start;\n}\n.goal-v {\n  font-size: 12px;\n}\n.goal-v b {\n  font-family: var(--pixel);\n  font-size: 22px;\n  line-height: 1.1;\n}\n.goal-sub {\n  font-size: 12px;\n  color: var(--muted);\n}\n.goal-hero.done .goal-sub {\n  color: var(--good);\n  font-weight: 700;\n}\n.goal-week {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 8px;\n  font-size: 11px;\n}\n.goal-week .dots {\n  display: inline-flex;\n  gap: 3px;\n}\n.goal-week .dots i {\n  width: 9px;\n  height: 9px;\n  border-radius: 2px;\n  background: var(--soft);\n}\n.goal-week .dots i.on {\n  background: var(--good);\n}\n.goal-week .dots i:last-child {\n  outline: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent);\n  outline-offset: 1px;\n}\n.focus-box {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: 5px;\n  max-width: 190px;\n  padding-left: 14px;\n  border-left: 1px dashed var(--edge-strong);\n  text-align: center;\n}\n.focus-box .btn {\n  justify-content: center;\n}\n.focus-box small {\n  font-size: 11px;\n  line-height: 1.35;\n}\n.focus-box.on .focus-k {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  font-family: var(--pixel);\n  font-weight: 700;\n  font-variant-numeric: tabular-nums;\n  color: var(--accent);\n}\n.muted.small {\n  font-size: 12px;\n}\n\n/* 목표 고르기 창 · 첫 실행의 목표 칩 */\n.goal-pick {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  margin: 10px 0 14px;\n}\n.goal-pick .seg {\n  display: flex;\n  gap: 6px;\n}\n.goal-pick .chips,\n.chips.w-goal {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.goal-pick .chip small,\n.chips.w-goal .chip small {\n  margin-left: 4px;\n}\n.chips.w-goal {\n  margin: 4px 0 10px;\n}\n.goal-modal .nav {\n  display: flex;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n/* 좁은 폭(사이드바): 집중 칸은 아래 줄로 */\n@media (max-width: 520px) {\n  .panel.goal-hero {\n    grid-template-columns: auto minmax(0, 1fr);\n  }\n  .panel.goal-hero.off {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  .focus-box {\n    grid-column: 1 / -1;\n    max-width: none;\n    padding: 10px 0 0;\n    border-left: 0;\n    border-top: 1px dashed var(--edge-strong);\n  }\n}\n","frameCss":"/* iframe 안에만 더하는 스타일 (옵시디언판). 데스크톱판 pet.css · house.css 뒤에 붙는다 */\n\n/* 하우스는 옵시디언 탭 하나를 꽉 채운다. 데스크톱판은 창 크기(560×780)였다 */\nhtml.kc-house,\nhtml.kc-house body {\n  height: 100%;\n}\n\n/* 펫 무대는 투명하다 */\nhtml.kc-pet,\nhtml.kc-pet body {\n  background: transparent;\n}\n"};
+module.exports = {"petBody":"\n    <div id=\"bubble\" class=\"bubble\" hidden>\n      <span class=\"ico\"></span>\n      <span class=\"text\"></span>\n      <span class=\"hint\"></span>\n    </div>\n    <div id=\"loading\" class=\"loading\" hidden></div>\n    <div id=\"focus\" class=\"focus-pill\" hidden></div>\n    <div id=\"playhint\" class=\"playhint\" hidden></div>\n    <canvas id=\"pet\"></canvas>\n    <canvas id=\"field\"></canvas>","houseBody":"\n    <header class=\"top\">\n      <button id=\"dev\" class=\"dev-toggle\" type=\"button\"></button>\n      <div class=\"hero\">\n        <canvas id=\"hero\" class=\"pixel\"></canvas>\n        <div class=\"hero-info\">\n          <div class=\"hero-name\"><b id=\"h-name\"></b> <span id=\"h-lv\" class=\"lv\"></span></div>\n          <div id=\"h-mood\" class=\"mood\"></div>\n          <div class=\"xp\">\n            <div class=\"xp-bar\"><i id=\"h-xpbar\"></i></div>\n            <span id=\"h-xptext\"></span>\n          </div>\n        </div>\n        <div class=\"hero-streak\" id=\"h-streak\"></div>\n      </div>\n      <nav class=\"tabs\" id=\"tabs\" role=\"tablist\">\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"home\" data-icon=\"home\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"achievements\" data-icon=\"medal\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"wardrobe\" data-icon=\"ribbon\"><span class=\"tx\"></span><span class=\"dot\" id=\"dot-wardrobe\" hidden></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"shop\" data-icon=\"coin\"><span class=\"tx\"></span><span class=\"dot\" id=\"dot-shop\" hidden></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"stats\" data-icon=\"chart\"><span class=\"tx\"></span></button>\n        <button role=\"tab\" aria-selected=\"false\" aria-controls=\"view\" data-tab=\"settings\" data-icon=\"gear\"><span class=\"tx\"></span></button>\n      </nav>\n    </header>\n    <main id=\"view\" role=\"tabpanel\"></main>\n    <div id=\"welcome\" class=\"welcome\" hidden></div>\n    <div id=\"modal\" class=\"modal\" hidden></div>\n    <div id=\"toast\" class=\"toast\" role=\"status\" aria-live=\"polite\" hidden></div>","petCss":":root {\n  --ink: #3a2118;\n  --paper: #fffaf3;\n  --accent: #d97757;\n  --muted: #8b6f60;\n}\n\nhtml,\nbody {\n  margin: 0;\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  background: transparent;\n  user-select: none;\n  font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;\n  cursor: default;\n}\n\n/* 중국어: 프리텐다드에 없는 한자는 중국어 글꼴로 (맑은 고딕의 한자가 섞이거나 두부 글자가 나오지 않게) */\nhtml:lang(zh),\nhtml:lang(zh) body {\n  font-family: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n}\n\n/* 창은 화면 전체다. 고양이 자리(left·bottom)는 pet.js 가 정한다 */\n#pet {\n  position: absolute;\n  z-index: 2;\n  bottom: 0;\n  left: 0;\n  image-rendering: pixelated;\n  cursor: grab;\n}\n\nbody.dragging #pet {\n  cursor: grabbing;\n}\n\n/* 떠 있는 고양이의 바닥 그림자 (pet.js 의 updateFloorShadow) */\n#floor-shadow {\n  position: absolute;\n  z-index: 1;\n  image-rendering: pixelated;\n  pointer-events: none;\n}\n\n/* ---------- 말풍선 ---------- */\n\n.bubble {\n  position: absolute;\n  left: 50%;\n  max-width: 260px;\n  width: max-content;\n  box-sizing: border-box;\n  padding: 7px 10px 8px;\n  background: var(--paper);\n  color: var(--ink);\n  font-size: 12px;\n  line-height: 1.45;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);\n  transform: translateX(-50%) scale(0.6);\n  transform-origin: 50% 100%;\n  opacity: 0;\n  transition: transform 0.18s steps(3), opacity 0.12s;\n  cursor: pointer;\n}\n\n/* 홍보 모드 연출 패널에서 띄운 말풍선은 줄바꿈을 그대로 */\n.bubble.promo .text {\n  white-space: pre-line;\n}\n\n.bubble.show {\n  transform: translateX(-50%) scale(1);\n  opacity: 1;\n}\n\n/* 꼬리: 도트 계단 모양 */\n/* --tail-x: 말풍선이 화면 끝에 붙었을 때 꼬리를 고양이 쪽으로 옮기는 값 (pet.js placeOverlays) */\n.bubble::before,\n.bubble::after {\n  content: '';\n  position: absolute;\n  left: calc(50% + var(--tail-x, 0px));\n  width: 0;\n  height: 0;\n  border: solid transparent;\n}\n.bubble::before {\n  bottom: -10px;\n  margin-left: -7px;\n  border-width: 8px 7px 0;\n  border-top-color: var(--ink);\n}\n.bubble::after {\n  bottom: -6px;\n  margin-left: -4px;\n  border-width: 5px 4px 0;\n  border-top-color: var(--paper);\n}\n\n/* 머리 위에 자리가 없어 발 밑에 뜬 말풍선: 꼬리가 위로 */\n.bubble.below {\n  transform-origin: 50% 0;\n}\n.bubble.below::before {\n  bottom: auto;\n  top: -10px;\n  border-width: 0 7px 8px;\n  border-top-color: transparent;\n  border-bottom-color: var(--ink);\n}\n.bubble.below::after {\n  bottom: auto;\n  top: -6px;\n  border-width: 0 4px 5px;\n  border-top-color: transparent;\n  border-bottom-color: var(--paper);\n}\n\n.bubble.reward {\n  background: #fff4c7;\n  --paper: #fff4c7;\n}\n.bubble.notify {\n  background: #ffe1d6;\n  --paper: #ffe1d6;\n}\n\n/* 말풍선 왼쪽에 붙는 도트 아이콘 */\n.bubble .ico {\n  float: left;\n  margin: 1px 5px 0 0;\n}\n.bubble .ico:empty {\n  display: none;\n}\n\n.bubble .hint {\n  display: block;\n  margin-top: 2px;\n  color: var(--muted);\n  font-size: 10px;\n}\n.bubble .hint:empty {\n  display: none;\n}\n\n.loading {\n  position: absolute;\n  left: 50%;\n  bottom: 4px;\n  transform: translateX(-50%);\n  padding: 2px 6px;\n  background: rgba(58, 33, 24, 0.8);\n  color: #fff;\n  font-size: 10px;\n  border-radius: 3px;\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */\n[hidden]:not(#kc-a):not(#kc-b) {\n  display: none;\n}\n\n/* ---------- 장난감 놀이 ---------- */\n\nbody.playing #pet {\n  cursor: default;\n}\n\n/* 바닥에 놓인 것 — 던지는 장난감과 간식이 같은 모양새를 쓴다.\n   고양이보다 위에 있어야 끌어서 집을 수 있다 */\n.toy {\n  position: absolute;\n  z-index: 3;\n  transform: translate(-50%, -50%);\n  image-rendering: pixelated;\n  cursor: grab;\n  filter: drop-shadow(1px 2px 0 rgba(58, 33, 24, 0.3));\n}\n.toy.held {\n  cursor: grabbing;\n  filter: drop-shadow(2px 4px 0 rgba(58, 33, 24, 0.28));\n}\n\n/* 놀이판: 낚싯줄·깃털·비눗방울·레이저·털실 가닥을 그리는 화면 전체 캔버스. 마우스는 통과시킨다 */\n#field {\n  position: absolute;\n  z-index: 3;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  pointer-events: none;\n}\n\n/* 상자·봉투·스크래처는 그림자 대신 바닥에 딱 붙는다 */\n.toy.placed {\n  filter: none;\n}\n\n/* 놀이 안내는 고양이 머리 위에 붙어 다닌다 (자리는 pet.js) */\n/* [옵시디언 1.5.0] 집중 시간: 머리 위의 남은 시간 알약 */\n.focus-pill {\n  position: absolute;\n  z-index: 4;\n  left: 50%;\n  transform: translateX(-50%);\n  padding: 2px 7px 2px 20px;\n  background: rgba(58, 33, 24, 0.82) no-repeat 6px 50% / 9px 11px;\n  background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 11' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffd88a' d='M0 0h9v1H0zM0 10h9v1H0zM1 1h7v2H1zM2 3h5v1H2zM3 4h3v1H3zM4 5h1v1H4zM3 6h3v1H3zM2 7h5v1H2zM1 8h7v2H1z'/%3E%3C/svg%3E\");\n  color: #fff;\n  font-size: 11px;\n  font-weight: 700;\n  font-variant-numeric: tabular-nums;\n  letter-spacing: 0.02em;\n  border-radius: 999px;\n  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n.playhint {\n  position: absolute;\n  z-index: 4;\n  left: 50%;\n  transform: translateX(-50%);\n  padding: 3px 8px;\n  background: rgba(58, 33, 24, 0.75);\n  color: #fff;\n  font-size: 10px;\n  border-radius: 3px;\n  white-space: nowrap;\n  pointer-events: none;\n}\n\n/* 상자·봉투·스크래처를 톡 두드렸을 때 */\n.toy.knock {\n  animation: knock 0.32s steps(4);\n}\n@keyframes knock {\n  25% {\n    translate: -3px 0;\n  }\n  50% {\n    translate: 3px -2px;\n  }\n  75% {\n    translate: -2px 0;\n  }\n}\n\n/* ---------- 함께 하는 놀이 (toyplay4.js): 버튼·말풍선 ---------- */\n\n/* 뿅망치를 든 동안은 진짜 커서를 숨긴다 (놀이판에 망치를 그린다) */\nbody.no-cursor,\nbody.no-cursor #pet {\n  cursor: none;\n}\n\n.toygame {\n  position: absolute;\n  z-index: 5;\n  left: 0;\n  top: 0;\n  color: var(--ink);\n  font-size: 12px;\n  line-height: 1.35;\n}\n\n.tg-btn {\n  display: inline-flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 3px;\n  min-width: 52px;\n  padding: 6px 8px 5px;\n  font: inherit;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--paper);\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 2px 2px 0 rgba(58, 33, 24, 0.3);\n  cursor: pointer;\n}\n.tg-btn:hover:not(:disabled) {\n  background: #fff1dc;\n  transform: translateY(-1px);\n}\n.tg-btn:active:not(:disabled) {\n  transform: translate(1px, 1px);\n  box-shadow: 1px 1px 0 rgba(58, 33, 24, 0.3);\n}\n.tg-btn:disabled {\n  opacity: 0.45;\n  cursor: default;\n}\n.tg-btn.picked:disabled {\n  opacity: 1;\n  background: #ffe2a8;\n}\n.tg-btn.wide {\n  flex-direction: row;\n  min-width: 0;\n  padding: 4px 12px;\n}\n.toygame .pix {\n  image-rendering: pixelated;\n  display: block;\n}\n\n/* 가위바위보: 고양이 옆 버튼판 */\n.rps-pad {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 5px;\n}\n.rps-btns {\n  display: flex;\n  gap: 6px;\n}\n.rps-rec {\n  padding: 2px 8px;\n  font-size: 11px;\n  color: #fff;\n  background: rgba(58, 33, 24, 0.78);\n  border-radius: 3px;\n  white-space: nowrap;\n}\n\n/* 서로 낸 것 (말풍선) */\n.rps-bubble {\n  padding: 6px 8px;\n  background: var(--paper);\n  border: 2px solid var(--ink);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 rgba(58, 33, 24, 0.25);\n  font-weight: 700;\n  white-space: nowrap;\n}\n.rps-bubble::after {\n  content: '';\n  position: absolute;\n  left: 50%;\n  bottom: -8px;\n  margin-left: -6px;\n  border: solid transparent;\n  border-width: 7px 6px 0;\n  border-top-color: var(--ink);\n}\n.rps-result {\n  padding: 3px 10px;\n  font-size: 14px;\n  font-weight: 800;\n  color: #fff;\n  background: var(--ink);\n  border-radius: 4px;\n  white-space: nowrap;\n}\n.rps-result.win {\n  background: #3d8c5a;\n}\n.rps-result.lose {\n  background: #b0413a;\n}\n\n/* 고양이 질문의 고를 것 두 개 (2026-10-10) */\n.bubble .choices {\n  display: flex;\n  gap: 6px;\n  margin-top: 6px;\n}\n.bubble .choices:empty {\n  display: none;\n}\n.bubble .choices button {\n  flex: 1 0 auto;\n  white-space: nowrap;\n  font: inherit;\n  font-size: 11.5px;\n  padding: 3px 10px;\n  color: var(--ink);\n  background: var(--paper);\n  border: 1.5px solid var(--ink);\n  border-radius: 99px;\n  cursor: pointer;\n}\n.bubble .choices button:hover {\n  background: #ffe9c7;\n}\n","houseCss":":root {\n  --bg: #faf6ef;\n  --panel: #fffdf9;\n  --ink: #3a2118;\n  --muted: #8b6f60;\n  --line: #3a2118;\n  --soft: #efe4d6;\n  --accent: #d97757;\n  --accent-2: #e89a7c;\n  --accent-line: #7a3a24; /* 주 버튼 테두리 */\n  --accent-hover: #c9674a;\n  --top-tint: #f6e3d3; /* 맨 위 영역 그러데이션 */\n  --good: #3fa37a;\n  --gold: #e9b93a;\n  --shadow: rgba(58, 33, 24, 0.22);\n  /* 글꼴은 하나로 통일한다. --pixel 은 '조금 더 또렷하게 쓰는 자리'라는 뜻만 남았다 */\n  --pixel: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;\n  --body: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;\n  color-scheme: light;\n}\n\n/* 중국어: 프리텐다드에 없는 한자는 중국어 글꼴로 (맑은 고딕의 한자가 섞이거나 두부 글자가 나오지 않게) */\n:root:lang(zh) {\n  --pixel: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n  --body: 'Pretendard', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Malgun Gothic', system-ui, sans-serif;\n}\n\n\n:root.dark {\n    --bg: #1e1814;\n    --panel: #29211c;\n    --ink: #f4e9df;\n    --muted: #b49c8d;\n    --line: #6a5446;\n    --soft: #3a2f28;\n    --shadow: rgba(0, 0, 0, 0.45);\n    --top-tint: #3a2a21;\n    color-scheme: dark;\n  }\n\n\n/* ---------- 테마 (8차 후속, settings.theme) ----------\n   house.js 의 applyTheme 이 <html data-theme> 를 단다. 크림이 기본(:root), 코코아는 위 :root.dark,\n   'auto' 는 윈도우가 다크면 코코아 · 아니면 크림. 아래 셋은 밝은 테마라 토큰만 바꾼다 */\n:root[data-theme='mint'] {\n  --bg: #eef7f2;\n  --panel: #fbfffd;\n  --ink: #1f3b33;\n  --muted: #5e7f74;\n  --line: #1f3b33;\n  --soft: #d8ece2;\n  --accent: #2f9e7e;\n  --accent-2: #6cc3a6;\n  --accent-line: #17604c;\n  --accent-hover: #278a6d;\n  --top-tint: #d6ede1;\n  --shadow: rgba(31, 59, 51, 0.2);\n}\n:root[data-theme='sakura'] {\n  --bg: #fdf2f4;\n  --panel: #fffafb;\n  --ink: #4a2330;\n  --muted: #9a6b79;\n  --line: #4a2330;\n  --soft: #f7dfe5;\n  --accent: #e0708c;\n  --accent-2: #f0a3b6;\n  --accent-line: #8e3550;\n  --accent-hover: #cf5f7b;\n  --top-tint: #f9dce3;\n  --shadow: rgba(74, 35, 48, 0.2);\n}\n:root[data-theme='choco'] {\n  --bg: #f3e7da;\n  --panel: #fbf4ec;\n  --ink: #3b2416;\n  --muted: #86664f;\n  --line: #3b2416;\n  --soft: #e4d0bb;\n  --accent: #8b4f2c;\n  --accent-2: #b57a52;\n  --accent-line: #4d2a14;\n  --accent-hover: #7a4424;\n  --top-tint: #e6cfb7;\n  --shadow: rgba(59, 36, 22, 0.25);\n}\n\n* {\n  box-sizing: border-box;\n}\n\nhtml,\nbody {\n  margin: 0;\n  background: var(--bg);\n  color: var(--ink);\n  font: 13px/1.55 var(--body);\n}\n\nbody {\n  display: flex;\n  flex-direction: column;\n  height: 100vh;\n}\n\n.pixel {\n  image-rendering: pixelated;\n}\n\n/* 도트 아이콘(PixelArt.svg). 글줄 가운데에 맞춰 앉힌다 */\n.pxi {\n  flex: none;\n  vertical-align: -0.18em;\n  shape-rendering: crispEdges;\n}\n.ico-row {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n}\n\nh2,\nh3,\n.pix {\n  font-family: var(--pixel);\n  font-weight: 400;\n}\n\nh2 {\n  font-size: 15px;\n  font-weight: 700;\n  margin: 18px 0 10px;\n}\nh2:first-child {\n  margin-top: 4px;\n}\nh3 {\n  font-size: 13px;\n  margin: 0 0 6px;\n}\n\nbutton {\n  font: inherit;\n  color: inherit;\n}\n\n.btn {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  padding: 7px 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  box-shadow: 2px 2px 0 var(--shadow);\n  cursor: pointer;\n}\n.btn:hover {\n  background: var(--soft);\n}\n.btn:active {\n  transform: translate(2px, 2px);\n  box-shadow: none;\n}\n.btn.primary {\n  background: var(--accent);\n  border-color: var(--accent-line);\n  color: #fff;\n}\n.btn.primary:hover {\n  background: var(--accent-hover);\n}\n/* 보조 버튼: 그림자 없이 옅은 실선 (예전 점선은 꺼진 버튼처럼 보였다) */\n.btn.ghost {\n  box-shadow: none;\n  border-width: 1.5px;\n  border-color: color-mix(in srgb, var(--line) 45%, transparent);\n}\n.btn.ghost:hover {\n  border-color: var(--line);\n}\n.btn:disabled {\n  opacity: 0.5;\n  cursor: default;\n}\n\n.panel {\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 var(--shadow);\n  padding: 12px 14px;\n}\n\n/* ---------- 상단 ---------- */\n\n.top {\n  position: relative;\n  flex: none;\n  background: linear-gradient(180deg, var(--top-tint), var(--bg));\n  border-bottom: 2px solid var(--line);\n  padding: 14px 16px 0;\n}\n\n.hero {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n}\n#hero {\n  width: 96px;\n  height: 96px;\n  flex: none;\n  background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%);\n  border-radius: 8px;\n}\n.hero-info {\n  flex: 1;\n  min-width: 0;\n}\n.hero-name {\n  font-family: var(--pixel);\n  font-size: 18px;\n}\n.lv {\n  color: var(--accent);\n}\n/* 만렙 뒤 별 (house.js renderTop) */\n.lv-stars {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-family: var(--pixel);\n  vertical-align: -1px;\n}\n.mood {\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  color: var(--muted);\n  font-size: 12px;\n  margin: 2px 0 6px;\n}\n.xp {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n}\n.xp-bar,\n.bar {\n  position: relative;\n  flex: 1;\n  height: 10px;\n  background: var(--soft);\n  border: 2px solid var(--line);\n  border-radius: 2px;\n  overflow: hidden;\n}\n.xp-bar i,\n.bar i {\n  display: block;\n  height: 100%;\n  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, var(--accent-2) 6px 8px);\n  transition: width 0.6s steps(12);\n}\n.bar.good i {\n  background: repeating-linear-gradient(90deg, var(--good) 0 6px, #5fc295 6px 8px);\n}\n.bar.gold i {\n  background: repeating-linear-gradient(90deg, var(--gold) 0 6px, #f3d271 6px 8px);\n}\n.hero-streak {\n  flex: none;\n  text-align: center;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n}\n.hero-streak b {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  font-size: 22px;\n  color: var(--accent);\n  font-weight: 400;\n}\n\n.tabs {\n  display: flex;\n  gap: 2px;\n  margin-top: 12px;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n.tabs::-webkit-scrollbar {\n  display: none;\n}\n.tabs button {\n  position: relative;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  flex: none;\n  font-family: var(--pixel);\n  font-size: 12px;\n  padding: 7px 8px 6px;\n  background: transparent;\n  border: 2px solid transparent;\n  border-bottom: none;\n  border-radius: 4px 4px 0 0;\n  color: var(--muted);\n  cursor: pointer;\n  margin-bottom: -2px;\n}\n.tabs button:hover {\n  color: var(--ink);\n}\n.tabs button.on {\n  background: var(--bg);\n  border-color: var(--line);\n  color: var(--ink);\n}\n.dot {\n  position: absolute;\n  top: 4px;\n  right: 3px;\n  width: 7px;\n  height: 7px;\n  background: #ff5a5a;\n  border: 1px solid var(--line);\n}\n\nmain {\n  flex: 1;\n  overflow-y: auto;\n  padding: 16px;\n}\n\n/* ---------- 홈 ---------- */\n\n.banner {\n  display: flex;\n  gap: 10px;\n  align-items: center;\n  padding: 10px 12px;\n  margin-bottom: 14px;\n  background: #fff1d6;\n  border: 2px dashed #c8912a;\n  border-radius: 4px;\n  color: #6b4a10;\n}\n\n:root.dark .banner {\n    background: #3b2f18;\n    color: #f2d9a4;\n  }\n\n.banner p {\n  flex: 1;\n  margin: 0;\n}\n.banner .pxi {\n  flex: none;\n}\n\n.cards {\n  display: grid;\n  /* 가장 좁은 창(460)에서도 네 칸이 한 줄에 (110 이면 3 + 1 로 하나가 혼자 떨어졌다) */\n  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));\n  gap: 10px;\n}\n.stat {\n  padding: 10px 12px;\n}\n.stat .k {\n  color: var(--muted);\n  font-size: 11px;\n}\n.stat .v {\n  font-family: var(--pixel);\n  font-size: 20px;\n}\n.stat .d {\n  font-size: 11px;\n  color: var(--muted);\n}\n\n.road {\n  display: flex;\n  gap: 6px;\n  align-items: flex-end;\n  justify-content: space-between;\n}\n.road .step {\n  flex: 1;\n  text-align: center;\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  opacity: 0.45;\n}\n.road .step.done {\n  opacity: 1;\n}\n.road .step.now {\n  opacity: 1;\n  color: var(--accent);\n}\n.road .step canvas {\n  width: 86px;\n  height: 86px;\n  display: block;\n  margin: 0 auto;\n}\n.road .step.locked canvas {\n  filter: brightness(0) opacity(0.35);\n}\n\n:root.dark .road .step.locked canvas {\n    filter: brightness(0) invert(1) opacity(0.25);\n  }\n\n\n/* 단계가 하나뿐일 때 로드맵 대신 들어가는 레벨 칸 */\n.levelnow {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n}\n.levelnow canvas {\n  width: 86px;\n  height: 86px;\n  flex: none;\n}\n.lvbig {\n  font-family: var(--pixel);\n  font-size: 26px;\n  color: var(--accent);\n}\n\n.actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n}\n\n.feed {\n  list-style: none;\n  padding: 0;\n  margin: 0;\n}\n.feed li {\n  display: flex;\n  justify-content: space-between;\n  padding: 5px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.feed li:last-child {\n  border: none;\n}\n.feed .xp-plus {\n  font-family: var(--pixel);\n  color: var(--good);\n}\n\n/* ---------- 퀘스트 ---------- */\n\n.quest {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  margin-bottom: 10px;\n}\n.quest .icon {\n  display: flex;\n  justify-content: center;\n  width: 36px;\n}\n.quest .body {\n  flex: 1;\n}\n.quest .row {\n  display: flex;\n  justify-content: space-between;\n  gap: 8px;\n  margin-bottom: 5px;\n}\n.quest .reward {\n  font-family: var(--pixel);\n  color: var(--accent);\n  white-space: nowrap;\n}\n.quest.done {\n  background: #eaf7ef;\n}\n\n:root.dark .quest.done {\n    background: #1f3329;\n  }\n\n.quest.done .reward {\n  color: var(--good);\n}\n.quest.done .reward .pxi {\n  margin-right: 3px;\n}\n.allclear {\n  text-align: center;\n  font-family: var(--pixel);\n  padding: 14px;\n}\n.allclear.done {\n  background: #fff4c7;\n}\n\n:root.dark .allclear.done {\n    background: #3d3417;\n  }\n\n.muted {\n  color: var(--muted);\n}\n.center {\n  text-align: center;\n}\n\n/* ---------- 업적 ---------- */\n\n.badges {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));\n  gap: 10px;\n}\n.badge {\n  padding: 10px;\n  text-align: center;\n}\n.badge .ic {\n  display: flex;\n  justify-content: center;\n  height: 32px;\n  align-items: center;\n}\n.badge .nm {\n  font-family: var(--pixel);\n  margin: 4px 0 2px;\n}\n.badge .ds {\n  font-size: 11px;\n  color: var(--muted);\n  min-height: 2.9em;\n}\n.badge .when {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  font-size: 10px;\n  color: var(--good);\n  margin-top: 4px;\n}\n.badge.locked {\n  background: var(--soft);\n  box-shadow: none;\n  border-style: dashed;\n}\n.badge.locked .ic {\n  filter: grayscale(1);\n  opacity: 0.4;\n}\n.badge .bar {\n  height: 8px;\n  margin-top: 6px;\n}\n.badge .xpb {\n  font-family: var(--pixel);\n  font-size: 10px;\n  color: var(--accent);\n}\n\n/* ---------- 꾸미기 ---------- */\n\n.wardrobe {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));\n  gap: 10px;\n}\n.item {\n  padding: 8px;\n  text-align: center;\n  cursor: pointer;\n}\n.item canvas {\n  width: 96px;\n  height: 96px;\n  display: block;\n  margin: 0 auto;\n}\n.item .nm {\n  font-family: var(--pixel);\n  font-size: 12px;\n}\n.item .hint {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: 6px;\n  font-size: 10px;\n  color: var(--muted);\n}\n.item .hint:empty {\n  display: none;\n}\n\n.item.on {\n  border-color: var(--accent);\n  box-shadow: 3px 3px 0 var(--accent);\n}\n.item.locked {\n  cursor: default;\n  background: var(--soft);\n  box-shadow: none;\n  border-style: dashed;\n}\n.item.locked canvas,\ncanvas.lv-locked {\n  /* 10-10: 검은 실루엣 대신 반투명. 무엇인지는 보이되 아직 내 것이 아닌 느낌 (레벨이 되면 열릴 걸 미리 보고 갖고 싶어지게) */\n  filter: grayscale(0.4) opacity(0.42);\n}\n/* 별 카드는 짙은 보라 바탕이라 같은 값이면 너무 어둡다. 조금 덜 흐리게 */\n.panel.item.k-star.locked canvas {\n  filter: grayscale(0.25) opacity(0.62);\n}\n/* 잠긴 카드 오른쪽 위 자물쇠 딱지 (몇 레벨에 열리는지) */\n.lv-tag {\n  position: absolute;\n  top: 5px;\n  right: 5px;\n  z-index: 1;\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-size: 9px;\n  font-weight: 700;\n  padding: 1px 4px;\n  border-radius: 3px;\n  /* 자물쇠 그림의 고리가 짙은 색이라, 어두운 테마에서도 딱지는 밝게 둔다 */\n  border: 1px solid #3a2118;\n  background: #fffaf3;\n  color: #3a2118;\n}\n/* 설정의 모션 미리보기: 캔버스 바탕까지 그림자가 되지 않게, 바탕은 감싼 상자가 대신 깐다\n   [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 감싼 상자에 lv-locked-box 를 붙인다 */\n.medit-preview canvas.lv-locked,\n.motion-peek canvas.lv-locked {\n  background: transparent;\n}\n.medit-preview.lv-locked-box,\n.motion-peek.lv-locked-box {\n  background-image: linear-gradient(var(--soft), var(--soft));\n  background-repeat: no-repeat;\n  background-origin: content-box;\n  background-position: top center;\n}\n.medit-preview.lv-locked-box {\n  background-size: 108px 108px;\n}\n.motion-peek.lv-locked-box {\n  background-size: 144px 144px;\n}\n.item .new {\n  font-family: var(--pixel);\n  font-size: 10px;\n  color: #fff;\n  background: #ff5a5a;\n  padding: 0 4px;\n  border-radius: 2px;\n}\n\n/* 상점 맨 위 바로가기. 스크롤해도 위에 붙어 있다.\n   top 은 main 의 위 여백(16px)만큼 끌어올려서 탭 줄 바로 밑에 붙인다 (-1px 이면 그 여백만큼 틈이 생겨 뒤 카드가 비쳤다) */\n.shop-jump {\n  position: sticky;\n  top: -16px;\n  z-index: 5;\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  padding: 8px 0;\n  margin: 4px 0 6px;\n  background: var(--bg);\n}\n.jump-to {\n  scroll-margin-top: 96px;\n}\n/* 모션 카드의 상황 해시태그 */\n.item .tags {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: 4px;\n  font-size: 11px;\n  color: var(--accent);\n  margin: 1px 0;\n}\n/* 코스튬·모션은 고양이 그림이 그림 칸을 꽉 채워서 이름이 바로 붙는다: 이름 위에 6px 띄운다\n   (먹이·장난감 그림은 칸보다 작아 원래 그만큼 떨어져 있다. 이름 칸은 모두 6px 더 크게 잡았다) */\n.shop-grid > .item.k-acc .nm,\n.shop-grid > .item.k-motion .nm,\n.inv-uni > .witem .nm {\n  padding-top: 6px;\n}\n/* 카드 정보 칸의 글줄은 조금 촘촘히 (카드 세로를 줄이려고) */\n.shop-grid > .item .fx,\n.inv-uni > .item .fx {\n  line-height: 1.25;\n}\n.shop-grid > .item .food-fx,\n.inv-uni > .item .food-fx {\n  line-height: 1.25;\n}\n/* 카드 규격 안에서: 해시태그는 최대 두 줄 (기록 줄이 있으면 한 줄). 넘치는 태그는 통째로 가린다 */\n.shop-grid > .item .tags,\n.inv-uni > .item .tags {\n  max-height: 32px;\n  overflow: hidden;\n}\n/* [옵시디언] 옵시디언 리뷰에 맞춰 house.js 가 기록·난이도 줄이 붙는 태그에 tags-1 을 붙인다 */\n.shop-grid > .item .tags.tags-1,\n.inv-uni > .item .tags.tags-1 {\n  max-height: 16px;\n}\n.inv-uni > .item .tug-lv {\n  flex-wrap: nowrap;\n  margin: 0;\n}\n.inv-uni > .item .tug-lv button {\n  padding: 1px 3px;\n  white-space: nowrap;\n}\n\n/* 홈: 한 줄 레벨 */\n.panel.lvline {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  margin-top: 14px;\n  padding: 10px 14px;\n}\n.lvline .lvtag {\n  color: var(--accent);\n  white-space: nowrap;\n}\n.lvline .bar {\n  flex: 1;\n  margin: 0;\n}\n.lvline .muted {\n  font-size: 12px;\n  white-space: nowrap;\n}\n\n/* 보물 공방 카드: 재료 이름이 잘리지 않게 상점 카드보다 넓게 (한 줄 3장) */\n.wardrobe.ws-grid {\n  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));\n}\n/* 보물 공방 카드: 재료 목록 (가진 개수 / 필요한 개수) */\n.ws-card .ws-mats {\n  list-style: none;\n  margin: 4px 0 2px;\n  padding: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  width: 100%;\n  font-size: 11px;\n}\n.ws-card .ws-mats li {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  color: var(--muted);\n}\n.ws-card .ws-mats li .nm {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  text-align: left;\n  font-size: 11px;\n}\n.ws-card .ws-mats li b {\n  font-weight: 700;\n}\n.ws-card .ws-mats li.ok {\n  color: var(--good);\n}\n.ws-card.ready {\n  border-color: var(--good);\n  box-shadow: 3px 3px 0 var(--good);\n}\n/* 한 번 주웠지만 공방 재료로 다 써서 0개인 보물 */\n.tcell.used {\n  opacity: 0.55;\n}\n\n/* 함께 하는 놀이 카드: 최고 기록 · 줄다리기 난이도 */\n.item .toy-rec {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  margin: 2px auto 0;\n  padding: 1px 7px;\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--soft);\n  border-radius: 999px;\n}\n.item .tug-lv {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: 3px;\n  margin: 4px 0 1px;\n  font-size: 11px;\n  color: var(--muted);\n}\n/* 하·중·상 버튼만 한 줄로 ('고양이 힘' 이름표는 마우스를 올리면. 카드 규격 안에 들어가게) */\n.item .tug-lv button {\n  min-width: 22px;\n  padding: 1px 4px;\n  font: inherit;\n  font-weight: 700;\n  color: var(--ink);\n  background: var(--panel);\n  border: 1.5px solid var(--line);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.item .tug-lv button.on {\n  color: #fff;\n  background: var(--accent);\n  border-color: var(--accent);\n}\n\n/* 상점 먹이 묶음 제목 (밥 / 간식) */\nh3.sub {\n  margin: 12px 0 8px;\n}\nh3.sub small {\n  font-family: inherit;\n  font-size: 11px;\n  margin-left: 6px;\n}\n.item .btn.ghost.buy {\n  margin-left: 0;\n}\n\n/* ---------- 설정: 모션 고르기 ---------- */\n\n.field.motion-row {\n  flex-direction: column;\n  align-items: stretch;\n  gap: 8px;\n  text-align: left;\n}\n.chips {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: flex-start;\n  gap: 6px;\n}\n.chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px 9px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.chip:hover {\n  background: var(--soft);\n}\n.chip.on {\n  border-color: var(--accent);\n  box-shadow: 2px 2px 0 var(--accent);\n}\n.chip.locked {\n  border-style: dashed;\n  color: var(--muted);\n}\n.chip small {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  font-size: 10px;\n}\n\n/* 모션 칩을 우클릭하면 뜨는 미리보기 창 */\n.motion-peek {\n  position: fixed;\n  z-index: 50;\n  width: 170px;\n  padding: 8px 8px 10px;\n  text-align: center;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 6px;\n  box-shadow: 4px 4px 0 rgba(58, 33, 24, 0.25);\n  animation: peek-in 0.16s steps(3);\n  pointer-events: none;\n}\n.motion-peek canvas {\n  display: block;\n  width: 144px;\n  height: 144px;\n  margin: 0 auto;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.motion-peek .nm {\n  margin-top: 6px;\n  font-family: var(--pixel);\n  font-size: 13px;\n}\n.motion-peek .st {\n  margin-top: 2px;\n  font-size: 11px;\n  color: var(--muted);\n}\n@keyframes peek-in {\n  from {\n    transform: scale(0.6);\n    opacity: 0;\n  }\n  to {\n    transform: scale(1);\n    opacity: 1;\n  }\n}\n\n/* ---------- 통계 ---------- */\n\n.chart {\n  display: flex;\n  align-items: flex-end;\n  gap: 4px;\n  height: 130px;\n  padding-top: 16px;\n}\n.chart .col {\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: flex-end;\n  height: 100%;\n  min-width: 0;\n}\n.chart .b {\n  width: 100%;\n  max-width: 26px;\n  background: var(--accent);\n  border: 2px solid var(--line);\n  border-bottom: none;\n  min-height: 2px;\n  position: relative;\n}\n.chart .b.today {\n  background: var(--gold);\n}\n.chart .n {\n  font-family: var(--pixel);\n  font-size: 9px;\n  color: var(--muted);\n  margin-bottom: 2px;\n}\n.chart .lab {\n  font-size: 9px;\n  color: var(--muted);\n  margin-top: 3px;\n  border-top: 2px solid var(--line);\n  width: 100%;\n  text-align: center;\n  padding-top: 2px;\n}\n.chart.hours {\n  height: 90px;\n  gap: 2px;\n}\n.chart.hours .b {\n  border-width: 1px;\n}\n\n.table {\n  width: 100%;\n  border-collapse: collapse;\n}\n.table td {\n  padding: 6px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.table td:last-child {\n  text-align: right;\n  font-family: var(--pixel);\n}\n\n/* ---------- 설정 ---------- */\n\n.field {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  padding: 9px 0;\n  border-bottom: 1px dashed var(--soft);\n}\n.field:last-child {\n  border: none;\n}\n.field .lbl small {\n  display: block;\n  color: var(--muted);\n  font-size: 11px;\n}\n.field input[type='text'],\n.field input[type='time'],\n.field input[type='number'],\n.field select {\n  font: inherit;\n  color: inherit;\n  background: var(--bg);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  padding: 4px 6px;\n}\n.field input[type='number'] {\n  width: 72px;\n}\n.field input[type='text'] {\n  width: 140px;\n}\n.inline {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex: none;\n  white-space: nowrap;\n}\n/* 이름표는 남는 폭을 쓰고, 오른쪽 조작부(값·스위치·버튼)는 줄지 않게. 안 그러면 '2 단계' 가 한 글자씩 세로로 꺾인다 */\n.field .lbl {\n  flex: 1;\n  min-width: 0;\n}\n.field > select,\n.field > .btn,\n.field > input {\n  flex: none;\n}\n.field.motion-row .lbl {\n  flex: none;\n}\n#scale-v {\n  white-space: nowrap;\n  flex: none;\n  min-width: 3.5em;\n}\n\n/* 도트 스위치 */\n.switch {\n  position: relative;\n  width: 40px;\n  height: 22px;\n  flex: none;\n}\n.switch input {\n  opacity: 0;\n  width: 0;\n  height: 0;\n}\n.switch span {\n  position: absolute;\n  inset: 0;\n  background: var(--soft);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  cursor: pointer;\n}\n.switch span::after {\n  content: '';\n  position: absolute;\n  top: 2px;\n  left: 2px;\n  width: 14px;\n  height: 14px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  transition: left 0.12s steps(3);\n}\n.switch input:checked + span {\n  background: var(--accent);\n}\n.switch input:checked + span::after {\n  left: 20px;\n}\n\n.radio {\n  display: block;\n  padding: 8px 10px;\n  margin-bottom: 6px;\n  border: 2px solid var(--soft);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.radio small {\n  display: block;\n  color: var(--muted);\n  margin-left: 22px;\n}\n\n.status {\n  display: inline-block;\n  font-family: var(--pixel);\n  font-size: 11px;\n  padding: 1px 6px;\n  border: 2px solid currentColor;\n  border-radius: 3px;\n}\n.status.ok {\n  color: var(--good);\n}\n.status.no {\n  color: #c0533a;\n}\n\n.projects label {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 5px 0;\n  border-bottom: 1px dashed var(--soft);\n  word-break: break-all;\n}\n.projects label span {\n  flex: 1;\n}\n.projects small {\n  color: var(--muted);\n  white-space: nowrap;\n}\n\ncode {\n  font-size: 11px;\n  background: var(--soft);\n  padding: 1px 4px;\n  border-radius: 3px;\n  word-break: break-all;\n}\n\n/* ---------- 첫 실행 ---------- */\n\n.welcome {\n  position: fixed;\n  inset: 0;\n  background: rgba(30, 18, 12, 0.55);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 20px;\n  z-index: 10;\n}\n.welcome .panel {\n  width: 100%;\n  max-width: 440px;\n  max-height: 100%;\n  overflow-y: auto;\n  padding: 20px;\n}\n.welcome canvas {\n  width: 144px;\n  height: 144px;\n  display: block;\n  margin: 0 auto 6px;\n}\n.welcome h2 {\n  text-align: center;\n  font-size: 17px;\n}\n.welcome .steps {\n  display: flex;\n  justify-content: center;\n  gap: 6px;\n  margin-bottom: 12px;\n}\n.welcome .steps i {\n  width: 10px;\n  height: 10px;\n  background: var(--soft);\n  border: 2px solid var(--line);\n}\n.welcome .steps i.on {\n  background: var(--accent);\n}\n.welcome .nav {\n  display: flex;\n  justify-content: space-between;\n  margin-top: 16px;\n}\n\n.toast {\n  position: fixed;\n  left: 50%;\n  bottom: 18px;\n  transform: translateX(-50%);\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  font-family: var(--pixel);\n  font-size: 12px;\n  background: var(--ink);\n  color: var(--bg);\n  padding: 8px 14px;\n  border-radius: 3px;\n  box-shadow: 3px 3px 0 var(--shadow);\n  z-index: 20;\n}\n\n/* [옵시디언] 강제 우선순위 없이 선택자를 세게 해서 hidden 이 늘 이긴다 (id 두 개 몫) */\n[hidden]:not(#kc-a):not(#kc-b) {\n  display: none;\n}\n\ninput {\n  accent-color: var(--accent);\n}\n\n.chart .b.zero {\n  border: none;\n  min-height: 0;\n}\n\n/* ---------- 상점 ---------- */\n\n.wallet {\n  text-align: center;\n  padding: 14px;\n}\n.wallet .coins {\n  font-family: var(--pixel);\n  font-size: 26px;\n  color: var(--accent);\n  margin-bottom: 2px;\n}\n/* 간식·장난감 미리보기. 악세사리는 고양이가 쓴 모습(canvas)으로 보여 준다 */\n.item .art {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  height: 82px;\n}\n.item .price {\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 2px;\n}\n.item .own {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-family: var(--pixel);\n  font-size: 11px;\n  font-weight: 700;\n  color: var(--accent);\n}\n.item .need {\n  font-size: 10px;\n  color: var(--muted);\n}\n.item .btn.buy {\n  font-size: 11px;\n  /* 사기 | 사용법 두 개가 좁은 카드에서도 한 줄에 들어가게 */\n  padding: 3px 8px;\n  margin-top: 2px;\n}\n\n/* ---------- 통계 도표 ---------- */\n\n/* 고양이가 읽어 주는 한 줄 */\n.insight {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 10px 14px;\n}\n.insight canvas {\n  /* 쓰고 있는 악세사리가 보일 만큼 크게.\n     고양이는 캔버스 아래쪽에 서 있어서(발이 44/48 줄) 그대로 두면 글보다 낮아 보인다. 몸 가운데가 상자 가운데에 오게 끌어올린다 */\n  /* 고양이 몸 가운데는 캔버스 위에서 80% 쯤. 바깥 여백으로 그 점이 글줄 가운데에 오게 한다 */\n  width: 104px;\n  height: 104px;\n  margin: -63px 0 -1px;\n  flex: none;\n  image-rendering: pixelated;\n}\n.insight p {\n  margin: 0;\n  font-size: 13px;\n  line-height: 1.5;\n}\n\n.stat .d .up {\n  color: #3f9d6a;\n}\n.stat .d .down {\n  color: #c0533a;\n}\n\n/* 요일 × 시간 히트맵 */\n.heat {\n  display: grid;\n  grid-template-columns: 22px repeat(24, 1fr);\n  gap: 2px;\n  align-items: center;\n}\n.heat .lab {\n  font-size: 9px;\n  color: var(--muted);\n  text-align: right;\n  padding-right: 3px;\n}\n.heat .cell {\n  aspect-ratio: 1;\n  border-radius: 2px;\n  background: color-mix(in srgb, var(--accent) calc(var(--a) * 100%), var(--line) 22%);\n}\n.heathours {\n  display: grid;\n  grid-template-columns: 22px repeat(24, 1fr);\n  gap: 2px;\n  margin-top: 4px;\n  font-size: 9px;\n  color: var(--muted);\n  text-align: center;\n}\n\n/* 집중 구간 분포 */\n.chart.focus {\n  height: 90px;\n}\n\n/* 코인 흐름 */\n.flow {\n  display: flex;\n  align-items: flex-end;\n  gap: 4px;\n  height: 90px;\n}\n.flow .fcol {\n  flex: 1;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  height: 100%;\n}\n.flow .pair {\n  flex: 1;\n  width: 100%;\n  display: flex;\n  align-items: flex-end;\n  justify-content: center;\n  gap: 1px;\n}\n.flow .e,\n.flow .s {\n  width: 45%;\n  min-height: 1px;\n  border-radius: 2px 2px 0 0;\n}\n/* 번 코인은 파랑, 쓴 코인은 빨강. 나란히 서 있어도 한눈에 갈리게 */\n.flow .e {\n  background: #2f7de1;\n}\n.flow .s {\n  background: #e5383b;\n}\n.flow-legend {\n  display: flex;\n  gap: 12px;\n  margin-top: 8px;\n  font-size: 11px;\n  color: var(--muted);\n}\n.flow-legend i {\n  display: inline-block;\n  width: 10px;\n  height: 10px;\n  border-radius: 2px;\n  margin-right: 4px;\n  vertical-align: -1px;\n}\n.flow .lab {\n  font-size: 9px;\n  color: var(--muted);\n  margin-top: 3px;\n}\n\n\n/* 배부름·기운 게이지 */\n.gauge {\n  display: grid;\n  grid-template-columns: 96px 1fr 34px;\n  align-items: center;\n  gap: 10px;\n  margin: 4px 0;\n}\n.gauge .gl {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  font-weight: 600;\n}\n.gauge b {\n  text-align: right;\n  font-variant-numeric: tabular-nums;\n}\n.gauge.low .bar i {\n  background: #e5383b;\n}\n.gauge-note {\n  margin: 6px 0 0;\n  font-size: 12px;\n}\n\n/* 연결할 도구 고르기 (첫 안내·설정). 지금 모드는 눌린 버튼 */\n.tool-pick {\n  display: flex;\n  gap: 8px;\n  margin: 6px 0 10px;\n}\n.tool-pick .btn {\n  flex: 1;\n  justify-content: center;\n}\n.tool-pick .btn small {\n  opacity: 0.8;\n  font-weight: 400;\n}\n\n/* 첫 안내의 개인정보 안내 상자 */\n.privacy {\n  display: flex;\n  gap: 10px;\n  align-items: flex-start;\n  margin: 10px 0;\n  padding: 10px 12px;\n  background: #eef6ff;\n  border: 2px solid #2f7de1;\n  border-radius: 6px;\n  text-align: left;\n}\n.privacy p {\n  margin: 0;\n  font-size: 13px;\n  line-height: 1.55;\n}\n/* 하위 폴더 (1.6.0) */\n.projects .sub-toggle {\n  display: block;\n  margin: 2px 0 2px 26px;\n  padding: 2px 8px;\n  font-size: 11px;\n}\n.projects label.sub {\n  font-size: 12px;\n}\n.projects label.sub input:disabled + span {\n  color: var(--muted);\n}\n/* 프로젝트 더보기 */\n.projects .more {\n  margin-top: 6px;\n  width: 100%;\n}\n\n/* ---------- 통계: 대시보드 ---------- */\n.dash {\n  padding: 4px 14px;\n}\n.dash-row {\n  display: grid;\n  grid-template-columns: 76px 1fr 1fr;\n  align-items: center;\n  gap: 12px;\n  padding: 12px 0;\n  border-bottom: 1px dashed color-mix(in srgb, var(--line) 18%, transparent);\n}\n.dash-row:last-child {\n  border-bottom: 0;\n}\n.dash-when {\n  font-weight: 700;\n  font-size: 14px;\n}\n.dash-cell {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n.dash-k {\n  font-size: 11px;\n  color: var(--muted);\n}\n.dash-v {\n  font-size: 20px;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n  letter-spacing: -0.3px;\n}\n\n/* ---------- 통계: 고양이의 가계부 (줄 공책) ---------- */\n.ledger {\n  background:\n    repeating-linear-gradient(180deg, transparent 0 27px, #eadfcd 27px 28px),\n    #fffdf7;\n  border-left: 6px double #e5a3a3;\n  padding: 12px 16px 14px 18px;\n}\n.ledger-cat + .ledger-cat {\n  margin-top: 12px;\n}\n.ledger-head {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  font-size: 14px;\n}\n.ledger-head .muted {\n  font-size: 11px;\n}\n.ledger-sum {\n  margin-left: auto;\n  font-weight: 800;\n  font-variant-numeric: tabular-nums;\n}\n.ledger-sum::after {\n  content: ' C';\n  font-size: 11px;\n  color: var(--muted);\n}\n.ledger ul {\n  list-style: none;\n  margin: 4px 0 0;\n  padding: 0 0 0 24px;\n}\n.ledger li {\n  display: flex;\n  align-items: baseline;\n  gap: 6px;\n  line-height: 28px;\n  font-size: 13px;\n}\n.ledger-x {\n  color: var(--muted);\n  font-size: 12px;\n}\n.ledger-dots {\n  flex: 1;\n  border-bottom: 2px dotted #cdbda6;\n  transform: translateY(-4px);\n}\n.ledger-amt {\n  font-variant-numeric: tabular-nums;\n}\n.ledger-total {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-top: 12px;\n  padding-top: 8px;\n  border-top: 3px double #3a2118;\n  font-size: 15px;\n}\n.ledger-total .muted {\n  font-size: 12px;\n}\n\n/* 상점 페이지 버튼 */\n.shop-jump .chip small {\n  margin-left: 4px;\n  font-size: 10px;\n  color: var(--muted);\n}\n.shop-jump .chip.on small {\n  color: inherit;\n}\n.shop-page-sub {\n  margin: 10px 0 8px;\n}\n\n/* 어두운 화면에서도 가계부·안내 상자가 읽히게 */\n\n:root.dark .ledger {\n    background:\n      repeating-linear-gradient(180deg, transparent 0 27px, #3a2f28 27px 28px),\n      var(--panel);\n    border-left-color: #8a4b4b;\n  }\n:root.dark .ledger-dots {\n    border-bottom-color: #5a4a3e;\n  }\n:root.dark .ledger-total {\n    border-top-color: var(--ink);\n  }\n:root.dark .privacy {\n    background: #1f2a38;\n    border-color: #5a8fd6;\n  }\n\n\n/* 장난감 미리보기 */\n.toy-peek {\n  width: 200px;\n}\n.toy-peek .stagebox {\n  position: relative;\n}\n.toy-peek .toyart {\n  position: absolute;\n  right: 14px;\n  bottom: 8px;\n  animation: toy-bob 0.7s steps(2) infinite;\n}\n@keyframes toy-bob {\n  50% {\n    transform: translateY(-5px);\n  }\n}\n\n/* ---------- 업적: 묶음·난이도·보상 ---------- */\n.ach-cat {\n  display: flex;\n  align-items: baseline;\n  gap: 8px;\n  margin: 18px 0 8px;\n  font-size: 15px;\n}\n.ach-cat .muted {\n  font-size: 12px;\n  font-weight: 400;\n}\n.badge {\n  position: relative;\n}\n.badge .tier {\n  position: absolute;\n  top: 6px;\n  left: 6px;\n  padding: 1px 5px;\n  font-size: 10px;\n  font-weight: 700;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n}\n.tier-normal .tier {\n  background: #e6f0fb;\n  color: #2f6fb8;\n}\n.tier-hard .tier {\n  background: #fde7e3;\n  color: #c0533a;\n}\n.tier-legend .tier {\n  background: #fff2c4;\n  color: #9a6b00;\n}\n.tier-legend:not(.locked) {\n  border-color: #e9b93a;\n  box-shadow: 3px 3px 0 #e9b93a;\n}\n.badge .reward {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  align-items: center;\n  gap: 3px;\n  margin: 4px 0 2px;\n  padding: 3px 4px;\n  font-size: 11px;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.badge .reward small {\n  color: var(--muted);\n  font-size: 10px;\n}\n.badge .prog {\n  font-size: 10px;\n}\n.ach-filter {\n  margin-bottom: 4px;\n}\n\n/* ---------- 개발자 모드 버튼 (배포 전에 지운다) ---------- */\n\n.dev-toggle {\n  position: absolute;\n  top: 6px;\n  right: 8px;\n  z-index: 2;\n  font-family: var(--pixel);\n  font-size: 10px;\n  padding: 2px 7px;\n  background: var(--panel);\n  color: var(--muted);\n  border: 2px dashed var(--line);\n  border-radius: 3px;\n  cursor: pointer;\n  opacity: 0.7;\n}\n.dev-toggle:hover {\n  opacity: 1;\n}\n.dev-toggle.on {\n  opacity: 1;\n  color: #fff;\n  background: #6b4fd8;\n  border: 2px solid #3a2a86;\n}\n\n/* ---------- 통계: 위로 한마디 (누르면 다른 말) ---------- */\n\n.panel.insight {\n  cursor: pointer;\n}\n\n/* ---------- 설정: 초기화 ---------- */\n\n.panel.danger {\n  border-color: #c0533a;\n}\n.btn.danger {\n  background: #c0533a;\n  border-color: #7a2a1a;\n  color: #fff;\n}\n.btn.danger:hover {\n  background: #a8452f;\n}\n#reset-input {\n  width: 100%;\n  box-sizing: border-box;\n  border-color: #c0533a;\n}\n\n/* ---------- 퀘스트: 머리의 새로고침 버튼, 난이도 딱지 ---------- */\n\n.quest-head {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 10px;\n}\n/* 새 퀘스트 버튼은 소제목과 같은 줄 높이에 */\n.quest-head .btn {\n  flex: none;\n  margin-top: 0;\n}\n.qtier {\n  display: inline-block;\n  font-family: var(--pixel);\n  font-size: 10px;\n  line-height: 1;\n  padding: 3px 5px;\n  margin-right: 6px;\n  border-radius: 3px;\n  color: #fff;\n  vertical-align: 1px;\n}\n.qtier-hard { background: #c0533a; }\n.qtier-normal { background: #d99a2b; }\n.qtier-easy { background: #4f9d6c; }\n\n/* ---------- 팝업 (가계부 자세히 보기·모션 설정하기) ---------- */\n\n.modal {\n  position: fixed;\n  inset: 0;\n  background: rgba(30, 18, 12, 0.55);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 16px;\n  z-index: 20;\n}\n.modal[hidden] {\n  display: none;\n}\n.modal-box {\n  width: 100%;\n  max-width: 500px;\n  max-height: 100%;\n  overflow-y: auto;\n  padding: 16px;\n}\n.modal-top {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n  margin-bottom: 8px;\n}\n.modal-top h2 {\n  margin: 0;\n}\n.h2-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n.btn.small {\n  padding: 3px 8px;\n  font-size: 11px;\n}\n.ledger li.ledger-more {\n  color: var(--muted);\n  font-size: 12px;\n  justify-content: flex-start;\n}\n\n.insight-txt p {\n  margin: 0;\n}\n.insight-txt .book-line {\n  font-weight: 700;\n  margin-bottom: 4px;\n}\n.insight-txt .book-line small {\n  display: block;\n  font-weight: 400;\n  color: var(--muted);\n  font-size: 11px;\n}\n\n/* ---------- 어려운 말 옆 (i) 와 설명 말풍선 ---------- */\n\n.info {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  width: 13px;\n  height: 13px;\n  margin-left: 4px;\n  border: 1.5px solid var(--muted);\n  border-radius: 50%;\n  color: var(--muted);\n  font-family: Georgia, serif;\n  font-style: italic;\n  font-weight: 700;\n  font-size: 9px;\n  line-height: 1;\n  vertical-align: 1px;\n  cursor: help;\n}\n.info:hover,\n.info:focus {\n  border-color: var(--accent);\n  color: var(--accent);\n  outline: none;\n}\n.tip {\n  position: fixed;\n  z-index: 30;\n  max-width: 260px;\n  padding: 8px 10px;\n  background: var(--ink);\n  color: var(--bg);\n  font-size: 12px;\n  line-height: 1.5;\n  border-radius: 4px;\n  box-shadow: 2px 2px 0 var(--shadow);\n  pointer-events: none;\n}\n.tip[hidden] {\n  display: none;\n}\n\n/* ---------- 설정: 모션 카드 ---------- */\n\n.mcards {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));\n  gap: 10px;\n}\n.mcard {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n  padding: 10px 12px;\n  min-width: 0;\n}\n.mcard-top {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n}\n.mcard small {\n  font-size: 11px;\n  line-height: 1.4;\n  min-height: 2.8em;\n}\n.mtag {\n  flex: none;\n  font-family: var(--pixel);\n  font-size: 10px;\n  padding: 2px 6px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n}\n/* 여러 개 고르는 칸은 글씨만 강조 (진한 딱지는 카드 제목보다 튀었다) */\n.mcard.multi .mtag {\n  color: var(--accent);\n}\n/* 고른 모션들. 여러 개면 옆으로 넘겨 본다 */\n.mstrip {\n  display: flex;\n  justify-content: safe center; /* 하나뿐이면 가운데, 넘치면 처음부터 */\n  gap: 6px;\n  overflow-x: auto;\n  scroll-snap-type: x mandatory;\n  padding: 4px 0 6px;\n  min-height: 104px;\n}\n.mthumb {\n  flex: none;\n  width: 84px;\n  scroll-snap-align: start;\n  text-align: center;\n  font-size: 11px;\n  line-height: 1.3;\n  cursor: zoom-in;\n}\n.mthumb canvas {\n  display: block;\n  width: 72px;\n  height: 72px;\n  margin: 0 auto 2px;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.mcard-empty {\n  margin: auto 0;\n  font-size: 12px;\n}\n.mcard-btn {\n  align-self: stretch;\n  justify-content: center;\n  margin-top: auto; /* 같은 줄 카드끼리 버튼 높이를 맞춘다 (모션 이름이 두 줄이어도) */\n}\n\n/* ---------- 모션 편집 창 ---------- */\n\n.modal-motion .modal-box {\n  max-width: 540px;\n}\n.medit-sub {\n  font-size: 12px;\n  margin: 0 0 10px;\n}\n.medit-top {\n  display: flex;\n  gap: 10px;\n  align-items: stretch;\n}\n.medit-preview {\n  flex: none;\n  width: 116px;\n  text-align: center;\n  font-size: 11px;\n}\n.medit-preview canvas {\n  display: block;\n  width: 108px;\n  height: 108px;\n  margin: 0 auto 4px;\n  image-rendering: pixelated;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.mzone-wrap {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n}\n.mzone-lbl,\n.mpool-lbl {\n  font-family: var(--pixel);\n  font-size: 11px;\n  color: var(--muted);\n  margin-bottom: 4px;\n}\n.mzone {\n  flex: 1;\n  display: flex;\n  flex-wrap: wrap;\n  align-content: flex-start;\n  gap: 6px;\n  padding: 8px;\n  min-height: 90px;\n  border: 2px dashed var(--line);\n  border-radius: 4px;\n  background: var(--soft);\n}\n.mzone.over,\n.mpool.over {\n  border-color: var(--accent);\n  background: color-mix(in srgb, var(--accent) 12%, transparent);\n}\n.mzone-empty {\n  margin: auto;\n  color: var(--muted);\n  font-size: 12px;\n}\n.msearch {\n  width: 100%;\n  box-sizing: border-box;\n  margin: 10px 0 6px;\n}\n.mpool {\n  border: 2px dashed transparent;\n  border-radius: 4px;\n  padding: 2px;\n  max-height: 260px;\n  overflow-y: auto;\n}\n.mpool-lbl {\n  margin-top: 6px;\n}\n.mpool-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.mchip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  padding: 4px 8px;\n  font-size: 12px;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  cursor: grab;\n  user-select: none;\n}\n.mchip:hover {\n  border-color: var(--accent);\n}\n.mchip.picked {\n  opacity: 0.45;\n}\n.mchip.locked {\n  cursor: pointer;\n  border-style: dashed;\n  color: var(--muted);\n}\n.mchip.dragging {\n  opacity: 0.3;\n}\n.mchip small {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n}\n.mchip .mx {\n  font-style: normal;\n  color: var(--muted);\n  margin-left: 2px;\n}\n.modal-foot {\n  display: flex;\n  justify-content: flex-end;\n  gap: 8px;\n  margin-top: 12px;\n}\n\n/* ---------- 모든 탭: 소제목(섹션) 사이를 넉넉히 띄우고 점선으로 나눈다 (처음엔 통계·설정만 그랬다) ---------- */\n/* 탭 맨 위 제목은 빼고, 탭 바로 아래 소제목과 탭 안 묶음(section)의 첫 소제목에 건다 */\n#view > h2,\n#view > .h2-row,\n#view > section > h2:first-child,\n#view > section > .h2-row:first-child,\n#view > section > .quest-head:first-child,\n#view > .ach-cat {\n  margin-top: 30px;\n  padding-top: 18px;\n  border-top: 2px dashed var(--soft-line, rgba(58, 33, 24, 0.18));\n}\n#view > .h2-row h2,\n#view > section > .h2-row h2,\n#view > section > .quest-head h2 {\n  margin-top: 0;\n}\n/* 업적은 필터 바로 아래 첫 묶음 위에는 선을 긋지 않는다 */\n#view > .shop-jump + .ach-cat {\n  margin-top: 12px;\n  padding-top: 0;\n  border-top: none;\n}\n#view > h2:first-child,\n#view > .h2-row:first-child,\n#view > section:first-child > h2:first-child,\n#view > section:first-child > .h2-row:first-child {\n  margin-top: 4px;\n  padding-top: 0;\n  border-top: none;\n}\n\n:root.dark #view > h2,\n:root.dark #view > .h2-row,\n:root.dark #view > section > h2:first-child,\n:root.dark #view > section > .h2-row:first-child,\n:root.dark #view > section > .quest-head:first-child,\n:root.dark #view > .ach-cat {\n    border-top-color: rgba(244, 233, 223, 0.16);\n  }\n\n/* 소제목 줄: 제목은 왼쪽, 그 구역의 버튼(head-act)은 오른쪽 끝에 세로 가운데로 */\n.h2-row {\n  justify-content: space-between;\n  align-items: center;\n  margin-bottom: 10px;\n}\n.h2-row h2 {\n  margin-bottom: 0;\n}\n/* 소제목 옆 버튼: 제목보다 튀지 않게 작고 차분하게. 지금 눌러야 하는 것(밥이 모자람·퀘스트 새로 받기)만 alert 로 색을 준다 */\n.btn.head-act {\n  flex: none;\n  padding: 3px 9px;\n  font-size: 11px;\n  color: var(--ink);\n  background: var(--panel);\n  border-width: 1.5px;\n  border-color: color-mix(in srgb, var(--line) 45%, transparent);\n  box-shadow: none;\n}\n.btn.head-act:hover {\n  border-color: var(--line);\n  background: var(--soft);\n}\n.btn.head-act.alert {\n  color: #fff;\n  background: var(--accent);\n  border-color: var(--accent);\n}\n.btn.head-act.alert:hover {\n  background: var(--accent-hover);\n}\n\n/* ---------- 상점: 먹이 카드의 배부름·기운 ---------- */\n\n.panel.item {\n  position: relative;\n}\n.food-gain {\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 2px;\n}\n/* 프리미엄 먹이의 효과 한 줄 (배부름·기운 줄 밑) */\n.food-fx {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  line-height: 1.35;\n  color: #b07a12;\n  margin-top: 1px;\n}\n/* 배부름·기운: 아이콘 + 숫자 한 줄 */\n.food-gain {\n  display: inline-flex;\n  gap: 8px;\n  white-space: nowrap;\n}\n.food-gain span {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n}\n.panel.item.premium {\n  box-shadow: inset 0 0 0 2px #f2cf63;\n}\n/* ---------- 알림: 누르면 스르륵 ---------- */\n\n.toast {\n  cursor: pointer;\n  transition: opacity 0.3s ease, translate 0.3s ease;\n}\n.toast.out {\n  opacity: 0;\n  translate: 0 10px;\n}\n\n/* ---------- 대시보드 맨 위: 전체 토큰 ---------- */\n\n.dash-total {\n  display: flex;\n  align-items: baseline;\n  justify-content: space-between;\n  gap: 10px;\n  padding-bottom: 10px;\n  margin-bottom: 4px;\n  border-bottom: 1px dashed var(--line);\n}\n.dash-total-v b {\n  font-size: 24px;\n}\n.dash-total-v .muted {\n  margin-left: 8px;\n  font-size: 13px;\n}\n\n/* ---------- 자랑 카드 ---------- */\n\n.modal-card .modal-box {\n  max-width: 820px;\n}\n/* 8차: 왼쪽 미리보기 · 오른쪽 고르기. 창이 좁으면 위아래로 */\n.card-edit {\n  display: grid;\n  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);\n  gap: 14px;\n  align-items: start;\n}\n@media (max-width: 720px) {\n  .card-edit { grid-template-columns: 1fr; }\n}\n.card-opts .copt { margin-bottom: 10px; }\n.card-opts .copt > b { display: block; font-size: 12px; margin-bottom: 4px; }\n.card-opts .chips { display: flex; flex-wrap: wrap; gap: 4px; }\n.card-opts .chip { font-size: 12px; }\n.card-opts .chip.swatch i { display: inline-block; width: 10px; height: 10px; border: 2px solid; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }\n.card-opts input[type='text'] { width: 100%; }\n.card-img {\n  display: block;\n  width: 100%;\n  border-radius: 4px;\n  box-shadow: 3px 3px 0 var(--shadow);\n}\n.card-actions {\n  flex-wrap: wrap;\n}\n\n/* ---------- 보물 상자 ---------- */\n\n.tbox {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));\n  gap: 8px;\n}\n.tcell {\n  position: relative;\n  text-align: center;\n  padding: 10px 6px 8px;\n}\n.tcell .pxi {\n  display: block;\n  margin: 4px auto 6px;\n}\n.tnm {\n  font-size: 11px;\n  line-height: 1.3;\n  word-break: keep-all;\n}\n.tcnt {\n  font-size: 11px;\n  color: var(--muted);\n}\n.tcell.unknown .pxi {\n  filter: brightness(0);\n  opacity: 0.18;\n}\n.tcell.unknown .tnm {\n  color: var(--muted);\n}\n.trar {\n  position: absolute;\n  top: 5px;\n  left: 5px;\n  font-size: 9px;\n  padding: 1px 4px;\n  border-radius: 3px;\n  color: #fff;\n  background: #9aa0aa;\n}\n.tr-rare .trar {\n  background: #3a6fb0;\n}\n.tr-legend .trar {\n  background: #e0a91e;\n}\n.tr-legend {\n  border-color: #e0a91e;\n}\n\n/* ---------- 동네 친구 도감 ---------- */\n\n/* 카드 크기를 모두 같게: 줄 높이를 똑같이(1fr) 두고, 부르기 칸은 카드 바닥에 붙인다.\n   TMI 를 펼친 카드만 두 줄을 차지한다 (dense 로 빈칸을 메운다) */\n.gbox {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));\n  grid-auto-rows: 1fr;\n  grid-auto-flow: row dense;\n  gap: 8px;\n}\n.gcell {\n  text-align: center;\n  padding: 8px 10px 10px;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  min-width: 0;\n}\n.gcell.open { grid-row: span 2; }\n.gcell.unknown { justify-content: center; }\n.gcell .fr-call { margin-top: auto; padding-top: 6px; }\n.fr-bar { width: 80%; height: 6px; margin: 3px 0 2px; background: var(--soft); border-radius: 3px; overflow: hidden; }\n.fr-bar i { display: block; height: 100%; background: var(--accent); }\n.gcell canvas {\n  display: block;\n  width: 96px;\n  height: 96px;\n  margin: -14px auto -4px;\n  image-rendering: pixelated;\n}\n.gcell.unknown canvas {\n  filter: brightness(0);\n  opacity: 0.16;\n}\n.gnm {\n  font-weight: 700;\n  font-size: 14px;\n}\n.glv {\n  font-size: 10px;\n  font-weight: 400;\n  padding: 1px 5px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n  vertical-align: 1px;\n}\n.gsub {\n  font-size: 11px;\n  color: var(--muted);\n  line-height: 1.4;\n  margin-top: 2px;\n}\n.ghearts {\n  margin-top: 4px;\n}\n.ghearts span {\n  opacity: 0.2;\n  margin: 0 1px;\n}\n.ghearts span.on {\n  opacity: 1;\n}\n\n/* ---------- 오늘 기분 딱지 ---------- */\n\n.temper {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-size: 11px;\n  padding: 1px 6px 1px 4px;\n  margin-right: 6px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--ink);\n}\n.temper.t-playful {\n  background: #fff1c9;\n}\n.temper.t-grumpy {\n  background: #f9d9d2;\n}\n\n:root.dark .temper.t-playful,\n:root.dark .temper.t-grumpy {\n    color: #3a2118;\n  }\n\n\n/* ---------- 옷장: 왼쪽 고양이 · 오른쪽 인벤토리 ---------- */\n\n.closet {\n  display: grid;\n  grid-template-columns: 190px 1fr;\n  gap: 12px;\n  align-items: start;\n}\n/* 좁은 창(최소 460)에서도 두 칸을 유지한다. 한 칸으로 접으면 왼쪽 패널이 첫 화면을 다 차지해서 코스튬이 안 보였다 */\n@media (max-width: 540px) {\n  .closet {\n    grid-template-columns: 160px 1fr;\n    gap: 10px;\n  }\n  .closet-cat {\n    width: 144px;\n    height: 144px;\n  }\n}\n@media (max-width: 380px) {\n  .closet {\n    grid-template-columns: 1fr;\n  }\n}\n.closet-left {\n  position: sticky;\n  top: 0;\n  padding: 10px;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.closet-cat {\n  display: block;\n  width: 168px;\n  height: 168px;\n  margin: -20px auto -6px;\n  image-rendering: pixelated;\n}\n.wslots {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  font-size: 12px;\n}\n.wslot {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  padding: 3px 4px;\n  border-radius: 3px;\n}\n.wslot.on {\n  background: var(--soft);\n}\n.wslot-k {\n  flex: none;\n  width: 34px;\n  color: var(--muted);\n  font-size: 11px;\n}\n.wslot-v {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.wslot-v i {\n  color: var(--muted);\n  font-style: normal;\n  font-size: 11px;\n}\n.wslot-x {\n  flex: none;\n  border: none;\n  background: none;\n  color: var(--muted);\n  cursor: pointer;\n  font-size: 14px;\n  line-height: 1;\n  padding: 0 2px;\n}\n.wslot-x:hover {\n  color: var(--accent);\n}\n.btn.wide {\n  justify-content: center;\n}\n.wsaves-title {\n  font-size: 11px;\n  color: var(--muted);\n  /* 입은 칸 목록과 코디 저장을 점선으로 나눈다 (다른 탭 소제목과 같은 구분) */\n  margin-top: 10px;\n  padding-top: 10px;\n  border-top: 2px dashed var(--soft-line, rgba(58, 33, 24, 0.18));\n}\n.wsaves {\n  display: flex;\n  flex-direction: column;\n  gap: 4px;\n}\n.wsave {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-size: 12px;\n}\n/* 코디 지우기: 좁은 왼쪽 패널에 들어가게 × 한 글자짜리 */\n.wsave .wsave-del {\n  padding: 3px 6px;\n  color: var(--muted);\n}\n.wsave .wsave-del:not(:disabled):hover {\n  color: #c0533a;\n  border-color: #c0533a;\n}\n.wsave span {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  line-height: 1.2;\n}\n.wsave small {\n  color: var(--muted);\n  font-size: 10px;\n}\n.wsave .btn.small {\n  padding: 2px 6px;\n  font-size: 10px;\n}\n.closet-right {\n  min-width: 0;\n}\n.closet-right .wardrobe {\n  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));\n}\n.ward-tabs,\n.costume-tabs {\n  flex-wrap: wrap;\n  margin-bottom: 8px;\n}\n/* 인벤토리의 분류 줄(코스튬·밥… / 전체·세트·머리…)은 따라 붙지 않고 처음 자리에 둔다.\n   둘 다 붙으면 두 줄이 겹쳤고, 큰 분류 줄만 붙여도 따라 붙는 왼쪽 패널 아래쪽(코디 저장)이 창 밖으로 밀렸다 */\n.inv-pages,\n.closet-right .ward-tabs {\n  position: static;\n}\n.closet-right .ward-tabs {\n  padding-top: 0;\n  margin-top: 0;\n}\n/* 카드 왼쪽 위 칸 딱지 (머리·얼굴…) */\n.wtag {\n  position: absolute;\n  top: 5px;\n  left: 5px;\n  font-size: 9px;\n  padding: 1px 4px;\n  border-radius: 3px;\n  background: var(--soft);\n  color: var(--muted);\n  z-index: 1;\n}\n.witem {\n  position: relative;\n}\n/* 인벤토리 큰 분류 (코스튬 · 밥 · 간식 · 장난감 · 보물 재료) */\n.inv-pages {\n  flex-wrap: wrap;\n  margin-bottom: 10px;\n}\n/* 보물 공방 탭의 하위 메뉴 (보물 공방 · 보물 상자). 바로 밑 제목에는 점선을 긋지 않는다 */\n#view > .ws-pages {\n  margin-top: 0;\n}\n#view > .ws-pages + h2 {\n  margin-top: 8px;\n  padding-top: 0;\n  border-top: none;\n}\n/* 밥·간식·장난감 카드는 버튼이 두 개라 코스튬 카드보다 조금 넓게 */\n.closet-right .wardrobe.inv-grid {\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n}\n.inv-item {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  cursor: default;\n}\n.inv-item .hint {\n  margin-top: auto;\n  padding-top: 6px;\n}\n/* 인벤토리 카드(코스튬 · 밥 · 간식 · 장난감)도 상점처럼 한 규격: 그림 · 이름 · 정보 · 버튼 네 칸의 높이를 고정해\n   모든 카드가 같다 (2026-09-27. 탭마다 가장 큰 내용을 재서 정했다).\n   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */\n.wardrobe.inv-uni {\n  row-gap: 12px;\n}\n.inv-uni > .panel.item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  padding: 10px 8px 12px;\n}\n.inv-uni > .item > * {\n  margin: 0;\n  flex: none;\n}\n/* 그림 96 (코스튬) · 이름 두 줄 · 정보 38 (줄다리기: 설명 + 난이도 한 줄) · 버튼 29 */\n.inv-uni > .item .pv {\n  height: 96px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n.inv-uni > .item .nm {\n  height: 36px;\n}\n.inv-uni > .item .fx {\n  height: 38px;\n  overflow: hidden;\n}\n.inv-uni > .item .hint {\n  height: 29px;\n}\n/* 인벤토리 코스튬은 가운데 칸에 세트 전용 모션 버튼만, 아래 칸에 '착용 중' 글자만 들어가서 따로 더 낮게 */\n.inv-uni.inv-cos > .item .fx {\n  height: 22px;\n}\n.inv-uni.inv-cos > .item .hint {\n  height: 16px;\n  min-height: 0;\n}\n.inv-uni > .item .nm {\n  align-self: stretch;\n  text-align: center;\n  line-height: 1.25;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n.inv-uni > .item .fx {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  align-self: start;\n}\n.inv-uni > .item .fx > * {\n  margin: 0;\n}\n.inv-uni > .item .hint {\n  display: flex;\n  flex-wrap: nowrap;\n  justify-content: center;\n  align-items: center;\n  gap: 4px;\n  align-self: start;\n  min-height: 24px;\n  margin: 0;\n  padding: 0;\n}\n/* 왼쪽 좁은 패널의 배부름·기운 게이지: 이름 칸을 줄이고 줄마다 한 칸씩 */\n.inv-gauge .gauge {\n  grid-template-columns: 58px 1fr 26px;\n  gap: 6px;\n  font-size: 12px;\n}\n.inv-note {\n  margin: 0;\n  font-size: 11px;\n  line-height: 1.45;\n  word-break: keep-all;\n}\n\n/* 7차: 세트 전용 모션 · 장난감 시연 */\n.btn.setmo { margin: 4px auto 0; display: inline-flex; }\n.setmo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }\n.setmo-cell { background: var(--soft); border-radius: 10px; padding: 8px; text-align: center; }\n.setmo-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }\n.setmo-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }\n.setmo-cell.locked canvas { filter: grayscale(0.4) opacity(0.42); }\n/* 친구에게 선물하기 */\n.gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; max-height: 52vh; overflow: auto; }\n.gift-cell { position: relative; background: var(--soft); border: 2px solid transparent; border-radius: 10px; padding: 8px; text-align: center; cursor: pointer; font: inherit; color: inherit; }\n.gift-cell.on { border-color: var(--accent); }\n.gift-cell canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }\n.gift-cell .nm { font-weight: 700; margin-top: 4px; font-size: 12px; }\n.gift-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }\n/* 장난감 사용법 (글로만 설명) */\n.toy-guide-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; }\n.toy-guide-head svg { flex: none; image-rendering: pixelated; }\n.toy-guide-head p { margin: 0; font-size: 12px; }\n.toy-guide { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }\n.toy-guide li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--soft); border-radius: 8px; }\n.toy-guide li svg { flex: none; margin-top: 2px; }\n.toy-guide b { display: block; font-size: 13px; }\n.toy-guide p { margin: 2px 0 0; font-size: 12px; line-height: 1.5; word-break: keep-all; }\n\n/* 7차 업적 카드의 팁 */\n.badge .ach-tip { display: flex; gap: 4px; align-items: flex-start; font-size: 11px; color: #8a6a3a; background: #fff6dc; border-radius: 6px; padding: 3px 6px; margin: 4px 0; text-align: left; line-height: 1.35; }\n.badge.locked .ach-tip { opacity: 0.9; }\n\n/* 7차: 털색 고르기 */\n.fur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; max-height: 60vh; overflow: auto; }\n.fur-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--panel); border: 2px solid color-mix(in srgb, var(--line) 20%, transparent); border-radius: 10px; padding: 6px; cursor: pointer; font: inherit; color: inherit; }\n/* 48칸 캔버스에서 고양이 둘레(가운데 아래 24칸)만 두 배로 보여 준다 */\n.fur-cell .fur-view { display: block; width: 100%; aspect-ratio: 1; overflow: hidden; }\n.fur-cell canvas { display: block; width: 200%; margin: -104% 0 0 -50%; image-rendering: pixelated; }\n.fur-cell.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }\n.fur-cell.locked { cursor: default; opacity: 0.55; filter: grayscale(0.6); }\n.fur-cell .nm { font-weight: 700; font-size: 12px; }\n.fur-cell .lv { font-size: 10px; color: var(--muted); display: inline-flex; gap: 2px; align-items: center; min-height: 12px; }\n/* 첫 실행 안내의 귀 고르기 (2026-10-10): 이름 칸 밑에 작게, 넘치면 안에서 스크롤 */\n/* 새로 생긴 것 (업데이트 뒤 처음 한 번, 2026-10-10) */\n.wn-list { list-style: none; margin: 6px 0 12px; padding: 0; display: grid; gap: 6px; max-height: 58vh; overflow: auto; }\n.wn-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; background: var(--soft); }\n.wn-row b { font-size: 13px; }\n.wn-row .muted { font-size: 11px; line-height: 1.4; word-break: keep-all; }\n.wn-row .btn { white-space: nowrap; }\n.fur-grid.w-ears { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 4px; max-height: 236px; }\n.w-ears .fur-cell { padding: 4px; }\n.w-ears .fur-cell .nm { font-size: 10px; line-height: 1.2; word-break: keep-all; }\n\n/* 7차: 동네 친구 */\n.gcell { cursor: pointer; }\n.gcell canvas.fart { display: block; width: 96px; height: 96px; margin: -14px auto -4px; image-rendering: pixelated; }\n.fr-nick { font-size: 11px; color: var(--muted); }\n.fr-tmi { text-align: left; font-size: 11px; margin: 6px 0 4px; padding-left: 16px; line-height: 1.45; }\n.fr-tmi li + li { margin-top: 3px; }\n/* 친구 좌우명: TMI 위에 옅은 상자로 */\n.fr-motto { align-self: stretch; margin: 8px 0 2px; padding: 6px 8px; background: var(--soft); border-radius: 6px; font-size: 12px; font-weight: 700; line-height: 1.4; word-break: keep-all; }\n.fr-motto small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-bottom: 1px; }\n.fr-call { margin-top: 6px; }\n.fr-call .btn { display: inline-flex; gap: 4px; align-items: center; }\n.fr-now { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }\n\n/* ---------- UI 점검 (2026-09-24): 좁은 창·정렬·다크 모드·키보드 ---------- */\n\n/* 탭 일곱 개가 가장 좁은 창(460)에서도 다 보이게. 예전엔 '설정' 탭이 오른쪽으로 밀려 숨었다 */\n@media (max-width: 560px) {\n  .tabs {\n    gap: 0;\n  }\n  .tabs button {\n    gap: 3px;\n    padding: 7px 5px 6px;\n  }\n}\n/* 탭이 여덟 개(보물 공방 추가)라 아주 좁은 창에서는 아이콘을 빼고 글자만 */\n@media (max-width: 540px) {\n  .tabs button > svg,\n  .tabs button > .pxi {\n    display: none;\n  }\n}\n\n/* 키보드로 옮겨 다닐 때 지금 어디인지 보이게 */\n.btn:focus-visible,\n.chip:focus-visible,\n.tabs button:focus-visible,\n.mchip:focus-visible,\n.fur-cell:focus-visible,\n[role='button']:focus-visible,\nselect:focus-visible,\ninput:focus-visible {\n  outline: 2px solid var(--accent);\n  outline-offset: 2px;\n}\n\n/* 0개인 칸 거르기 버튼은 흐리게 (눌러도 빈 목록) */\n.chip.empty {\n  color: var(--muted);\n  border-style: dashed;\n}\n\n/* 코스튬 카드: 48칸 캔버스에서 고양이와 옷이 있는 곳(가로 7~41, 세로 14~48)만 크게 보여 준다.\n   예전엔 고양이가 카드 아래쪽에 작게 앉아 있고 위가 비었다. 하늘을 덮는 효과 몇 개만 윗부분이 잘린다 */\n.acc-view {\n  display: block;\n  width: 96px;\n  height: 96px;\n  margin: 0 auto;\n  overflow: hidden;\n}\n.item .acc-view canvas {\n  width: 135.5px;\n  height: 135.5px;\n  margin: -39.5px 0 0 -19.8px;\n}\n\n/* 카드 안 가격·버튼을 바닥에 맞춘다 (이름이 한 줄·두 줄이어도 버튼 줄이 가지런하게) */\n.panel.item {\n  display: flex;\n  flex-direction: column;\n}\n.item .price {\n  align-self: center;\n  margin-top: auto;\n  padding-top: 2px;\n}\n@media (max-width: 540px) {\n  .stat {\n    padding: 8px 9px;\n  }\n}\n.witem .hint {\n  margin-top: auto;\n}\n.btn.setmo {\n  align-self: center;\n}\n\n/* 상점: 지갑은 한 줄로 */\n.panel.wallet {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 10px 14px;\n  text-align: left;\n}\n.wallet .coins {\n  flex: none;\n  margin: 0;\n}\n.wallet-meta {\n  min-width: 0;\n  color: var(--muted);\n  font-size: 12px;\n  line-height: 1.45;\n}\n.wallet-meta .small {\n  font-size: 11px;\n}\n/* 분류 버튼 + 칸 거르기는 한 덩어리로 따라 붙는다 (예전엔 둘 다 따로 붙어서 아래 줄이 위 줄을 덮었다) */\n.shop-sticky {\n  position: sticky;\n  top: -16px;\n  z-index: 5;\n  margin: 8px 0 0;\n  padding: 6px 0 4px;\n  background: var(--bg);\n  border-bottom: 1px dashed var(--soft);\n}\n.shop-sticky .shop-jump {\n  position: static;\n  margin: 0;\n  padding: 2px 0 4px;\n  align-items: center;\n}\n.shop-sticky .costume-tabs {\n  margin: 2px 0 2px;\n  padding: 0;\n}\n/* 상위 분류(밥·간식·코스튬·모션·장난감)와 그 아래 칸 거르기 사이 옅은 구분선 */\n.shop-sticky .shop-jump + .costume-tabs {\n  margin-top: 6px;\n  padding-top: 8px;\n  border-top: 1px solid color-mix(in srgb, var(--line) 28%, transparent);\n}\n.shop-sticky .costume-tabs .chip {\n  padding: 2px 7px;\n  font-size: 11px;\n}\n.jump-coins {\n  margin-left: auto;\n  font-family: var(--pixel);\n  font-size: 13px;\n  font-weight: 700;\n  color: var(--accent);\n}\n.modal .own {\n  font-family: var(--pixel);\n  font-size: 12px;\n  color: var(--accent);\n}\n.toy-modal .modal-foot {\n  align-items: center;\n}\n\n/* 업적: 거르기 줄 오른쪽의 '묶음으로 가기'. 묶음 제목이 따라 붙는 줄에 가려지지 않게 */\n.jump-select {\n  margin-left: auto;\n  max-width: 55%;\n  font: inherit;\n  font-size: 12px;\n  color: inherit;\n  background: var(--panel);\n  border: 2px solid var(--line);\n  border-radius: 4px;\n  padding: 3px 6px;\n  cursor: pointer;\n}\n.ach-filter {\n  align-items: center;\n}\n.ach-cat {\n  scroll-margin-top: 52px;\n}\n\n/* 설정: 맨 위 섹션 바로 가기 */\n.set-toc {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n  margin: 0 0 6px;\n}\n.set-toc .chip {\n  padding: 2px 8px;\n  font-size: 11px;\n}\n#view[data-tab='settings'] > .set-toc + h2 {\n  margin-top: 12px;\n  padding-top: 0;\n  border-top: none;\n}\n#view[data-tab='settings'] > h2 {\n  scroll-margin-top: 8px;\n}\n\n/* 모션 편집 창의 찾기 칸 */\n.msearch {\n  font: inherit;\n  color: inherit;\n  background: var(--bg);\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  padding: 5px 8px;\n}\n\n/* 상점 '새로 열림' 칩: 새로 열린 게 있을 때만 맨 앞에 뜬다 */\n.chip.chip-new {\n  border-color: #e0463a;\n  color: #e0463a;\n}\n.chip.chip-new.on {\n  background: #e0463a;\n  color: #fff;\n}\n\n/* 동네 친구 카드: 위쪽 빈칸을 줄이고, 누르면 펼쳐진다는 걸 보여 준다 */\n.gcell canvas,\n.gcell canvas.fart {\n  margin-top: -30px;\n}\n.fr-more {\n  margin-top: 4px;\n  font-size: 11px;\n  color: var(--accent);\n}\n.fr-more::after {\n  content: ' ▾';\n}\n.gcell.open .fr-more::after {\n  content: ' ▴';\n}\n\n/* 어두운 화면: 밝은 색을 박아 둔 곳들 */\n\n:root.dark .badge .ach-tip {\n    background: #3a3120;\n    color: #e8cf9a;\n  }\n:root.dark .fur-cell {\n    background: var(--panel);\n    border-color: var(--line);\n  }\n:root.dark .fur-cell.on {\n    background: #3d2a20;\n    border-color: var(--accent);\n  }\n:root.dark .fur-cell .lv {\n    color: var(--muted);\n  }\n:root.dark .setmo-cell {\n    background: var(--soft);\n  }\n:root.dark .dash-row {\n    border-bottom-color: var(--line);\n  }\n:root.dark .tier-normal .tier {\n    background: #1f3048;\n    color: #9cc3f0;\n  }\n:root.dark .tier-hard .tier {\n    background: #4a2620;\n    color: #f0a595;\n  }\n:root.dark .tier-legend .tier {\n    background: #43381a;\n    color: #f0cf6a;\n  }\n\n\n/* 상점 카드: 그림 · 이름 · 효과 · 가격 · 버튼 다섯 칸의 높이를 고정해 모든 카드가 같은 규격이다.\n   이름이 한 줄이든 두 줄이든, 효과가 있든 없든 가격·버튼 줄이 가지런하다.\n   [옵시디언] 데스크톱판은 카드 안을 부모 그리드 칸에 맞추지만 옵시디언 리뷰에 맞춰 flex + 칸마다 고정 높이로 같은 규격을 만든다 */\n.wardrobe.shop-grid {\n  row-gap: 12px;\n  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));\n}\n.shop-grid > .panel.item {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  padding: 10px 8px 14px; /* 아래는 더 넉넉히: 가격·버튼이 테두리에 붙지 않게 */\n}\n.shop-grid > .item > * {\n  margin: 0;\n  flex: none;\n}\n/* 모든 상점 카드(밥·간식·코스튬·모션·장난감)를 같은 규격으로: 다섯 칸 높이를 고정한다.\n   탭마다 가장 큰 내용을 재서 정했다 (2026-09-27: 그림 96 코스튬·모션 · 이름 두 줄 · 정보 두 줄 · 가격 · 버튼 한 줄).\n   정보가 두 줄에 들어가도록 배부름·기운은 아이콘 한 줄, 효과는 짧게, 줄다리기 난이도는 인벤토리에서만 */\n.shop-grid > .item .pv {\n  align-self: center;\n  height: 96px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n/* 이름은 칸 위쪽(그림 쪽)에 붙이고 최대 두 줄: 그림 → 이름 간격이 모든 카드에서 같다 */\n.shop-grid > .item .nm {\n  align-self: stretch;\n  height: 36px;\n  text-align: center;\n  line-height: 1.25;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n.shop-grid > .item .fx {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 4px;\n  height: 36px;\n  overflow: hidden;\n}\n.shop-grid > .item .fx > * {\n  margin: 0;\n}\n.shop-grid > .item .fx:empty {\n  display: block;\n}\n.shop-grid > .item .price {\n  height: 17px;\n  padding: 0;\n}\n.shop-grid > .item .hint,\n.shop-grid > .item .hint:empty {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 4px;\n  height: 27px;\n  min-height: 24px;\n}\n.shop-grid > .item .btn.buy {\n  margin: 0;\n}\n\n/* 보물 공방 카드: 그림 · 이름 · 재료 · 버튼을 세로로 쌓고, 버튼은 맨 아래로 밀어 같은 줄 카드끼리 맞춘다 (요소 사이 10px).\n   [옵시디언] flex 로 쌓는다 */\n.wardrobe.ws-grid {\n  row-gap: 14px;\n}\n.ws-grid > .panel.ws-card {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  /* 카드 너비를 넘지 않게 (줄바꿈 안 하는 재료 이름이 테두리 밖으로 삐져나가지 않게) */\n  min-width: 0;\n  gap: 10px;\n  padding: 12px 10px;\n}\n.ws-grid > .ws-card > * {\n  margin: 0;\n  min-width: 0;\n  max-width: 100%;\n}\n.ws-grid > .ws-card .pv {\n  align-self: center;\n}\n.ws-grid > .ws-card .nm {\n  line-height: 1.35;\n  text-align: center;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.ws-grid > .ws-card .ws-mats {\n  align-self: stretch;\n  margin: 0;\n  padding: 7px 8px;\n  gap: 5px;\n  background: var(--soft);\n  border-radius: 6px;\n  box-sizing: border-box;\n}\n.ws-grid > .ws-card .ws-mats li {\n  line-height: 1.3;\n}\n/* 재료 이름은 말줄임 대신 두 줄로 (어느 보물인지 다 보이게) */\n.ws-grid > .ws-card .ws-mats li .nm {\n  white-space: normal;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.ws-grid > .ws-card .ws-mats li .pxi,\n.ws-grid > .ws-card .ws-mats li b {\n  flex: none;\n}\n.ws-grid > .ws-card .hint {\n  display: flex;\n  margin-top: auto;\n  justify-content: center;\n  align-items: center;\n  gap: 6px;\n  min-height: 26px;\n}\n.ws-grid > .ws-card .btn.buy {\n  margin: 0;\n}\n\n/* 별 상점 (8차): Lv80 뒤 별로만 사는 한정품. 남색 판 · 금빛 테두리로 코인 상점과 구별한다 */\n.panel.star-wallet { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 14px; background: linear-gradient(135deg, #241c4a, #3b2a7a); color: #fff3c4; border-color: #c9a227; }\n.panel.star-wallet .pix { font-size: 20px; color: #ffd84a; }\n.panel.star-wallet .muted { color: #d8cff5; }\n.panel.item.k-star { border-color: #c9a227; background: linear-gradient(180deg, #fffaf0, #f3ecff); }\n.panel.item.k-star .pv { background: radial-gradient(circle at 50% 40%, #3b2a7a, #1a1338); border-radius: 8px; }\n.star-price { display: inline-flex; align-items: center; gap: 3px; color: #8a6a00; }\n.star-price b { font-weight: 800; }\n\n:root.dark .panel.item.k-star { background: linear-gradient(180deg, #2a2440, #1f1a33); }\n:root.dark .star-price { color: #ffd84a; }\n\n\n/* ---------- 정돈 (8차 후속): 굵은 선 · 도장 그림자를 덜어 내고, 큰 분류와 작은 거르기를 다르게 ----------\n   위 규칙은 그대로 두고 여기서 덮는다 (되돌리려면 이 묶음만 지우면 된다) */\n:root {\n  --edge: color-mix(in srgb, var(--line) 18%, transparent);\n  --edge-strong: color-mix(in srgb, var(--line) 34%, transparent);\n  --lift: 0 1px 0 color-mix(in srgb, var(--line) 6%, transparent), 0 6px 16px -10px var(--shadow);\n  --r: 12px;\n  --r-sm: 8px;\n}\n:root.dark {\n  --edge: rgba(244, 233, 223, 0.12);\n  --edge-strong: rgba(244, 233, 223, 0.24);\n}\n.panel {\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: var(--lift);\n}\n.btn {\n  border: 1.5px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n  box-shadow: none;\n}\n.btn:active {\n  transform: translateY(1px);\n}\n.btn.primary {\n  border-color: transparent;\n}\n.btn.ghost {\n  border-width: 1px;\n  border-color: var(--edge-strong);\n}\n.btn.ghost:hover,\n.btn.head-act:hover {\n  border-color: var(--edge-strong);\n}\n.xp-bar,\n.bar {\n  border: 0;\n  border-radius: 99px;\n  height: 8px;\n}\n.xp-bar i,\n.bar i {\n  border-radius: 99px;\n  background: var(--accent);\n}\n.bar.good i {\n  background: var(--good);\n}\n.bar.gold i {\n  background: var(--gold);\n}\n/* 맨 위: 탭 8개가 창 폭에 다 들어가게 그림 위 · 글씨 아래, 고른 탭은 밑줄 */\n.top {\n  border-bottom: 1px solid var(--edge);\n}\n.tabs {\n  gap: 0;\n  margin-top: 10px;\n}\n.tabs button {\n  flex: 1 1 0;\n  min-width: 50px;\n  flex-direction: column;\n  justify-content: center;\n  gap: 2px;\n  font-size: 11px;\n  padding: 5px 2px 7px;\n  border: 0;\n  border-radius: 0;\n  margin-bottom: 0;\n}\n.tabs button.on {\n  background: none;\n  color: var(--ink);\n  font-weight: 700;\n  box-shadow: inset 0 -2.5px 0 var(--accent);\n}\n.tabs .dot {\n  top: 3px;\n  right: calc(50% - 16px);\n  border-radius: 50%;\n  border: 0;\n}\n/* 칩: 작은 거르기는 알약, 고르면 진하게 */\n.chip {\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n  padding: 4px 10px;\n}\n.chip:hover {\n  background: var(--soft);\n}\n.chip.on {\n  background: var(--ink);\n  color: var(--bg);\n  border-color: var(--ink);\n  box-shadow: none;\n}\n.chip.on small {\n  color: inherit;\n  opacity: 0.7;\n}\n.chip.locked,\n.chip.empty {\n  border-style: dashed;\n}\n/* 큰 분류 줄(상점 · 인벤토리 · 업적)은 하나로 묶인 버튼 */\n.shop-jump:not(.costume-tabs):not(.ward-tabs) {\n  gap: 2px;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip {\n  border-color: transparent;\n  background: transparent;\n  border-radius: var(--r-sm);\n  padding: 5px 10px;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip:hover {\n  background: var(--soft);\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on {\n  background: var(--panel);\n  color: var(--ink);\n  border-color: var(--edge);\n  box-shadow: 0 1px 4px var(--shadow);\n  font-weight: 700;\n}\n.shop-jump:not(.costume-tabs):not(.ward-tabs) > .chip.on small {\n  color: var(--muted);\n  opacity: 1;\n}\n.shop-sticky {\n  border-bottom: 1px solid var(--edge);\n}\n.shop-sticky .shop-jump + .costume-tabs {\n  border-top-color: var(--edge);\n}\n/* 카드 */\n.item.on {\n  border-color: var(--accent);\n  box-shadow: 0 0 0 1.5px var(--accent), var(--lift);\n}\n.item.locked {\n  border: 1px dashed var(--edge-strong);\n  box-shadow: none;\n}\n.item .new {\n  border-radius: 99px;\n  padding: 0 6px;\n}\n.ws-card.ready {\n  box-shadow: 0 0 0 1.5px var(--good), var(--lift);\n}\n.tier-legend:not(.locked) {\n  box-shadow: 0 0 0 1.5px var(--gold), var(--lift);\n}\n/* 입력 · 고르기 · 토글 */\n.field select,\n.jump-select,\n.msearch,\ninput[type='text'],\ninput[type='number'],\ninput[type='time'],\n.field input[type='text'],\n.field input[type='time'],\n.field input[type='number'] {\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.switch span {\n  border: 0;\n  border-radius: 99px;\n  background: var(--edge-strong);\n}\n.switch span::after {\n  top: 3px;\n  left: 3px;\n  width: 16px;\n  height: 16px;\n  border: 0;\n  border-radius: 50%;\n  background: #fff;\n  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);\n  transition: left 0.15s ease;\n}\n.switch input:checked + span::after {\n  left: 21px;\n}\n.radio {\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.mchip {\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n}\n.mzone {\n  border: 1.5px dashed var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.motion-peek {\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: 0 12px 30px -8px var(--shadow);\n}\n.toast,\n.tip,\n.card-img {\n  border-radius: var(--r-sm);\n  box-shadow: var(--lift);\n}\n.modal-box {\n  border-radius: var(--r);\n}\n.chart .b {\n  border: 0;\n  border-radius: 3px 3px 0 0;\n}\n.chart .lab {\n  border-top: 1px solid var(--edge-strong);\n}\n.welcome .steps i {\n  border: 1px solid var(--edge-strong);\n}\n.dev-toggle {\n  border-radius: var(--r-sm);\n}\n.banner {\n  border-radius: var(--r);\n}\n.fur-cell {\n  border-width: 1px;\n}\n/* 섹션 사이 구분선은 실선 한 줄로 */\n#view > h2,\n#view > .h2-row,\n#view > section > h2:first-child,\n#view > section > .h2-row:first-child,\n#view > section > .quest-head:first-child,\n#view > .ach-cat {\n  border-top: 1px solid var(--edge);\n}\n/* 설정: 테마 고르기 */\n.theme-field {\n  flex-direction: column;\n  align-items: stretch;\n  gap: 8px;\n}\n.theme-picks {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.theme-pick {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 4px 10px 4px 5px;\n  font-size: 12px;\n  background: var(--panel);\n  border: 1px solid var(--edge-strong);\n  border-radius: 99px;\n  cursor: pointer;\n}\n.theme-pick:hover {\n  background: var(--soft);\n}\n.theme-pick.on {\n  border-color: var(--accent);\n  box-shadow: 0 0 0 1.5px var(--accent);\n  font-weight: 700;\n}\n.theme-pick .sw {\n  position: relative;\n  width: 18px;\n  height: 18px;\n  border-radius: 50%;\n  border: 1px solid rgba(0, 0, 0, 0.18);\n  overflow: hidden;\n}\n.theme-pick .sw b {\n  position: absolute;\n  right: -1px;\n  bottom: -1px;\n  width: 10px;\n  height: 10px;\n  border-radius: 50% 0 0 0;\n}\n.theme-pick .sw-auto {\n  background: linear-gradient(135deg, #faf6ef 50%, #1e1814 50%);\n}\n/* 오늘 먹고 싶은 것 (홈) */\n.crave-row {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 8px;\n}\n.crave-cell {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 8px 10px;\n  background: var(--soft);\n  border-radius: var(--r-sm);\n  min-width: 0;\n}\n.crave-cell.done {\n  opacity: 0.7;\n}\n.crave-txt {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  line-height: 1.3;\n}\n.crave-txt small {\n  color: var(--muted);\n  font-size: 10.5px;\n}\n.crave-txt b {\n  font-size: 13px;\n  line-height: 1.25;\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n.crave-txt span {\n  color: var(--accent);\n  font-size: 11px;\n}\n.crave-done {\n  color: var(--good);\n  font-size: 12px;\n  font-weight: 700;\n}\n.crave-sub {\n  margin: 8px 0 0;\n}\n.wtag.crave-tag {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  background: var(--accent);\n  color: #fff;\n}\n@media (max-width: 500px) {\n  .crave-row {\n    grid-template-columns: 1fr;\n  }\n}\n\n/* 보물 교환소 · 공방 코스튬 이야기 */\n.ws-exchange {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 8px 10px;\n}\n.ws-exchange select {\n  flex: 1 1 180px;\n  min-width: 0;\n  font: inherit;\n  font-size: 12px;\n  padding: 5px 8px;\n  color: var(--ink);\n  background: var(--panel);\n  border: 1px solid var(--edge-strong);\n  border-radius: var(--r-sm);\n}\n.ws-story {\n  font-size: 10.5px;\n  line-height: 1.35;\n  color: var(--muted);\n  margin: 2px 4px 4px;\n}\n.ws-fill {\n  margin-top: 4px;\n}\n.ws-stamp {\n  position: absolute;\n  top: 5px;\n  right: 5px;\n  font-size: 9px;\n  padding: 1px 5px;\n  border-radius: 99px;\n  color: var(--good);\n  border: 1px solid color-mix(in srgb, var(--good) 50%, transparent);\n}\n\n/* 오늘의 소식 (홈) */\n.news-list {\n  list-style: none;\n  margin: 0 0 4px;\n  padding: 0;\n}\n.news-list li {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  padding: 5px 2px;\n  font-size: 12px;\n  border-bottom: 1px solid var(--edge);\n}\n.news-list li:last-child {\n  border-bottom: 0;\n}\n.news-list li[data-news-link] {\n  cursor: pointer;\n}\n.news-list li[data-news-link]:hover .nx {\n  color: var(--accent);\n}\n.news-list .nt {\n  flex: none;\n  width: 58px;\n  font-size: 10.5px;\n  color: var(--muted);\n}\n.news-list .nx {\n  flex: 1;\n  min-width: 0;\n  line-height: 1.35;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n  overflow: hidden;\n}\n\n/* 설정: 모션 4묶음 */\n.mgroups {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.mgroup {\n  background: var(--panel);\n  border: 1px solid var(--edge);\n  border-radius: var(--r);\n  box-shadow: var(--lift);\n}\n.mgroup > summary {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: baseline;\n  gap: 4px 10px;\n  padding: 11px 14px;\n  cursor: pointer;\n  list-style: none;\n}\n.mgroup > summary::-webkit-details-marker {\n  display: none;\n}\n.mgroup > summary::before {\n  content: '▸';\n  color: var(--muted);\n  font-size: 11px;\n  transition: transform 0.15s;\n}\n.mgroup[open] > summary::before {\n  transform: rotate(90deg);\n}\n.mgroup > summary .mtag {\n  margin-left: auto;\n}\n.mgroup > .mcards {\n  padding: 0 12px 12px;\n}\n\n/* 별 상점 카드 (2026-10-10): 그림 영역을 카드 위쪽 가장자리까지 꽉 채우고 3배(144px) 통째로 그린다.\n   날개 · 후광처럼 넓은 효과도 잘리지 않게. 카드가 좁으면(150px 미만) 2배로 */\n.shop-grid > .panel.item.k-star {\n  padding-top: 0;\n  overflow: hidden;\n  container-type: inline-size;\n}\n.panel.item.k-star .pv {\n  justify-self: stretch;\n  align-self: stretch;\n  margin: 0 -8px 4px;\n  height: 156px;\n  border-radius: 0;\n  display: flex;\n  align-items: flex-end;\n  justify-content: center;\n  overflow: hidden;\n}\n.panel.item.k-star .acc-view,\n.panel.item.k-star .acc-view canvas {\n  width: 144px;\n  height: 144px;\n  margin: 0;\n}\n.panel.item.k-star .wtag {\n  z-index: 1;\n  background: rgba(255, 255, 255, 0.85);\n  color: #3b2a7a;\n}\n@container (max-width: 150px) {\n  .panel.item.k-star .pv {\n    height: 108px;\n  }\n  .panel.item.k-star .acc-view,\n  .panel.item.k-star .acc-view canvas {\n    width: 96px;\n    height: 96px;\n  }\n}\n\n/* [옵시디언] 오른쪽 사이드바처럼 좁은 폭: 탭은 지금 탭만 이름을 보이고 나머지는 아이콘만, 머리의 상태 글은 줄을 바꾼다 */\n@media (max-width: 480px) {\n  .top {\n    padding: 10px 8px 0;\n  }\n  .hero {\n    gap: 8px;\n  }\n  #hero {\n    width: 72px;\n    height: 72px;\n  }\n  .mood {\n    flex-wrap: wrap;\n    row-gap: 2px;\n  }\n  .mood > * {\n    white-space: nowrap;\n  }\n  .tabs button {\n    padding: 7px 4px 6px;\n  }\n  /* 위의 540px 규칙은 아이콘을 빼고 글자만 남기는데, 여기서는 거꾸로 아이콘을 남긴다 */\n  .tabs button > svg,\n  .tabs button > .pxi {\n    display: block;\n    flex: none;\n    width: 15px;\n    height: 15px;\n  }\n  .tabs button:not(.on) .tx {\n    display: none;\n  }\n}\n\n/* ---------- [옵시디언 1.5.0] 오늘의 목표 + 집중 시간 (홈 맨 위) ---------- */\n.panel.goal-hero {\n  display: grid;\n  grid-template-columns: auto minmax(0, 1fr) auto;\n  align-items: center;\n  gap: 14px;\n  padding: 14px 16px;\n  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, var(--panel)), var(--panel) 60%);\n}\n.panel.goal-hero.done {\n  background: linear-gradient(135deg, color-mix(in srgb, var(--good) 12%, var(--panel)), var(--panel) 60%);\n}\n.panel.goal-hero.off {\n  grid-template-columns: minmax(0, 1fr) auto;\n}\n.goal-ring {\n  --p: 0;\n  position: relative;\n  width: 64px;\n  height: 64px;\n  border-radius: 50%;\n  background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--soft) 0);\n  display: grid;\n  place-items: center;\n  flex: none;\n}\n.goal-hero.done .goal-ring {\n  background: conic-gradient(var(--good) 100%, var(--soft) 0);\n}\n.goal-ring::before {\n  content: '';\n  position: absolute;\n  inset: 7px;\n  border-radius: 50%;\n  background: var(--panel);\n}\n.goal-ring > span {\n  position: relative;\n  font-family: var(--pixel);\n  font-size: 14px;\n  font-weight: 700;\n  color: var(--ink);\n}\n.goal-hero.done .goal-ring > span {\n  color: var(--good);\n}\n.goal-main {\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n.goal-main p {\n  margin: 0;\n}\n.goal-main > .btn {\n  align-self: flex-start;\n}\n.goal-v {\n  font-size: 12px;\n}\n.goal-v b {\n  font-family: var(--pixel);\n  font-size: 22px;\n  line-height: 1.1;\n}\n.goal-sub {\n  font-size: 12px;\n  color: var(--muted);\n}\n.goal-hero.done .goal-sub {\n  color: var(--good);\n  font-weight: 700;\n}\n.goal-week {\n  display: flex;\n  align-items: center;\n  flex-wrap: wrap;\n  gap: 8px;\n  font-size: 11px;\n}\n.goal-week .dots {\n  display: inline-flex;\n  gap: 3px;\n}\n.goal-week .dots i {\n  width: 9px;\n  height: 9px;\n  border-radius: 2px;\n  background: var(--soft);\n}\n.goal-week .dots i.on {\n  background: var(--good);\n}\n.goal-week .dots i:last-child {\n  outline: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent);\n  outline-offset: 1px;\n}\n.focus-box {\n  display: flex;\n  flex-direction: column;\n  align-items: stretch;\n  gap: 5px;\n  max-width: 190px;\n  padding-left: 14px;\n  border-left: 1px dashed var(--edge-strong);\n  text-align: center;\n}\n.focus-box .btn {\n  justify-content: center;\n}\n.focus-box small {\n  font-size: 11px;\n  line-height: 1.35;\n}\n.focus-box.on .focus-k {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  font-family: var(--pixel);\n  font-weight: 700;\n  font-variant-numeric: tabular-nums;\n  color: var(--accent);\n}\n.muted.small {\n  font-size: 12px;\n}\n\n/* 목표 고르기 창 · 첫 실행의 목표 칩 */\n.goal-pick {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n  margin: 10px 0 14px;\n}\n.goal-pick .seg {\n  display: flex;\n  gap: 6px;\n}\n.goal-pick .chips,\n.chips.w-goal {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n.goal-pick .chip small,\n.chips.w-goal .chip small {\n  margin-left: 4px;\n}\n.chips.w-goal {\n  margin: 4px 0 10px;\n}\n.goal-modal .nav {\n  display: flex;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n/* 좁은 폭(사이드바): 집중 칸은 아래 줄로 */\n@media (max-width: 520px) {\n  .panel.goal-hero {\n    grid-template-columns: auto minmax(0, 1fr);\n  }\n  .panel.goal-hero.off {\n    grid-template-columns: minmax(0, 1fr);\n  }\n  .focus-box {\n    grid-column: 1 / -1;\n    max-width: none;\n    padding: 10px 0 0;\n    border-left: 0;\n    border-top: 1px dashed var(--edge-strong);\n  }\n}\n\n/* ---------- [옵시디언 2.0.0] 홈: 칸 접기 · 집중 길이 · 쉬는 시간 · 할 일 · 노트 지도 · 최근 노트 · 오늘 숫자 ---------- */\n.hsec {\n  margin-bottom: 4px;\n}\n.hsec.folded {\n  margin-bottom: 0;\n}\n.hsec.folded > .h2-row {\n  margin-bottom: 6px;\n  opacity: 0.75;\n}\n.hsec-acts {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  flex-wrap: wrap;\n  justify-content: flex-end;\n}\n.btn.ghost.fold {\n  flex: none;\n  width: 24px;\n  height: 22px;\n  padding: 0;\n  justify-content: center;\n  font-family: var(--pixel);\n  font-size: 14px;\n  line-height: 1;\n}\n.focus-lens {\n  display: flex;\n  justify-content: center;\n  gap: 4px;\n}\n.focus-lens .chip {\n  padding: 2px 8px;\n  font-size: 11px;\n}\n.focus-breaks {\n  display: flex;\n  justify-content: center;\n  gap: 4px;\n  flex-wrap: wrap;\n}\n.focus-box.brk .focus-k {\n  color: var(--good);\n}\n\n/* 할 일 */\n.todo-panel {\n  padding: 12px 14px;\n}\n.todo-add {\n  display: flex;\n  gap: 6px;\n  margin-bottom: 8px;\n}\n.todo-add input {\n  flex: 1;\n  min-width: 0;\n}\n.todos {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n.todo {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 5px 2px;\n  border-bottom: 1px dashed var(--edge);\n}\n.todo:last-child {\n  border-bottom: 0;\n}\n.todo-check {\n  flex: none;\n  display: inline-flex;\n  cursor: pointer;\n}\n.todo-check input {\n  position: absolute;\n  opacity: 0;\n  width: 0;\n  height: 0;\n}\n.todo-check .box {\n  width: 16px;\n  height: 16px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  border: 2px solid var(--line);\n  border-radius: 3px;\n  background: var(--panel);\n}\n.todo-check input:focus-visible + .box {\n  outline: 2px solid var(--accent);\n  outline-offset: 1px;\n}\n.todo.done .todo-check .box {\n  background: var(--good);\n  border-color: var(--good);\n  color: #fff;\n}\n.todo-t {\n  flex: 1;\n  min-width: 0;\n  overflow-wrap: anywhere;\n  line-height: 1.4;\n  cursor: text;\n}\n.todo.done .todo-t {\n  color: var(--muted);\n  text-decoration: line-through;\n}\n.todo-acts {\n  flex: none;\n  display: inline-flex;\n  gap: 2px;\n  opacity: 0.35;\n}\n.todo:hover .todo-acts,\n.todo:focus-within .todo-acts {\n  opacity: 1;\n}\n.todo-acts .ic {\n  width: 20px;\n  height: 20px;\n  padding: 0;\n  border: 0;\n  border-radius: 3px;\n  background: transparent;\n  color: var(--ink);\n  font-size: 12px;\n  line-height: 1;\n  cursor: pointer;\n}\n.todo-acts .ic:hover {\n  background: var(--soft);\n}\n.todo-acts .ic:disabled {\n  opacity: 0.3;\n  cursor: default;\n}\n.todo.editing input {\n  flex: 1;\n  width: 100%;\n}\n.todo-empty {\n  margin: 4px 0 6px;\n}\n.todo-more {\n  margin-top: 6px;\n}\n.done-list {\n  margin-top: 4px;\n}\n.todo-note {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  margin: 8px 0 0;\n  font-size: 11px;\n}\n\n/* 퀘스트 카드의 '어떻게' 한 줄 · 외톨이 노트 바로 열기 */\n.quest-how {\n  display: flex;\n  align-items: flex-start;\n  gap: 4px;\n  margin-top: 5px;\n  font-size: 11px;\n  line-height: 1.4;\n  color: var(--muted);\n}\n.quest-how .pxi,\n.quest-how svg {\n  flex: none;\n  margin-top: 2px;\n}\n.quest-notes {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 4px;\n  margin-top: 6px;\n}\n.quest-notes .chip {\n  max-width: 100%;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  font-size: 11px;\n  padding: 2px 8px;\n}\n\n/* 노트 지도 */\n.map-panel {\n  padding: 10px 12px;\n}\n.mini-graph {\n  display: block;\n  width: 100%;\n  height: auto;\n  max-width: 560px;\n  margin: 0 auto;\n  background: var(--soft);\n  border-radius: 4px;\n}\n.mini-graph .ge line {\n  stroke: color-mix(in srgb, var(--ink) 30%, transparent);\n  stroke-width: 1;\n}\n.mini-graph .gn {\n  cursor: pointer;\n}\n.mini-graph .gn circle {\n  fill: var(--muted);\n  stroke: var(--panel);\n  stroke-width: 1.5;\n}\n.mini-graph .gn.h1 circle {\n  fill: var(--accent-2);\n}\n.mini-graph .gn.h0 circle {\n  fill: var(--accent);\n  stroke: var(--accent-line);\n}\n.mini-graph .gn:hover circle,\n.mini-graph .gn:focus circle {\n  fill: var(--accent);\n  stroke: var(--ink);\n}\n.mini-graph .gn:focus {\n  outline: none;\n}\n.mini-graph text {\n  fill: var(--ink);\n  font-size: 9px;\n  text-anchor: middle;\n  paint-order: stroke;\n  stroke: var(--soft);\n  stroke-width: 3px;\n  pointer-events: none;\n}\n.map-foot {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 8px;\n  flex-wrap: wrap;\n  margin-top: 6px;\n}\n.map-foot b {\n  margin-left: 3px;\n}\n.map-sum {\n  margin: 4px 0 0;\n}\n\n/* 최근 노트 */\n.recent-panel {\n  padding: 6px 8px;\n}\n.recent {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n.recent-btn {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  width: 100%;\n  padding: 6px;\n  border: 0;\n  border-radius: 4px;\n  background: transparent;\n  color: var(--ink);\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.recent-btn:hover,\n.recent-btn:focus-visible {\n  background: var(--soft);\n}\n.recent-btn .nm {\n  flex: 1;\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.recent-sum {\n  margin: 4px 6px;\n}\n\n/* 오늘 숫자: 작은 칸 한 줄 */\n.panel.today-row {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));\n  gap: 6px;\n  padding: 10px 12px;\n}\n.tcell2 {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n}\n.tcell2 .k {\n  font-size: 11px;\n  color: var(--muted);\n  white-space: nowrap;\n}\n.tcell2 b {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  font-family: var(--pixel);\n  font-size: 17px;\n}\n.cat-panel {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n.cat-panel .lvline {\n  margin: 0;\n}\n.cat-panel .gauge-note {\n  margin: 0;\n}\n\n/* 설정: 모션 켜고 끄기 */\n.switch.mini {\n  width: 34px;\n  height: 18px;\n}\n.switch.mini span::after {\n  top: 1px;\n  left: 1px;\n  width: 10px;\n  height: 10px;\n}\n.switch.mini input:checked + span::after {\n  left: 17px;\n}\n.mcard.off {\n  opacity: 0.7;\n}\n.mcard.off .mstrip {\n  min-height: 48px;\n}\n.mcard-foot {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 6px;\n  margin-top: auto;\n}\n.mcard-foot .mcard-btn {\n  flex: 1;\n  margin-top: 0;\n}\n.panel.mset-row {\n  margin-bottom: 10px;\n  padding: 10px 14px;\n}\n","frameCss":"/* iframe 안에만 더하는 스타일 (옵시디언판). 데스크톱판 pet.css · house.css 뒤에 붙는다 */\n\n/* 하우스는 옵시디언 탭 하나를 꽉 채운다. 데스크톱판은 창 크기(560×780)였다 */\nhtml.kc-house,\nhtml.kc-house body {\n  height: 100%;\n}\n\n/* 펫 무대는 투명하다 */\nhtml.kc-pet,\nhtml.kc-pet body {\n  background: transparent;\n}\n"};
 module.exports.run = function run(window, document, pet, kind) {
   var module, exports, require;
   var globalThis = window, self = window;
@@ -21305,7 +21313,7 @@ module.exports.run = function run(window, document, pet, kind) {
   var getComputedStyle = window.getComputedStyle.bind(window), confirm = window.confirm.bind(window);
   var performance = window.performance, history = window.history, location = window.location;
   var AudioContext = window.AudioContext;
-  var PetSprite, PixelArt, I18N, PetFriends, PetToys, PetSound, ToyKit;
+  var PetSprite, PixelArt, I18N, PetToys, PetSound, ToyKit;
 /* kit/i18n.js */
 // 앱에서 사람이 읽는 글을 여기 모은다. 메인·렌더러 양쪽이 같이 쓴다.
 // (메인은 require, 렌더러는 <script>. 렌더러 CSP 가 상위 폴더를 막아서 이 파일만 renderer 에 둔다)
@@ -29115,7 +29123,7 @@ module.exports.run = function run(window, document, pet, kind) {
   return { Strings, LANGS, LOCALES, PERSONAS, OLD_PERSONA, DEFAULT_LANG, DEFAULT_PERSONA, UI, LINE, josa, fill, pick };
 });
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/i18n-obsidian.js */
 // 옵시디언판 글. i18n.js(데스크톱판 그대로) 뒤에 읽혀서 Claude Code·토큰 이야기를 옵시디언 글쓰기 이야기로 덮어쓴다.
 // i18n.js 를 고치지 않고 여기서만 바꿔서, 데스크톱판 글이 늘어나도 그대로 가져와 쓸 수 있다.
@@ -30002,7 +30010,7 @@ module.exports.run = function run(window, document, pet, kind) {
   for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/i18n-goals.js */
 // 하루 목표 · 집중 시간 · 끝낸 할 일 · 단어 세기 (Vault Pet 1.5.0) 글. i18n-obsidian.js 다음에 읽힌다.
 // 호스트에서는 require('../kit/i18n') 한 모듈에 이어 붙고, iframe 에서는 i18n-obsidian.js 다음 스크립트로 돈다.
@@ -30335,7 +30343,476 @@ module.exports.run = function run(window, document, pet, kind) {
   for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+/* kit/i18n-v2.js */
+// Vault Pet 2.0.0 글: 옵시디언을 잘 쓰게 돕는 고양이 (홈 · 할 일 · 노트 지도 · 옵시디언 습관 퀘스트 · 업적 · 모션 켜고 끄기 · 장난감 4차).
+// i18n-goals.js 다음에 읽힌다. 호스트에서는 require('../kit/i18n') 한 모듈에 이어 붙고, iframe 에서는 i18n-goals.js 다음 스크립트로 돈다.
+(function (root) {
+  const I = typeof module === 'object' && module.exports && module.exports.UI ? module.exports : root.I18N;
+  if (!I) return;
+  const lines = (arr) => ({ angel: arr });
+
+  /* ───────────── 대사 ───────────── */
+  const LINE = {
+    ko: {
+      breakStart: lines(['{m}분만 쉬자! 물 한 잔 어때?', '좋아, {m}분 쉬는 시간!||눈도 좀 쉬어 줘', '{m}분 기지개 타임!']),
+      breakDone: lines(['쉬는 시간 끝! 다시 집중해 볼까?', '{m}분 잘 쉬었어?||이제 한 번 더 가 보자', '충전 완료! 다음 집중도 같이 하자']),
+      goldMouseCoins: lines(['초콜릿 쥐 속에 코인 {n}개가 들어 있었어!']),
+      mallowEvent: lines(['몸이 구름처럼 가벼워… 우다다 하고 싶어!', '푹신푹신… 기운이 막 솟아!']),
+    },
+    en: {
+      breakStart: lines(['A {m}-minute break! Maybe a glass of water?', 'Okay, {m} minutes off!||Rest your eyes too', '{m}-minute stretch time!']),
+      breakDone: lines(['Break over! Ready to focus again?', 'Good {m}-minute break?||Let’s go one more round', 'Recharged! Let’s do the next focus together']),
+      goldMouseCoins: lines(['There were {n} coins inside the chocolate mouse!']),
+      mallowEvent: lines(['I feel light as a cloud… I want to zoom around!', 'So fluffy… I’m full of energy!']),
+    },
+    zh: {
+      breakStart: lines(['休息 {m} 分钟吧！喝杯水怎么样？', '好，休息 {m} 分钟！||眼睛也歇一歇', '{m} 分钟伸懒腰时间！']),
+      breakDone: lines(['休息结束！再专注一次吧？', '{m} 分钟休息得好吗？||再来一轮吧', '充电完毕！下一次专注也一起吧']),
+      goldMouseCoins: lines(['巧克力老鼠里藏着 {n} 枚金币！']),
+      mallowEvent: lines(['身体轻得像云朵…好想到处跑！', '软绵绵的…一下子精神满满！']),
+    },
+  };
+  for (const lang of Object.keys(LINE)) Object.assign(I.LINE[lang], LINE[lang]);
+
+  /* ───────────── 화면 글 ───────────── */
+  // 업적 [id, 한국어 [이름, 설명, 팁?], 영어, 중국어]
+  const ACH = [
+    ['todo_1', ['첫 체크', '홈의 할 일을 처음 끝냈어요'], ['First check', 'Finish a to-do on Home for the first time'], ['第一个勾', '第一次完成主页上的待办']],
+    ['todo_50', ['체크 마스터', '홈의 할 일 50개를 끝냈어요'], ['Check master', 'Finish 50 to-dos on Home'], ['打勾达人', '完成主页上的 50 个待办']],
+    ['todo_300', ['해낸 일 300', '홈의 할 일 300개를 끝냈어요'], ['300 things done', 'Finish 300 to-dos on Home'], ['完成 300 件事', '完成主页上的 300 个待办']],
+    ['todo_1000', ['천 개의 체크', '홈의 할 일 1,000개를 끝냈어요'], ['A thousand checks', 'Finish 1,000 to-dos on Home'], ['一千个勾', '完成主页上的 1,000 个待办']],
+    ['dailyc_1k', ['일기 한 장', '데일리 노트에 1,000자를 썼어요'], ['A page of the day', 'Write 1,000 characters in daily notes'], ['一页日记', '在日记里写满 1,000 字']],
+    ['dailyc_10k', ['기록하는 하루', '데일리 노트에 10,000자를 썼어요'], ['Days on record', 'Write 10,000 characters in daily notes'], ['记录每一天', '在日记里写满 10,000 字']],
+    ['graph_1', ['별자리 관측', '그래프 뷰나 로컬 그래프를 열어 봤어요', '노트 사이 링크가 별자리처럼 보여요'], ['Stargazer', 'Open the graph view or local graph', 'Your links look like constellations'], ['观星', '打开过关系图谱或局部图谱', '笔记之间的链接像星座一样']],
+    ['search_1', ['찾아라!', '검색 창을 열어 봤어요'], ['Seek and find', 'Open the search pane'], ['找找看', '打开过搜索面板']],
+    ['backlink_1', ['누가 날 불렀지', '백링크나 나가는 링크 창을 열어 봤어요'], ['Who called me?', 'Open the backlinks or outgoing links pane'], ['谁在叫我', '打开过反向链接或出链面板']],
+    ['outline_1', ['한눈에 보기', '개요 창을 열어 봤어요'], ['At a glance', 'Open the outline pane'], ['一目了然', '打开过大纲面板']],
+    ['views_all', ['옵시디언 탐험가', '그래프 · 로컬 그래프 · 검색 · 백링크 · 나가는 링크 · 개요 · 태그 · 북마크 창을 다 열어 봤어요', '오른쪽 · 왼쪽 사이드바에 숨은 창들이에요'], ['Obsidian explorer', 'Open graph, local graph, search, backlinks, outgoing links, outline, tags and bookmarks', 'They live in the left and right sidebars'], ['Obsidian 探险家', '打开过关系图谱、局部图谱、搜索、反向链接、出链、大纲、标签和书签面板', '它们都藏在左右侧边栏里']],
+    ['prop_1', ['꼬리표 달기', '노트에 속성을 처음 달았어요', 'Ctrl+; 로 속성을 바로 달 수 있어요'], ['Tagged with care', 'Add a property to a note for the first time', 'Ctrl+; adds a property right away'], ['贴个标签', '第一次给笔记添加属性', '按 Ctrl+; 就能添加属性']],
+    ['prop_50', ['정리 정돈', '속성을 50개 달았어요'], ['Neat and tidy', 'Add 50 properties'], ['井井有条', '添加 50 个属性']],
+    ['prop_300', ['메타데이터 장인', '속성을 300개 달았어요'], ['Metadata artisan', 'Add 300 properties'], ['元数据工匠', '添加 300 个属性']],
+    ['move_1', ['이사 완료', '노트를 다른 폴더로 처음 옮겼어요'], ['Moved in', 'Move a note to another folder for the first time'], ['搬家完成', '第一次把笔记移到别的文件夹']],
+    ['move_50', ['서랍 정리', '노트를 50번 옮겼어요'], ['Drawer tidy', 'Move notes 50 times'], ['整理抽屉', '移动笔记 50 次']],
+    ['move_300', ['정리의 달인', '노트를 300번 옮겼어요'], ['Master organizer', 'Move notes 300 times'], ['整理大师', '移动笔记 300 次']],
+    ['retitle_10', ['이름 짓기', '노트 이름을 10번 다듬었어요'], ['Name giver', 'Rename notes 10 times'], ['起名高手', '修改笔记名称 10 次']],
+    ['orphan_1', ['외톨이 구조대', '링크가 하나도 없던 노트를 처음 이어 줬어요', '외톨이 노트는 나중에 찾기 어려워요'], ['Rescue squad', 'Link a note that had no links for the first time', 'Notes without links are hard to find later'], ['孤岛救援队', '第一次把没有任何链接的笔记连起来', '没有链接的笔记以后很难找到']],
+    ['orphan_30', ['다리 놓는 고양이', '외톨이 노트 30개를 이어 줬어요'], ['Bridge builder', 'Link 30 orphan notes'], ['搭桥猫咪', '连起 30 篇孤立笔记']],
+    ['orphan_100', ['아무도 혼자가 아니야', '외톨이 노트 100개를 이어 줬어요'], ['No note left behind', 'Link 100 orphan notes'], ['没有笔记落单', '连起 100 篇孤立笔记']],
+  ];
+
+  const UI = {
+    ko: {
+      'ach.cat.organize': '정리 습관',
+      'ach.cat.focus': '목표·집중·할 일',
+      // 퀘스트 (core/gamify.js 의 QUEST_POOL)
+      'quest.tags': '태그 {n}개 달기',
+      'quest.heads': '제목(#) {n}개 달기',
+      'quest.daily': '데일리 노트에 {n}자 쓰기',
+      'quest.tasks': '노트 속 할 일 {n}개 체크하기',
+      'quest.props': '속성 {n}개 달기',
+      'quest.embeds': '임베드나 콜아웃 {n}번 써 보기',
+      'quest.organize': '노트 {n}개 정리하기 (옮기기 · 이름 다듬기)',
+      'quest.orphans': '외톨이 노트 {n}개 이어 주기',
+      'quest.focus': '집중 시간 {n}번 마치기',
+      'quest.todos': '홈 할 일 {n}개 끝내기',
+      'quest.graph': '그래프 뷰로 노트 사이 둘러보기',
+      // 처음 해 보는 사람을 위한 안내 (core/skills.js)
+      'skill.write.how': '노트를 열고 떠오르는 대로 적어 보세요. 완벽하지 않아도 돼요',
+      'skill.link.how': '[[ 를 치고 노트 이름을 고르면 링크가 걸려요',
+      'skill.tag.how': '#회의 처럼 # 뒤에 단어를 붙이면 태그예요. 태그 창에서 모아 볼 수 있어요',
+      'skill.heading.how': '줄 맨 앞에 # (큰 제목)이나 ## (작은 제목)을 쓰고 한 칸 띄워요',
+      'skill.task.how': '- [ ] 로 할 일을 적고, 끝나면 네모를 눌러 체크해요',
+      'skill.daily.how': '왼쪽 리본의 달력 아이콘(오늘의 일일 노트)을 눌러 오늘 노트에 적어요. 안 보이면 설정 → 코어 플러그인에서 켜요',
+      'skill.property.how': 'Ctrl+; 를 누르거나 노트 맨 위에 --- 를 쳐서 날짜 · 상태 같은 속성을 달아요',
+      'skill.embed.how': '![[노트]] 로 다른 노트를 끼워 넣거나, > [!note] 로 콜아웃 상자를 만들어요',
+      'skill.organize.how': '파일 탐색기에서 노트를 폴더로 끌어 옮기거나, 노트 제목을 눌러 이름을 다듬어요',
+      'skill.orphan.how': '아래 노트 하나를 열어 어울리는 노트로 [[링크]]를 하나 걸어 주세요',
+      'skill.focus.how': '홈 맨 위의 집중 버튼을 누르면 타이머가 시작돼요',
+      'skill.todo.how': '홈의 할 일에 적어 두고, 끝나면 체크해요',
+      'skill.graph.how': '홈 노트 지도의 「그래프 뷰」를 누르거나 왼쪽 리본의 그래프 아이콘을 눌러요',
+      // 홈 (2.0.0)
+      'home.focusMin': '{m}분',
+      'home.focusToday': '오늘 {n}번 · {m}분 집중',
+      'home.breakOn': '쉬는 중 · {left} 남음',
+      'home.breakStop': '쉬기 그만',
+      'home.focusAgain': '다시 집중',
+      'home.breakBtn': '{m}분 쉬기',
+      'home.fold': '접기',
+      'home.unfold': '펼치기',
+      'home.mapTitle': '노트 지도',
+      'home.localGraph': '로컬 그래프',
+      'home.graphView': '그래프 뷰',
+      'home.mapSum': '볼트 노트 {n}개 · 링크 {l}개 · 외톨이 노트 {o}개',
+      'home.mapNone': '노트를 하나 열면 그 노트와 이어진 노트들이 여기 지도로 보여요',
+      'home.mapMore': '+{n}개 더',
+      'home.mapNear': '이어진 노트 {n}개',
+      'home.recentTitle': '최근 노트',
+      'home.recentNone': '아직 연 노트가 없어요',
+      'home.editedToday': '오늘 고친 노트 {n}개',
+      'home.agoNow': '방금',
+      'home.agoMin': '{n}분 전',
+      'home.agoHour': '{n}시간 전',
+      'home.noteGone': '그 노트를 찾을 수 없어요 (지웠거나 옮긴 것 같아요)',
+      'home.graphNeedNote': '로컬 그래프는 노트를 하나 연 뒤에 열 수 있어요',
+      'home.graphOff': '그래프 뷰가 꺼져 있어요. 설정 → 코어 플러그인에서 켜 주세요',
+      // 할 일 (core/todos.js)
+      'todo.title': '할 일',
+      'todo.placeholder': '할 일 적기… (Enter)',
+      'todo.add': '추가',
+      'todo.empty': '아직 할 일이 없어요. 오늘 할 일 하나를 적어 볼까요?',
+      'todo.doneShow': '끝낸 것 {n}개 보기',
+      'todo.doneHide': '끝낸 것 접기',
+      'todo.clear': '끝낸 것 지우기',
+      'todo.note': 'Vault Pet 안에만 저장돼요. 노트를 만들거나 고치지 않아요',
+      'todo.editLbl': '할 일 고치기',
+      'todo.editHint': '두 번 누르면 고칠 수 있어요',
+      'todo.up': '위로',
+      'todo.down': '아래로',
+      'todo.del': '지우기',
+      'todo.full': '할 일은 100개까지예요. 끝낸 것을 지워 주세요',
+      // 모션 (2.0.0: 모두 열림 · 상황마다 끄기)
+      'set.motionsSub': '모션은 처음부터 모두 열려 있어요. 상황마다 고르고, 스위치를 끄면 그 상황엔 모션을 하지 않아요. 그림을 누르면 크게 볼 수 있어요',
+      'set.setMotions': '세트 옷 전용 모션 섞기',
+      'set.setMotionsSub': '세트 옷을 입으면 그 세트만의 모션을 심심할 때 가끔 해요',
+      'mot.offNote': '꺼 뒀어요 · 이 상황엔 따로 모션을 하지 않아요',
+      'mot.turnOn': '켜기',
+      'mot.turnOff': '끄기',
+      'toast.motionOn': '「{slot}」 모션을 켰어요',
+      'toast.motionOff': '「{slot}」 모션을 껐어요',
+      'motion.headbang': '헤드폰 리듬 타자',
+      'motion.aura': '초사이언 집필',
+      // 친구 · 보물이 없어져서 고친 글
+      'gauge.fullNote': '든든해요! 오늘도 같이 힘내 봐요',
+      'gauge.okNote': '배부름은 벌이 아니라 덤이에요. 배가 고프면 가끔 밥 달라고 조를 뿐이에요',
+      'gauge.hungryNote': '배가 고파요. 밥을 주면 다시 든든해져요',
+      'foodFx.cloudMallow': '곧 우다다',
+      'foodFxTip.cloudMallow': '먹고 잠깐 뒤 신나서 우다다 뛰어요',
+      'foodFx.goldMouseChoco': '코인 40~120',
+      'foodFxTip.goldMouseChoco': '먹으면 코인 40~120개가 나와요',
+      'foodFx.fortuneCookie': '운세 · 가끔 코인',
+      'foodFxTip.fortuneCookie': '운세 한마디 · 가끔 코인 50',
+      'legacy.body': '이제 Vault Pet은 옷을 갈아입고, 장난감으로 놀고, 옵시디언 쓰는 습관을 같이 들이는 도트 고양이예요. 성장은 새로 시작하지만, 처음부터 함께해 주신 분께 작은 선물을 드려요.',
+      // 새로 생긴 것 (2.0.0)
+      'wn.home2.t': '홈이 새로워졌어요',
+      'wn.home2.d': '집중 타이머 · 할 일 · 오늘 퀘스트 · 노트 지도 · 최근 노트를 한 화면에. 칸마다 접을 수 있어요',
+      'wn.todo2.t': '할 일',
+      'wn.todo2.d': 'Vault Pet 안에만 저장되는 할 일 목록이에요. 노트를 만들지 않아요. 두 번 누르면 고치고, 끝내면 고양이가 폴짝',
+      'wn.map2.t': '노트 지도',
+      'wn.map2.d': '지금 연 노트와 이어진 노트들을 작은 그래프로 보여 줘요. 점을 누르면 그 노트가 열려요',
+      'wn.quest2.t': '옵시디언 습관 퀘스트 · 업적',
+      'wn.quest2.d': '태그 · 데일리 노트 · 속성 · 노트 정리 · 외톨이 노트 잇기 같은 퀘스트와 업적이 생겼어요. 처음이면 퀘스트 아래 안내를 봐요',
+      'wn.motion2.t': '모션은 모두 공짜',
+      'wn.motion2.d': '모든 모션이 처음부터 열려 있어요. 설정에서 상황마다 고르고 끌 수 있어요. 옵시디언과 어울리지 않는 모션은 뺐고, 산 값은 코인으로 돌려드렸어요',
+      'wn.toys2.t': '새 장난감 6종',
+      'wn.toys2.d': '햇살 조각 · 이불 속 손 · 어항 · 고양이 찾기 · 비치볼 배구 · 냥냥 피아노. 레이저 · 비눗방울도 다시 잘 쫓아요',
+      'wn.gone2.t': '정리한 것',
+      'wn.gone2.d': '동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 뺐어요. 남은 보물은 코인으로 바꿔 드렸고, 공방에서 만든 옷은 옷장에 그대로 있어요 (이제 상점에서도 팔아요)',
+      // 장난감 4차 (킷커밋 9차)
+      'item.sunbeam': '햇살 조각',
+      'item.quilt': '이불 속 손',
+      'item.fishbowl': '어항',
+      'item.shellgame': '고양이 찾기',
+      'item.volley': '비치볼 배구',
+      'item.simon': '냥냥 피아노',
+      'toyHow.sunbeam': '햇살을 바닥에 깔아 두면 고양이가 와서 낮잠 · 끌어서 옮기고, 톡 누르면 반응해요 (배를 보일 땐 조심)',
+      'toyHow.quilt': '이불 위에 마우스를 올리면 이불 속 손이 꼼지락 · 고양이가 덮칠 때 손을 빼서 얼마나 오래 버티나',
+      'toyHow.fishbowl': '어항을 두면 고양이가 물고기 구경 · 어항을 누르면 밥 주기, 바닥에 튀어나온 물고기를 누르면 돌려보내기',
+      'toyHow.shellgame': '고양이가 숨은 상자가 섞여요 · 고양이가 든 상자를 눌러 맞히면 연속 기록',
+      'toyHow.volley': '내 쪽으로 넘어온 공을 클릭해서 넘겨요 · 고양이와 랠리를 얼마나 이어 가나',
+      'toyHow.simon': '고양이가 밟아 들려준 가락을 같은 순서로 판을 눌러 따라 쳐요 · 한 음씩 늘어나요',
+      'toyDo.sunbeam': '#일광욕 #벌러덩 #나비 #에취',
+      'toyDo.quilt': '#이불 속 손 #엉덩이 씰룩 #덥석',
+      'toyDo.fishbowl': '#물멍 #톡톡 #첨벙 #파닥파닥',
+      'toyDo.shellgame': '#야바위 #어디 있게 #메롱',
+      'toyDo.volley': '#랠리 #폴짝 #불꽃 공',
+      'toyDo.simon': '#도미솔도 #따라 치기 #앙코르',
+      'game.rec.quilt': '최고 {n}초',
+      'game.rec.shellgame': '최고 {n}연속',
+      'game.rec.volley': '최고 랠리 {n}',
+      'game.rec.simon': '최고 {n}음',
+      'game.rec.jumprope': '최고 {n}콤보',
+      'toyHow.bananapeel': '고양이가 가는 길에 몰래 놓아 두세요 · 고양이는 마우스 쪽으로 걸어와요 (한 번 미끄러지면 조심하니, 발밑에 휙 던져 보세요)',
+      'toyHow.vacuum': '클릭하면 켜고 끄기 · 청소기를 몰아 보세요 (자꾸 켜면 고양이가 용감해져요)',
+      'toyHow.boxtower': '상자를 눌러 한 층씩 쌓아요 (최대 7층) · 높을수록 고양이가 망설이고, 꼭대기에 성공하면 왕관',
+      'toyHow.magichat': '모자를 누를 때마다 뭔가 튀어나와요 · 아주 가끔은 황금 물고기',
+      'toyHow.rccar': '자동차가 마우스를 따라 달려요 · 클릭하면 부스터, 세 번 잡히면 고양이가 올라타요',
+      'toyHow.jumprope': '클릭할 때마다 줄이 한 바퀴 · 일정한 박자로 누르면 콤보 (박자가 딱 맞으면 PERFECT)',
+    },
+    en: {
+      'ach.cat.organize': 'Tidy habits',
+      'ach.cat.focus': 'Goals, focus & to-dos',
+      'quest.tags': 'Add tags ({n})',
+      'quest.heads': 'Add headings with # ({n})',
+      'quest.daily': 'Write {n} characters in your daily note',
+      'quest.tasks': 'Check off tasks in your notes ({n})',
+      'quest.props': 'Add properties ({n})',
+      'quest.embeds': 'Use embeds or callouts ({n})',
+      'quest.organize': 'Tidy notes: move or rename ({n})',
+      'quest.orphans': 'Link orphan notes ({n})',
+      'quest.focus': 'Finish focus sessions ({n})',
+      'quest.todos': 'Finish to-dos on Home ({n})',
+      'quest.graph': 'Look around your notes in the graph view',
+      'quest.notes': 'Fill new notes ({n})',
+      'quest.links': 'Add links ({n})',
+      'skill.write.how': 'Open a note and write whatever comes to mind. It doesn’t have to be perfect',
+      'skill.link.how': 'Type [[ and pick a note name to make a link',
+      'skill.tag.how': 'A word after # (like #meeting) is a tag. The Tags pane gathers them',
+      'skill.heading.how': 'Start a line with # (big heading) or ## (smaller) and a space',
+      'skill.task.how': 'Write a task as - [ ] and click the box when it’s done',
+      'skill.daily.how': 'Click the calendar icon (Open today’s daily note) in the left ribbon. If it’s missing, turn it on in Settings → Core plugins',
+      'skill.property.how': 'Press Ctrl+; or type --- at the very top of a note to add properties like date or status',
+      'skill.embed.how': 'Use ![[note]] to embed another note, or > [!note] for a callout box',
+      'skill.organize.how': 'Drag a note into a folder in the file explorer, or click its title to rename it',
+      'skill.orphan.how': 'Open one of the notes below and add a [[link]] to a related note',
+      'skill.focus.how': 'Press the focus button at the top of Home to start the timer',
+      'skill.todo.how': 'Write it in the to-do list on Home and check it off when done',
+      'skill.graph.how': 'Click “Graph view” on the Home note map, or the graph icon in the left ribbon',
+      'home.focusMin': '{m} min',
+      'home.focusToday': 'Today: {n}× · {m} min',
+      'home.breakOn': 'On a break · {left} left',
+      'home.breakStop': 'End break',
+      'home.focusAgain': 'Focus again',
+      'home.breakBtn': '{m}-min break',
+      'home.fold': 'Collapse',
+      'home.unfold': 'Expand',
+      'home.mapTitle': 'Note map',
+      'home.localGraph': 'Local graph',
+      'home.graphView': 'Graph view',
+      'home.mapSum': '{n} notes · {l} links · {o} orphan notes in this vault',
+      'home.mapNone': 'Open a note and the notes linked to it show up here as a map',
+      'home.mapMore': '+{n} more',
+      'home.mapNear': '{n} linked notes',
+      'home.recentTitle': 'Recent notes',
+      'home.recentNone': 'No notes opened yet',
+      'home.editedToday': '{n} notes edited today',
+      'home.agoNow': 'just now',
+      'home.agoMin': '{n} min ago',
+      'home.agoHour': '{n} h ago',
+      'home.noteGone': 'Can’t find that note (it may have been deleted or moved)',
+      'home.graphNeedNote': 'Open a note first to see its local graph',
+      'home.graphOff': 'The graph view is off. Turn it on in Settings → Core plugins',
+      'todo.title': 'To-do',
+      'todo.placeholder': 'Add a to-do… (Enter)',
+      'todo.add': 'Add',
+      'todo.empty': 'Nothing here yet. Want to write down one thing for today?',
+      'todo.doneShow': 'Show {n} done',
+      'todo.doneHide': 'Hide done',
+      'todo.clear': 'Clear done',
+      'todo.note': 'Saved inside Vault Pet only. No notes are created or changed',
+      'todo.editLbl': 'Edit to-do',
+      'todo.editHint': 'Double-click to edit',
+      'todo.up': 'Move up',
+      'todo.down': 'Move down',
+      'todo.del': 'Delete',
+      'todo.full': 'Up to 100 to-dos. Clear the done ones first',
+      'set.motionsSub': 'Every motion is unlocked from the start. Pick them for each moment, or switch a moment off to skip its motion. Click a picture to see it bigger',
+      'set.setMotions': 'Mix in set-only motions',
+      'set.setMotionsSub': 'When wearing a full set, the cat sometimes does that set’s own motions when idle',
+      'mot.offNote': 'Off · no special motion here',
+      'mot.turnOn': 'Turn on',
+      'mot.turnOff': 'Turn off',
+      'toast.motionOn': '“{slot}” motions on',
+      'toast.motionOff': '“{slot}” motions off',
+      'motion.headbang': 'Headphone rhythm typing',
+      'motion.aura': 'Super-saiyan writing',
+      'gauge.fullNote': 'Full and happy! Let’s keep going together',
+      'gauge.okNote': 'Fullness is a bonus, not a penalty. A hungry cat just asks for food now and then',
+      'gauge.hungryNote': 'Hungry. A meal fills it right back up',
+      'foodFx.cloudMallow': 'Zoomies soon',
+      'foodFxTip.cloudMallow': 'Shortly after eating, the cat gets the zoomies',
+      'foodFx.goldMouseChoco': '40–120 coins',
+      'foodFxTip.goldMouseChoco': 'Gives 40–120 coins',
+      'foodFx.fortuneCookie': 'Fortune · coins',
+      'foodFxTip.fortuneCookie': 'A fortune · sometimes 50 coins',
+      'legacy.body': 'Vault Pet is now a pixel cat that wears costumes, plays with toys and builds good Obsidian habits with you. Growth starts fresh, so here is a small thank-you for being here from the start.',
+      'wn.home2.t': 'A new Home',
+      'wn.home2.d': 'Focus timer, to-dos, today’s quests, a note map and recent notes on one screen. Each section folds',
+      'wn.todo2.t': 'To-dos',
+      'wn.todo2.d': 'A to-do list saved inside Vault Pet only — it never creates notes. Double-click to edit; finish one and the cat hops',
+      'wn.map2.t': 'Note map',
+      'wn.map2.d': 'A small graph of the note you have open and the notes linked to it. Click a dot to open that note',
+      'wn.quest2.t': 'Obsidian habit quests & badges',
+      'wn.quest2.d': 'New quests and badges for tags, daily notes, properties, tidying notes and linking orphan notes. New to it? Read the hint under each quest',
+      'wn.motion2.t': 'All motions are free',
+      'wn.motion2.d': 'Every motion is unlocked. Pick or switch them off per moment in Settings. Motions that didn’t fit Obsidian are gone, and what you paid for them came back as coins',
+      'wn.toys2.t': '6 new toys',
+      'wn.toys2.d': 'Sunbeam, hand under the quilt, fishbowl, find the cat, beach ball volley and paw piano. The laser and bubbles get chased properly again',
+      'wn.gone2.t': 'What’s gone',
+      'wn.gone2.d': 'Neighbor friends, the treasure workshop, the daily mood, food cravings and today’s news are gone. Leftover treasures became coins, and costumes you crafted stay in your wardrobe (they’re in the shop now too)',
+      'item.sunbeam': 'Sunbeam',
+      'item.quilt': 'Hand under the quilt',
+      'item.fishbowl': 'Fishbowl',
+      'item.shellgame': 'Find the cat',
+      'item.volley': 'Beach ball volley',
+      'item.simon': 'Paw piano',
+      'toyHow.sunbeam': 'Lay the sunbeam down and the cat comes to nap · drag it around, click for reactions (careful with the belly)',
+      'toyHow.quilt': 'Hover over the quilt and your hand wiggles underneath · pull away when the cat pounces — how long can you last?',
+      'toyHow.fishbowl': 'The cat watches the fish · click the bowl to feed them, click a flopping fish to put it back',
+      'toyHow.shellgame': 'The boxes shuffle with the cat hiding under one · click the right box to keep your streak',
+      'toyHow.volley': 'Click the ball when it comes to your side · how long a rally can you keep with the cat?',
+      'toyHow.simon': 'The cat hops out a tune on the pads · click them back in the same order, one more note each round',
+      'toyDo.sunbeam': '#sunbathing #belly up #butterfly #achoo',
+      'toyDo.quilt': '#hand under blanket #butt wiggle #gotcha',
+      'toyDo.fishbowl': '#fish TV #tap tap #splash #flop',
+      'toyDo.shellgame': '#shell game #where am I #blep',
+      'toyDo.volley': '#rally #hop #fireball',
+      'toyDo.simon': '#do mi sol do #copy me #encore',
+      'game.rec.quilt': 'Best {n}s',
+      'game.rec.shellgame': 'Best streak {n}',
+      'game.rec.volley': 'Best rally {n}',
+      'game.rec.simon': 'Best {n} notes',
+      'game.rec.jumprope': 'Best combo {n}',
+      'toyHow.bananapeel': 'Sneak it into the cat’s path · the cat walks toward your mouse (after one slip it gets careful — try tossing it right under its feet)',
+      'toyHow.vacuum': 'Click to switch it on and off · drive it around (keep at it and the cat gets braver)',
+      'toyHow.boxtower': 'Click the boxes to stack them (up to 7) · the taller it gets the more the cat hesitates — make the top for a crown',
+      'toyHow.magichat': 'Something pops out every time you click the hat · very rarely, a golden fish',
+      'toyHow.rccar': 'The car chases your mouse · click for a boost, and after three catches the cat hops on for a ride',
+      'toyHow.jumprope': 'Each click swings the rope once · keep a steady beat for combos (spot-on timing is PERFECT)',
+    },
+    zh: {
+      'ach.cat.organize': '整理习惯',
+      'ach.cat.focus': '目标·专注·待办',
+      'quest.tags': '添加 {n} 个标签',
+      'quest.heads': '添加 {n} 个标题 (#)',
+      'quest.daily': '在日记里写 {n} 字',
+      'quest.tasks': '勾选笔记里的 {n} 个任务',
+      'quest.props': '添加 {n} 个属性',
+      'quest.embeds': '用 {n} 次嵌入或标注框',
+      'quest.organize': '整理 {n} 篇笔记（移动或改名）',
+      'quest.orphans': '把 {n} 篇孤立笔记连起来',
+      'quest.focus': '完成 {n} 次专注',
+      'quest.todos': '完成主页上的 {n} 个待办',
+      'quest.graph': '用关系图谱逛一逛笔记',
+      'skill.write.how': '打开一篇笔记，想到什么写什么。不需要完美',
+      'skill.link.how': '输入 [[ 再选一个笔记名，就建立了链接',
+      'skill.tag.how': '像 #会议 这样在 # 后面接一个词就是标签，可以在标签面板里集中查看',
+      'skill.heading.how': '在行首写 #（大标题）或 ##（小标题），再空一格',
+      'skill.task.how': '用 - [ ] 写下任务，完成后点一下方框打勾',
+      'skill.daily.how': '点击左侧功能区的日历图标（打开今天的日记）。看不到的话，在 设置 → 核心插件 里打开',
+      'skill.property.how': '按 Ctrl+; 或在笔记最上方输入 ---，添加日期、状态之类的属性',
+      'skill.embed.how': '用 ![[笔记]] 嵌入另一篇笔记，或用 > [!note] 做一个标注框',
+      'skill.organize.how': '在文件列表里把笔记拖进文件夹，或点击笔记标题来改名',
+      'skill.orphan.how': '打开下面的一篇笔记，给它加一个指向相关笔记的 [[链接]]',
+      'skill.focus.how': '点主页最上方的专注按钮就会开始计时',
+      'skill.todo.how': '写进主页的待办里，完成后打勾',
+      'skill.graph.how': '点主页笔记地图里的「关系图谱」，或左侧功能区的图谱图标',
+      'home.focusMin': '{m} 分钟',
+      'home.focusToday': '今天 {n} 次 · {m} 分钟',
+      'home.breakOn': '休息中 · 剩余 {left}',
+      'home.breakStop': '结束休息',
+      'home.focusAgain': '再专注一次',
+      'home.breakBtn': '休息 {m} 分钟',
+      'home.fold': '收起',
+      'home.unfold': '展开',
+      'home.mapTitle': '笔记地图',
+      'home.localGraph': '局部图谱',
+      'home.graphView': '关系图谱',
+      'home.mapSum': '库里有笔记 {n} 篇 · 链接 {l} 个 · 孤立笔记 {o} 篇',
+      'home.mapNone': '打开一篇笔记，和它相连的笔记就会在这里显示成地图',
+      'home.mapMore': '还有 {n} 篇',
+      'home.mapNear': '相连笔记 {n} 篇',
+      'home.recentTitle': '最近的笔记',
+      'home.recentNone': '还没有打开过笔记',
+      'home.editedToday': '今天修改了 {n} 篇笔记',
+      'home.agoNow': '刚刚',
+      'home.agoMin': '{n} 分钟前',
+      'home.agoHour': '{n} 小时前',
+      'home.noteGone': '找不到那篇笔记（可能已删除或移动）',
+      'home.graphNeedNote': '先打开一篇笔记才能看局部图谱',
+      'home.graphOff': '关系图谱没有开启。请在 设置 → 核心插件 里打开',
+      'todo.title': '待办',
+      'todo.placeholder': '写下待办…（回车）',
+      'todo.add': '添加',
+      'todo.empty': '还没有待办。写下今天要做的一件事吧？',
+      'todo.doneShow': '查看已完成 {n} 个',
+      'todo.doneHide': '收起已完成',
+      'todo.clear': '清除已完成',
+      'todo.note': '只保存在 Vault Pet 里，不会新建或修改笔记',
+      'todo.editLbl': '修改待办',
+      'todo.editHint': '双击即可修改',
+      'todo.up': '上移',
+      'todo.down': '下移',
+      'todo.del': '删除',
+      'todo.full': '待办最多 100 个。请先清除已完成的',
+      'set.motionsSub': '所有动作一开始就全部解锁。为每个时刻挑选动作，关掉开关后那个时刻就不做动作。点击图片可以放大查看',
+      'set.setMotions': '混入套装专属动作',
+      'set.setMotionsSub': '穿上整套服装时，猫咪闲着会偶尔做这套服装专属的动作',
+      'mot.offNote': '已关闭 · 这个时刻不做特别动作',
+      'mot.turnOn': '打开',
+      'mot.turnOff': '关闭',
+      'toast.motionOn': '已打开「{slot}」动作',
+      'toast.motionOff': '已关闭「{slot}」动作',
+      'motion.headbang': '戴耳机打节奏',
+      'motion.aura': '超级赛亚写作',
+      'gauge.fullNote': '吃饱饱！今天也一起加油',
+      'gauge.okNote': '饱腹度只是小奖励，不是惩罚。饿了的猫咪只会偶尔讨饭吃',
+      'gauge.hungryNote': '肚子饿了。喂一顿饭就又饱饱的了',
+      'foodFx.cloudMallow': '马上撒欢',
+      'foodFxTip.cloudMallow': '吃完不久猫咪会兴奋地跑来跑去',
+      'foodFx.goldMouseChoco': '金币 40~120',
+      'foodFxTip.goldMouseChoco': '吃了会得到 40~120 枚金币',
+      'foodFx.fortuneCookie': '运势 · 偶尔金币',
+      'foodFxTip.fortuneCookie': '一句运势 · 偶尔 50 金币',
+      'legacy.body': '现在的 Vault Pet 是一只会换装、玩玩具、陪你养成 Obsidian 好习惯的像素猫。成长将重新开始，所以给从一开始就陪伴我们的你准备了一份小小谢礼。',
+      'wn.home2.t': '全新的主页',
+      'wn.home2.d': '专注计时、待办、今日任务、笔记地图和最近的笔记都在一个页面上。每一栏都可以收起',
+      'wn.todo2.t': '待办',
+      'wn.todo2.d': '只保存在 Vault Pet 里的待办清单，不会新建笔记。双击修改，完成一个猫咪就会蹦一下',
+      'wn.map2.t': '笔记地图',
+      'wn.map2.d': '把当前笔记和与它相连的笔记画成一张小图谱。点一个点就打开那篇笔记',
+      'wn.quest2.t': 'Obsidian 习惯任务和成就',
+      'wn.quest2.d': '新增了标签、日记、属性、整理笔记、连起孤立笔记等任务和成就。第一次做的话，看看任务下面的提示',
+      'wn.motion2.t': '动作全部免费',
+      'wn.motion2.d': '所有动作一开始就解锁。可以在设置里为每个时刻挑选或关闭。和 Obsidian 不搭的动作已经去掉，买它们花的金币已经退还',
+      'wn.toys2.t': '6 个新玩具',
+      'wn.toys2.d': '一片阳光、被子里的手、鱼缸、找猫咪、沙滩排球、喵喵钢琴。激光和泡泡也能好好追了',
+      'wn.gone2.t': '去掉的功能',
+      'wn.gone2.d': '邻居好友、宝物工坊、今日心情、想吃的东西和今日动态都去掉了。剩下的宝物换成了金币，做好的服装还在衣柜里（现在商店也有卖）',
+      'item.sunbeam': '一片阳光',
+      'item.quilt': '被子里的手',
+      'item.fishbowl': '鱼缸',
+      'item.shellgame': '找猫咪',
+      'item.volley': '沙滩排球',
+      'item.simon': '喵喵钢琴',
+      'toyHow.sunbeam': '把阳光铺在地上，猫咪会过来打盹 · 可以拖动挪位置，点一下会有反应（露肚皮的时候要小心）',
+      'toyHow.quilt': '鼠标放到被子上，被子里的手就会动来动去 · 猫咪扑过来时把手抽走，看你能坚持多久',
+      'toyHow.fishbowl': '放下鱼缸，猫咪会盯着鱼看 · 点鱼缸喂鱼，点蹦到地上的鱼把它放回去',
+      'toyHow.shellgame': '猫咪躲进一个箱子，箱子会被打乱 · 点中猫咪所在的箱子就能续上连胜',
+      'toyHow.volley': '球飞到你这边时点击把它打回去 · 看你和猫咪能来回多少回合',
+      'toyHow.simon': '猫咪踩着琴键弹出一段旋律 · 按同样的顺序点琴键跟着弹，每轮多一个音',
+      'toyDo.sunbeam': '#晒太阳 #翻肚皮 #蝴蝶 #阿嚏',
+      'toyDo.quilt': '#被子里的手 #扭屁股 #一把抓住',
+      'toyDo.fishbowl': '#看鱼发呆 #拍拍 #扑通 #扑腾扑腾',
+      'toyDo.shellgame': '#猜箱子 #猜猜我在哪 #吐舌头',
+      'toyDo.volley': '#对打 #蹦蹦 #火球',
+      'toyDo.simon': '#哆咪嗦哆 #跟着弹 #再来一首',
+      'game.rec.quilt': '最高 {n} 秒',
+      'game.rec.shellgame': '最高 {n} 连胜',
+      'game.rec.volley': '最高 {n} 回合',
+      'game.rec.simon': '最高 {n} 个音',
+      'game.rec.jumprope': '最高 {n} 连击',
+      'toyHow.bananapeel': '偷偷放在猫咪必经之路上 · 猫咪会朝鼠标方向走（滑过一次就会提防，试试直接扔到它脚下）',
+      'toyHow.vacuum': '点击开关 · 开着吸尘器到处跑（开得越多，猫咪越勇敢）',
+      'toyHow.boxtower': '点箱子一层层往上叠（最多 7 层）· 越高猫咪越犹豫，爬到顶就有王冠',
+      'toyHow.magichat': '每点一下帽子都会蹦出点什么 · 极少数时候是金色小鱼',
+      'toyHow.rccar': '小车追着鼠标跑 · 点击加速，被抓到三次后猫咪会骑上去',
+      'toyHow.jumprope': '每点一下绳子甩一圈 · 节奏稳定就能连击（踩准节拍就是 PERFECT）',
+    },
+  };
+  const LANG_AT = { ko: 1, en: 2, zh: 3 };
+  for (const row of ACH) {
+    for (const [lang, i] of Object.entries(LANG_AT)) {
+      const [name, desc, tip] = row[i];
+      UI[lang][`ach.${row[0]}.name`] = name;
+      UI[lang][`ach.${row[0]}.desc`] = desc;
+      if (tip) UI[lang][`ach.${row[0]}.tip`] = tip;
+    }
+  }
+  for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/pixelart.js */
 // 앱에서 쓰는 아이콘을 전부 도트로 찍는다. 이모지는 기기·폰트마다 모양이 달라서
 // 픽셀 캐릭터와 결이 안 맞는다. 그래서 아이콘은 하나도 빠짐없이 여기 손으로 찍어 둔다.
@@ -33147,9 +33624,124 @@ module.exports.run = function run(window, document, pet, kind) {
       'KKKK........KKKK',
       '................',
     ],
+    // ---------- 4차 (2026-10-17): 지켜보는 것 둘 + 같이 하는 놀이 넷 (renderer/toyplay5.js) ----------
+    // 햇살 조각 (해 + 바닥에 비친 창문 빛)
+    sunbeam: [
+      '.......Y........',
+      '..Y....Y....Y...',
+      '...Y..KKK..Y....',
+      '.....KYYYK......',
+      '.YY.KYHYYYK.YY..',
+      '....KYYYYEK.....',
+      '.....KYYEK......',
+      '...Y..KKK..Y....',
+      '..Y....Y....Y...',
+      '.......Y........',
+      '................',
+      '...KKKKKKKKKKKK.',
+      '...KYYYYKKYYYYK.',
+      '..KEEEEKKEEEEK..',
+      '.KKKKKKKKKKKK...',
+      '................',
+    ],
+    // 이불 속 손 (볼록한 분홍 이불 위로 덮치는 앞발)
+    quilt: [
+      '....KKK.KKK.....',
+      '...KOPOKOPOK....',
+      '..KKOOOKOOOKK...',
+      '.KOPOKKKKKOPOK..',
+      '.KOOOKPPPKOOOK..',
+      '..KKKPPPPPKKK...',
+      '....KPPPPPK.....',
+      '.....KKKKK......',
+      '......KKKK......',
+      '.....KPQPQK.....',
+      '....KQPQPQPK....',
+      '..KKPQPQPQPQKK..',
+      '.KQPQPQPQPQPQPK.',
+      'KPQPQPQPQPQPQPQK',
+      'KppppppppppppppK',
+      '.KKKKKKKKKKKKKK.',
+    ],
+    // 어항 (금붕어 한 마리와 수초)
+    fishbowl: [
+      '................',
+      '.....KKKKKK.....',
+      '....KUHUUUUK....',
+      '.....KUUUUK.....',
+      '...KKU....UKK...',
+      '..KU........UK..',
+      '.KUBBBBBBBBBBUK.',
+      '.KBBBKKKBBBBBBK.',
+      'KBBBKOOOKBKBBBBK',
+      'KBBKOKOOOKKBBBBK',
+      'KBBBKOOOKBKBNBBK',
+      '.KBBBKKKBBBBNBK.',
+      '.KSSSSSSSSSNSSK.',
+      '..KSsSSSSsSSSK..',
+      '...KKKKKKKKKK...',
+      '................',
+    ],
+    // 고양이 찾기 (들린 상자 밑에서 빼꼼)
+    shellgame: [
+      '.....KKKKKK.....',
+      '.....KSSSSK.....',
+      '.....KTTwTK.....',
+      '.....KTTwTK.....',
+      '.....KTTTTK.....',
+      '.....KKKKKK.....',
+      '................',
+      '.....KK..KK.....',
+      '.....KOKKOK.....',
+      'KKKKKOOOOOOKKKKK',
+      'KSSSKOKOOKOKSSSK',
+      'KTwTKOOPPOOKTwTK',
+      'KTwTKOOOOOOKTwTK',
+      'KTTTKOOOOOOKTTTK',
+      'KKKKKKKKKKKKKKKK',
+      '................',
+    ],
+    // 비치볼 배구 (비치볼과 작은 네트)
+    volley: [
+      '................',
+      '....KKKK........',
+      '..KKRRWWKK......',
+      '.KRRRRWWWBK.....',
+      '.KRRRRWWBBK.....',
+      'KYYYRHWWBBBK....',
+      'KYYYYWWWBBBK....',
+      '.KYYYWWWBBK.KKKK',
+      '.KYYWWWWWBK.DHHH',
+      '..KKWWWWKK..DKWK',
+      '....KKKK....DWKW',
+      '............DKWK',
+      '............DWKW',
+      '............D...',
+      '............D...',
+      '...........KKK..',
+    ],
+    // 냥냥 피아노 (음표와 소리판 넷)
+    simon: [
+      '................',
+      '.........KK.....',
+      '.........KYK....',
+      '.........KYYK...',
+      '.........K.YK...',
+      '.........K..K...',
+      '.........K......',
+      '......KKKK......',
+      '.....KPPPK......',
+      '.....KPPK.......',
+      '......KK........',
+      '................',
+      '.KK..KK..KK..KK.',
+      'KRRKKYYKKNNKKBBK',
+      'KrrKKyyKKnnKKbbK',
+      '.KK..KK..KK..KK.',
+    ],
   };
 
-  // 깜짝 이벤트로 줍는 하찮은 보물 (main/treasure.js) 과 보물을 떨어뜨리고 가는 새. 먹이 팔레트를 쓴다
+  // 하찮은 보물 아이콘 (하우스가 쓴다). 먹이 팔레트를 쓴다
   const TREASURE = {
     // ---------- 7차 (2026-09-23): 하찮은 공작 재료 10종 ----------
     lonesock: [
@@ -33684,30 +34276,6 @@ module.exports.run = function run(window, document, pet, kind) {
       '............',
       '............',
     ],
-    bird1: [
-      '..............',
-      '...KK.....KK..',
-      '...KGK...KGK..',
-      '....KGK.KGK...',
-      '.....KGKGK..K.',
-      '..KKKGGGGKKKY.',
-      '.KDGGGGGGGKK..',
-      'KKDgGGGGGK....',
-      '...KKKKKKK....',
-      '....K...K.....',
-    ],
-    bird2: [
-      '..............',
-      '..............',
-      '..............',
-      '..........KK..',
-      '..KKKKKKKKGKY.',
-      '.KDGGGGGGGKK..',
-      'KKDgGGGGGK....',
-      '...KGKKKGK....',
-      '....KGK.KGK...',
-      '.....K...K....',
-    ],
   };
 
   // 이름 → [도트, 팔레트]. 먹이가 먼저다
@@ -33807,7 +34375,7 @@ module.exports.run = function run(window, document, pet, kind) {
   return { PALETTE, ICONS, FOOD_PALETTE, FOOD, FOOD_ANIM, TOY, TREASURE, has, size, svg, paint, rgba, frameRows };
 });
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/sprite.js */
 // 도트 고양이를 코드로 그린다. 48×48 도트 캔버스에 그리고 CSS 로 확대한다.
 // 펫 창과 하우스 창(미리보기)이 같이 쓴다.
@@ -35804,155 +36372,7 @@ module.exports.run = function run(window, document, pet, kind) {
   global.PetSprite.ACCESSORIES = global.PetSprite.ACCESSORIES || {};
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
-/* kit/friends.js */
-// 동네 친구 동물 그림 (7차, 2026-09-23 확정 · 2026-09-24 디자인 2차). 고양이 친구(먼지·연탄이·두부·최번개·돈돈까스)은 sprite.js 의 GUEST_FURS 로 그린다.
-// 고양이와 같은 48칸 캔버스에, 같은 바닥 줄(GROUND)에 앞모습 치비로 그린다. 펫 창·하우스 도감이 같이 쓴다.
-//  half : 왼쪽 절반 + 가운데 열(마지막 글자). 오른쪽은 거울로 채운다
-//  rows : 좌우가 다른 친구는 통째로
-//  patch: [[x, y, 글자], ...] 다 짠 그림에서 몇 칸만 바꾼다
-//  extra: [{ x, y, rows, behind }] 몸 왼쪽 위 기준으로 덧찍는 조각 (꼬리 등). behind 면 몸보다 먼저
-//         show(t, mode) 가 있으면 참일 때만, off(t, mode) → [dx, dy] 만큼 옮겨서, still 이면 몸이 들썩여도 제자리
-//  alt  : [{ when(t, mode), half | rows | patch }] 조건이 맞으면 몸 그림을 갈아 끼운다 (몸 말기 등). patch 만 있으면 원래 그림에서 몇 칸만
-//  move : [{ from, to, off(t, mode) → [dx, dy] }] 몸의 몇 줄만 따로 움직인다 (고개 까딱)
-//  noLegs: 다리가 없는 친구(달팽이). 맨 아랫줄이 발처럼 따로 놀지 않고 몸과 같이 움직인다
-// 글자: O 외곽선 · E 눈 · H 눈 반짝 · 나머지는 친구마다 pal
-(function (root) {
-  const EYE = '#1b1410';
-  const ART = {};
-  const add = (key, pal, spec) => (ART[key] = { pal: { E: EYE, H: '#ffffff', ...pal }, ...spec });
-  // every 초마다 len 초 동안 참
-  const per = (t, every, len, ph = 0) => (t + ph) % every < len;
-  const step = (t) => Math.floor(t * 6) % 2;
-
-  // 구구단: 통통한 가슴 + 초록·보라 무지갯빛 목 + 주황 눈테. 서 있어도 고개를 까딱까딱 (걸을 땐 걸음마다)
-  add('pigeon', { O: '#2d2f38', B: '#a3abbb', D: '#6f7686', L: '#c9cfd9', G: '#5fa67f', V: '#9a6fb5', W: '#f2f2f2', Y: '#3d3f47', R: '#f08a2a', P: '#ee8f98' }, {
-    half: ['.....OOO', '....OBBB', '...OBBBB', '...OREBB', '...OBEBW', '...OBBBY', '..OGVGGG', '.OGGVGVG', 'OBBGGGGL', 'ODBBBLLL', 'ODDBBLLL', 'ODBDBBLL', '.OBBBBBB', '..OOOOOO', '....PP..'],
-    move: [{ from: 0, to: 6, off: (t, m) => [0, m === 'walk' ? step(t) : per(t, 1.3, 0.22) || per(t, 1.3, 0.22, 0.45) ? 1 : 0] }],
-  });
-  // 고도리: 밤송이처럼 동그란 공에 얼굴이 빼꼼. 긴장하면(가끔) 쏙 말려서 얼굴이 사라진다
-  add('hedgehog', { O: '#2f2218', S: '#6b4e36', s: '#9a7656', t: '#d2b48c', F: '#f3dfc3', N: '#2a1a12', C: '#f2a2a0', P: '#e6b89a' }, {
-    half: ['....t.t.t', '..t.OtOtO', '.tOSSsSSs', '..OSsSSsS', 'tOSSSSsSS', '.OsSSsSSS', 'tOSSSSFFF', '.OSsSFFFF', 'tOSSFEHFF', '.OSSFEEFF', '.tOSFCFFN', '..OSSFFFF', '...OOPPOO'],
-    alt: [{
-      when: (t, m) => m !== 'walk' && per(t, 6, 1.4, 3),
-      half: ['....t.t.t', '..t.OtOtO', '.tOSSsSSs', '..OSsSSsS', 'tOSSSSsSS', '.OsSSsSSS', 'tOSSSSSsS', '.OSsSSsSS', 'tOSSSsSSs', '.OSsSSSsS', '.tOSSSSSN', '..OSsSSSS', '...OOOOOO'],
-    }],
-  });
-  // 라면이: 빈 컵라면 용기를 모자처럼 뒤집어 쓴 반짝이 수집가. 한 손에 주운 금색 병뚜껑을 가끔 번쩍 들어 보이며 씨익 (2026-09-24 디자인 3차)
-  const peek = (t, m) => m !== 'walk' && per(t, 3.6, 1.2, 0.5);
-  add('raccoon', {
-    O: '#2b2320', B: '#a39585', D: '#6e6157', L: '#e2d8ca', K: '#3d322c', k: '#5b4c43', W: '#f8f3eb', N: '#1a1412', P: '#eaa0a0',
-    R: '#d8343a', r: '#a3242a', G: '#f2c14e', g: '#c98f12', h: '#fff6c8',
-  }, {
-    half: ['..OO....', '.OKPO...', '.OBBBBBD', 'OBBWWWBD', 'OBkkEEkL', 'OBkkEEkL', 'OWWkkLLN', '.OWWWLLL', '..OBBWWW', '.OBBBWWW', 'OBBBBWWW', 'ODBBBWWW', '.ODBBBWW', '..OKKOOO', '...OO...'],
-    patch: [[7, 7, 'O'], [8, 7, 'O'], [9, 6, 'O']], // 씨익 웃는 입
-    extra: [
-      // 줄무늬 꼬리 (오른쪽 아래, 살랑)
-      { x: 12, y: 8, behind: true, off: (t, m) => [m !== 'walk' && Math.sin(t * 2.6) > 0.3 ? 1 : 0, 0], rows: ['....OO', '...OKKO', '..OBBBO', '.OKKKO.', 'OBBBO..', 'OKKO...'] },
-      // 컵라면 모자 (뒤집어 씀)
-      { x: 4, y: -3, rows: ['.OOOOO.', '.ORRRO.', 'OrRWRrO', 'ORRRRRO', 'OOOOOOO'] },
-      // 병뚜껑 든 손 (살짝 들어 올렸다 내렸다)
-      { x: 12, y: 4, off: (t, m) => [0, peek(t, m) ? -1 : 0], rows: ['.OOO.', 'OGhGO', 'OgGgO', '.OOO.', 'OKKO', 'OKKO', '.OBO'] },
-      // 번쩍
-      { x: 15, y: 1, show: (t, m) => peek(t, m) && step(t), rows: ['.h.', 'hHh', '.h.'] },
-      { x: 17, y: 3, show: (t, m) => peek(t, m) && !step(t), rows: ['H'] },
-      // 반대 앞발
-      { x: 1, y: 9, rows: ['OK', 'OK'] },
-    ],
-  });
-
-  // 한 장 짜기: 거울로 펴고, 폭을 맞추고, patch 를 찍는다. base = alt 가 patch 만 있을 때의 원래 그림
-  function build(d, base) {
-    let rows = d.rows;
-    if (!rows && d.half) {
-      const w = Math.max(...d.half.map((r) => r.length));
-      rows = d.half.map((h) => {
-        const s = h.padStart(w, '.');
-        return s + [...s.slice(0, -1)].reverse().join('');
-      });
-    }
-    rows = rows || base;
-    const w = Math.max(...rows.map((r) => r.length));
-    const out = rows.map((r) => [...r.padEnd(w, '.')]);
-    for (const [x, y, ch] of d.patch || []) if (out[y]) out[y][x] = ch;
-    return out.map((r) => r.join(''));
-  }
-  function full(def) {
-    return def._rows || (def._rows = build(def));
-  }
-
-  // 48칸 캔버스에 친구 하나. mode: idle · walk · hop · eat · held
-  //  facing -1 이면 왼쪽을 본다 (그림을 뒤집는다)
-  function draw(ctx, key, t, mode = 'idle', facing = 1, G = 48, GROUND = 44) {
-    const def = ART[key];
-    if (!def) return;
-    const base = full(def);
-    let rows = base;
-    for (const a of def.alt || []) if (a.when(t, mode)) { rows = a._rows || (a._rows = build(a, base)); break; }
-    const w = base[0].length, h = base.length;
-    const bh = rows.length;
-    const x0 = Math.round(G / 2 - w / 2);
-    const blink = t % 3.3 < 0.14 && mode !== 'eat';
-    const k = Math.floor(t * 6) % 2;
-    const walking = mode === 'walk';
-    let bob = walking ? (k ? -1 : 0) : Math.sin(t * 2.2) > 0.6 ? -1 : 0;
-    if (mode === 'hop') bob = -Math.round(Math.abs(Math.sin(t * 7)) * 4);
-    if (mode === 'eat') bob = Math.floor(t * 5) % 2;
-    const y0 = GROUND - h + 1;
-    const X = (x) => (facing < 0 ? G - 1 - x : x);
-    const px = (x, y, c) => {
-      if (!c) return;
-      ctx.fillStyle = c;
-      ctx.fillRect(X(x), y, 1, 1);
-    };
-    const col = (ch) => (ch === '.' ? null : def.pal[ch] || def.pal.B || '#f0f');
-    // 그림자 (들려 있으면 없다)
-    if (mode !== 'held') {
-      ctx.fillStyle = 'rgba(30,15,8,0.22)';
-      for (let x = x0 + 1; x < x0 + w - 1; x++) ctx.fillRect(X(x), GROUND + 1, 1, 1);
-    }
-    const stamp = (s) => {
-      if (s.show && !s.show(t, mode)) return;
-      const [ox, oy] = s.off ? s.off(t, mode) : [0, 0];
-      const dy = (s.still && mode !== 'hop' ? 0 : bob) + oy;
-      s.rows.forEach((r, j) => [...r].forEach((ch, i) => px(x0 + s.x + i + ox, y0 + s.y + j + dy, col(ch))));
-    };
-    for (const s of def.extra || []) if (s.behind) stamp(s);
-    rows.forEach((r, j) => {
-      const last = j === bh - 1;
-      let mx = 0, my = 0;
-      for (const m of def.move || []) if (j >= m.from && j < m.to) { const o = m.off(t, mode); mx += o[0]; my += o[1]; }
-      [...r].forEach((ch, i) => {
-        let c = ch;
-        // 눈 깜빡: 두 줄짜리 눈의 윗줄(과 반짝)을 옆 털색으로 덮는다
-        if (blink && (c === 'E' || c === 'H')) {
-          const below = rows[j + 1] ? rows[j + 1][i] : '.';
-          if (c === 'H' || below === 'E' || below === 'H') c = [r[i - 1], r[i + 1], r[i - 2], r[i + 2]].find((q) => q && !'OEH.'.includes(q)) || 'B';
-        }
-        let dy = bob;
-        if (last) dy = mode === 'hop' || def.noLegs ? bob : walking && (i < w / 2) === !!k ? -1 : mode === 'held' ? 1 : 0;
-        px(x0 + i + mx, y0 + j + dy + my + (h - bh), col(c));
-        // 몸이 들썩여 발(맨 아랫줄)보다 높이 뜨면 사이가 비어 다리가 떨어져 보인다. 빈 줄을 발 그림으로 이어 붙인다
-        if (last) for (let gy = bob; gy < dy; gy++) px(x0 + i + mx, y0 + j + gy + my + (h - bh), col(c));
-      });
-    });
-    for (const s of def.extra || []) if (!s.behind) stamp(s);
-  }
-
-  // 그림에서 몸이 차지하는 칸인가 (마우스로 집기·더블 클릭)
-  function hit(key, gx, gy, G = 48, GROUND = 44) {
-    const def = ART[key];
-    if (!def) return false;
-    const rows = full(def);
-    const w = rows[0].length, h = rows.length;
-    const x0 = Math.round(G / 2 - w / 2), y0 = GROUND - h + 1;
-    return gx >= x0 - 1 && gx <= x0 + w && gy >= y0 - 1 && gy <= GROUND + 1;
-  }
-
-  root.PetFriends = { ART, draw, hit };
-})(typeof window !== 'undefined' ? window : globalThis);
-
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories.js */
 // 악세사리 그림. sprite.js 의 PetRenderer 가 이걸 꺼내 그린다.
 //  front(g, a, c, t) : 몸 위에 그린다        back(g, a, c, t) : 몸보다 먼저(뒤에) 그린다
@@ -38592,7 +39012,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-workshop-b.js */
 // 보물 공방 코스튬 (2026-09-24) B: 몸 5 + 등 2 + 세트 2. 주운 보물을 재료로 만든다. accessories.js 뒤에 읽는다
 // 색은 pixelart.js TREASURE(뽁뽁이·먼지 뭉치·단추·빵 봉지 끈·Esc 키캡·클립·10원·영수증·딱지·구슬·매미 허물·지렁이·도토리·열쇠) 그림에서 가져왔다
@@ -39014,7 +39434,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-workshop-c.js */
 // 보물 공방 코스튬 (2026-09-24) C: 손 4 + 효과 4. 주운 보물을 재료로 만든다. accessories.js 뒤에 읽는다
 // 손(hand: true)은 오른앞발(heldPaw)로 쥐고, 잘 때(a.curled)는 옆 바닥에 내려놓는다.
@@ -39444,7 +39864,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-workshop-a.js */
 // 보물 공방 코스튬 (2026-09-24) A: 머리 6 + 얼굴 2. 주운 보물을 재료로 만든다. accessories.js 뒤에 읽는다
 // 색은 보물 도트(pixelart.js TREASURE)와 같은 FOOD_PALETTE 값을 그대로 써서, 어느 보물로 만들었는지 한눈에 보이게 한다
@@ -39644,7 +40064,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-back6.js */
 // 6차 코스튬 (2026-09-24): 등 10. accessories.js 뒤에 읽는다
 (function (root) {
@@ -39978,7 +40398,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-fx6.js */
 // 6차 코스튬 (2026-09-24): 효과 10. accessories.js 뒤에 읽는다
 // 전부 효과 칸. 입자는 solid=false 로 찍어서 머리 위치·클릭 판정에 안 끼게 한다.
@@ -40535,7 +40955,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-hand6.js */
 // 6차 코스튬 (2026-09-24): 손 17. accessories.js 뒤에 읽는다
 // 모두 hand: true — 오른앞발(heldPaw)로 쥐고, 잘 때(a.curled)는 옆 바닥에 내려놓는다
@@ -41122,7 +41542,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-head6.js */
 // 6차 코스튬 (2026-09-24): 머리 6 + 얼굴 5. accessories.js 뒤에 읽는다
 (function (root) {
@@ -41476,7 +41896,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-sets6.js */
 // 6차 코스튬 (2026-09-24): 세트 5 + 몸 4. accessories.js 뒤에 읽는다
 // 2026-09-24 다듬기: 모든 아이템 음영(밝은 면·그늘)과 외곽선을 정리하고, 야근 요정은 소주병을 든다
@@ -41947,7 +42367,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, ACC);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-7.js */
 // 7차 코스튬 (2026-09-24 확정): 세트 6 · 얼굴 22 · 몸 11 · 손 6 · 효과 14. accessories.js 뒤에 읽는다
 // 칸마다 따로 묶어 둔다 (도구 함수 이름이 겹쳐도 서로 안 부딪히게)
@@ -44410,7 +44830,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.ACCESSORIES, LAB);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/accessories-star.js */
 // 별 상점 코스튬 (8차, 2026-10-09): Lv80 뒤 쌓이는 별로만 사는 '끝판왕' 코스튬.
 // 칸마다 시안을 그려 사용자가 고른 것 그대로다 (claude-pet-costume-lab 방식). 상점 목록 · 별 값은 main/shop.js 의 ACCESSORIES 에서 stars 가 붙은 것,
@@ -48873,7 +49293,7 @@ module.exports.run = function run(window, document, pet, kind) {
   ];
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/motions.js */
 // 모션. sprite.js 의 PetRenderer.play(key) 로 틀거나, 기분마다 계속 반복하게 걸어 둔다.
 //  len               : 한 바퀴 길이(초). loop 이면 반복해도 자연스럽게 이어지는 모션
@@ -52333,7 +52753,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.MOTIONS, M);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/reactions.js */
 // 사람 손길에 대한 반응 모션. 설정·상점에는 안 나오고, 상황에 따라 pet.js · main.js 가 튼다.
 //  stir        : 자다가 건드리면 뒤척 (안 깬다)
@@ -52548,7 +52968,7 @@ module.exports.run = function run(window, document, pet, kind) {
   Object.assign(root.PetSprite.MOTIONS, M);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/toys.js */
 // 장난감 놀이. 세 가지를 담는다.
 //  1) 놀이 전용 자세 (PetSprite.TOY_POSES) — 상자에 숨기, 봉투 속 부스럭, 털실 끌어안고 뒷발 차기…
@@ -53153,6 +53573,164 @@ module.exports.run = function run(window, document, pet, kind) {
       step(r, k, at, dt, a) { if (every(r, 'h', at, 0.25)) r.emit({ type: 'heart', x: r.scr(a.hx + rand(-8, 8)), y: a.top - 2, vy: -8, life: 0.8 }); },
     },
 
+    // ----- 4차 장난감용 자세 (toyplay5.js, 2026-10-17) -----
+    // 고양이가 무엇을 쳐다보나: 놀이가 매 프레임 PetToys.look 에 적어 둔다 (x·y = -1~1. 어항 속 물고기 따라 눈알 굴리기)
+    // 햇살 속에 앉아 눈을 가늘게. 해를 올려다보며 꾸벅
+    toyBask: {
+      len: 3, loop: true,
+      pose(p, k, at) {
+        p.lookY = -1;
+        p.eyes = Math.floor(at * 0.7) % 3 === 2 ? 'closed' : 'half';
+        p.mouth = 'smile'; p.blush = true; p.tail = 'slow'; p.ear = 0;
+        p.sy = 1 + Math.sin(at * 1.6) * 0.02;
+      },
+      step(r, k, at, dt, a) { if (every(r, 's', at, 0.9)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top + rand(-4, 2), vy: -3, life: 0.8 }); },
+    },
+    // 벌러덩 배를 까고 햇볕에 굽는다. 앞발은 접어 들고 꼬리는 살랑
+    toyBelly: {
+      len: 2.6, loop: true,
+      pose(p, k, at) {
+        p.xf = { rot: Math.PI, px: 24, py: 38, oy: 0 };
+        p.noShadow = true;
+        p.armL = p.armR = 'up';
+        p.eyes = Math.floor(at * 0.8) % 4 === 3 ? 'blink' : 'happy';
+        p.mouth = 'smile'; p.blush = true; p.tail = 'wag'; p.ear = 0;
+        p.dangle = Math.floor(at * 1.5) % 2 ? 1 : -1;
+      },
+    },
+    // 햇살 속에서 동그랗게 말아 쿨쿨. 가끔 꿈꾸듯 귀가 쫑긋
+    toySunNap: {
+      len: 4, loop: true,
+      pose(p, k, at) {
+        p.curl = true;
+        p.sy = Math.sin(at * 1.2) > 0.35 ? 1.02 : 1;
+        p.eyes = 'closed'; p.mouth = 'flat'; p.blush = true;
+        p.ear = at % 5 < 0.25 ? 1 : -1;
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 'z', at, 1.6)) r.emit({ type: 'text', s: 'Z', x: r.scr(a.hx + 8), y: a.top - 3, vy: -4, vx: 2, life: 1.3, c: '#9aa6ff' });
+      },
+    },
+    // 배 만지려던 손을 덥석! 끌어안고 뒷발로 팡팡 (배를 보여 주는 건 함정이다)
+    toyTrap: {
+      len: 1.8,
+      pose(p, k, at) {
+        lieDown(p, at, 18);
+        p.armL = p.armR = 'hold';
+        p.eyes = Math.floor(at * 5) % 2 ? 'wide' : 'squint';
+        p.mouth = 'open'; p.ear = -1;
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 't', true)) r.emit({ type: 'text', s: 'GOTCHA', x: r.scr(a.hx - 10), y: a.top - 8, vy: -4, life: 1, c: '#ffd35c' });
+        if (every(r, 'f', at, 0.12)) r.emit({ type: 'dust', x: r.scr(a.hx + rand(-8, 8)), y: GROUND - rand(0, 6), vx: rand(-10, 10), vy: -8, life: 0.35, c: '#f7bd7f' });
+      },
+    },
+    // 뭔가를 뚫어지게 본다. 눈알만 대상을 따라 굴린다 (PetToys.look)
+    toyStare: {
+      len: 1.4, loop: true,
+      pose(p, k, at) {
+        const L = root.PetToys && root.PetToys.look;
+        p.lookX = L ? Math.round(L.x) : 1;
+        p.lookY = L ? Math.round(L.y) : 0;
+        p.eyes = 'wide'; p.ear = 1; p.tail = 'flick';
+        p.mouth = Math.floor(at * 2.5) % 5 === 0 ? 'o' : 'flat';
+        p.xf = { sx: 1.04, sy: 0.96 };
+      },
+    },
+    // 뒷발로 서서 앞발을 물에 쏙 — 첨벙
+    toyPawDip: {
+      len: 1.3,
+      pose(p, k) {
+        const down = k > 0.35 && k < 0.75;
+        p.xf = { sy: down ? 1.02 : 1.14, sx: 0.95 };
+        p.armR = down ? 'claw' : 'up';
+        p.armL = 'rest';
+        p.lookX = 1; p.lookY = down ? 1 : 0;
+        p.eyes = down ? 'squint' : 'wide'; p.mouth = down ? 'flat' : 'o'; p.ear = 1; p.tail = 'flick';
+      },
+    },
+    // 사냥 자세: 납작 엎드려 살금살금 (귀는 앞으로, 꼬리 끝만 톡톡)
+    toyCrouch: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.xf = { sx: 1.12, sy: 0.84 };
+        p.dy = 1;
+        p.eyes = 'wide'; p.mouth = 'flat'; p.ear = 1; p.tail = 'flick'; p.lookY = 1;
+      },
+    },
+    // 진지해진 사냥꾼 (오래 버티면): 눈을 가늘게 뜨고 눈썹을 세운다
+    toyHunt: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.xf = { sx: 1.14, sy: 0.82, ox: Math.floor(at * 14) % 4 === 0 ? 1 : 0 };
+        p.dy = 1;
+        p.eyes = 'squint'; p.brow = 'angry'; p.mouth = 'flat'; p.ear = -1; p.tail = 'flick'; p.lookY = 1;
+      },
+    },
+    // 상자 밑에 쏙 숨었다 (몸을 안 그린다)
+    toyHidden: {
+      len: 1, loop: true,
+      pose(p) { p.hide = true; p.noShadow = true; },
+    },
+    // 메롱 — 혀를 쏙 내밀고 딴 데 본다 (야바위에서 이겼을 때)
+    toyBlep: {
+      len: 1.8,
+      pose(p, k, at) {
+        p.eyes = 'happy'; p.mouth = 'blep'; p.lookX = -1; p.tail = 'wag'; p.ear = 1;
+        p.dy = Math.floor(at * 4) % 2 ? -1 : 0;
+      },
+      step(r, k, at, dt, a) { if (once(r, 't', k > 0.1)) r.emit({ type: 'text', s: 'HEHE', x: r.scr(a.hx + 6), y: a.top - 8, vy: -3, life: 1.1, c: '#ffb0d0' }); },
+    },
+    // 코에 뭔가 앉아서… 에… 에취!
+    toyAchoo: {
+      len: 1.5,
+      pose(p, k) {
+        if (k < 0.55) {
+          p.eyes = k < 0.25 ? 'wide' : 'squint'; p.mouth = 'o'; p.lookY = -1;
+          p.xf = { sy: 1 + seg(k, 0.1, 0.55) * 0.06 };
+        } else {
+          p.eyes = 'closed'; p.mouth = 'big'; p.ear = -1;
+          p.xf = { sy: 0.92, sx: 1.06, oy: 1 };
+        }
+        p.tail = 'flick';
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'a', k > 0.55)) {
+          r.emit({ type: 'text', s: 'ACHOO', x: r.scr(a.fx + 6), y: a.top - 6, vy: -5, life: 0.9, c: '#ffffff' });
+          for (let i = 0; i < 6; i++) r.emit({ type: 'spray', x: r.scr(a.fx + 4), y: a.my, vx: rand(10, 40) * (r.facing || 1), vy: rand(-14, 6), ay: 30, life: 0.45, c: '#e9f4ff' });
+        }
+      },
+    },
+    // 뭔가에 올라타고 달린다 (자동차·청소기). 바람에 귀는 뒤로, 눈은 반짝
+    toyRide: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.dy = Math.floor(at * 10) % 2 ? -1 : 0;
+        p.eyes = Math.floor(at * 2) % 3 ? 'happy' : 'star';
+        p.mouth = 'open'; p.ear = -1; p.tail = 'up'; p.noShadow = true; p.blush = true;
+        p.armL = p.armR = 'front';
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 'l', at, 0.09)) r.emit({ type: 'line', x: r.scr(a.left - 3), y: a.cy + rand(-4, 4), len: 4, life: 0.12 });
+      },
+    },
+    // 하악! 털을 세우고 옆으로 선다 (청소기한테)
+    toyHiss: {
+      len: 1.2,
+      pose(p, k, at) {
+        p.xf = { sy: 1.1, sx: 1.06, ox: Math.floor(at * 24) % 2 ? 1 : 0 };
+        p.eyes = 'wide'; p.brow = 'angry'; p.mouth = 'big'; p.ear = -1; p.tail = 'up';
+      },
+      step(r, k, at, dt, a) { if (once(r, 'h', k > 0.1)) r.emit({ type: 'text', s: 'HSSS', x: r.scr(a.fx + 6), y: a.top - 6, vy: -4, life: 0.9, c: '#ff9a9a' }); },
+    },
+    // 해냈다! 높은 데서 가슴 펴고 왕관 반짝 (상자 탑 꼭대기)
+    toyKing: {
+      len: 2.4, loop: true,
+      pose(p, k, at) { p.eyes = Math.floor(at) % 3 ? 'happy' : 'closed'; p.mouth = 'smile'; p.tail = 'up'; p.noShadow = true; p.xf = { sy: 1.06 }; p.blush = true; },
+      front(g, a) { this.pattern(['Y.Y.Y', 'YYYYY', 'yYyYy'], a.hx - 2, a.top - 5, { Y: '#ffd65a', y: '#d9a21f' }, false); },
+      step(r, k, at, dt, a) { if (every(r, 's', at, 0.3)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top + rand(-6, 0), vy: -6, life: 0.7 }); },
+    },
+
     // ----- 상자 -----
     // 상자로 폴짝 뛰어든다 (상자는 pet.js 가 고양이 쪽으로 당겨 준다)
     toyBoxIn: {
@@ -53697,10 +54275,11 @@ module.exports.run = function run(window, document, pet, kind) {
 
   root.PetSprite.TOY_POSES = Object.assign(root.PetSprite.TOY_POSES || {}, TP);
   root.PetSprite.CARRY = Object.assign(root.PetSprite.CARRY || {}, CARRY);
-  root.PetToys = { PLACED, paintPlaced, field, dotAt, line, stampAt, ring, disc, circlePts, discSpans, underCat, wheelDots, WHEEL_R, palOf };
+  // look: 고양이가 쳐다보는 쪽 (toyStare 가 읽는다. 놀이가 매 프레임 적는다)
+  root.PetToys = { PLACED, paintPlaced, field, dotAt, line, stampAt, ring, disc, circlePts, discSpans, underCat, wheelDots, WHEEL_R, palOf, look: { x: 0, y: 0 } };
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
   if (kind === 'pet') {
 /* kit/sound.js */
 // 8비트 효과음. 파일 없이 WebAudio 사각파로 만든다.
@@ -53767,7 +54346,7 @@ module.exports.run = function run(window, document, pet, kind) {
   global.PetSound = { play };
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/pet.js */
 // 펫 창: 캐릭터 애니메이션, 말풍선, 마우스 상호작용.
 const canvas = document.getElementById('pet');
@@ -53790,14 +54369,8 @@ let idlePool = []; // 심심할 때 차례로 할 모션들 (설정에서 켠 �
 // 한 모션을 최소 5분은 쓰고 다음 것으로 넘어간다 (너무 자주 바뀌면 정신이 없다. main.js·sprite.js 도 같은 규칙)
 const IDLE_HOLD = 5 * 60_000;
 let idleTurn = { i: 0, at: 0 };
-// 그날의 기분 (main.js 의 temper). 돌아다니는 횟수·까부는 횟수·사냥 확률이 달라진다
-let temper = 'calm';
-const TEMPER = {
-  calm: { stroll: 1.8, idle: 1.5, hunt: 0.15, huntGap: 1.6, far: 0.7 },
-  playful: { stroll: 0.5, idle: 0.5, hunt: 0.7, huntGap: 0.5, far: 1.5 },
-  grumpy: { stroll: 1.2, idle: 1.3, hunt: 0.25, huntGap: 1.2, far: 1 },
-};
-const tp = () => TEMPER[temper] || TEMPER.calm;
+// 돌아다니는 횟수·심심풀이 모션 간격·커서 사냥 확률 (배수). 예전 '그날의 기분' 중 차분한 날 값 하나로 고정 (그날의 기분은 뺐다)
+const PACE = { stroll: 1.8, idle: 1.5, hunt: 0.15, huntGap: 1.6, far: 0.7 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
@@ -53834,7 +54407,6 @@ pet.onConfig((c) => {
   document.documentElement.lang = T.locale; // 중국어면 :lang(zh) 글꼴로 (pet.css)
   sprite.setFur(c.fur);
   sprite.setEars(c.ears);
-  bubblesOn = c.bubbles !== false;
   lowPower = !!c.lowPower;
   clearTimeout(pendingWearTimer);
   pendingWear = null;
@@ -53844,7 +54416,6 @@ pet.onConfig((c) => {
   } else sprite.setAccessory(c.accessory);
   sprite.setMoodMotions(c.moodMotions);
   idlePool = c.idleMotions || [];
-  if (c.temper) temper = c.temper;
   applyScale();
   // 처음 한 번만 저장해 둔 자리에 세운다 (없으면 화면 오른쪽 끝)
   if (catX == null) {
@@ -53865,7 +54436,6 @@ pet.onReset(() => {
 let stageTimer = null;
 pet.onState((s) => {
   realMood = s.mood;
-  quietNow = !!s.quiet;
   syncMood();
   if (s.growth) {
     const prevKey = growth ? growth.stageKey : null;
@@ -54173,6 +54743,22 @@ function walkTo(goal, dt, fast = 1, stop = 0) {
   return Math.abs(goal - catX);
 }
 
+// 레이저 쫓기: 멀수록 빨리, 가까워지면 확 줄여서 점 위에 딱 선다 (walkTo 의 90 · 170 · 280 단계는 레이저엔 너무 느렸다, 10-18)
+function dashTo(goal, dt, stop = 0) {
+  const [min, max] = lane();
+  goal = clamp(goal, min, max);
+  const dx = goal - catX;
+  const dist = Math.abs(dx);
+  const speed = dist <= stop ? 0 : clamp(dist * 3.2, 240, 950);
+  if (speed) {
+    catX = clamp(catX + Math.sign(dx) * Math.min(speed * dt, dist), min, max);
+    sprite.setMove(Math.sign(dx) * Math.min(speed, 420));
+    sprite.setToyPose(null);
+  } else sprite.setMove(0);
+  placeCat();
+  return Math.abs(goal - catX);
+}
+
 // 서 있는 채로 그쪽을 본다
 function face(x) {
   if (Math.abs(x - catX) > 2) sprite.setFacing(Math.sign(x - catX));
@@ -54220,7 +54806,6 @@ const floorY = () => window.innerHeight - 4;
 // 바닥에서 집을 수 있는 것: 간식, 장난감, 장난감이 내놓은 것들(공 발사기의 공·눈덩이…)
 const items = () => [
   ...treats,
-  ...loot,
   ...(toy && toy.el && !toy.el.hidden ? [toy] : []),
   ...(toy && toy.extras ? toy.extras.filter((x) => x.el && !x.el.hidden && !x.noGrab) : []),
 ];
@@ -54530,7 +55115,7 @@ function stepToy(dt, now) {
   if (o.mode === 'custom') return o.C.step(o, dt, now) !== false;
   if (o.mode === 'place') return stepPlace(o, dt, now);
   if (o.mode === 'throw') return stepThrow(o, dt, now);
-  return stepHunt(o, dt, now);
+  return stepToyChase(o, dt, now);
 }
 
 // ----- 던지는 장난감 -----
@@ -54917,7 +55502,9 @@ function huntTarget(o) {
   return null;
 }
 
-function stepHunt(o, dt, now) {
+// (10-18) 예전 이름 stepHunt 가 아래 '커서 사냥' 의 stepHunt(dt, now) 와 겹쳐서, 뒤에 선언된 쪽이 이걸 덮어써
+// 레이저 · 비눗방울 · 낚싯대 · 깃털을 켜도 고양이가 거의 안 쫓았다. 이름을 따로 둔다
+function stepToyChase(o, dt, now) {
   const P = petPx();
   // 큰 비눗방울에 갇혀 둥실 떠 있는 중
   if (floating) {
@@ -54941,6 +55528,13 @@ function stepHunt(o, dt, now) {
     return true;
   }
   o.airCaught = false;
+  // 레이저: 잡았다 · 어라? 하는 동안에도 점이 멀리 달아나면 바로 다시 쫓는다 (10-18: 멈춰 서서 놓치던 것)
+  if (o.mode === 'laser' && tg && o.caughtAt && Math.hypot(tg.x - o.caughtAt.x, tg.y - o.caughtAt.y) > petPx() * 0.7) {
+    o.caughtAt = null;
+    o.after = null;
+    o.busyUntil = 0;
+    if (sprite.action && sprite.action.startsWith('toy')) sprite.cancel();
+  }
   if (now < o.busyUntil) {
     sprite.setMove(0);
     return true;
@@ -54962,7 +55556,7 @@ function stepHunt(o, dt, now) {
 
   const h = floorY() - tg.y; // 바닥에서 얼마나 높이 있나
   const reach = 24;
-  const dist = walkTo(tg.x, dt, o.mode === 'laser' ? 1.4 : 1, reach);
+  const dist = o.mode === 'laser' ? dashTo(tg.x, dt, reach) : walkTo(tg.x, dt, 1, reach);
   sprite.setLook(Math.min(1, dist / 60));
   if (dist > reach) return true;
   face(tg.x);
@@ -54971,14 +55565,14 @@ function stepHunt(o, dt, now) {
     // 낮다 → 엉덩이 씰룩씰룩 하다가 덮친다
     sprite.setToyPose(null);
     if (now > o.pounceUntil) {
-      if (!o.wiggled && Math.random() < 0.45) {
+      if (!o.wiggled && Math.random() < (o.mode === 'laser' ? 0.3 : 0.45)) {
         o.wiggled = true;
         sprite.play('toyWiggle');
-        o.busyUntil = now + 850;
+        o.busyUntil = now + (o.mode === 'laser' ? 600 : 850);
         return true;
       }
       o.wiggled = false;
-      o.pounceUntil = now + 1100;
+      o.pounceUntil = now + (o.mode === 'laser' ? 700 : 1100);
       sprite.play('pounce');
       huntCatch(o, tg, now, false);
     }
@@ -54990,14 +55584,19 @@ function stepHunt(o, dt, now) {
       huntCatch(o, tg, now, false);
     }
   } else if (h < P * 2) {
-    // 뛰면 닿는다 → 폴짝
+    // 뛰면 닿는다 → 폴짝 (비눗방울 · 레이저는 쉬지 않고 폴짝폴짝)
     if (now > o.pounceUntil) {
-      o.pounceUntil = now + 1500;
-      leap(h - P * 0.55);
+      o.pounceUntil = now + (o.mode === 'bubbles' ? 750 : o.mode === 'laser' ? 900 : 1500);
+      // 머리 꼭대기가 목표보다 조금 위로 가게 뛴다. 예전엔 머리 높이를 몸 칸의 55%로 쳐서(실제는 그보다 낮다) 늘 한 뼘 모자랐다 (10-18)
+      leap(h - (PetSprite.GRID - sprite.headTop()) * cellPx() + P * 0.12);
     } else sprite.setToyPose('toyChatter');
   } else {
-    // 너무 높다 → 올려다보며 턱을 딱딱
+    // 너무 높다 → 올려다보며 턱을 딱딱. 레이저는 그래도 가끔 벽을 차고 뛰어 본다
     sprite.setToyPose('toyChatter');
+    if (o.mode === 'laser' && now > o.pounceUntil) {
+      o.pounceUntil = now + rand(1800, 2800);
+      if (Math.random() < 0.55) leap(P * 1.6);
+    }
   }
   return true;
 }
@@ -55017,7 +55616,10 @@ function huntCatch(o, tg, now, inAir) {
     o.tz.vy -= 500;
     o.tz.vx += rand(-260, 260);
   }
-  if (o.mode === 'laser') o.after = { at: now + 650, pose: 'toyPeek', hold: 1400 }; // 잡았는데… 어라?
+  if (o.mode === 'laser') {
+    o.after = { at: now + 650, pose: 'toyPeek', hold: 1400 }; // 잡았는데… 어라?
+    o.caughtAt = { x: tg.x, y: tg.y };
+  }
   scored(o, now);
 }
 
@@ -55124,6 +55726,20 @@ function stepBubbles(o, dt, now) {
     b.vy = b.vy * damp + 14 * dt;
     b.x += (b.vx + Math.sin(now / 600 + b.wob) * 8) * dt;
     b.y += b.vy * dt;
+  }
+  // 고양이 몸(머리 꼭대기 ~ 발, 몸 너비)에 닿은 방울은 톡 터진다 (10-18: 겨냥한 방울 하나만 터지고 몸에 부딪힌 건 그냥 지나가던 것)
+  if (!floating && catX != null) {
+    const P = petPx();
+    const top = window.innerHeight - catLift - (PetSprite.GRID - sprite.headTop()) * cellPx();
+    const bottom = window.innerHeight - catLift;
+    for (const b of [...st.list]) {
+      const rr = b.r * D;
+      if (Math.abs(b.x - catX) < P * 0.34 + rr && b.y > top - rr && b.y < bottom + rr) {
+        popBubble(o, b);
+        scored(o, now);
+        if (catLift <= 0 && !sprite.action && Math.random() < 0.35) sprite.play('toyPop');
+      }
+    }
   }
   st.list = st.list.filter((b) => {
     const dead = now - b.born > b.life || b.y + b.r * D >= floorY() || b.x < 0 || b.x > window.innerWidth;
@@ -55376,7 +55992,7 @@ function stepStroll(dt, now) {
       const pick = idlePool.length ? idlePool[idleTurn.i % idlePool.length] : null;
       const M = pick && PetSprite.MOTIONS[pick];
       // 다른 걸 하는 중이면 조금 있다가 다시 본다
-      nextIdleMotion = now + (M && awake && sprite.busy() ? 3000 : (50000 + Math.random() * 60000) * tp().idle * (lowPower ? 2.5 : 1));
+      nextIdleMotion = now + (M && awake && sprite.busy() ? 3000 : (50000 + Math.random() * 60000) * PACE.idle * (lowPower ? 2.5 : 1));
       if (M && awake && !sprite.busy()) {
         sprite.play(pick, { times: M.loop ? 2 : 1 });
         if (!idleTurn.at) idleTurn.at = now; // 처음 쓴 때부터 5분을 센다
@@ -55385,13 +56001,13 @@ function stepStroll(dt, now) {
       }
     }
     if (now < nextStroll) return;
-    nextStroll = now + (14000 + Math.random() * 16000) * tp().stroll * (lowPower ? 3 : 1);
+    nextStroll = now + (14000 + Math.random() * 16000) * PACE.stroll * (lowPower ? 3 : 1);
     if (sprite.busy() || sprite.mood !== 'idle' || current) return;
     // 화면이 넓어도 산책은 몇 걸음만. 벽에 붙어 있으면 반대쪽으로
     let dir = Math.random() < 0.5 ? -1 : 1;
     if (catX - min < 60) dir = 1;
     if (max - catX < 60) dir = -1;
-    strollTo = Math.max(min, Math.min(max, catX + dir * (40 + Math.random() * 180) * tp().far));
+    strollTo = Math.max(min, Math.min(max, catX + dir * (40 + Math.random() * 180) * PACE.far));
     return;
   }
 
@@ -55563,708 +56179,14 @@ function stepFall(dt) {
   placeCat();
 }
 
-// ---------- 깜짝 이벤트 ----------
-// main/treasure.js 가 가끔 보낸다.
-//  fetch : 화면 밖으로 나갔다가 보물을 물고 돌아온다   bird : 새가 날아가다 보물을 떨어뜨린다
-//  rare : 평소엔 안 하는 모션을 한 번   (동네 친구는 아래 '동네 친구' 가 따로 맡는다)
-// 보물은 바닥에 떨어지고, 눌러서 줍는다. 한참 안 주우면 고양이가 알아서 챙겨 둔다
-let ev = null; // 진행 중인 fetch (bird 는 따로 날아다닌다)
-let birds = [];
-let loot = []; // 바닥에 떨어진 보물
-const LOOT_KEEP_MS = 10 * 60_000;
-// 손님 고양이 털색은 sprite.js 의 PetSprite.GUEST_FURS (도감도 같이 쓴다)
-const GUEST_FURS = PetSprite.GUEST_FURS;
-
-function spawnLoot(key, x, y) {
-  const o = spawnItem(key);
-  o.el.classList.add('loot');
-  Object.assign(o, { loot: true, born: performance.now(), x: clamp(x, o.half, window.innerWidth - o.half), y, vx: rand(-40, 40), vy: -60 });
-  placeItem(o);
-  loot.push(o);
-  return o;
-}
-
-function collectLoot(o) {
-  if (!loot.includes(o)) return;
-  loot = loot.filter((x) => x !== o);
-  o.el.classList.remove('loot');
-  o.el.classList.add('collect');
-  setTimeout(() => o.el.remove(), 520);
-  if (soundOn) PetSound.play('pop', 0.02);
-  pet.treasure(o.key);
-}
-
-// 고양이가 딴 걸 하고 있지 않나 (먹기·놀기·들림 중이면 이벤트는 건너뛴다)
-const catFree = () => !ev && !toy && !treats.length && !held && !dragging && !lifted && catLift <= 0 && catX != null;
-
-pet.onEvent((e) => {
-  const now = performance.now();
-  if (e.type === 'bird') return startBird(e.treasure);
-  // 고양이가 바쁘면 건너뛰고 main 에 알린다 (오늘 횟수를 돌려받는다)
-  if (!catFree() || hunt) return pet.eventSkip(e.id);
-  if (e.type === 'rare') {
-    if (pendingRare) pet.eventSkip(pendingRare.id);
-    pendingRare = { id: e.id, motion: e.motion, until: performance.now() + 60_000 };
-    return;
-  }
-  if (sprite.motion) sprite.cancel();
-  strollTo = null;
-  const [min, max] = lane();
-  const side = catX - min < max - catX ? -1 : 1; // 가까운 쪽 화면 끝으로
-  if (e.type === 'fetch') {
-    ev = { type: 'fetch', id: e.id, key: e.treasure, phase: 'out', side, home: catX, x: catX, until: 0 };
-    pet.eventSay('eventFetchOut');
-  }
-  void now;
-});
-
-// 새 한 마리. 화면 한쪽에서 날아와 고양이 근처에서 보물을 떨어뜨리고 반대쪽으로 사라진다
-function startBird(key) {
-  const el = document.createElement('canvas');
-  el.className = 'bird';
-  document.body.appendChild(el);
-  const dir = Math.random() < 0.5 ? 1 : -1;
-  if (dir < 0) el.classList.add('left');
-  const P = petPx();
-  const x0 = dir > 0 ? -30 : window.innerWidth + 30;
-  const at = catX != null ? catX : window.innerWidth / 2;
-  birds.push({ el, key, dir, x: x0, y0: floorY() - P * rand(1.7, 2.6), t: 0, dropX: clamp(at + rand(-140, 140), 40, window.innerWidth - 40), dropped: !key, frame: -1 });
-}
-
-function stepBirds(dt) {
-  for (const b of birds) {
-    b.t += dt;
-    b.x += b.dir * 180 * dt;
-    b.y = b.y0 + Math.sin(b.t * 5) * 6;
-    const f = Math.floor(b.t / 0.14) % 2;
-    if (f !== b.frame) {
-      b.frame = f;
-      PixelArt.paint(b.el, f ? 'bird1' : 'bird2', itemDot());
-    }
-    b.el.style.left = `${Math.round(b.x)}px`;
-    b.el.style.top = `${Math.round(b.y)}px`;
-    if (!b.dropped && (b.dir > 0 ? b.x >= b.dropX : b.x <= b.dropX)) {
-      b.dropped = true;
-      spawnLoot(b.key, b.x, b.y + 10);
-      // 깨어 있으면 고양이가 올려다보고 한마디
-      if (catX != null && !sprite.busy() && ['idle', 'active', 'thinking'].includes(sprite.mood)) {
-        face(b.x);
-        if (!toy && !treats.length) sprite.play('perk');
-      }
-      pet.eventSay('eventBird');
-    }
-    if (b.x < -60 || b.x > window.innerWidth + 60) b.gone = true;
-  }
-  for (const b of birds) if (b.gone) b.el.remove();
-  birds = birds.filter((b) => !b.gone);
-}
-
-// 드문 모션은 고양이가 한가할 때 한다 (바쁘면 1분까지 기다린다)
-let pendingRare = null;
-function stepRare(now) {
-  if (!pendingRare) return;
-  if (now > pendingRare.until) {
-    pet.eventSkip(pendingRare.id);
-    return (pendingRare = null);
-  }
-  if (!catFree() || hunt || sprite.busy() || sprite.move || !['idle', 'active'].includes(sprite.mood)) return;
-  sprite.play(pendingRare.motion, { times: 1 });
-  pendingRare = null;
-  pet.eventSay('eventRare');
-}
-
-// fetch 진행. 고양이를 이쪽에서 움직였으면 true
-function stepEvent(dt, now) {
-  if (!ev) return false;
-  const P = petPx();
-  const [min, max] = lane();
-  if (ev.type === 'fetch') {
-    // 사람이 들어 올리거나 간식을 주면 그만둔다
-    if (dragging || lifted || treats.length || toy) {
-      endFetch(false);
-      return false;
-    }
-    const speed = 150;
-    if (ev.phase === 'out') {
-      // 화면 끝까지 걸어가서, 끝을 넘어 밖으로 나간다 (catX 는 끝에 두고 캔버스만 더 민다)
-      if (Math.abs(catX - (ev.side < 0 ? min : max)) > 2) {
-        walkTo(ev.side < 0 ? min : max, dt);
-        ev.x = catX;
-        return true;
-      }
-      ev.x += ev.side * speed * dt;
-      sprite.setMove(ev.side * speed);
-      canvas.style.left = `${Math.round(ev.x - P / 2)}px`;
-      if (Math.abs(ev.x - catX) > P) {
-        ev.phase = 'away';
-        ev.until = now + rand(5000, 9000);
-        canvas.style.visibility = 'hidden';
-        sprite.setMove(0);
-      }
-      return true;
-    }
-    if (ev.phase === 'away') {
-      if (now < ev.until) return true;
-      ev.phase = 'in';
-      canvas.style.visibility = '';
-      sprite.carry = 'treasure';
-      sprite.carryKey = ev.key;
-      return true;
-    }
-    if (ev.phase === 'in') {
-      ev.x -= ev.side * speed * dt;
-      sprite.setMove(-ev.side * speed);
-      canvas.style.left = `${Math.round(ev.x - P / 2)}px`;
-      if (ev.side < 0 ? ev.x >= catX : ev.x <= catX) {
-        ev.phase = 'back';
-        ev.backTo = clamp(catX - ev.side * rand(80, 200), min, max);
-      }
-      return true;
-    }
-    if (ev.phase === 'back') {
-      if (walkTo(ev.backTo, dt) > 2) return true;
-      endFetch(true);
-      return true;
-    }
-  }
-  return false;
-}
-
-// ---------- 동네 친구 (7차) ----------
-// main/friends.js 가 두 시간쯤마다 한 친구를 보낸다 (단짝은 하우스에서 불러도 온다). 정해진 시간만큼 머물다 간다.
-//  - 고양이 옆 자리에 와서 앉아 있다가 가끔 자리를 옮기고, 장난감이 나와 있으면 같이 쫓아가 폴짝
-//  - 가끔 우리 고양이와 수다 (한 번 올 때 두 번쯤)
-//  - 들어서 옮길 수 있고, 더블 클릭하면 카드가 뜬다 (TMI · 남은 시간 · 물물교환 · 밥·간식 주기)
-// 고양이 친구(fur)는 sprite.js 의 PetRenderer, 동물 친구(art)는 friends.js 의 PetFriends.draw 로 그린다
-let friend = null;
-let quietNow = false; // 방해 금지 (main 이 pushState 로 알려 준다)
-let bubblesOn = true; // 설정의 말풍선 켜기
-const FSPEED = 110;
-const fbubble = document.createElement('div');
-fbubble.className = 'bubble fbubble';
-fbubble.hidden = true;
-document.body.appendChild(fbubble);
-const cbubble = document.createElement('div'); // 수다할 때 우리 고양이 말 (보통 말풍선과 따로)
-cbubble.className = 'bubble fbubble cat';
-cbubble.hidden = true;
-document.body.appendChild(cbubble);
-let fcard = null; // 누르면 뜨는 친구 카드
-// 카드 윗줄을 끌어 옮긴 자리 ({ left, top }). 먹이를 주거나 교환해서 카드를 다시 그려도 그 자리에 둔다.
-// 사람이 카드를 닫거나 친구가 가면 다시 친구 옆에 붙는다
-let fcardPos = null;
-let fcardDrag = null;
-
-pet.onFriend((f) => startFriend(f));
-pet.onFriendLeave(() => friend && friendBye(true));
-pet.onFriendWear((w) => friend && friend.r && friend.id === w.id && friend.r.setAccessory(w.wear));
-
-function friendName(id) {
-  return T.t('fr.' + id + '.name');
-}
-
-function startFriend(f) {
-  if (friend) removeFriend();
-  const c = document.createElement('canvas');
-  c.className = 'friend';
-  c.width = c.height = PetSprite.GRID;
-  document.body.appendChild(c);
-  let r = null;
-  if (f.fur != null) {
-    r = new PetSprite.PetRenderer(c);
-    r.fur = PetSprite.GUEST_FURS[f.fur];
-    r.setStage('cat');
-    r.setAccessory(f.wear || 'none'); // 선물 받은 공방 코스튬
-    r.setMood('idle');
-  }
-  const P = petPx();
-  const [min, max] = lane();
-  // 고양이와 가까운 화면 끝에서 들어온다
-  const fromLeft = catX == null ? Math.random() < 0.5 : catX < (min + max) / 2;
-  const now = performance.now();
-  const stay = Math.max(30_000, f.until - Date.now());
-  friend = {
-    ...f, canvas: c, r, ctx: c.getContext('2d'), x: fromLeft ? -P / 2 : window.innerWidth + P / 2, lift: 0, vy: 0,
-    facing: fromLeft ? 1 : -1, state: 'enter', target: 0, wanderAt: now + 25_000, leaveAt: now + stay,
-    chatAt: now + (f.kind === 'call' ? 35_000 : 70_000), chat2At: now + (f.kind === 'call' ? 170_000 : 330_000), chats: [], talked: new Set(),
-    eatUntil: 0, food: null, hopAt: 0, said: false,
-  };
-  friend.target = friendSpot();
-  c.addEventListener('mousedown', grabFriend);
-  placeFriend();
-}
-
-// 우리 고양이 옆 (화면 안쪽) 자리
-function friendSpot() {
-  const P = petPx();
-  const [min, max] = lane();
-  if (catX == null) return (min + max) / 2;
-  const side = catX > (min + max) / 2 ? -1 : 1;
-  return clamp(catX + side * P * rand(0.9, 1.6), min, max);
-}
-
-function placeFriend() {
-  if (!friend) return;
-  const P = petPx();
-  const c = friend.canvas;
-  c.style.width = c.style.height = `${P}px`;
-  c.style.left = `${Math.round(friend.x - P / 2)}px`;
-  c.style.bottom = `${Math.round(friend.lift)}px`;
-}
-
-function removeFriend() {
-  if (!friend) return;
-  friend.canvas.remove();
-  if (friend.food) friend.food.remove();
-  fbubble.hidden = true;
-  cbubble.hidden = true;
-  closeFriendCard(true);
-  friend = null;
-}
-
-// 시간이 다 됐다: 인사하고 (가끔 보물을 두고) 화면 밖으로
-async function friendBye(fromMain) {
-  if (!friend || friend.state === 'bye') return;
-  friend.state = 'bye';
-  closeFriendCard(true);
-  // 나갈 쪽은 main 의 답을 기다리기 전에 정한다. 기다리는 사이 stepFriend 가 exit 없이 걸으면 x 가 NaN 이 돼서
-  // 친구가 그 자리에 굳은 채 안 사라졌다 (1차 테스트 피드백, 2026-09-29)
-  const [min, max] = lane();
-  friend.exit = friend.x > (min + max) / 2 ? window.innerWidth + petPx() : -petPx();
-  const r = fromMain ? null : await pet.friendBye().catch(() => null);
-  if (!friend) return;
-  if (r && r.gift) spawnLoot(r.gift, friend.x, floorY() - 20);
-  friendSay(friendLine('bye', 'fr.bye'), 'f');
-  pet.eventSay('eventGuestBye', { friend: friend.id, item: (r && r.gift) || undefined });
-}
-
-// 친구마다 다른 멘트 (i18n 'fr.<id>.<kind>', 여러 개면 '|' 로 나눠 하나 고른다). 없으면 공통 멘트
-function friendLine(kind, common) {
-  const key = friend ? 'fr.' + friend.id + '.' + kind : '';
-  const s = key ? T.t(key) : key;
-  if (!s || s === key) return common ? T.t(common) : '';
-  const all = String(s).split('|');
-  return all[Math.floor(Math.random() * all.length)];
-}
-
-// 말풍선: who = 'f'(친구) | 'c'(우리 고양이)
-function friendSay(text, who, ms = 3200) {
-  const el = who === 'c' ? cbubble : fbubble;
-  el.textContent = text;
-  el.hidden = false;
-  placeFriendOverlays();
-  requestAnimationFrame(() => el.classList.add('show'));
-  clearTimeout(el._t);
-  el._t = setTimeout(() => {
-    el.classList.remove('show');
-    setTimeout(() => (el.hidden = true), 150);
-  }, ms);
-}
-
-// 수다 한 판: 'f:…|c:…|f:…' 를 한 줄씩 번갈아
-function friendChat() {
-  if (!friend || quietNow || !bubblesOn) return;
-  const all = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter((i) => !friend.talked.has(i) && T.t('fr.' + friend.id + '.talk' + i) !== 'fr.' + friend.id + '.talk' + i);
-  if (!all.length) return;
-  const i = all[Math.floor(Math.random() * all.length)];
-  friend.talked.add(i);
-  const lines = String(T.t('fr.' + friend.id + '.talk' + i)).split('|').map((x) => [x.slice(0, 1), x.slice(2)]);
-  const now = performance.now();
-  friend.chats = lines.map(([who, text], k) => ({ at: now + k * 3400, who, text }));
-}
-
-function stepFriend(dt, now) {
-  if (!friend) return;
-  const f = friend;
-  const P = petPx();
-  const [min, max] = lane();
-  // 떠날 때
-  if (f.state !== 'bye' && now >= f.leaveAt && !f.held) friendBye(false);
-  // 들려 있으면 떨어뜨릴 때까지 아무것도 안 한다. 놓으면 바닥으로 뚝
-  if (!f.held && f.lift > 0) {
-    f.vy -= 1400 * dt;
-    f.lift = Math.max(0, f.lift + f.vy * dt);
-    if (f.lift === 0) {
-      if (f.vy < -500) friendSay(friendLine('thrown') || '!!', 'f', 2000);
-      f.vy = 0;
-    }
-  }
-  let mode = 'idle';
-  if (f.held) mode = 'held';
-  else if (f.state === 'bye') {
-    const d = f.exit - f.x;
-    if (!Number.isFinite(d)) return removeFriend(); // 갈 곳을 잃었으면 그냥 보낸다
-    f.x += Math.sign(d) * FSPEED * 1.2 * dt;
-    f.facing = Math.sign(d) || f.facing;
-    mode = 'walk';
-    if (Math.abs(d) < 4) return removeFriend();
-  } else if (now < f.eatUntil) mode = 'eat';
-  else {
-    if (f.food) {
-      f.food.remove();
-      f.food = null;
-    }
-    // 장난감이 나와 있으면 그쪽으로 가서 폴짝 (흔드는 장난감은 커서 쪽으로)
-    let goal = f.target;
-    if (toy) {
-      const tx = isCursorToy() ? mouseX : toy.x;
-      if (tx != null) goal = clamp(tx + (tx > f.x ? -P * 0.4 : P * 0.4), min, max);
-    } else if (now > f.wanderAt) {
-      f.target = friendSpot();
-      goal = f.target;
-      f.wanderAt = now + rand(25_000, 45_000);
-    }
-    const d = goal - f.x;
-    if (Math.abs(d) > 3) {
-      f.x += Math.sign(d) * Math.min(Math.abs(d), FSPEED * dt);
-      f.facing = Math.sign(d);
-      mode = 'walk';
-    } else {
-      if (f.state === 'enter') {
-        f.state = 'here';
-        friendSay(friendLine('hi', 'fr.hi'), 'f', 2800);
-        pet.eventSay('eventGuest', { friend: f.id });
-        // 선물받은 공방 코스튬을 입고 왔으면 자랑한다 (2026-10-10)
-        const gift = Array.isArray(f.wear) && f.wear.length ? f.wear[Math.floor(Math.random() * f.wear.length)] : null;
-        if (gift) setTimeout(() => friend === f && friendSay(T.t('fr.wearGift', { item: T.t('item.' + gift) }), 'f', 3600), 4200);
-        if (f.r) f.r.play('wave');
-      }
-      if (catX != null && !toy) f.facing = Math.sign(catX - f.x) || f.facing;
-      if (toy && now > f.hopAt) f.hopAt = now + rand(1200, 2600);
-      if (toy && now < f.hopAt - 600 && now > f.hopAt - 1300) mode = 'hop';
-    }
-    // 수다: 도착하고 한참 뒤 한 번, 몇 분 뒤 또 한 번 (말풍선이 비어 있을 때만)
-    if (f.state === 'here' && bubbleEl.hidden && !fcard) {
-      if (f.chatAt && now > f.chatAt) { f.chatAt = 0; friendChat(); }
-      else if (f.chat2At && now > f.chat2At) { f.chat2At = 0; friendChat(); }
-    }
-  }
-  for (const c of f.chats) if (!c.done && now >= c.at) { c.done = true; friendSay(c.text, c.who); if (c.who === 'c' && catX != null) face(f.x); }
-  // 그리기
-  if (f.r) {
-    f.r.setFacing(f.facing);
-    f.r.setMove(mode === 'walk' ? f.facing * FSPEED : 0);
-    f.r.setHeld(mode === 'held' ? { rot: 0, legs: 0, px: 24, py: 36 } : null);
-    if (mode === 'hop' && !f.r.action) f.r.play('happy');
-    f.r.frame();
-  } else {
-    f.ctx.clearRect(0, 0, PetSprite.GRID, PetSprite.GRID);
-    PetFriends.draw(f.ctx, f.art, now / 1000, mode, f.facing);
-  }
-  placeFriend();
-}
-
-// 친구 말풍선 · 수다 중 우리 고양이 말풍선을 머리 위에 놓되 서로, 그리고 보통 말풍선과 겹치지 않게 한다.
-// 먼저 옆으로 밀어 비키고(꼬리는 --tail-x 로 계속 말한 쪽을 가리킨다), 화면이 좁아 못 비키면 위로 쌓는다
-const BUBBLE_GAP = 8;
-function placeChatBubbles(P) {
-  const W = window.innerWidth, H = window.innerHeight;
-  // 보통 말풍선(업적·대사 등)은 placeOverlays 가 이미 놓았다. 여기서는 피해 갈 자리로만 쓴다
-  const main = !bubbleEl.hidden && catX != null
-    ? { x: parseFloat(bubbleEl.style.left) || catX, w: bubbleEl.offsetWidth, h: bubbleEl.offsetHeight, bottom: parseFloat(bubbleEl.style.bottom) || 0 }
-    : null;
-  const box = (el, owner, bottom) => ({ el, owner, x: owner, w: el.offsetWidth, h: el.offsetHeight, bottom });
-  const list = [];
-  if (friend && !fbubble.hidden) list.push(box(fbubble, friend.x, friend.lift + P * 0.62));
-  if (catX != null && !cbubble.hidden) {
-    // 보통 말풍선이 떠 있으면 그 위로 (예전엔 44px 만 올려서 두 줄짜리 말풍선과 겹쳤다)
-    const over = main && !bubbleEl.classList.contains('below') ? main.bottom + main.h + BUBBLE_GAP + 4 : catLift + P * 0.62;
-    list.push(box(cbubble, catX, over));
-  }
-  if (!list.length) return;
-  const fitX = (b) => (b.x = Math.max(b.w / 2 + 6, Math.min(W - b.w / 2 - 6, b.x)));
-  const hitY = (a, b) => a.bottom < b.bottom + b.h + BUBBLE_GAP && b.bottom < a.bottom + a.h + BUBBLE_GAP;
-  const needX = (a, b) => (a.w + b.w) / 2 + BUBBLE_GAP - Math.abs(a.x - b.x);
-  const hits = (a, b) => hitY(a, b) && needX(a, b) > 0;
-  // 움직이지 않는 것(o)에서 b 를 비킨다: 말한 쪽 방향으로 밀고, 안 되면 그 위로
-  const dodge = (b, o) => {
-    if (!hits(b, o)) return;
-    const dir = Math.sign(b.owner - o.x) || (b.owner < W / 2 ? 1 : -1);
-    b.x += dir * needX(b, o);
-    fitX(b);
-    if (hits(b, o)) b.bottom = o.bottom + o.h + BUBBLE_GAP;
-  };
-  for (const b of list) fitX(b);
-  if (main) for (const b of list) dodge(b, main);
-  if (list.length === 2 && hits(list[0], list[1])) {
-    // 둘 다 반씩 비켜선다. 화면 끝에 막히면 다른 쪽이 마저 비킨다
-    const [a, b] = list;
-    const dir = Math.sign(a.owner - b.owner) || 1;
-    const half = needX(a, b) / 2;
-    a.x += dir * half;
-    b.x -= dir * half;
-    fitX(a);
-    fitX(b);
-    if (hits(a, b)) {
-      b.x -= dir * needX(a, b);
-      fitX(b);
-    }
-    if (hits(a, b)) {
-      a.x += dir * needX(a, b);
-      fitX(a);
-    }
-    if (hits(a, b)) a.bottom = b.bottom + b.h + BUBBLE_GAP; // 그래도 안 되면 친구 말풍선을 위로
-    if (main) dodge(a, main);
-  }
-  for (const b of list) {
-    b.bottom = Math.max(4, Math.min(b.bottom, H - b.h - 4));
-    b.el.style.left = `${Math.round(b.x)}px`;
-    b.el.style.bottom = `${Math.round(b.bottom)}px`;
-    const room = Math.max(0, b.w / 2 - 12);
-    b.el.style.setProperty('--tail-x', `${Math.round(clamp(b.owner - b.x, -room, room))}px`);
-  }
-}
-
-// 말풍선·카드 자리 (고양이 말풍선과 같은 식으로 머리 위에)
-function placeFriendOverlays() {
-  if (!friend && cbubble.hidden && fbubble.hidden) return; // 떠 있는 게 없으면 재지 않는다
-  const P = petPx();
-  placeChatBubbles(P);
-  // 카드는 머리 위가 아니라 친구 옆에 붙인다. 말풍선이 머리 위 가운데에 뜨니까 말풍선 반 폭만큼 더 비켜 선다.
-  // 고양이가 있는 쪽은 고양이 말풍선이 뜨니 반대쪽을 먼저 쓰고, 화면 끝이라 자리가 없으면 다른 쪽으로
-  if (fcard && friend && fcardPos) {
-    // 사람이 옮겨 둔 자리. 창 밖으로는 못 나간다
-    const w = fcard.offsetWidth, h = fcard.offsetHeight;
-    const left = Math.max(8, Math.min(window.innerWidth - w - 8, fcardPos.left));
-    const top = Math.max(8, Math.min(window.innerHeight - h - 8, fcardPos.top));
-    fcard.style.left = `${Math.round(left)}px`;
-    fcard.style.bottom = `${Math.round(window.innerHeight - top - h)}px`;
-  } else if (fcard && friend) {
-    const w = fcard.offsetWidth, h = fcard.offsetHeight;
-    const half = (el) => (el.hidden ? 0 : el.offsetWidth / 2);
-    const gap = Math.max(P * 0.45, half(fbubble), 70) + 8;
-    const rightX = friend.x + gap, leftX = friend.x - gap - w;
-    const fitsR = rightX + w <= window.innerWidth - 8, fitsL = leftX >= 8;
-    const preferR = catX == null ? true : catX < friend.x;
-    const x = (preferR ? fitsR : !fitsL) ? (fitsR ? rightX : leftX) : fitsL ? leftX : rightX;
-    fcard.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, x)))}px`;
-    fcard.style.bottom = `${Math.round(Math.max(8, Math.min(window.innerHeight - h - 8, friend.lift)))}px`;
-  }
-}
-
-// ---- 들어서 옮기기 ----
-function grabFriend(e) {
-  if (e.button !== 0 || !friend || friend.state === 'bye') return;
-  e.stopPropagation();
-  friend.held = { dx: e.clientX - friend.x, dy: window.innerHeight - e.clientY - friend.lift, x0: e.clientX, y0: e.clientY, moved: false };
-  document.body.classList.add('dragging');
-}
-function moveFriend(e) {
-  if (!friend || !friend.held) return false;
-  const h = friend.held;
-  if (!h.moved && Math.hypot(e.clientX - h.x0, e.clientY - h.y0) < 5) return true;
-  h.moved = true;
-  const [min, max] = lane();
-  friend.x = clamp(e.clientX - h.dx, min, max);
-  friend.lift = Math.max(0, window.innerHeight - e.clientY - h.dy);
-  friend.vy = 0;
-  friend.target = friend.x;
-  placeFriend();
-  return true;
-}
-// 놓을 때: 끌지 않고 눌렀다 뗐으면(클릭) 친구 카드(물물교환·밥 주기·친밀도)를 열고, 열려 있으면 접는다. 끌었으면 거기 내려놓는다
-function dropFriend() {
-  if (!friend || !friend.held) return false;
-  const clicked = !friend.held.moved;
-  friend.held = null;
-  document.body.classList.remove('dragging');
-  if (clicked) fcard ? closeFriendCard(true) : openFriendCard();
-  return true;
-}
-function isOverFriend(e) {
-  if (!friend) return false;
-  const r = friend.canvas.getBoundingClientRect();
-  const gx = ((e.clientX - r.left) / r.width) * PetSprite.GRID;
-  const gy = ((e.clientY - r.top) / r.height) * PetSprite.GRID;
-  if (friend.r) return friend.r.hit(gx, gy);
-  return PetFriends.hit(friend.art, friend.facing < 0 ? PetSprite.GRID - 1 - gx : gx, gy);
-}
-function isOverFriendUi(e) {
-  const inside = (el) => {
-    if (!el || el.hidden) return false;
-    const r = el.getBoundingClientRect();
-    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-  };
-  return inside(fcard) || isOverFriend(e);
-}
-
-// ---- 친구 카드: 친밀도 · 남은 시간 · 물물교환 · 밥·간식 주기 ----
-async function openFriendCard() {
-  if (!friend || friend.state === 'bye') return;
-  const info = await pet.friendInfo().catch(() => null);
-  if (!info || !friend || info.id !== friend.id) return;
-  closeFriendCard();
-  const id = info.id;
-  const ic = (k, n = 16) => PixelArt.svg(k, n);
-  const hearts = [1, 2, 3].map((i) => `<span class="${i <= info.level ? 'on' : ''}">${ic('heart', 11)}</span>`).join('');
-  // 친밀도 막대: 지금 단계에서 다음 단계까지 얼마나 찼나 (단짝이면 가득). 단계 점수는 main/friends.js 의 FRIEND_STEPS
-  const prev = info.prev || 0;
-  const pct = info.next ? Math.round(((info.pts - prev) / (info.next - prev)) * 100) : 100;
-  const bondNote = info.next
-    ? T.t('fr.toNext', { level: T.t('friend.' + (info.level + 1)), n: info.next - info.pts })
-    : T.t('fr.bondMax');
-  const w = info.want, g = info.gift;
-  const enough = w.have >= w.n;
-  const tradeBtn = info.traded
-    ? `<span class="fc-note">${esc(T.t('fr.traded'))}</span>`
-    : `<button class="fc-btn" data-fc="trade" ${enough ? '' : 'disabled'}>${esc(T.t('fr.trade'))}</button>${enough ? '' : `<span class="fc-note">${esc(T.t('fr.short'))}</span>`}`;
-  const full = info.feeds >= info.maxFeeds;
-  const foods = info.pantry.length
-    ? info.pantry.map((p) => `<button class="fc-food" data-feed="${p.key}" data-group="${p.group}" title="${esc(T.t('item.' + p.key))}" ${full ? 'disabled' : ''}>${ic(p.key, 26)}<small>${p.n}</small></button>`).join('')
-    : `<span class="fc-note">${esc(T.t('fr.feedNone'))}</span>`;
-  fcard = document.createElement('div');
-  fcard.className = 'fcard';
-  // 윗줄(이름·별명)은 잡고 끌어서 카드를 옮기는 손잡이다
-  fcard.innerHTML = `
-    <div class="fc-head" title="${esc(T.t('fr.cardDrag'))}">
-      <span class="fc-grip" aria-hidden="true"></span>
-      <div class="fc-id">
-        <div class="fc-name">${esc(friendName(id))}</div>
-        <div class="fc-sp">${esc(T.t('fr.' + id + '.nick'))} · ${esc(T.t('fr.' + id + '.species'))}</div>
-      </div>
-      <button class="fc-x" data-fc="close" aria-label="${esc(T.t('modal.close'))}" title="${esc(T.t('modal.close'))}">×</button>
-    </div>
-    <div class="fc-body">
-      <div class="fc-time">${ic('hourglass', 12)}<span class="fc-left"></span></div>
-      <div class="fc-bond">
-        <div class="fc-bond-top"><span class="fc-hearts">${hearts}</span><b>${esc(T.t('friend.' + info.level))}</b><span class="fc-note">${esc(bondNote)}</span></div>
-        <div class="fc-bar"><i style="width:${pct}%"></i></div>
-      </div>
-      <div class="fc-sec">
-        <div class="fc-title"><b>${esc(T.t('fr.want'))}</b><small>${esc(T.t('fr.ptsTrade'))}</small></div>
-        <div class="fc-trade">
-          <div class="fc-box">${ic(w.key, 24)}<span><b>${esc(T.t('treasure.' + w.key))} ×${w.n}</b><small class="${enough ? 'ok' : 'lack'}">${esc(T.t('fr.have', { n: w.have }))}</small></span></div>
-          <span class="fc-arrow">→</span>
-          <div class="fc-box gift">${ic(g.key, 24)}<span><b>×${g.n}</b><small>${esc(T.t('fr.gift'))}</small></span></div>
-        </div>
-        <div class="fc-row">${tradeBtn}</div>
-      </div>
-      <div class="fc-sec">
-        <div class="fc-title"><b>${esc(T.t('fr.feed'))}</b><small class="${full ? 'lack' : ''}">${esc(full ? T.t('fr.full') : T.t('fr.feedLeft', { n: info.maxFeeds - info.feeds }))}</small></div>
-        <div class="fc-note">${esc(T.t('fr.ptsFeed'))}</div>
-        <div class="fc-foods">${foods}</div>
-      </div>
-    </div>`;
-  document.body.appendChild(fcard);
-  fcard.querySelector('.fc-head').addEventListener('mousedown', grabCard);
-  const tickLeft = () => {
-    if (!fcard || !friend) return;
-    const ms = Math.max(0, friend.until - Date.now());
-    fcard.querySelector('.fc-left').textContent = T.t('fr.left', { m: Math.floor(ms / 60000), s: Math.floor((ms % 60000) / 1000) });
-  };
-  tickLeft();
-  fcard._timer = setInterval(tickLeft, 1000);
-  fcard.addEventListener('mousedown', (e) => e.stopPropagation());
-  fcard.addEventListener('click', async (e) => {
-    const b = e.target.closest('button');
-    if (!b || b.disabled) return;
-    if (b.dataset.fc === 'close') return closeFriendCard(true);
-    if (b.dataset.fc === 'trade') {
-      const r = await pet.friendTrade();
-      if (r && r.ok) {
-        friendSay(friendLine('thanks', 'fr.thanks'), 'f');
-        if (friend && friend.r) friend.r.play('happy');
-        openFriendCard();
-      }
-      return;
-    }
-    if (b.dataset.feed) {
-      const r = await pet.friendFeed(b.dataset.feed);
-      if (r && r.ok && friend) {
-        friendEat(b.dataset.feed);
-        openFriendCard();
-      } else if (r && r.error === 'full') friendSay(friendLine('full', 'fr.fullSay'), 'f');
-    }
-  });
-  placeFriendOverlays();
-}
-// forget: 사람이 닫았으면 끌어 옮긴 자리도 잊는다 (다시 그릴 때는 그대로 둔다)
-function closeFriendCard(forget) {
-  if (forget) fcardPos = null;
-  if (fcardDrag) dropCard();
-  if (!fcard) return;
-  clearInterval(fcard._timer);
-  fcard.remove();
-  fcard = null;
-}
-
-// ---- 친구 카드 끌어 옮기기: 윗줄(이름 칸)을 잡고 끈다 ----
-function grabCard(e) {
-  if (e.button !== 0 || !fcard || e.target.closest('button')) return;
-  const r = fcard.getBoundingClientRect();
-  fcardDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
-  fcard.classList.add('moving');
-  document.body.classList.add('dragging');
-  e.preventDefault();
-}
-function moveCard(e) {
-  if (!fcardDrag || !fcard) return false;
-  fcardPos = { left: e.clientX - fcardDrag.dx, top: e.clientY - fcardDrag.dy };
-  placeFriendOverlays();
-  return true;
-}
-function dropCard() {
-  if (!fcardDrag) return false;
-  fcardDrag = null;
-  if (fcard) fcard.classList.remove('moving');
-  document.body.classList.remove('dragging');
-  return true;
-}
-
-// 받아먹기: 발 앞에 먹이를 놓고, 우리 고양이처럼 한 입씩 야금야금 (친구 쪽 가장자리부터 이빨 자국으로 사라진다)
-const FRIEND_BITE_MS = 640;
-function friendEat(key) {
-  const f = friend;
-  if (!f) return;
-  if (f.food) f.food.remove();
-  const el = document.createElement('canvas');
-  el.className = 'friend-food';
-  PixelArt.paint(el, key, itemDot());
-  document.body.appendChild(el);
-  const fx = f.x + f.facing * petPx() * 0.22;
-  el.style.left = `${Math.round(fx - el.width / 2)}px`;
-  el.style.bottom = `${Math.round(f.lift)}px`;
-  f.food = el;
-  // 한 입 간격 × (BITES + 1): 마지막 한 입 뒤 잠깐 있다가 치운다 (stepFriend 가 eatUntil 이 지나면 치운다)
-  f.eatUntil = performance.now() + FRIEND_BITE_MS * (BITES + 1);
-  const bite = { key, el };
-  const fromLeft = f.x < fx;
-  for (let i = 1; i <= BITES; i++)
-    setTimeout(() => {
-      if (friend !== f || f.food !== el) return;
-      if (f.r) f.r.play('nibble');
-      if (soundOn) PetSound.play('pop', 0.015);
-      paintBitten(bite, i / (BITES + 1), fromLeft);
-    }, FRIEND_BITE_MS * (i - 0.5));
-  setTimeout(() => friend === f && friendSay(friendLine('yum', 'fr.yum'), 'f'), 1600);
-}
-
-// 물어 오기 끝: 입에 문 보물을 발 앞에 내려놓는다 (중간에 그만뒀으면 그냥 들고 온 셈 치고 떨군다)
-function endFetch(done) {
-  if (!ev) return;
-  const key = ev.key;
-  const id = ev.id;
-  // 이미 밖에 나갔다 왔으면(보물을 찾았으면) 끊겨도 그 자리에 떨군다
-  const found = ['away', 'in', 'back'].includes(ev.phase);
-  canvas.style.visibility = '';
-  sprite.carry = null;
-  sprite.carryKey = null;
-  ev = null;
-  placeCat();
-  // 나가기도 전에 끊겼으면 보물은 안 떨어진다. 오늘 횟수를 돌려받는다
-  if (key && !(done || found) && id) pet.eventSkip(id);
-  if (!key || !(done || found)) return;
-  spawnLoot(key, catX + sprite.facing * petPx() * 0.3, floorY() - petPx() * 0.25);
-  if (!done) return;
-  sprite.play('happy');
-  pet.eventSay('eventFetchBack', { item: key });
-}
-
 // ---------- 커서 사냥 ----------
 // 커서가 바닥 가까이에서 한참 가만히 있으면, 가끔 고양이가 몸을 낮춰 살금살금 다가가
 // 엉덩이를 씰룩이다 덮친다. 다가가는 동안 커서가 움직이면 멈칫하고 그만둔다
 let hunt = null;
 let nextHunt = performance.now() + 3 * 60_000;
 const HUNT_STILL_MS = 7000;
+// 고양이가 딴 걸 하고 있지 않나 (먹기·놀기·들림 중이면 사냥은 건너뛴다)
+const catFree = () => !toy && !treats.length && !held && !dragging && !lifted && catLift <= 0 && catX != null;
 
 function stepHunt(dt, now) {
   const P = petPx();
@@ -56274,13 +56196,13 @@ function stepHunt(dt, now) {
     const calm = catFree() && !sprite.busy() && (sprite.mood === 'idle' || sprite.mood === 'active');
     if (!near || !calm) return false;
     nextHunt = now + 60_000;
-    if (Math.random() > tp().hunt) return false;
+    if (Math.random() > PACE.hunt) return false;
     hunt = { phase: 'stalk', x: mouseX, y: mouseY, startMove: lastMouseMove };
     strollTo = null;
     sprite.setToyPose('huntCrouch');
   }
-  // 사람이 들어 올리거나 먹이·장난감·이벤트가 끼어들면 그만
-  if (dragging || lifted || toy || treats.length || ev) return endHunt(false), false;
+  // 사람이 들어 올리거나 먹이·장난감이 끼어들면 그만
+  if (dragging || lifted || toy || treats.length) return endHunt(false), false;
   const moved = lastMouseMove !== hunt.startMove;
   if (hunt.phase === 'stalk') {
     if (moved) {
@@ -56336,7 +56258,7 @@ function endHunt(done) {
   sprite.setToyPose(null);
   sprite.setMove(0);
   // 한 번 사냥하면 한참 쉰다
-  nextHunt = performance.now() + ((done ? 8 : 4) * 60_000 + Math.random() * 6 * 60_000) * tp().huntGap;
+  nextHunt = performance.now() + ((done ? 8 : 4) * 60_000 + Math.random() * 6 * 60_000) * PACE.huntGap;
 }
 
 // ---------- 그리기 루프 ----------
@@ -56361,26 +56283,18 @@ function loop() {
   if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
   if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
   for (const o of treats) stepItem(o, dt);
-  for (const o of loot) {
-    stepItem(o, dt);
-    if (now - o.born > LOOT_KEEP_MS && !(held && held.o === o)) collectLoot(o);
-  }
-  stepBirds(dt);
-  stepRare(now);
-  stepFriend(dt, now);
   stepField(dt, now);
   stepFall(dt);
   stepSwing(dt);
   // 끌려가는 중이거나 들렸다 떨어지는 중이면 걷지 않는다
-  // 깜짝 이벤트(물어 오기·손님)가 고양이를 쥐고 있으면 걷기·주우러 가기는 쉰다
-  const evBusy = stepEvent(dt, now) || (!dragging && !lifted && stepHunt(dt, now));
+  // 커서 사냥 중이면 걷기·주우러 가기는 쉰다
+  const evBusy = !dragging && !lifted && stepHunt(dt, now);
   if (dragging || lifted) sprite.setMove(0);
   else if (!evBusy && !stepChase(dt, now)) stepStroll(dt, now);
   updateFloorShadow();
   sprite.frame();
   drawField(now);
   placeOverlays();
-  placeFriendOverlays();
   // 커서는 가만있는데 고양이가 걸어 나갔거나 말풍선이 사라졌으면 창이 클릭을 계속 붙잡지 않게 다시 본다
   if (over && now - lastHoverCheck > 120) {
     lastHoverCheck = now;
@@ -56392,8 +56306,8 @@ function loop() {
 // 다음 장면까지 쉬는 시간. 움직이는 게 있으면 촘촘히, 가만히 있으면 성기게 그린다
 // 저전력 모드(lowPower)면 사람이 직접 만지는 중이 아닐 때 초당 8장 정도로 줄인다
 function loopDelay(now) {
-  const touching = dragging || held || press || toy || (friend && friend.held);
-  const moving = touching || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || catLift > 0;
+  const touching = dragging || held || press || toy;
+  const moving = touching || treats.length || hunt || sprite.move || sprite.busy() || catLift > 0;
   if (lowPower && !touching) return 125;
   if (moving) return 33;
   if (sprite.mood === 'sleeping') return 160;
@@ -56448,14 +56362,14 @@ function setOver(v) {
   pet.hover(v);
 }
 
-// 이 자리에서 창이 클릭을 받아야 하나 (고양이·말풍선·친구·바닥 물건·흔드는 장난감)
+// 이 자리에서 창이 클릭을 받아야 하나 (고양이·말풍선·바닥 물건·흔드는 장난감)
 function hoverTest(e) {
-  return isOverPet(e) || isOverBubble(e) || isOverFriendUi(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e));
+  return isOverPet(e) || isOverBubble(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e));
 }
 
 // 마우스가 안 움직여도 마지막 자리로 다시 본다. 누르고 있는 중에는 건드리지 않는다
 function recheckHover() {
-  if (dragging || held || press || cursorDown || fcardDrag || (friend && friend.held) || mouseX == null) return;
+  if (dragging || held || press || cursorDown || mouseX == null) return;
   setOver(hoverTest({ clientX: mouseX, clientY: mouseY }));
 }
 
@@ -56513,10 +56427,8 @@ function trackRub(e) {
   if (rub.since && now - rub.since >= RUB_MS && rub.flips >= 4) {
     rub.since = 0;
     rub.until = now + 3500;
-    // 쓰다듬기 싫은 날은 반은 냥펀치
-    const swat = temper === 'grumpy' && Math.random() < 0.5;
-    if (!treats.some((o) => o.eating) && !hunt && !ev) sprite.play(swat ? 'swat' : 'purr');
-    pet.rub(swat ? 'swat' : undefined);
+    if (!treats.some((o) => o.eating) && !hunt) sprite.play('purr');
+    pet.rub();
   }
 }
 let lastMouseMove = performance.now();
@@ -56531,17 +56443,13 @@ function nearBody(e) {
 window.addEventListener('mousemove', (e) => {
   if (e.clientX !== mouseX || e.clientY !== mouseY) lastMouseMove = performance.now();
   // 버튼을 뗀 걸 못 들었다 (작업표시줄처럼 창 밖에서 뗐다). 끌던 건 여기서 놓는다
-  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
+  if (e.buttons === 0 && (dragging || held || cursorDown)) onMouseUp(e);
   else if (e.buttons === 0 && press) press = null; // 눌렀다가 창 밖에서 뗀 것. 끌기로 이어지지 않게
   // 흔드는 장난감(낚싯대·깃털·비눗방울·레이저)은 쥐지 않아도 마우스를 따라다닌다
   mouseX = e.clientX;
   mouseY = e.clientY;
   updateGaze();
   trackRub(e);
-  // 친구 카드를 끄는 중이면 카드가 따라온다
-  if (moveCard(e)) return;
-  // 들고 있는 동네 친구는 마우스를 따라온다
-  if (moveFriend(e)) return;
   // 손에 쥔 물건은 마우스를 그대로 따라온다. 던질 속도를 재려고 최근 위치를 몇 개 남긴다
   if (held) {
     const o = held.o;
@@ -56579,13 +56487,13 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mouseleave', (e) => {
   sprite.gaze = null;
-  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
+  if (e.buttons === 0 && (dragging || held || cursorDown)) onMouseUp(e);
   if (!dragging) setOver(false);
 });
 
 // 창이 포커스를 잃으면(다른 창 클릭·Alt+Tab) 버튼을 뗀 소식이 안 올 수 있다. 끌던 건 놓는다
 window.addEventListener('blur', () => {
-  if (dragging || held || cursorDown || fcardDrag || (friend && friend.held)) onMouseUp({ button: 0, buttons: 0, clientX: mouseX != null ? mouseX : 0, clientY: mouseY != null ? mouseY : 0 });
+  if (dragging || held || cursorDown) onMouseUp({ button: 0, buttons: 0, clientX: mouseX != null ? mouseX : 0, clientY: mouseY != null ? mouseY : 0 });
 });
 
 // 바닥 물건 집기 — 고양이 끌기보다 먼저 본다
@@ -56621,8 +56529,6 @@ canvas.addEventListener('mousedown', (e) => {
 
 window.addEventListener('mouseup', (e) => onMouseUp(e));
 function onMouseUp(e) {
-  if (dropCard()) return;
-  if (dropFriend()) return;
   // 놓는 순간의 손목 속도를 그대로 물건에 넘긴다
   if (cursorDown && toy) {
     const quick = performance.now() - cursorDown.t < 260;
@@ -56636,13 +56542,6 @@ function onMouseUp(e) {
   if (held) {
     const o = held.o;
     // 거의 안 움직이고 금방 뗐으면 던진 게 아니라 톡 누른 것
-    // 보물은 톡 누르면 줍는다
-    if (o.loot && Math.hypot(e.clientX - held.x0, e.clientY - held.y0) < 6 && performance.now() - held.t0 < 400) {
-      o.el.classList.remove('held');
-      held = null;
-      collectLoot(o);
-      return;
-    }
     const mine = o === toy || (toy && toy.extras && toy.extras.includes(o));
     if (mine && Math.hypot(e.clientX - held.x0, e.clientY - held.y0) < 5 && performance.now() - held.t0 < 300) {
       o.el.classList.remove('held');
@@ -56706,7 +56605,7 @@ resizeField();
 loop();
 pet.ready();
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/toyplay.js */
 // 2차 장난감 21종의 동작 (1/3). pet.js 의 놀이 틀에 꽂힌다:
 //  start(o, side)     꺼냈을 때                      step(o, dt, now)  매 프레임 (고양이가 뭘 할지)
@@ -57420,7 +57319,7 @@ pet.ready();
   root.ToyKit = { later, stamp, ftext, disc, chase, blast, landed, extra, paintRowsItem, dropItem, burst, stepBits, drawBits, pop, drawWords, commonStep, commonDraw, catTop, catMidY, hitsCat, sfx, H };
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/toyplay2.js */
 // 2차 장난감 동작 (2/3): 바나나 껍질, 캣휠, 진공청소기, 박스 탑, 마술 모자, 슬롯머신
 (function (root) {
@@ -57433,14 +57332,45 @@ pet.ready();
   // ================= T17 바나나 껍질 =================
   // 껍질을 바닥 아무 데나 놓아 두면 끝. 고양이는 마우스 쪽으로 걸어오다가… 밟고 주르륵 한 바퀴.
   // 일어나서는 아무 일 없었던 척 휘파람
+  // 4차 다듬기 (2026-10-17): 한 번 미끄러지면 한동안 조심한다 — 껍질 앞에서 멈춰 킁킁, 폴짝 넘어가서 의기양양.
+  // 그래도 발밑에 휙 던져 넣으면 피할 틈이 없다. 넘어지는 모양도 여러 가지 (한 바퀴 · 두 바퀴 + 어질어질 · 화나서 껍질 걷어차기).
+  // 껍질을 톡 누르면 통 튀어 오르고, 고양이는 미심쩍게 째려본다
   C.bananapeel = {
     start(o, side) {
       // 바닥에 놓는 건 껍질 그림 (상점 그림은 반쯤 깐 바나나라 따로 둔다. pixelart.js 의 bananapeelFloor)
       Object.assign(o, spawnItem('bananapeelFloor'));
       o.x = clamp(catX + side * petPx() * 1.2, o.half, window.innerWidth - o.half);
       o.y = H() - petPx() - 60;
+      o.slips = 0;
+      o.wary = 0;
     },
-    click() {},
+    click(o, it) {
+      if (it !== o || !onFloor(o)) return;
+      // 톡 — 껍질이 통 튀어 오른다
+      o.vy = -260;
+      o.vx = rand(-40, 40);
+      sfx('pop', 0.02);
+      if (catLift <= 0 && !o.slide && performance.now() > (o.busyUntil || 0)) {
+        face(o.x);
+        sprite.setToyPose(null);
+        sprite.play('toyDeadpan');
+        o.busyUntil = performance.now() + 1200;
+      }
+    },
+    slip(o, now, dir, before) {
+      // 빨리 걷다 밟을수록 크게 미끄러진다
+      const fast = Math.abs(catX - before) > 3.5 || Math.random() < 0.25;
+      o.slips++;
+      o.cool = now + 5000;
+      o.wary = now + 20000; // 한동안은 조심
+      o.slide = { v: dir * (fast ? 360 : 260), until: now + (fast ? 1500 : 1100), fast };
+      o.vx = -dir * 140;
+      sprite.setToyPose(null);
+      sprite.play('toySlip', { times: fast ? 2 : 1 });
+      sfx('spin', 0.03);
+      pop(o, o.slips > 1 ? `WHOOPS X${o.slips}` : 'WHOOPS', catX, K.catTop() - 20, '#ffd35c', 900);
+      scored(o, now);
+    },
     step(o, dt, now) {
       commonStep(o, dt, now);
       const P = petPx();
@@ -57450,15 +57380,63 @@ pet.ready();
         o.slide.v *= Math.pow(0.08, dt);
         placeCat();
         if (now > o.slide.until) {
+          const big = o.slide.fast;
           o.slide = null;
-          sprite.play('toyPretend');
-          o.busyUntil = now + 2400;
+          const r = Math.random();
+          if (big) {
+            // 두 바퀴 돌고 어질어질
+            sprite.play('toyDizzy');
+            o.busyUntil = now + 2000;
+          } else if (r < 0.35 && o.slips > 1) {
+            // 또 너냐! 껍질을 걷어찬다
+            face(o.x);
+            sprite.play('toyPunch');
+            K.later(o, 500, () => {
+              if (toy !== o || !onFloor(o)) return;
+              o.vx = (Math.sign(o.x - catX) || 1) * 520;
+              o.vy = -320;
+              pop(o, 'HMPH', catX, K.catTop() - 14, '#ff9a9a', 800);
+            });
+            o.busyUntil = now + 1400;
+          } else {
+            // 아무 일 없었던 척 휘파람
+            sprite.play('toyPretend');
+            o.busyUntil = now + 2400;
+          }
         }
         return sprite.setMove(0);
       }
       if (catLift > 0 || now < (o.busyUntil || 0) || (held && held.o === o)) return sprite.setMove(0);
       // 마우스(사람) 쪽으로 어슬렁어슬렁. 가까우면 멈춰서 올려다본다
       const goal = mouseX == null ? catX : mouseX;
+      const dir0 = Math.sign(goal - catX);
+      // 조심하는 중이면 길 앞의 껍질을 보고 멈춘다 → 킁킁 → 폴짝 넘어간다. 너무 가까우면(발밑에 던져 넣으면) 피할 틈이 없다
+      const ahead = (o.x - catX) * dir0;
+      if (now < o.wary && dir0 && onFloor(o) && ahead > P * 0.28 && ahead < P * 0.75 && Math.abs(goal - catX) > ahead) {
+        sprite.setMove(0);
+        face(o.x);
+        if (!o.sniffed) {
+          o.sniffed = true;
+          sprite.setToyPose(null);
+          sprite.play('toySniff');
+          pop(o, '?', catX, K.catTop() - 12, '#ffd35c', 700);
+          o.busyUntil = now + 1300;
+          return;
+        }
+        // 폴짝! 껍질 너머로
+        o.sniffed = false;
+        catVy = -480;
+        catVx = dir0 * (ahead + P * 0.45) / 0.64;
+        catLift = 1;
+        sprite.play('toyLeap');
+        K.later(o, 750, () => {
+          if (toy !== o || catLift > 0) return;
+          sprite.play('toyProud');
+          pop(o, 'HEH', catX, K.catTop() - 12, '#ffffff', 700);
+        });
+        o.busyUntil = now + 2400;
+        return;
+      }
       const before = catX;
       if (walkTo(goal, dt, 0.55, P * 0.3) <= P * 0.3) {
         face(goal);
@@ -57467,19 +57445,12 @@ pet.ready();
       // 껍질을 밟았나 (지나가는 길에 껍질 한가운데가 있으면)
       const lo = Math.min(before, catX) - 3;
       const hi = Math.max(before, catX) + 3;
-      if (onFloor(o) && o.x >= lo && o.x <= hi && now > (o.cool || 0)) {
-        const dir = Math.sign(catX - before) || sprite.facing;
-        o.cool = now + 5000;
-        o.slide = { v: dir * 260, until: now + 1100 };
-        o.vx = -dir * 140;
-        sprite.setToyPose(null);
-        sprite.play('toySlip');
-        sfx('spin', 0.03);
-        pop(o, 'WHOOPS', catX, K.catTop() - 20, '#ffd35c', 900);
-        scored(o, now);
-      }
+      if (onFloor(o) && o.x >= lo && o.x <= hi && now > (o.cool || 0)) this.slip(o, now, Math.sign(catX - before) || sprite.facing, before);
     },
-    draw: commonDraw,
+    draw(ctx, o, D, now) {
+      if (o.slips > 0 && now < o.wary) ftext(ctx, `SLIP ${o.slips}`, o.x, o.y - o.half - 7 * D, D, 'rgba(255,211,92,0.85)');
+      commonDraw(ctx, o, D, now);
+    },
   };
 
   // ================= T19 캣휠 =================
@@ -57585,26 +57556,107 @@ pet.ready();
     '.KDDK....KDDK.',
     '..KK......KK..',
   ];
-  // 클릭하면 위이잉 켜지고 마우스를 따라 바닥을 누빈다. 고양이는 털을 곤두세우고 반대편 구석으로 줄행랑.
-  // 끄면 조심조심 다가와 킁킁
+  // 클릭하면 위이잉 켜지고 마우스를 따라 바닥을 누빈다. 끄면 조심조심 다가와 킁킁.
+  // 자꾸 켜면 고양이가 조금씩 용감해진다 (4차 다듬기, 2026-10-17):
+  //  겁쟁이(처음 두 번) — 털을 곤두세우고 반대편 구석으로 줄행랑
+  //  버티기(셋째·넷째) — 등을 세우고 하악! 너무 가까이 오면 한 발 물러선다
+  //  용감(다섯째부터) — 몸통 위에 폴짝 올라타 청소기를 타고 다닌다. 끄면 잠깐 더 앉았다가 뿌듯하게 내려온다
   C.vacuum = {
     cursor: true,
     start(o) {
-      Object.assign(o, { on: false, vx0: mouseX });
+      Object.assign(o, { on: false, vx0: mouseX, brave: 0, ride: false, boarding: false });
     },
     click(o) {
       o.on = !o.on;
       sfx(o.on ? 'spin' : 'pop', 0.03);
       pop(o, o.on ? 'VRRRR' : 'CLICK', mouseX, floorY() - 60, '#ffffff', 600);
+      if (o.on) {
+        o.brave++;
+        if (o.brave === 3 || o.brave === 5) pop(o, o.brave === 3 ? 'GRR' : 'BRAVE!', catX, K.catTop() - 14, '#ffd35c', 900);
+      } else if (o.ride) K.later(o, 900, () => this.hopOff(o));
+    },
+    // 몸통 가운데 (흡입구에서 몸통 쪽으로 19칸)
+    bodyX(o) {
+      return o.vx0 + (o.side || 1) * 19 * itemDot();
+    },
+    // 몸통 위에 앉았을 때 고양이 높이 (발이 몸통 윗면에 닿게)
+    rideLift() {
+      return (VAC_BODY.length - 1) * itemDot() + (H() - floorY()) - (PetSprite.GRID - PetSprite.util.GROUND - 1) * cellPx();
+    },
+    hopOff(o) {
+      if (!o.ride || toy !== o) return;
+      o.ride = false;
+      floating = false;
+      sprite.setToyPose(null);
+      catVy = -330;
+      catVx = (o.side || 1) * 120;
+      sprite.play('toyLeap');
+      K.later(o, 900, () => toy === o && catLift <= 0 && sprite.play('toyProud'));
+      o.busyUntil = performance.now() + 2800;
     },
     step(o, dt, now) {
       commonStep(o, dt, now);
       o.vx0 += (mouseX - o.vx0) * Math.min(1, dt * 6);
       const P = petPx();
+      if (o.ride) {
+        // 청소기를 타고 간다 (꺼져 있으면 그 위에 얌전히 앉아 있다)
+        catX = this.bodyX(o);
+        catLift = this.rideLift();
+        catVy = 0;
+        placeCat();
+        sprite.setMove(0);
+        sprite.setToyPose(o.on ? 'toyRide' : 'toySitOn');
+        return;
+      }
+      if (o.boarding) {
+        // 폴짝 뛰어올라 몸통 위로
+        const bx = this.bodyX(o);
+        catX += (bx - catX) * Math.min(1, dt * 10);
+        placeCat();
+        if (catVy > 0 && catLift <= this.rideLift() + 6) {
+          o.boarding = false;
+          o.ride = true;
+          floating = true;
+          sprite.cancel();
+          pop(o, 'RIDE!', bx, floorY() - P * 1.2, '#ffd35c', 900);
+          sfx('win', 0.03);
+          scored(o, now);
+        } else if (catLift <= 0) o.boarding = false;
+        return;
+      }
       if (catLift > 0) return sprite.setMove(0);
+      if (now < (o.busyUntil || 0)) return sprite.setMove(0);
       if (o.on) {
+        if (o.brave >= 5) {
+          // 용감해졌다: 몸통 쪽으로 쫓아가 폴짝 올라탄다
+          const bx = this.bodyX(o);
+          if (walkTo(bx, dt, 1.6, 4) <= P * 0.3 && Math.abs(bx - catX) <= P * 0.3) {
+            o.boarding = true;
+            sprite.setToyPose(null);
+            sprite.play('toyLeap');
+            catVy = -Math.sqrt(2 * 1500 * (this.rideLift() + P * 0.25));
+            catLift = 1;
+          }
+          return;
+        }
         // 털 뭉치가 빨려 들어간다
         if (Math.random() < dt * 12) (o.fur ||= []).push({ x: catX + rand(-P * 0.3, P * 0.3), y: K.catMidY() + rand(-10, 10), t: now });
+        if (o.brave >= 3) {
+          // 버틴다: 등을 세우고 하악. 너무 가까우면 한 발 물러선다
+          const away = Math.sign(catX - o.vx0) || 1;
+          if (Math.abs(catX - o.vx0) < P * 0.95) {
+            walkTo(catX + away * 40, dt, 1.3, 2);
+            return;
+          }
+          sprite.setMove(0);
+          face(o.vx0);
+          if (now > (o.hissAt || 0)) {
+            o.hissAt = now + 2400;
+            sprite.setToyPose(null);
+            sprite.play('toyHiss');
+          } else if (!sprite.action) sprite.setToyPose('toyHunt');
+          return;
+        }
         const [min, max] = lane();
         const far = o.vx0 < window.innerWidth / 2 ? max : min;
         if (Math.abs(catX - o.vx0) < P * 3 || Math.abs(catX - far) > 4) {
@@ -57619,32 +57671,39 @@ pet.ready();
         }
         return;
       }
-      // 꺼졌다… 슬금슬금 다가가 냄새를 맡는다
+      // 꺼졌다… 슬금슬금 다가가 냄새를 맡는다. 용감해졌으면 흡입구를 앞발로 톡톡
       o.fur = [];
-      if (now < (o.busyUntil || 0)) return sprite.setMove(0);
-      if (walkTo(o.vx0, dt, 0.45, P * 0.55) <= P * 0.55) {
+      if (walkTo(o.vx0, dt, 0.45 + Math.min(0.6, o.brave * 0.12), P * 0.55) <= P * 0.55) {
         face(o.vx0);
         if (now > (o.sniffAt || 0)) {
           o.sniffAt = now + 3500;
           sprite.setToyPose(null);
-          sprite.play('toySniff');
+          const pat = o.brave >= 3 && Math.random() < 0.5;
+          sprite.play(pat ? 'toyBat' : 'toySniff');
+          if (pat) pop(o, 'PAT', o.vx0, floorY() - 24, '#ffffff', 500);
           o.busyUntil = now + 1200;
         } else sprite.setToyPose(null);
       }
     },
+    end(o) {
+      if (o.ride) floating = false;
+    },
     // 캐니스터 청소기 (상점 그림처럼): 바닥을 훑는 흡입구 → 금속 대 → 손잡이 → 주름 호스 → 바퀴 달린 빨간 몸통.
-    // 흡입구가 마우스를 따라가고 몸통은 고양이 반대쪽에서 끌려온다. 켜면 몸통이 달달 떨고 흡입구 앞 공기가 빨려 든다
+    // 흡입구가 마우스를 따라가고 몸통은 고양이 반대쪽에서 끌려온다. 켜면 몸통이 달달 떨고 흡입구 앞 공기가 빨려 든다.
+    // 몸통은 고양이 뒤에 그린다 (올라타 있을 때 고양이가 몸통 위에 보이게)
     draw(ctx, o, D, now) {
       const t = now / 1000;
       const x = o.vx0;
       const fy = floorY();
       const want = Math.sign(x - catX) || 1;
-      if (o.side == null || Math.abs(x - catX) > petPx() * 0.6) o.side = want;
+      if (!o.ride && !o.boarding && (o.side == null || Math.abs(x - catX) > petPx() * 0.6)) o.side = want;
       const s = o.side; // 몸통이 있는 쪽
       const shake = o.on ? (Math.floor(t * 30) % 2 ? D : 0) : 0;
       // 몸통 (바퀴가 바닥에 닿게)
       const bx = x + s * 19 * D;
-      stamp(ctx, VAC_BODY, bx, fy - (VAC_BODY.length * D) / 2 - shake, D, s < 0);
+      const bw = (VAC_BODY[0].length + 2) * D;
+      const bh = (VAC_BODY.length + 2) * D;
+      FT.underCat(ctx, (g) => stamp(g, VAC_BODY, bx, fy - (VAC_BODY.length * D) / 2 - shake, D, s < 0), [bx - bw / 2, fy - bh, bw, bh + D]);
       // 호스: 손잡이 아래에서 처지며 몸통 옆구리로
       const hx = x + s * 7 * D;
       const hy = fy - 17 * D;
@@ -57681,19 +57740,24 @@ pet.ready();
         }
         o.fur = (o.fur || []).filter((fu) => now - fu.t < 600);
       }
+      // 용감 단계: 고양이 머리 위에 작은 별 (몇 번 더 켜면 올라탄다)
+      if (o.brave >= 3 && o.brave < 5 && o.on && !o.ride) ftext(ctx, o.brave === 3 ? '!' : '!!', catX, K.catTop() - 8 * D, D, '#ffd35c');
       commonDraw(ctx, o, D, now);
     },
   };
 
   // ================= T23 박스 탑 쌓기 =================
-  // 상자 탑을 누를 때마다 상자가 한 층씩 (최대 5층). 두 층이 넘으면 고양이가 꼭대기로 뛰어올라 앉았다가… 와르르
+  // 상자 탑을 누를 때마다 상자가 한 층씩 (최대 7층). 두 층이 넘으면 고양이가 꼭대기로 뛰어올라 앉았다가… 와르르.
+  // 4차 다듬기 (2026-10-17): 네 층부터 탑이 살랑살랑 흔들리고, 다섯 층부터는 뛰다가 모자라 미끄러질 때도 있다 (꼭대기 상자가 툭).
+  // 일곱 층 꼭대기에 성공하면 왕관을 쓰고 뿌듯. 가끔은 와르르 대신 멋지게 뛰어내린다
   // 골판지 상자 옆면: 위 모서리가 밝고, 날개 이음매에서 테이프가 내려오고, 한쪽에 '이쪽 위로' 화살표 도장
   const BOX = ['KKKKKKKKKKKKKK', 'KSSSSSwwSSSSSK', 'KTTTTTwwTTTTtK', 'KTTTTTwwTTTTtK', 'KTTTTTTTTTTTtK', 'KTTCTTTTTTTTtK', 'KTCCCTTTTTTTtK', 'KTTCTTTTTTTTtK', 'KttttttttttttK', 'KKKKKKKKKKKKKK'];
   // 층마다 조금씩 삐뚤게 쌓는다 (손으로 대충 올린 느낌). 칸 수
-  const BOX_JIT = [0, 1, -1, 1, 0];
+  const BOX_JIT = [0, 1, -1, 1, 0, -1, 1];
+  const BOX_MAX = 7;
   C.boxtower = {
     start(o, side) {
-      Object.assign(o, { bx: clamp(catX + side * petPx() * 1.1, 40, window.innerWidth - 40), n: 1, tumble: [] });
+      Object.assign(o, { bx: clamp(catX + side * petPx() * 1.1, 40, window.innerWidth - 40), n: 1, tumble: [], wobAt: 0 });
     },
     // 위아래 상자는 테두리 한 줄을 겹쳐 쌓는다 (이음매가 두 줄로 굵어지지 않게)
     boxH: () => (BOX.length - 1) * itemDot(),
@@ -57702,14 +57766,41 @@ pet.ready();
     perchLift(top) {
       return top + (H() - floorY()) - (PetSprite.GRID - PetSprite.util.GROUND - 1) * cellPx();
     },
+    // i 층이 옆으로 흔들린 칸 수 (네 층부터 위로 갈수록 크게. 툭 쳐서 흔들리면 잠깐 크게)
+    sway(o, i, now) {
+      const big = now - o.wobAt < 900 ? 2.2 * (1 - (now - o.wobAt) / 900) : 0;
+      const amp = Math.max(0, o.n - 3) * 0.45 + big;
+      return amp ? Math.round(Math.sin(now / 380 + i * 0.3) * amp * (i / Math.max(1, o.n - 1))) : 0;
+    },
     wantsMouse(o, e) {
       return inBox(e, o.bx, floorY(), this.boxW() + 8, this.boxH() * o.n + 8);
     },
     down() {},
     click(o) {
-      if (o.perched || o.tumble.length || o.n >= 5) return;
+      const now = performance.now();
+      if (o.perched) {
+        // 앉아 있는데 탑을 건드리면 흔들흔들
+        o.wobAt = now;
+        sfx('tick', 0.02);
+        return;
+      }
+      if (o.tumble.length || o.n >= BOX_MAX) return;
       o.n++;
+      o.wobAt = now;
       sfx('pop', 0.02);
+      if (o.n === BOX_MAX) pop(o, 'MAX!', o.bx, floorY() - this.boxH() * o.n - 24, '#ffd35c', 800);
+    },
+    // 와르르: 위에서부터 from 층까지 상자가 무너진다
+    crumble(o, now, from = 0) {
+      for (let i = from; i < o.n; i++) o.tumble.push({ x: o.bx, y: floorY() - this.boxH() * (i + 0.5), vx: rand(-220, 220), vy: rand(-300, -80), rot: 0, vr: rand(-8, 8) });
+      if (from === 0) {
+        o.resetAt = now + 2600;
+        o.n = 0; // 다 무너졌다. 잠시 뒤 바닥 상자 하나부터 다시
+      } else {
+        o.n = from;
+        o.resetAt = now + 1600;
+      }
+      o.fall = from > 0;
     },
     step(o, dt, now) {
       commonStep(o, dt, now);
@@ -57724,40 +57815,49 @@ pet.ready();
       }
       if (o.tumble.length && now > o.resetAt) {
         o.tumble = [];
-        o.n = 1;
+        if (!o.fall) o.n = 1;
+        o.fall = false;
       }
       if (o.perched) {
         catLift = this.perchLift(top);
-        catX = o.bx;
+        catX = o.bx + this.sway(o, o.n, now) * itemDot();
         placeCat();
-        if (now > o.perched) {
-          // 와르르!
-          o.perched = 0;
-          floating = false;
-          catVy = 0;
-          sprite.setToyPose(null);
-          sprite.play('startle');
-          sfx('boom', 0.03);
-          pop(o, 'CRASH', o.bx, floorY() - top - 20, '#ffffff', 900);
-          for (let i = 0; i < o.n; i++) o.tumble.push({ x: o.bx, y: floorY() - this.boxH() * (i + 0.5), vx: rand(-220, 220), vy: rand(-300, -80), rot: 0, vr: rand(-8, 8) });
-          o.resetAt = now + 2600;
-          o.busyUntil = now + 2800;
-          scored(o, now);
-        }
+        if (now > o.perched) this.endPerch(o, now, top);
         return sprite.setMove(0);
       }
       if (catLift > 0) {
         // 뛰어오르는 중: 탑 위로 끌려간다. 꼭대기보다 높이 올라갔으면 거기 앉는다
         sprite.setMove(0);
-        catX = clamp(catX + Math.sign(o.bx - catX) * Math.min(260 * dt, Math.abs(o.bx - catX)), ...lane());
+        if (o.climbing) catX = clamp(catX + Math.sign(o.bx - catX) * Math.min(260 * dt, Math.abs(o.bx - catX)), ...lane());
         placeCat();
         const perch = this.perchLift(top);
-        if (o.climbing && catVy > 0 && catLift <= perch + 6 && catLift >= perch - 12 && Math.abs(catX - o.bx) < 8) {
+        if (o.climbing && !o.miss && catVy > 0 && catLift <= perch + 6 && catLift >= perch - 12 && Math.abs(catX - o.bx) < 8) {
           o.climbing = false;
-          o.perched = now + 3500 + Math.random() * 2000;
+          const king = o.n === BOX_MAX;
+          o.perched = now + (king ? 5000 : 3500 + Math.random() * 2000);
+          o.king = king;
           floating = true;
-          sprite.setToyPose('toyPerch');
+          sprite.setToyPose(king ? 'toyKing' : 'toyPerch');
+          if (king) {
+            sfx('win', 0.04);
+            pop(o, 'KING!', o.bx, floorY() - top - P - 10, '#ffd35c', 1400);
+            burst(o, o.bx, floorY() - top - P * 0.6, 20, ['#ffd35c', '#fff3bf', '#ff9bb8'], 220, 1000);
+            scored(o, now);
+          }
         }
+        return;
+      }
+      if (o.climbing && o.miss) {
+        // 모자랐다: 탑 옆구리에 부딪혀 주르륵 → 어질어질, 탑이 흔들리고 꼭대기 상자가 툭
+        o.climbing = false;
+        o.miss = false;
+        sprite.setToyPose(null);
+        sprite.play('toyDizzy');
+        sfx('bonk', 0.03);
+        pop(o, 'OOF', catX, K.catTop() - 16, '#ff9a9a', 800);
+        o.wobAt = now;
+        o.busyUntil = now + 2200;
+        if (o.n >= 5 && Math.random() < 0.6) this.crumble(o, now, o.n - 1);
         return;
       }
       o.climbing = false;
@@ -57765,14 +57865,56 @@ pet.ready();
         if (!o.tumble.length && o.n < 2 && walkTo(o.bx + (Math.sign(catX - o.bx) || 1) * P * 0.6, dt, 0.6, 3) <= 3) face(o.bx);
         return sprite.setMove(0);
       }
-      // 탑 옆에 서서 올려다보다가 폴짝
+      // 탑 옆에 서서 올려다보다가 폴짝 (높을수록 오래 망설인다)
       if (walkTo(o.bx + (Math.sign(catX - o.bx) || 1) * P * 0.5, dt, 0.8, 3) > 3) return;
       face(o.bx);
-      if (now > o.pounceUntil) {
+      if (!o.eyeAt) o.eyeAt = now;
+      const think = 400 + Math.max(0, o.n - 3) * 450;
+      if (now > o.pounceUntil && now - o.eyeAt > think) {
         o.pounceUntil = now + 2000;
+        o.eyeAt = 0;
         o.climbing = true;
-        leap(top + P * 0.2);
-      } else sprite.setToyPose('toyChatter');
+        o.miss = o.n >= 5 && Math.random() < (o.n - 4) * 0.15;
+        if (o.miss) {
+          leap(top * 0.55);
+          // 모자라게 뛰면 탑 쪽으로 반만 다가간다
+          catVx = Math.sign(o.bx - catX) * 60;
+        } else {
+          // leap() 은 고양이 키의 1.6배까지만 뛴다. 높은 탑은 그 이상 뛰어야 해서 직접 띄운다
+          catVy = -Math.sqrt(2 * 1500 * (top + P * 0.2));
+          catLift = 0.5;
+          sprite.setToyPose(null);
+          sprite.setMove(0);
+          sprite.play('toyLeap');
+        }
+      } else sprite.setToyPose(o.n >= 5 && now - (o.eyeAt || now) > think * 0.5 ? 'toyWiggle' : 'toyChatter');
+    },
+    // 앉아 있다가: 와르르, 또는 탑은 그대로 두고 멋지게 뛰어내리기
+    endPerch(o, now, top) {
+      o.perched = 0;
+      floating = false;
+      catVy = 0;
+      sprite.setToyPose(null);
+      // 왕관이면 반쯤은, 아니면 가끔은 무너뜨리지 않고 멋지게 뛰어내린다
+      if (Math.random() < (o.king ? 0.5 : 0.25)) {
+        const side = Math.sign(catX - window.innerWidth / 2) || 1;
+        catVy = -260;
+        catVx = -side * 150;
+        sprite.play('toyLeap');
+        K.later(o, 900, () => toy === o && catLift <= 0 && sprite.play('toyProud'));
+        pop(o, o.king ? 'TA-DA' : 'HUP', o.bx, floorY() - top - 30, '#ffd35c', 900);
+        o.busyUntil = now + 3200;
+        scored(o, now);
+        return;
+      }
+      // 와르르!
+      sprite.play('startle');
+      sfx('boom', 0.03);
+      pop(o, 'CRASH', o.bx, floorY() - top - 20, '#ffffff', 900);
+      burst(o, o.bx, floorY() - top / 2, 14, ['#c48b56', '#f3d9b1', '#d6cfc4'], 220, 900);
+      this.crumble(o, now, 0);
+      o.busyUntil = now + 2800;
+      scored(o, now);
     },
     end(o) {
       if (o.perched) floating = false;
@@ -57780,11 +57922,12 @@ pet.ready();
     draw(ctx, o, D, now) {
       const bh = this.boxH();
       const full = BOX.length * D;
-      // 쌓인 탑: 층마다 살짝 삐뚤게, 홀수 층은 좌우를 뒤집어 도장 위치가 번갈아. 고양이가 탑 옆·앞에 서면 고양이 뒤로 보인다
-      if (!o.tumble.length) {
-        const w = this.boxW() + 4 * D;
+      // 쌓인 탑: 층마다 살짝 삐뚤게, 홀수 층은 좌우를 뒤집어 도장 위치가 번갈아. 네 층부터는 살랑살랑.
+      // 고양이가 탑 옆·앞에 서면 고양이 뒤로 보인다
+      if (o.n) {
+        const w = this.boxW() + 10 * D;
         FT.underCat(ctx, (g) => {
-          for (let i = 0; i < o.n; i++) stamp(g, BOX, o.bx + BOX_JIT[i % BOX_JIT.length] * D, floorY() - bh * i - full / 2, D, i % 2 === 1);
+          for (let i = 0; i < o.n; i++) stamp(g, BOX, o.bx + (BOX_JIT[i % BOX_JIT.length] + this.sway(o, i, now)) * D, floorY() - bh * i - full / 2, D, i % 2 === 1);
         }, [o.bx - w / 2, floorY() - bh * o.n - full, w, bh * o.n + full + D]);
       }
       for (const b of o.tumble) {
@@ -57794,6 +57937,7 @@ pet.ready();
         stamp(ctx, BOX, 0, 0, D);
         ctx.restore();
       }
+      if (o.n >= 2 && !o.perched && !o.tumble.length) ftext(ctx, `${o.n}F`, o.bx, floorY() - bh * o.n - full / 2 - 6 * D, D, o.n === BOX_MAX ? '#ffd35c' : 'rgba(255,255,255,0.8)');
       commonDraw(ctx, o, D, now);
     },
   };
@@ -57828,34 +57972,105 @@ pet.ready();
     ],
   ];
   const FISH = ['..KKKK.K.', '.KBBBBKBK', 'KBWKBBBBK', '.KbbbbKBK', '..KKKK.K.'];
+  // 4차 다듬기 (2026-10-17): 모자에서 나오는 것이 늘었다 — 태엽 쥐 · 꽃다발 · 용수철 뱀 · 색종이 · 아주 가끔 황금 물고기
+  const GOLD_FISH = ['..KKKK.K.', '.KYYYYKYK', 'KYWKYYYYK', '.KyyyyKYK', '..KKKK.K.'];
+  const HAT_MOUSE = ['....KK...', '...KPGK..', '.KKKGGKK.', 'KGGGGGKGK', 'KGGGGGGGP', '.KKKKKKK.'];
+  const FLOWERS = ['.R.Y.P.', 'RYRPYPR', '.RNYNP.', '..NNN..', '...N...', '..KNK..', '..KTK..', '..KKK..'];
+  const SNAKE_HEAD = ['.KKKKK.', 'KNWKNWK', 'KNNNNNK', 'KNRRRNK', '.KKKKK.'];
+  // [무엇, 확률]
+  const HAT_ODDS = [['fish', 0.22], ['rabbit', 0.15], ['pigeon', 0.14], ['mouse', 0.12], ['flowers', 0.1], ['snake', 0.08], ['confetti', 0.07], ['dud', 0.08], ['gold', 0.04]];
   C.magichat = {
     start(o, side) {
-      Object.assign(o, { hx: clamp(catX + side * petPx() * 1.1, 40, window.innerWidth - 40), actor: null, bounce: 0 });
+      Object.assign(o, { hx: clamp(catX + side * petPx() * 1.1, 40, window.innerWidth - 40), actor: null, bounce: 0, last: null });
     },
     wantsMouse(o, e) {
       return inBox(e, o.hx, floorY(), HAT[0].length * (itemDot() + 1) + 8, HAT.length * (itemDot() + 1) + 10);
     },
     down() {},
+    // 무엇이 나올까. 꽝은 두 번 연달아 안 나온다
+    pick(o) {
+      for (;;) {
+        let r = Math.random();
+        let k = HAT_ODDS[0][0];
+        for (const [kind, p] of HAT_ODDS) {
+          if (r < p) {
+            k = kind;
+            break;
+          }
+          r -= p;
+        }
+        if (!(k === 'dud' && o.last === 'dud')) return k;
+      }
+    },
     click(o) {
       if (o.actor) return;
       const now = performance.now();
       o.bounce = now;
-      const r = Math.random();
       const D = itemDot();
       const y = floorY() - HAT.length * (D + 1);
-      if (r < 0.35) o.actor = { kind: 'fish', x: o.hx, y, vx: rand(-120, 120), vy: -620 };
-      else if (r < 0.6) o.actor = { kind: 'rabbit', x: o.hx, y: floorY() - 9 * D, dir: Math.random() < 0.5 ? -1 : 1, hop: 0 };
-      else if (r < 0.85) o.actor = { kind: 'pigeon', x: o.hx, y, vx: (Math.random() < 0.5 ? -1 : 1) * 140, vy: -140 };
-      else {
-        o.actor = { kind: 'dud', t: now };
-        pop(o, 'POOF', o.hx, y - 20, '#cccccc', 800);
-        burst(o, o.hx, y, 10, ['#d6cfc4', '#ffffff'], 120, 700);
-        if (catLift <= 0) sprite.play('toyDeadpan');
-        o.busyUntil = now + 1800;
+      const kind = this.pick(o);
+      o.last = kind;
+      const away = Math.sign(o.hx - catX) || 1;
+      switch (kind) {
+        case 'fish':
+        case 'gold':
+          o.actor = { kind, x: o.hx, y, vx: rand(-120, 120), vy: -620 };
+          if (kind === 'gold') {
+            sfx('win', 0.03);
+            pop(o, 'WOW', o.hx, y - 30, '#ffd35c', 900);
+          }
+          break;
+        case 'rabbit':
+          o.actor = { kind, x: o.hx, y: floorY() - 9 * D, dir: Math.random() < 0.5 ? -1 : 1, hop: 0 };
+          break;
+        case 'pigeon':
+          o.actor = { kind, x: o.hx, y, vx: (Math.random() < 0.5 ? -1 : 1) * 140, vy: -140 };
+          break;
+        case 'mouse':
+          // 태엽 쥐가 툭 떨어져 고양이 반대쪽으로 쪼르르
+          o.actor = { kind, x: o.hx, y, vx: away * 230, vy: -260, turn: now + rand(600, 1400) };
+          break;
+        case 'flowers':
+          // 꽃다발이 모자 옆에 툭. 고양이가 킁킁… 에취!
+          o.actor = { kind, x: o.hx, y, vx: -away * 90, vy: -360, t: now };
+          break;
+        case 'snake':
+          // 용수철 뱀이 뾰옹! 깜짝 놀라 뒤로 펄쩍
+          o.actor = { kind, t: now };
+          pop(o, 'BOING', o.hx, y - 50, '#9fe3c8', 800);
+          sfx('spin', 0.03);
+          if (catLift <= 0 && Math.abs(catX - o.hx) < petPx() * 1.6) {
+            sprite.setToyPose(null);
+            sprite.play('startle');
+            catVx = -away * 260;
+            catVy = -380;
+            catLift = 1;
+          }
+          o.busyUntil = now + 1600;
+          break;
+        case 'confetti':
+          // 짜잔! 색종이가 펑
+          o.actor = { kind, t: now };
+          pop(o, 'TA-DA', o.hx, y - 30, '#ffd35c', 1000);
+          burst(o, o.hx, y, 34, ['#e8534a', '#ffd65a', '#6fb0ea', '#78c46a', '#ff9bb8', '#b784f5'], 300, 1300);
+          sfx('win', 0.03);
+          if (catLift <= 0) {
+            sprite.setToyPose(null);
+            sprite.play('toyYay');
+          }
+          o.busyUntil = now + 1400;
+          break;
+        default:
+          o.actor = { kind: 'dud', t: now };
+          pop(o, 'POOF', o.hx, y - 20, '#cccccc', 800);
+          burst(o, o.hx, y, 10, ['#d6cfc4', '#ffffff'], 120, 700);
+          // 꽝이면 실망하거나, 모자 속을 기웃기웃
+          if (catLift <= 0) sprite.play(Math.random() < 0.5 ? 'toyDeadpan' : 'toySniff');
+          o.busyUntil = now + 1800;
       }
-      if (o.actor.kind !== 'dud') {
+      if (!['dud', 'snake', 'confetti'].includes(kind)) {
         sfx('pop', 0.03);
-        burst(o, o.hx, y, 8, ['#ffd35c', '#ffffff'], 160, 600);
+        burst(o, o.hx, y, 8, kind === 'gold' ? ['#ffd35c', '#fff3bf', '#ffffff'] : ['#ffd35c', '#ffffff'], 160, 600);
       }
     },
     step(o, dt, now) {
@@ -57870,15 +58085,29 @@ pet.ready();
         }
         return;
       }
-      if (a.kind === 'dud') {
-        if (now - a.t > 1800) o.actor = null;
+      if (a.kind === 'dud' || a.kind === 'confetti' || a.kind === 'snake') {
+        if (now - a.t > (a.kind === 'snake' ? 1500 : 1800)) o.actor = null;
         return sprite.setMove(0);
       }
-      if (a.kind === 'fish') {
+      const fall = (drag) => {
         a.vy += 1500 * dt;
-        a.x += a.vx * dt;
+        a.x = clamp(a.x + a.vx * dt, 8, window.innerWidth - 8);
         a.y = Math.min(floorY() - 4, a.y + a.vy * dt);
-        if (a.y >= floorY() - 4) a.vx *= 0.8;
+        if (a.y >= floorY() - 4) a.vx *= drag;
+      };
+      if (a.kind === 'fish' || a.kind === 'gold') fall(0.8);
+      else if (a.kind === 'flowers') fall(0.6);
+      else if (a.kind === 'mouse') {
+        // 바닥에 닿으면 쪼르르. 가끔 방향을 홱 바꾼다
+        a.vy += 1500 * dt;
+        a.y = Math.min(floorY() - 4, a.y + a.vy * dt);
+        if (a.y >= floorY() - 4 && now > a.turn) {
+          a.vx = (Math.random() < 0.5 ? -1 : 1) * rand(180, 260);
+          a.turn = now + rand(500, 1300);
+        }
+        a.x += a.vx * dt;
+        if (a.x < 10 || a.x > window.innerWidth - 10) a.vx = -a.vx;
+        a.x = clamp(a.x, 10, window.innerWidth - 10);
       } else if (a.kind === 'rabbit') {
         // 깡충깡충 도망
         a.x += a.dir * 150 * dt;
@@ -57890,20 +58119,49 @@ pet.ready();
         a.vy -= 20 * dt;
         if (a.y < -30 || a.x < -30 || a.x > window.innerWidth + 30) o.actor = null;
       }
+      if (catLift > 0 || now < (o.busyUntil || 0)) return sprite.setMove(0);
+      if (a.kind === 'flowers') {
+        // 꽃다발: 다가가 킁킁 → 에취
+        if (a.y < floorY() - 5) return sprite.setMove(0);
+        if (walkTo(a.x + (Math.sign(catX - a.x) || 1) * petPx() * 0.3, dt, 0.7, 3) > 3) return;
+        face(a.x);
+        sprite.setToyPose(null);
+        sprite.play('toyAchoo');
+        o.busyUntil = now + 1600;
+        K.later(o, 900, () => {
+          if (o.actor !== a) return;
+          burst(o, a.x, a.y - 6, 12, ['#e8534a', '#ffd65a', '#ff9bb8', '#78c46a'], 200, 900);
+          o.actor = null;
+        });
+        scored(o, now);
+        return;
+      }
       const tg = { x: a.x, y: a.kind === 'rabbit' ? floorY() - 10 - Math.abs(Math.sin(a.hop)) * 16 : a.y };
       chase(o, tg, dt, now, () => {
-        if (a.kind === 'fish') {
-          o.actor = null;
+        o.actor = null;
+        if (a.kind === 'fish' || a.kind === 'gold') {
           sprite.play('nibble');
           o.busyUntil = now + 1300;
-          pop(o, 'YUM', catX, K.catTop() - 16, '#ffd35c', 800);
+          pop(o, a.kind === 'gold' ? 'GOLDEN!' : 'YUM', catX, K.catTop() - 16, '#ffd35c', 900);
+          if (a.kind === 'gold') {
+            // 황금 물고기는 한 번 더 신나게
+            burst(o, catX, K.catTop(), 24, ['#ffd35c', '#fff3bf', '#ffffff'], 240, 1100);
+            K.later(o, 1300, () => toy === o && catLift <= 0 && sprite.play('toyYay'));
+            o.busyUntil = now + 2600;
+            scored(o, now);
+          }
+        } else if (a.kind === 'mouse') {
+          sprite.setToyPose(null);
+          sprite.play('toyPin');
+          o.busyUntil = now + 1600;
+          sfx('squeak', 0.03);
+          pop(o, 'SQUEAK', tg.x, tg.y - 16, '#ffffff', 700);
         } else {
-          o.actor = null;
           burst(o, tg.x, tg.y, 10, a.kind === 'rabbit' ? ['#ffffff', '#ff9bb8'] : ['#8f95a0', '#ffffff'], 160, 600);
           pop(o, 'POOF', tg.x, tg.y - 16, '#ffffff', 700);
         }
         scored(o, now);
-      }, { fast: a.kind === 'rabbit' ? 1.4 : 1 });
+      }, { fast: a.kind === 'rabbit' || a.kind === 'mouse' ? 1.4 : 1, noLeap: a.kind === 'mouse' });
     },
     draw(ctx, o, D, now) {
       const t = now / 1000;
@@ -57912,11 +58170,32 @@ pet.ready();
       // 고양이가 모자 옆에 바짝 붙어 앉으면 모자가 고양이 뒤로 보이게
       const hw = (HAT[0].length + 2) * S;
       const hh = (HAT.length + 4) * S;
-      FT.underCat(ctx, (g) => stamp(g, HAT, o.hx, floorY() - (HAT.length * S) / 2 + b, S), [o.hx - hw / 2, floorY() - hh, hw, hh + S]);
       const a = o.actor;
+      // 용수철 뱀: 모자에서 지그재그 용수철이 쭉 솟았다가 출렁출렁 들어간다
+      if (a && a.kind === 'snake') {
+        const k = (now - a.t) / 1500;
+        const h = Math.round((k < 0.12 ? k / 0.12 : k > 0.8 ? (1 - k) / 0.2 : 1 + Math.sin((k - 0.12) * 30) * 0.12 * (1 - k)) * 22);
+        const y0 = floorY() - HAT.length * S + S;
+        for (let i = 0; i < h; i++) {
+          const c = i % 4 < 2 ? -1 : 1; // 지그재그 용수철 (세 칸 굵기, 줄마다 밝게·어둡게)
+          for (let dx = -1; dx <= 1; dx++) FT.dotAt(ctx, o.hx + (c + dx) * D, y0 - i * D, D, Math.abs(dx) === 1 && i % 2 ? '#2b1a10' : i % 2 ? '#4b8f43' : '#78c46a');
+        }
+        stamp(ctx, SNAKE_HEAD, o.hx, y0 - h * D - 2 * D, D);
+      }
+      FT.underCat(ctx, (g) => stamp(g, HAT, o.hx, floorY() - (HAT.length * S) / 2 + b, S), [o.hx - hw / 2, floorY() - hh, hw, hh + S]);
       if (a && a.kind === 'fish') stamp(ctx, FISH, a.x, a.y, D, a.vx < 0);
+      if (a && a.kind === 'gold') {
+        stamp(ctx, GOLD_FISH, a.x, a.y, D, a.vx < 0);
+        if (Math.floor(t * 8) % 2) FT.dotAt(ctx, a.x + Math.sin(t * 13) * 8, a.y + Math.cos(t * 9) * 6, D, '#fff3bf');
+      }
       if (a && a.kind === 'rabbit') stamp(ctx, RABBIT, a.x, a.y - Math.abs(Math.sin(a.hop)) * 16, D, a.dir < 0);
       if (a && a.kind === 'pigeon') stamp(ctx, PIGEON[Math.floor(t * 8) % 2], a.x, a.y, D, a.vx < 0);
+      if (a && a.kind === 'mouse') {
+        stamp(ctx, HAT_MOUSE, a.x, a.y - 2 * D, D, a.vx < 0);
+        const back = a.vx < 0 ? 1 : -1;
+        FT.line(ctx, a.x + back * 5 * D, a.y - D, a.x + back * 8 * D, a.y - (Math.floor(t * 10) % 2 ? 3 : 1) * D, D, '#ff9bb8');
+      }
+      if (a && a.kind === 'flowers') stamp(ctx, FLOWERS, a.x, a.y - 3 * D, D);
       commonDraw(ctx, o, D, now);
     },
   };
@@ -58042,7 +58321,7 @@ pet.ready();
   root.TOY_CUSTOM = Object.assign(root.TOY_CUSTOM || {}, C);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/toyplay3.js */
 // 2차 장난감 동작 (3/3): 눈덩이, RC 쥐 자동차, UFO, 방울 달린 막대 새, 공 발사기, 줄넘기, 고양이 전용 노트북
 (function (root) {
@@ -58147,16 +58426,35 @@ pet.ready();
   };
 
   // ================= T31 RC 쥐 자동차 =================
-  // 쥐 모양 자동차가 마우스 쪽으로 달려간다. 클릭하면 부스터! 고양이가 덮치면 뒤집혀서 바퀴만 헛돈다
+  // 쥐 모양 자동차가 마우스 쪽으로 달려간다. 클릭하면 부스터! 고양이가 덮치면 뒤집혀서 바퀴만 헛돈다.
+  // 4차 다듬기 (2026-10-17): 부스터로 벽에 꽝 박으면 혼자 뒤집힌다. 뒤집혔을 때 누르면 통 튀어 바로 서고, 그 위에 앉아 있던 고양이는 화들짝.
+  // 세 번 잡을 때마다 고양이가 차에 올라타 마우스를 따라 신나게 달린다 (그동안 누르면 부스터)
   const CAR = ['....KK.......', '...KPPK......', '..KKGGKKKK...', '.KGGGGGGGGKK.', 'KGGGGGGGGKGGK', 'KGGGGGGGGGGGP', 'KKKKKKKKKKKKK', '.KDK....KDK..'];
   C.rccar = {
     cursor: true,
     start(o, side) {
-      Object.assign(o, { cx: clamp(catX + side * petPx() * 1.5, 30, window.innerWidth - 30), cv: 0, flipped: 0, boost: 0 });
+      Object.assign(o, { cx: clamp(catX + side * petPx() * 1.5, 30, window.innerWidth - 30), cv: 0, flipped: 0, boost: 0, caught: 0, ride: 0, hopAt: 0 });
+    },
+    // 차 지붕에 앉았을 때 고양이 높이
+    rideLift() {
+      return (CAR.length - 2) * itemDot() + (H() - floorY()) - (PetSprite.GRID - PetSprite.util.GROUND - 1) * cellPx();
     },
     click(o) {
-      if (o.flipped) return;
-      o.boost = performance.now() + 900;
+      const now = performance.now();
+      if (o.flipped) {
+        // 통! 튀어서 바로 선다. 위에 앉아 있던 고양이는 깜짝
+        o.flipped = 0;
+        o.hopAt = now;
+        sfx('spin', 0.02);
+        pop(o, 'BOING', o.cx, floorY() - 40, '#9fe3c8', 700);
+        if (catLift <= 0 && Math.abs(catX - o.cx) < petPx() * 0.4) {
+          sprite.setToyPose(null);
+          sprite.play('startle');
+          o.busyUntil = now + 900;
+        }
+        return;
+      }
+      o.boost = now + 900;
       sfx('spin', 0.02);
     },
     step(o, dt, now) {
@@ -58165,16 +58463,49 @@ pet.ready();
       if (o.flipped && now > o.flipped) o.flipped = 0;
       if (!o.flipped) {
         const want = mouseX == null ? o.cx : mouseX;
-        const top = now < o.boost ? 420 : 170;
+        const top = now < o.boost ? 420 : o.ride ? 260 : 170;
         const acc = Math.sign(want - o.cx) * 900;
         o.cv = clamp(o.cv + acc * dt, -top, top);
         if (Math.abs(want - o.cx) < 12) o.cv *= Math.pow(0.02, dt);
-        o.cx = clamp(o.cx + o.cv * dt, 16, W - 16);
+        const nx = clamp(o.cx + o.cv * dt, 16, W - 16);
+        // 부스터로 벽에 꽝 → 혼자 뒤집힌다 (고양이를 태우고 있을 땐 멈추기만)
+        if ((nx <= 16 || nx >= W - 16) && Math.abs(o.cv) > 300 && !o.ride) {
+          o.flipped = now + 2500;
+          pop(o, 'BONK', nx, floorY() - 40, '#ff9a9a', 700);
+          burst(o, nx, floorY() - 6, 6, ['#d3cabb', '#565d69'], 140, 500);
+          sfx('bonk', 0.03);
+          o.cv = 0;
+        }
+        if (nx <= 16 || nx >= W - 16) o.cv = 0;
+        o.cx = nx;
+      }
+      if (o.ride) {
+        // 태우고 달린다
+        catX = o.cx;
+        catLift = this.rideLift();
+        catVy = 0;
+        placeCat();
+        sprite.setMove(0);
+        sprite.setToyPose('toyRide');
+        if (Math.abs(o.cv) > 120 && Math.random() < dt * 14) burst(o, o.cx - Math.sign(o.cv) * 8 * itemDot(), floorY() - 2, 1, ['#d6cfc4'], 60, 400);
+        if (now > o.ride) {
+          // 폴짝 내려와 뿌듯
+          o.ride = 0;
+          floating = false;
+          sprite.setToyPose(null);
+          catVy = -320;
+          catVx = -(Math.sign(o.cv) || 1) * 120;
+          sprite.play('toyLeap');
+          K.later(o, 800, () => toy === o && catLift <= 0 && sprite.play('toyProud'));
+          o.busyUntil = now + 2600;
+        }
+        return;
       }
       if (K.landed(o, now)) return;
+      if (catLift > 0 || now < (o.busyUntil || 0)) return sprite.setMove(0);
       if (o.flipped) {
         // 뒤집힌 차 위에 앉아 의기양양
-        if (catLift <= 0 && walkTo(o.cx, dt, 1, 4) <= 4) {
+        if (walkTo(o.cx, dt, 1, 4) <= 4) {
           sprite.setMove(0);
           sprite.setToyPose('toySitOn');
         }
@@ -58182,17 +58513,31 @@ pet.ready();
       }
       sprite.setToyPose(null);
       chase(o, { x: o.cx, y: floorY() - 6 }, dt, now, () => {
+        o.caught++;
+        scored(o, now);
+        if (o.caught % 3 === 0) {
+          // 올라탄다!
+          o.ride = now + 4500;
+          floating = true;
+          sprite.cancel();
+          sfx('win', 0.03);
+          pop(o, 'RIDE!', o.cx, floorY() - 50, '#ffd35c', 900);
+          return;
+        }
         o.flipped = now + 2800;
         o.cv = 0;
         sfx('bonk', 0.03);
         pop(o, 'FLIP', o.cx, floorY() - 40, '#ffd35c', 700);
         burst(o, o.cx, floorY() - 6, 6, ['#d3cabb', '#565d69'], 140, 500);
-        scored(o, now);
       }, { fast: 1.3, noLeap: true, every: 900 });
+    },
+    end(o) {
+      if (o.ride) floating = false;
     },
     draw(ctx, o, D, now) {
       const t = now / 1000;
       const flip = o.cv < 0;
+      const hop = now - o.hopAt < 300 ? Math.round(Math.sin(((now - o.hopAt) / 300) * Math.PI) * 6) * D : 0;
       if (o.flipped) {
         // 뒤집힌 차 위에 고양이가 올라앉으니 차는 고양이 뒤(아래)로
         const up = [...CAR].reverse();
@@ -58203,8 +58548,12 @@ pet.ready();
           FT.dotAt(ctx, o.cx + 4 * D, floorY() - 9 * D, D, '#8f95a0');
         }
       } else {
-        const bump = Math.abs(o.cv) > 50 && Math.floor(t * 16) % 2 ? D : 0;
-        stamp(ctx, CAR, o.cx, floorY() - 4 * D - bump, D, flip);
+        const bump = (Math.abs(o.cv) > 50 && Math.floor(t * 16) % 2 ? D : 0) + hop;
+        // 고양이를 태우고 있으면 차가 고양이 밑에 보이게
+        const w = (CAR[0].length + 2) * D;
+        const car = (g) => stamp(g, CAR, o.cx, floorY() - 4 * D - bump, D, flip);
+        if (o.ride) FT.underCat(ctx, car, [o.cx - w / 2, floorY() - 12 * D - bump, w, 13 * D + bump]);
+        else car(ctx);
         // 꼬리 (안테나 겸용)
         const back = flip ? 1 : -1;
         const wag = Math.round(Math.sin(t * 12)) * D;
@@ -58407,56 +58756,93 @@ pet.ready();
   };
 
   // ================= T37 줄넘기 =================
-  // 클릭할 때마다 줄이 한 바퀴. 박자에 맞춰 누르면 고양이가 폴짝 넘고(콤보!), 박자가 어긋나면 걸려 넘어진다
+  // 클릭할 때마다 줄이 한 바퀴. 박자에 맞춰 누르면 고양이가 폴짝 넘고(콤보!), 박자가 어긋나면 걸려 넘어진다.
+  // 빨리 누르면 줄도 빨리 돈다. 박자가 딱 맞으면 PERFECT. 10콤보마다 공중제비, 10부터 파란 줄 · 20부터 무지개 줄.
+  // 넘어지면 이번 콤보를 크게 보여 주고, 최고 기록이면 NEW BEST (기록은 main 의 toyRecords.jumprope)
+  const JR_RAINBOW = ['#e8534a', '#ff9a3c', '#ffd65a', '#78c46a', '#6fb0ea', '#b784f5'];
+  const jrPlayed = () => (pet.played ? pet.played() : pet.caught());
   C.jumprope = {
     cursor: true,
     start(o) {
-      Object.assign(o, { phase: 1, combo: 0, lastClick: 0, lastGap: 0 });
+      Object.assign(o, { phase: 1, combo: 0, lastClick: 0, lastGap: 0, swing: 0.7, perfects: 0 });
     },
     click(o) {
       const now = performance.now();
-      if (now < (o.busyUntil || 0) || o.phase < 1) return;
+      // 줄이 고양이 발밑을 지난 뒤면 다음 바퀴를 바로 시작할 수 있다 (빠른 박자)
+      if (now < (o.busyUntil || 0) || o.phase < 0.55) return;
       const gap = o.lastClick ? (now - o.lastClick) / 1000 : 0;
       // 첫 번째거나, 간격이 적당하고 지난번과 비슷하면 성공
       const fresh = !gap || gap >= 1.8;
-      const ok = fresh || !o.lastGap || Math.abs(gap - o.lastGap) / o.lastGap < 0.35;
+      const err = fresh || !o.lastGap ? 0 : Math.abs(gap - o.lastGap) / o.lastGap;
+      const ok = fresh || !o.lastGap || err < 0.35;
       if (fresh) o.combo = 0;
       o.lastGap = fresh ? 0 : gap;
       o.lastClick = now;
       o.phase = 0;
+      o.swing = fresh ? 0.7 : clamp(gap * 0.85, 0.3, 0.7);
       o.success = ok;
+      o.perfect = ok && !fresh && o.lastGap && err < 0.08;
       o.jumped = false;
       sfx('tick', 0.02);
     },
     step(o, dt, now) {
       commonStep(o, dt, now);
       if (o.phase < 1) {
-        o.phase = Math.min(1, o.phase + dt / 0.7);
+        o.phase = Math.min(1, o.phase + dt / o.swing);
         // 줄이 발밑에 올 때 폴짝 (또는 걸림)
         if (!o.jumped && o.phase > (o.success ? 0.3 : 0.5)) {
           o.jumped = true;
           if (o.success && catLift <= 0) {
             sprite.setToyPose(null);
-            catVy = -440;
-            catLift = 1;
-            sprite.play('toyLeap');
             o.combo++;
-            if (o.combo % 5 === 0) {
+            const flip = o.combo % 10 === 0;
+            catVy = flip ? -560 : -440;
+            catLift = 1;
+            sprite.play(flip ? 'toySlip' : 'toyLeap');
+            if (o.perfect) {
+              o.perfects++;
+              pop(o, 'PERFECT', catX + petPx() * 0.55, K.catTop() - 8, '#ffd35c', 600);
+              burst(o, catX, H() - 4, 6, ['#ffd35c', '#ffffff'], 120, 400);
+            }
+            if (flip) {
               sfx('win', 0.03);
+              pop(o, o.combo === 10 ? 'BLUE ROPE!' : o.combo === 20 ? 'RAINBOW!' : `FLIP ${o.combo}`, catX, K.catTop() - 40, '#ffd35c', 1000);
+              burst(o, catX, K.catTop(), 14, JR_RAINBOW, 200, 800);
+            } else if (o.combo % 5 === 0) {
+              sfx('quest', 0.02);
               pop(o, `COMBO ${o.combo}`, catX, K.catTop() - 40, '#ffd35c', 900);
             }
-            if (o.combo % 3 === 0) scored(o, now);
-          } else if (!o.success) {
-            o.combo = 0;
-            sprite.play('toyTrip');
-            o.busyUntil = now + 1600;
-            pop(o, 'OOPS', catX, K.catTop() - 20, '#ff9a9a', 800);
-          }
+            if (o.combo % 5 === 0) jrPlayed();
+          } else if (!o.success) this.trip(o, now);
         }
       }
       if (catLift > 0) return;
       sprite.setMove(0);
       if (now > (o.busyUntil || 0)) face(mouseX);
+    },
+    // 줄에 걸려 콰당. 이번 콤보를 크게 보여 주고 기록을 남긴다
+    trip(o, now) {
+      const n = o.combo;
+      o.combo = 0;
+      sprite.setToyPose(null);
+      sprite.play('toyTrip');
+      o.busyUntil = now + 1600;
+      sfx('bonk', 0.02);
+      if (n >= 3) {
+        const rec = (root.TOY_RECORDS = root.TOY_RECORDS || {});
+        const isBest = n > (rec.jumprope || 0);
+        if (isBest) {
+          rec.jumprope = n;
+          if (pet.toyRecord) pet.toyRecord('jumprope', n);
+        }
+        o.result = { n, isBest, best: rec.jumprope, t: now };
+        K.later(o, 1600, () => {
+          if (toy !== o || catLift > 0) return;
+          // 잘했으면 털고 일어나 뿌듯, 아니면 시치미
+          sprite.play(isBest || n >= 10 ? 'toyProud' : 'toyPretend');
+          if (isBest) sfx('win', 0.03);
+        });
+      } else pop(o, 'OOPS', catX, K.catTop() - 20, '#ff9a9a', 800);
     },
     draw(ctx, o, D, now) {
       const P = petPx();
@@ -58466,10 +58852,12 @@ pet.ready();
       const lx = catX - P * 0.34;
       const rx = catX + P * 0.34;
       // 줄: 손잡이 둘을 잇는 반원. phase 에 따라 머리 위 → 앞 → 발밑 → 뒤로 돈다.
-      // 이어진 선으로 긋고, 고양이 뒤로 넘어가는 동안은 고양이 뒤에 그린다
+      // 이어진 선으로 긋고, 고양이 뒤로 넘어가는 동안은 고양이 뒤에 그린다. 콤보가 쌓이면 줄 색이 바뀐다
       const ang = o.phase < 1 ? o.phase * Math.PI * 2 : 0;
       const ry = bodyH * 0.5 + 8 * D;
       const n = 16;
+      const best = o.combo >= 20 ? 2 : o.combo >= 10 ? 1 : 0;
+      const col = (i) => (best === 2 ? JR_RAINBOW[(i + Math.floor(now / 90)) % JR_RAINBOW.length] : best === 1 ? '#6fb0ea' : '#e8534a');
       const rope = (g) => {
         let px = lx;
         let py = hy;
@@ -58477,7 +58865,7 @@ pet.ready();
           const k = i / n;
           const x = lx + (rx - lx) * k;
           const y = Math.min(floorY() - D, hy - Math.cos(ang) * ry * Math.sin(k * Math.PI));
-          FT.line(g, px, py, x, y, D, '#e8534a');
+          FT.line(g, px, py, x, y, D, col(i));
           px = x;
           py = y;
         }
@@ -58487,7 +58875,15 @@ pet.ready();
       // 양 손잡이: 나무 자루에 빨간 손잡이 (줄이 자루 끝에 달렸다)
       stamp(ctx, ['KK', 'KC', 'RK', 'RK', 'RK', 'KK'], lx, hy + 2 * D, D);
       stamp(ctx, ['KK', 'CK', 'KR', 'KR', 'KR', 'KK'], rx, hy + 2 * D, D);
-      if (o.combo > 1) ftext(ctx, String(o.combo), catX, H() - bodyH - 14 * D, D, '#ffd35c');
+      // 콤보 숫자는 고양이 옆에 (머리 위 말풍선과 안 겹치게)
+      if (o.combo > 1) ftext(ctx, String(o.combo), rx + 8 * D, hy - 6 * D, D + 1, best === 2 ? JR_RAINBOW[Math.floor(now / 120) % 6] : '#ffd35c');
+      // 넘어진 뒤: 이번 콤보 · 최고 기록
+      const r = o.result;
+      if (r && now - r.t < 3200) {
+        const top = H() - bodyH - 22 * D;
+        ftext(ctx, `COMBO ${r.n}`, catX, top, D * 2, '#ffd35c');
+        ftext(ctx, r.isBest ? 'NEW BEST!' : `BEST ${r.best}`, catX, top + 10 * D, D, r.isBest ? '#9fe3c8' : '#ffffff');
+      }
       commonDraw(ctx, o, D, now);
     },
   };
@@ -58580,7 +58976,7 @@ pet.ready();
   root.TOY_CUSTOM = Object.assign(root.TOY_CUSTOM || {}, C);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
 /* kit/toyplay4.js */
 // 3차 장난감 (2026-09-24): 사람과 고양이가 같이 하는 놀이 다섯 가지.
 //  두더지 잡기(역할 반전) · 가위바위보 · 도미노 · 줄다리기 · 트램펄린
@@ -59607,10 +60003,1579 @@ pet.ready();
   root.TOY_CUSTOM = Object.assign(root.TOY_CUSTOM || {}, C);
 })(window);
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+/* kit/toyplay5.js */
+// 4차 장난감 (2026-10-17): 여섯 가지.
+//  지켜보는 장난감 — 햇살 조각 · 어항
+//  같이 하는 놀이(최고 기록) — 이불 속 손 · 고양이 찾기(야바위) · 비치볼 배구 · 냥냥 피아노(따라 치기)
+// 앞의 장난감들처럼 pet.js 의 놀이 틀(start·step·draw·click·down·up·end)에 꽂히고, toyplay.js 의 ToyKit 을 같이 쓴다.
+// 놀이 자세(toyBask·toyStare·toyHidden…)는 하우스 미리보기도 쓸 수 있게 toys.js 에 둔다.
+// 최고 기록은 toyplay4.js 처럼 window.TOY_RECORDS + pet.toyRecord 로 남긴다 (main 의 RECORD_KEYS 에 키가 있어야 저장된다)
+(function (root) {
+  const K = root.ToyKit;
+  const FT = PetToys;
+  const { stamp, ftext, disc, pop, burst, commonStep, commonDraw, sfx, H } = K;
+  const C = {};
+
+  // ---------- 공통 ----------
+  const W = () => window.innerWidth;
+  const dotPx = () => Math.max(2, Math.round(cellPx()));
+  const REC = () => (root.TOY_RECORDS = root.TOY_RECORDS || {});
+  // 더 높으면 새 기록. 새 기록이면 true
+  function best(key, v) {
+    const r = REC();
+    if (!(v > (r[key] || 0))) return false;
+    r[key] = v;
+    if (pet.toyRecord) pet.toyRecord(key, v);
+    return true;
+  }
+  const played = () => (pet.played ? pet.played() : pet.caught());
+  const busy = (o, now) => now < (o.busyUntil || 0);
+  const big = (ctx, s, x, y, D, fill) => ftext(ctx, s, x, y, D * 2, fill);
+  // 고양이가 쳐다보는 쪽 (toys.js 의 toyStare 가 읽는다)
+  const look = (x, y) => {
+    FT.look.x = clamp(x, -1, 1);
+    FT.look.y = clamp(y, -1, 1);
+  };
+  // 고양이 머리 꼭대기 (글자 띄울 높이)
+  const catTop = () => K.catTop();
+
+  // 사각파 한 음. PetSound 에는 음계가 없어서 피아노·배구는 여기서 직접 낸다. 놀이를 치우면 장치를 쉬게 한다
+  let actx = null;
+  function tone(freq, len = 0.16, vol = 0.03, type = 'square', slide = 0) {
+    if (!soundOn) return;
+    try {
+      actx = actx || new AudioContext();
+      if (actx.state === 'suspended') actx.resume().catch(() => {});
+      const t = actx.currentTime + 0.01;
+      const osc = actx.createOscillator();
+      const g = actx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (slide) osc.frequency.exponentialRampToValueAtTime(freq * slide, t + len);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      osc.connect(g).connect(actx.destination);
+      osc.start(t);
+      osc.stop(t + len + 0.02);
+    } catch {}
+  }
+  const hush = () => {
+    if (actx && actx.state === 'running') actx.suspend().catch(() => {});
+  };
+
+  // 도트 타원 (가로 반지름 rx, 세로 ry 칸). color(dx, dy, 테두리인가) 가 칸마다 색을 고른다 (null 이면 건너뜀)
+  function oval(ctx, cx, cy, rx, ry, D, color) {
+    const x0 = Math.round(cx / D) * D;
+    const y0 = Math.round(cy / D) * D;
+    const half = (dy) => (Math.abs(dy) > ry ? -1 : Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / (ry + 0.5)) ** 2))));
+    for (let dy = -ry; dy <= ry; dy++) {
+      const w = half(dy);
+      for (let dx = -w; dx <= w; dx++) {
+        const edge = Math.abs(dx) === w || Math.abs(dx) > half(dy - 1) || Math.abs(dx) > half(dy + 1);
+        const c = color(dx, dy, edge);
+        if (!c) continue;
+        ctx.fillStyle = c;
+        ctx.fillRect(x0 + dx * D, y0 + dy * D, D, D);
+      }
+    }
+  }
+  // 놀이 끝 화면: 큰 점수 · 최고 기록 · 한 판 더
+  function results(ctx, o, x, y, D, now, head, line) {
+    big(ctx, head, x, y - 16 * D, D, '#ffd35c');
+    ftext(ctx, line, x, y - 6 * D, D, '#ffffff');
+    ftext(ctx, o.isBest ? 'NEW BEST!' : `BEST ${o.bestShown}`, x, y + 1 * D, D, o.isBest ? '#9fe3c8' : '#ffffff');
+    if (now - o.overAt > 1200) ftext(ctx, 'CLICK TO PLAY', x, y + 8 * D, D, Math.floor(now / 500) % 2 ? '#ffffff' : '#ffd35c');
+  }
+  function finish(o, key, value, now) {
+    o.isBest = best(key, value);
+    o.bestShown = REC()[key] || 0;
+    o.overAt = now;
+    sfx(o.isBest ? 'win' : 'quest', 0.03);
+    if (o.isBest) burst(o, catX, catTop() - 10, 18, ['#ffd35c', '#9fe3c8', '#ff9bb8', '#ffffff'], 220, 1000);
+  }
+
+  // ================= N1 햇살 조각 =================
+  // 창으로 들어온 햇살 한 조각을 바닥에 깔아 둔다. 고양이가 와서 앉아 눈을 가늘게 뜨고 → 벌러덩 배를 굽고 → 동그랗게 말아 잠든다.
+  // 햇살을 끌어서 옮기면 졸린 눈으로 어슬렁어슬렁 따라온다. 톡 누르면: 자면 하품하며 깨고, 앉아 있으면 벌러덩, 배를 보일 때 누르면… 덥석 (함정)
+  // 오래 자면 가끔 나비가 날아와 코끝에 앉는다 → 에취!
+  const BUTTERFLY = [
+    ['V...V', 'VVKVV', 'QVKVQ', '.V.V.'],
+    ['..K..', '.VKV.', '.QKQ.', '..K..'],
+  ];
+  const SUN = (a) => `rgba(255,226,128,${a.toFixed(3)})`;
+  C.sunbeam = {
+    start(o, side) {
+      const P = petPx();
+      Object.assign(o, { bx: clamp(catX + side * P * 1.4, P, W() - P), st: 'go', at: performance.now(), motes: [], bf: null, drag: null, naps: 0 });
+      for (let i = 0; i < 12; i++) o.motes.push({ u: Math.random(), v: Math.random(), ph: Math.random() * 6, sp: 0.02 + Math.random() * 0.04 });
+    },
+    bw: () => Math.max(petPx() * 1.5, 96),
+    wantsMouse(o, e) {
+      return Math.abs(e.clientX - o.bx) < this.bw() / 2 + 8 && e.clientY > floorY() - petPx() * 1.2 && e.clientY < floorY() + 6;
+    },
+    down(o, e) {
+      o.drag = { dx: o.bx - e.clientX, x0: e.clientX, moved: false };
+    },
+    up(o) {
+      o.dragMoved = !!(o.drag && o.drag.moved);
+      o.drag = null;
+    },
+    go(o, st, now) {
+      o.st = st;
+      o.at = now;
+    },
+    click(o) {
+      if (o.dragMoved) return;
+      const now = performance.now();
+      if (busy(o, now) || catLift > 0) return;
+      if (o.st === 'nap' || o.st === 'watch') {
+        // 깨웠다: 하품 한 번 하고 다시 햇볕 쬐기
+        sprite.setToyPose(null);
+        sprite.play('yawn');
+        o.busyUntil = now + 2400;
+        this.go(o, 'bask', now + 2400);
+      } else if (o.st === 'bask') this.go(o, 'belly', now);
+      else if (o.st === 'belly') {
+        // 배를 보여 주는 건 함정이다. 덥석!
+        sprite.setToyPose(null);
+        sprite.play('toyTrap');
+        sfx('bonk', 0.02);
+        o.busyUntil = now + 1800;
+        this.go(o, 'belly', now + 1800);
+        played();
+      }
+    },
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      const bw = this.bw();
+      if (o.drag) {
+        if (Math.abs(mouseX - o.drag.x0) > 6) o.drag.moved = true;
+        if (o.drag.moved) o.bx = clamp(mouseX + o.drag.dx, bw / 2, W() - bw / 2);
+      }
+      for (const m of o.motes) {
+        m.v += m.sp * dt;
+        if (m.v > 1) {
+          m.v = 0;
+          m.u = Math.random();
+        }
+      }
+      this.stepFly(o, dt, now);
+      if (catLift > 0 || busy(o, now)) return sprite.setMove(0);
+      const inSun = Math.abs(catX - o.bx) < bw * 0.3;
+      if (!['go', 'wake'].includes(o.st) && !inSun) {
+        // 햇살이 옮겨 갔다. 자고 있었으면 좀 더 뜸을 들인다
+        sprite.setToyPose(null);
+        pop(o, '...', catX, catTop() - 10, '#ffffff', 900);
+        o.wakeMs = o.st === 'nap' ? 1600 : 700;
+        this.go(o, 'wake', now);
+      }
+      const t = now - o.at;
+      switch (o.st) {
+        case 'wake':
+          sprite.setMove(0);
+          face(o.bx);
+          if (t > o.wakeMs) this.go(o, 'go', now);
+          break;
+        case 'go':
+          if (walkTo(o.bx, dt, 0.55, 3) <= 3) {
+            sprite.setFacing(Math.random() < 0.5 ? -1 : 1);
+            this.go(o, 'bask', now);
+          }
+          break;
+        case 'bask':
+          sprite.setMove(0);
+          if (t < 0) break;
+          sprite.setToyPose('toyBask');
+          if (t > 7000) this.go(o, 'belly', now);
+          break;
+        case 'belly':
+          sprite.setMove(0);
+          if (t < 0) break;
+          sprite.setToyPose('toyBelly');
+          if (t > 4500) {
+            this.go(o, 'nap', now);
+            if (++o.naps % 2 === 1) played();
+          }
+          break;
+        case 'nap':
+          sprite.setMove(0);
+          sprite.setToyPose('toySunNap');
+          // 오래 자면 가끔 나비가 날아온다
+          if (!o.bf && t > 5000 && Math.random() < dt / 16) this.butterfly(o, now);
+          break;
+        case 'watch':
+          // 나비를 눈으로 쫓으며 깍깍
+          sprite.setMove(0);
+          if (t < 0) break;
+          sprite.setToyPose('toyChatter');
+          if (t > 2600) this.go(o, 'bask', now);
+          break;
+      }
+    },
+    butterfly(o, now) {
+      // 고양이 옆 조금 떨어진 하늘에서 팔랑팔랑 내려온다
+      const from = Math.random() < 0.5 ? -1 : 1;
+      o.bf = { x: clamp(catX + from * petPx() * rand(3, 5), 10, W() - 10), y: H() - petPx() * rand(2.2, 3), st: 'in', t: now, dir: -from };
+    },
+    stepFly(o, dt, now) {
+      const b = o.bf;
+      if (!b) return;
+      const head = { x: catX + sprite.facing * cellPx() * 3, y: catTop() - 2 };
+      if (b.st === 'in') {
+        const dx = head.x - b.x;
+        const dy = head.y - b.y;
+        const d = Math.hypot(dx, dy) || 1;
+        b.x += (dx / d) * 80 * dt;
+        b.y += (dy / d) * 80 * dt + Math.sin(now / 110) * 50 * dt;
+        b.dir = Math.sign(dx) || b.dir;
+        if (o.st !== 'nap') b.st = 'out'; // 앉기 전에 깼으면 그냥 지나간다
+        else if (d < 5) {
+          b.st = 'sit';
+          b.t = now;
+        }
+      } else if (b.st === 'sit') {
+        Object.assign(b, head);
+        if (now - b.t > 1600) {
+          // 에… 에취!
+          sprite.setToyPose(null);
+          sprite.play('toyAchoo');
+          o.busyUntil = now + 1500;
+          this.go(o, 'watch', now + 1500);
+          b.st = 'out';
+          b.t = now + 750;
+        }
+      } else {
+        if (now < b.t) return Object.assign(b, head);
+        b.y -= 70 * dt;
+        b.x += b.dir * 55 * dt + Math.sin(now / 120) * 30 * dt;
+        if (b.y < -20 || b.x < -30 || b.x > W() + 30) o.bf = null;
+      }
+    },
+    draw(ctx, o, D, now) {
+      const P = petPx();
+      const bw = this.bw();
+      const fy = floorY();
+      const t = now / 1000;
+      const half = Math.round(bw / 2 / D) * D;
+      const x0 = Math.round(o.bx / D) * D - half;
+      const pane = half - D; // 창살 사이 유리 한 칸 폭
+      // 바닥에 비친 창문: 유리 두 칸 사이에 창살 그림자, 가운데 가로 창살. 고양이가 그 위에 앉으니 고양이 뒤에
+      FT.underCat(ctx, (g) => {
+        for (let j = 0; j < 5; j++) {
+          const y = fy - (j + 1) * D;
+          const sx = x0 - j * D;
+          g.fillStyle = SUN(j === 2 ? 0.18 : j === 4 ? 0.7 : 0.5);
+          g.fillRect(sx, y, pane, D);
+          g.fillRect(sx + pane + 2 * D, y, pane, D);
+        }
+      }, [x0 - 6 * D, fy - 6 * D, half * 2 + 8 * D, 7 * D]);
+      // 비스듬히 내려오는 빛줄기 (고양이 위로 겹쳐서 햇볕에 데워진 것처럼 보인다)
+      const rows = Math.round((P * 1.7) / D);
+      const breathe = 0.85 + 0.15 * Math.sin(t * 1.3);
+      for (let j = 0; j < rows; j += 1) {
+        const a = 0.12 * (1 - j / rows) * breathe;
+        if (a < 0.008) break;
+        const y = fy - (6 + j) * D;
+        const sx = x0 - Math.round((5 + j) * 0.55) * D;
+        ctx.fillStyle = SUN(a);
+        ctx.fillRect(sx, y, pane, D);
+        ctx.fillRect(sx + pane + 2 * D, y, pane, D);
+      }
+      // 빛 속을 떠다니는 먼지
+      for (const m of o.motes) {
+        const j = m.v * rows;
+        const x = x0 - (5 + j) * 0.55 * D + m.u * half * 2 + Math.sin(t + m.ph) * 3;
+        const y = fy - (6 + j) * D;
+        const a = (0.35 + 0.45 * Math.sin(t * 2.4 + m.ph)) * (1 - m.v);
+        if (a > 0.05) FT.dotAt(ctx, x, y, D, `rgba(255,250,215,${a.toFixed(2)})`);
+      }
+      const b = o.bf;
+      if (b) stamp(ctx, BUTTERFLY[b.st === 'sit' ? Math.floor(t * 2) % 2 : Math.floor(t * 9) % 2], b.x, b.y, D, b.dir > 0);
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  // ================= N2 어항 =================
+  // 금붕어 두 마리가 사는 동그란 어항. 고양이는 옆에 앉아 눈알을 굴리며 물고기를 따라 보다가 — 유리를 톡톡, 앞발을 물에 쏙 (첨벙).
+  // 앞발에 걸린 물고기가 바닥으로 튀어나오면 고양이는 화들짝 놀라 킁킁… 톡 누르면 어항에 돌려보내 준다 (가만두면 고양이가 툭 쳐서 돌려보낸다).
+  // 어항을 누르면 밥을 뿌린다: 물고기가 몰려들고 고양이는 깍깍깍. 아주 가끔은 머리를 통째로 넣었다가 홀딱 젖는다
+  const FISH = {
+    O: ['.KKKK.K', 'KOKOOKO', 'KOOOOKO', '.KKKK.K'],
+    B: ['.KKKK.K', 'KBKBBKB', 'KBBBBKB', '.KKKK.K'],
+  };
+  C.fishbowl = {
+    start(o, side) {
+      const P = petPx();
+      const bx = clamp(catX + side * P * 1.2, P, W() - P);
+      const now = performance.now();
+      Object.assign(o, { bx, side: -side, st: 'go', at: now, wait: 3000, flakes: [], bubbles: [], flop: null, shake: 0, dips: 0 });
+      o.fish = ['O', 'B'].map((c, i) => ({ c, x: (i ? 1 : -1) * 6, y: 2, vx: 0, vy: 0, tx: 0, ty: 0, next: 0, scared: 0, dir: i ? 1 : -1 }));
+    },
+    // 어항 반지름 (도트 칸)
+    R: () => Math.max(7, Math.round((petPx() * 0.22) / itemDot())),
+    geo(o) {
+      const D = itemDot();
+      const R = this.R();
+      const cx = Math.round(o.bx / D) * D;
+      const cy = Math.round((floorY() - (R + 1) * D) / D) * D;
+      return { D, R, cx, cy, r: R * D, wt: cy - Math.round(R * 0.3) * D, sd: cy + Math.round(R * 0.55) * D };
+    },
+    standX(o) {
+      return o.bx + o.side * ((this.R() + 1) * itemDot() + petPx() * 0.2);
+    },
+    wantsMouse(o, e) {
+      const g = this.geo(o);
+      if (o.flop && Math.hypot(e.clientX - o.flop.x, e.clientY - o.flop.y) < 18) return true;
+      return Math.abs(e.clientX - g.cx) < g.r + 6 && e.clientY > g.cy - g.r - 8 && e.clientY < floorY() + 4;
+    },
+    down() {},
+    click(o) {
+      const now = performance.now();
+      const g = this.geo(o);
+      // 바닥에서 파닥이는 물고기 → 어항으로 돌려보내기
+      if (o.flop && o.flop.st !== 'home' && Math.hypot(mouseX - o.flop.x, mouseY - o.flop.y) < 22) {
+        this.sendHome(o);
+        pop(o, 'SAVED', o.flop.x, o.flop.y - 16, '#9fe3c8', 800);
+        return;
+      }
+      // 밥 주기: 물 위에 톡톡 뿌린다
+      if (o.flakes.length > 10) return;
+      for (let i = 0; i < 5; i++) o.flakes.push({ x: rand(-g.r * 0.5, g.r * 0.5), y: g.wt - g.cy + rand(0, 2) });
+      sfx('pop', 0.015);
+      o.chatterUntil = now + 2200;
+      if (o.st === 'watch' && !busy(o, now) && catLift <= 0) pop(o, '!', catX, catTop() - 10, '#ffd35c', 600);
+    },
+    // 물고기를 반대쪽으로 쫓는다
+    scare(o, now) {
+      const g = this.geo(o);
+      const xr = (g.R - 3) * g.D;
+      for (const f of o.fish) {
+        f.scared = now + 900;
+        f.tx = -o.side * xr * rand(0.5, 1);
+        f.ty = rand(g.wt - g.cy + 2 * g.D, g.sd - g.cy - 2 * g.D);
+      }
+    },
+    stepFish(o, dt, now) {
+      const g = this.geo(o);
+      const xr = (g.R - 3) * g.D;
+      const y0 = g.wt - g.cy + 2 * g.D;
+      const y1 = g.sd - g.cy - 2 * g.D;
+      for (const f of o.fish) {
+        if (f.out) continue;
+        let food = null;
+        for (const fl of o.flakes) if (!food || Math.hypot(fl.x - f.x, fl.y - f.y) < Math.hypot(food.x - f.x, food.y - f.y)) food = fl;
+        if (food && now > f.scared) {
+          f.tx = food.x;
+          f.ty = food.y;
+        } else if (now > f.next || Math.hypot(f.tx - f.x, f.ty - f.y) < 2) {
+          f.tx = rand(-xr, xr);
+          f.ty = rand(y0, y1);
+          f.next = now + rand(1500, 4000);
+        }
+        const sp = now < f.scared ? 90 : food ? 38 : 16;
+        const dx = f.tx - f.x;
+        const dy = f.ty - f.y;
+        const d = Math.hypot(dx, dy) || 1;
+        f.vx += ((dx / d) * sp - f.vx) * Math.min(1, dt * 3);
+        f.vy += ((dy / d) * sp * 0.6 - f.vy) * Math.min(1, dt * 3);
+        f.x = clamp(f.x + f.vx * dt, -xr, xr);
+        f.y = clamp(f.y + f.vy * dt, y0, y1);
+        if (Math.abs(f.vx) > 4) f.dir = Math.sign(f.vx);
+        for (const fl of o.flakes)
+          if (Math.hypot(f.x - fl.x, f.y - fl.y) < 2.5 * g.D) {
+            fl.eaten = true;
+            o.bubbles.push({ x: f.x, y: f.y - g.D });
+          }
+      }
+      for (const fl of o.flakes) fl.y = Math.min(fl.y + 5 * dt, y1);
+      o.flakes = o.flakes.filter((fl) => !fl.eaten);
+      if (Math.random() < dt * 0.7) o.bubbles.push({ x: rand(-xr, xr), y: y1 });
+      for (const b of o.bubbles) b.y -= 14 * dt;
+      o.bubbles = o.bubbles.filter((b) => b.y > g.wt - g.cy);
+    },
+    stepFlop(o, dt, now) {
+      const fl = o.flop;
+      if (!fl) return;
+      const g = this.geo(o);
+      fl.vy += 1300 * dt;
+      fl.x += fl.vx * dt;
+      fl.y += fl.vy * dt;
+      if (fl.st === 'home') {
+        // 포물선을 그리며 어항 속으로 퐁당
+        if (fl.vy > 0 && fl.y >= g.wt) {
+          Object.assign(fl.f, { out: false, x: clamp(fl.x - g.cx, -(g.R - 3) * g.D, (g.R - 3) * g.D), y: g.wt - g.cy + 2 * g.D });
+          o.flop = null;
+          burst(o, fl.x, g.wt, 8, ['#9fd8f5', '#cfe8f7', '#ffffff'], 140, 500);
+          pop(o, 'PLOP', g.cx, g.cy - g.r - 14, '#bfe6ff', 700);
+          sfx('splash', 0.02);
+          this.scare(o, now);
+        }
+        return;
+      }
+      const lo = floorY() - 2 * g.D;
+      fl.x = clamp(fl.x, 10, W() - 10);
+      if (fl.y >= lo) {
+        fl.y = lo;
+        fl.vy = 0;
+        fl.vx *= 0.7;
+        // 파닥파닥
+        if (now > fl.hop) {
+          fl.vy = -rand(130, 230);
+          fl.vx = rand(-40, 40);
+          fl.hop = now + rand(260, 520);
+          fl.flip = !fl.flip;
+          sfx('tick', 0.01);
+        }
+      }
+    },
+    // 바닥의 물고기를 어항으로 던져 넣는다 (0.55초 동안 날아가 어항 입구에 떨어지게)
+    sendHome(o) {
+      const fl = o.flop;
+      const g = this.geo(o);
+      const T = 0.55;
+      fl.vx = (g.cx - fl.x) / T;
+      fl.vy = (g.wt - fl.y - 0.5 * 1300 * T * T) / T;
+      fl.st = 'home';
+    },
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      this.stepFish(o, dt, now);
+      this.stepFlop(o, dt, now);
+      const g = this.geo(o);
+      const P = petPx();
+      // 눈알은 제일 가까운 물고기를 따라간다 (바닥에 튀어나온 물고기가 있으면 그쪽)
+      let fx = null;
+      let fy = null;
+      if (o.flop) {
+        fx = o.flop.x;
+        fy = o.flop.y;
+      } else {
+        const f = o.fish.reduce((a, b) => (b.out ? a : !a || Math.abs(g.cx + b.x - catX) < Math.abs(g.cx + a.x - catX) ? b : a), null);
+        if (f) {
+          fx = g.cx + f.x;
+          fy = g.cy + f.y;
+        }
+      }
+      if (fx != null) look(((fx - catX) * sprite.facing) / 14, (fy - (catTop() + P * 0.14)) / 10);
+      if (catLift > 0 || busy(o, now)) return sprite.setMove(0);
+      if (o.flop) return this.stepRescue(o, dt, now);
+      const sx = this.standX(o);
+      if (o.st === 'go' || Math.abs(catX - sx) > 10) {
+        o.st = 'go';
+        if (walkTo(sx, dt, 0.8, 3) <= 3) {
+          o.st = 'watch';
+          o.at = now;
+          o.wait = rand(2000, 4000);
+        }
+        return;
+      }
+      sprite.setMove(0);
+      face(o.bx);
+      sprite.setToyPose(now < (o.chatterUntil || 0) ? 'toyChatter' : 'toyStare');
+      if (now - o.at > o.wait) this.act(o, now);
+    },
+    act(o, now) {
+      const r = Math.random();
+      o.at = now;
+      o.wait = rand(2500, 5500);
+      if (r < 0.2) {
+        o.chatterUntil = now + 2000; // 그냥 더 뚫어지게 본다
+        return;
+      }
+      sprite.setToyPose(null);
+      if (o.dips >= 3 && r > 0.93) return this.headIn(o, now);
+      if (r < 0.55) {
+        // 유리를 톡톡
+        sprite.setToyPose('toySwipe');
+        o.busyUntil = now + 1300;
+        K.later(o, 350, () => this.tap(o));
+        K.later(o, 850, () => this.tap(o));
+        K.later(o, 1300, () => toy === o && sprite.setToyPose(null));
+      } else {
+        // 앞발을 쏙
+        sprite.play('toyPawDip');
+        o.busyUntil = now + 1400;
+        K.later(o, 600, () => this.splash(o));
+      }
+    },
+    tap(o) {
+      const g = this.geo(o);
+      const now = performance.now();
+      o.shake = now + 160;
+      sfx('tick', 0.02);
+      pop(o, 'TAP', g.cx + o.side * g.r, g.cy - g.r * 0.3, '#ffffff', 500);
+      this.scare(o, now);
+    },
+    splash(o) {
+      const g = this.geo(o);
+      const now = performance.now();
+      const x = g.cx + o.side * (g.r - 3 * g.D);
+      burst(o, x, g.wt, 9, ['#9fd8f5', '#cfe8f7', '#ffffff'], 150, 600);
+      sfx('splash', 0.025);
+      o.dips++;
+      played();
+      // 가끔은 앞발에 물고기가 걸려 바닥으로 휙
+      const f = o.fish.find((x) => !x.out && Math.sign(x.x) === o.side) || o.fish.find((x) => !x.out);
+      if (f && !o.flop && Math.random() < 0.22) {
+        f.out = true;
+        o.flop = { f, x, y: g.wt, vx: o.side * rand(90, 150), vy: -rand(320, 380), hop: 0, flip: o.side > 0, st: 'air', t: now };
+        pop(o, 'FLOP', x, g.wt - 18, '#ffd35c', 800);
+        K.later(o, 450, () => {
+          if (toy !== o || catLift > 0) return;
+          sprite.play('startle');
+          o.busyUntil = performance.now() + 900;
+        });
+      } else {
+        pop(o, 'SPLISH', x, g.wt - 16, '#bfe6ff', 600);
+        this.scare(o, now);
+      }
+    },
+    // 머리를 통째로 쏙 → 홀딱 젖었다
+    headIn(o, now) {
+      const g = this.geo(o);
+      sprite.play('toySniff');
+      o.busyUntil = now + 3000;
+      K.later(o, 800, () => {
+        burst(o, g.cx + o.side * g.r * 0.5, g.wt, 16, ['#9fd8f5', '#cfe8f7', '#ffffff'], 220, 800);
+        pop(o, 'SPLOOSH', g.cx, g.cy - g.r - 16, '#bfe6ff', 900);
+        sfx('splash', 0.04);
+        this.scare(o, performance.now());
+        sprite.play('toyWet');
+      });
+      K.later(o, 2300, () => toy === o && pop(o, 'HMPH', catX, catTop() - 12, '#ffb0b0', 800));
+    },
+    // 바닥에 튀어나온 물고기: 다가가 킁킁… 한참 지나도 그대로면 툭 쳐서 돌려보낸다
+    stepRescue(o, dt, now) {
+      const fl = o.flop;
+      if (fl.st === 'home') return sprite.setMove(0);
+      const sx = fl.x + (Math.sign(catX - fl.x) || 1) * petPx() * 0.32;
+      if (walkTo(sx, dt, 1.1, 4) > 4) return;
+      face(fl.x);
+      if (!fl.sniffed) {
+        fl.sniffed = true;
+        sprite.play('toySniff');
+        o.busyUntil = now + 1200;
+        return;
+      }
+      if (now > fl.t + 4500) {
+        sprite.setToyPose(null);
+        sprite.play('pounce');
+        this.sendHome(o);
+        pop(o, 'HUP', fl.x, fl.y - 18, '#ffffff', 700);
+        o.busyUntil = now + 900;
+        o.st = 'go';
+      } else sprite.setToyPose('toyStare');
+    },
+    draw(ctx, o, D, now) {
+      const g = this.geo(o);
+      const t = now / 1000;
+      const shake = now < o.shake ? (Math.floor(now / 40) % 2 ? D : -D) : 0;
+      const cx = g.cx + shake;
+      const { cy, r } = g;
+      // 유리 (속이 살짝 비친다)
+      disc(ctx, cx, cy, r, D, 'rgba(207,232,247,0.22)');
+      // 물 (수면 아래만)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx - r - D, g.wt, 2 * r + 2 * D, 2 * r);
+      ctx.clip();
+      disc(ctx, cx, cy, r - D, D, 'rgba(96,166,232,0.5)');
+      ctx.restore();
+      // 수면: 반짝이는 밝은 줄이 살랑
+      const hw = Math.floor(Math.sqrt(Math.max(0, (r - D) ** 2 - (g.wt - cy) ** 2)) / D);
+      for (let i = -hw; i <= hw; i++) if ((i + Math.floor(t * 4)) % 3) FT.dotAt(ctx, cx + i * D, g.wt, D, 'rgba(214,240,255,0.95)');
+      // 모래와 조약돌
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx - r - D, g.sd, 2 * r + 2 * D, 2 * r);
+      ctx.clip();
+      disc(ctx, cx, cy, r - D, D, '#f6d7a2');
+      ctx.restore();
+      for (const [i, c] of [[-3, '#c48b56'], [-2, '#e3b877'], [2, '#e3b877'], [4, '#8a5a32']]) FT.dotAt(ctx, cx + i * D, g.sd + D, D, c);
+      // 수초 두 가닥 (살랑살랑)
+      for (const [bx, n] of [[-Math.round(g.R * 0.45), 5], [Math.round(g.R * 0.35), 4]])
+        for (let j = 0; j < n; j++) FT.dotAt(ctx, cx + (bx + Math.round(Math.sin(t * 2 + j * 0.9 + bx) * (j / n) * 1.4)) * D, g.sd - j * D, D, j % 2 ? '#4a8c42' : '#79c46b');
+      // 물방울
+      for (const b of o.bubbles) FT.dotAt(ctx, cx + b.x, cy + b.y, D, 'rgba(255,255,255,0.85)');
+      // 밥알
+      for (const fl of o.flakes) FT.dotAt(ctx, cx + fl.x, cy + fl.y, D, '#e0a764');
+      // 물고기
+      for (const f of o.fish) if (!f.out) stamp(ctx, FISH[f.c], cx + f.x, cy + f.y, D, f.dir > 0);
+      // 유리 테두리와 반짝이 · 입구 테
+      FT.ring(ctx, cx, cy, r, D, '#2b1a10');
+      for (const [a, b] of [[-0.62, -0.5], [-0.72, -0.3], [-0.76, -0.1]]) FT.dotAt(ctx, cx + a * r, cy + b * r, D, '#ffffff');
+      const lw = Math.max(3, Math.round(g.R * 0.55));
+      for (let i = -lw - 1; i <= lw + 1; i++) {
+        FT.dotAt(ctx, cx + i * D, cy - r - D, D, '#2b1a10');
+        FT.dotAt(ctx, cx + i * D, cy - r, D, Math.abs(i) === lw + 1 ? '#2b1a10' : '#cfe8f7');
+      }
+      // 바닥에서 파닥이는 물고기
+      if (o.flop) stamp(ctx, FISH[o.flop.f.c], o.flop.x, o.flop.y, D, o.flop.flip);
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  // ================= N3 이불 속 손 =================
+  // 바닥에 이불을 깐다. 이불 위로 마우스를 가져가면 이불 속에서 손이 꼼지락 (볼록). 고양이가 살금살금 다가와 엉덩이를 씰룩씰룩하다가 덮친다.
+  // 덮치는 순간 손을 옆으로 빼면 피한다. 얼마나 오래 버티나가 기록. 오래 버틸수록 빨라지고, 딴청 피우다 기습하는 속임수도 섞는다.
+  // 이불 밖으로 손을 빼면 시간이 멈추고 고양이는 두리번. 잡히면 손을 끌어안고 뒷발 팡팡
+  const QUILT = ['#f4a6b8', '#fcd6de', '#d0577f']; // 분홍 체크 이불 (밝은 칸 · 어두운 칸 · 옆면)
+  C.quilt = {
+    overCat: true,
+    start(o, side) {
+      const P = petPx();
+      const bw = Math.round(Math.max(P * 4.2, 300));
+      const bx = clamp(catX + side * (bw / 2 + P * 0.15), bw / 2 + 10, W() - bw / 2 - 10);
+      Object.assign(o, { bx, bw, side });
+      this.reset(o);
+    },
+    reset(o) {
+      Object.assign(o, { phase: 'ready', t: 0, hand: null, st: 'stalk', at: performance.now(), dodges: 0, feints: 0, caughtAt: 0 });
+    },
+    over(o, x, y) {
+      return x != null && Math.abs(x - o.bx) < o.bw / 2 - 4 && y > floorY() - petPx() * 1.1 && y < floorY() + 6;
+    },
+    wantsMouse(o, e) {
+      return this.over(o, e.clientX, e.clientY);
+    },
+    down(o) {
+      const now = performance.now();
+      if (o.phase === 'over' && now - o.overAt > 1200) this.reset(o);
+    },
+    click() {},
+    pounce(o, now, sneaky) {
+      const P = petPx();
+      const k = this.k(o);
+      const h = o.hand;
+      const lead = 0.12 + 0.25 * k;
+      const tx = h ? h.x + clamp(h.vx, -600, 600) * lead : catX + sprite.facing * P;
+      const vy = 400 + 120 * k;
+      const T = (2 * vy) / 1500;
+      sprite.setToyPose(null);
+      sprite.play('pounce');
+      catVy = -vy;
+      catVx = clamp((tx - catX) / T, -720, 720);
+      catLift = 1;
+      o.st = 'air';
+      o.at = now;
+      if (sneaky) pop(o, '!!', catX, catTop() - 14, '#ff9a9a', 500);
+      sfx('pop', 0.015);
+    },
+    k: (o) => Math.min(1, o.t / 45), // 어려움 (45초면 끝까지)
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      const P = petPx();
+      // 손: 이불 위에 마우스가 있으면 이불 속에 손이 있다
+      if (o.phase === 'over') {
+        if (o.hand) o.hand.vx = 0;
+      } else if (this.over(o, mouseX, mouseY)) {
+        if (!o.hand) o.hand = { x: mouseX, vx: 0, moveAt: now };
+        const vx = (mouseX - o.hand.x) / Math.max(dt, 0.001);
+        o.hand.vx += (vx - o.hand.vx) * Math.min(1, dt * 8);
+        if (Math.abs(mouseX - o.hand.x) > 0.5) o.hand.moveAt = now;
+        o.hand.x = mouseX;
+      } else o.hand = null;
+      document.body.classList.toggle('no-cursor', !!o.hand && o.phase !== 'over');
+      if (o.phase === 'ready' && o.hand) {
+        o.phase = 'play';
+        o.st = 'stalk';
+        sfx('quest', 0.02);
+      }
+      if (o.phase === 'play' && o.hand) o.t += dt;
+      const k = this.k(o);
+      // 잡혔다: 손을 끌어안고 팡팡
+      if (o.phase === 'over') {
+        if (catLift <= 0 && now - o.overAt > 1900 && !sprite.action) {
+          sprite.setToyPose('toyWatch');
+          face(mouseX != null ? mouseX : o.bx);
+        }
+        return;
+      }
+      if (o.st === 'air') {
+        if (catLift > 0) return;
+        // 착지: 손 위에 떨어졌나
+        const h = o.hand;
+        if (h && Math.abs(h.x - catX) < P * 0.3 && o.phase === 'play') return this.caught(o, now);
+        if (o.phase === 'play') {
+          o.dodges++;
+          pop(o, o.dodges % 5 === 0 ? `DODGE ${o.dodges}` : 'MISS', catX, catTop() - 12, o.dodges % 5 === 0 ? '#9fe3c8' : '#ffffff', 700);
+          if (o.dodges % 5 === 0) sfx('quest', 0.02);
+        }
+        // 오래 버틸수록 가끔 바로 한 번 더 덮친다
+        if (h && k > 0.3 && Math.random() < 0.18 + 0.2 * k) {
+          sprite.setToyPose(null);
+          face(h.x);
+          o.st = 'again';
+          o.at = now;
+          return;
+        }
+        sprite.play('toyPeek');
+        o.busyUntil = now + 900 - 400 * k;
+        o.st = 'stalk';
+        return;
+      }
+      if (busy(o, now) || catLift > 0) return sprite.setMove(0);
+      const h = o.hand;
+      if (o.st === 'again') {
+        if (now - o.at > 160) this.pounce(o, now, true);
+        return;
+      }
+      if (!h) {
+        // 손이 사라졌다: 멈춰서 두리번
+        sprite.setMove(0);
+        sprite.setToyPose('toyChatter');
+        if (o.st !== 'stalk') o.st = 'stalk';
+        return;
+      }
+      const dir = Math.sign(h.x - catX) || 1;
+      const reach = P * (0.75 - 0.15 * k);
+      if (o.st === 'stalk') {
+        // 살금살금 (가까워질수록 느리게)
+        const goal = h.x - dir * reach;
+        // 손 앞까지 오면 걸음을 멈추고 납작 엎드린다 (walkTo 는 걸을 때마다 놀이 자세를 지우니 멈춘 뒤에는 부르지 않는다)
+        const near = Math.abs(goal - catX) <= P * 0.22;
+        if (!near) walkTo(goal, dt, Math.abs(goal - catX) > P ? 1.2 + 0.4 * k : 0.7 + 0.5 * k, 4);
+        if (near) {
+          sprite.setMove(0);
+          face(h.x);
+          sprite.setToyPose(k > 0.5 ? 'toyHunt' : 'toyCrouch');
+          if (!o.crouchAt) o.crouchAt = now;
+          if (now - o.crouchAt > 500 - 250 * k) {
+            o.crouchAt = 0;
+            o.st = 'wiggle';
+            o.at = now;
+            sprite.setToyPose(null);
+            sprite.play('toyWiggle');
+          }
+        } else o.crouchAt = 0;
+        return;
+      }
+      sprite.setMove(0);
+      face(h.x);
+      const t = now - o.at;
+      if (o.st === 'wiggle') {
+        // 손이 멀리 달아나면 다시 살금살금
+        if (Math.abs(h.x - catX) > reach * 1.9) {
+          o.st = 'stalk';
+          return;
+        }
+        if (t > 900 - 380 * k) {
+          // 가끔 딴청 피우다 기습
+          if (o.feints < 3 && Math.random() < 0.1 + 0.25 * k) {
+            o.feints++;
+            o.st = 'feint';
+            o.at = now;
+            o.feintMs = rand(500, 1100);
+            sprite.setToyPose('toyDeadpan');
+            sprite.setFacing(-dir);
+            return;
+          }
+          this.pounce(o, now, false);
+        }
+        return;
+      }
+      if (o.st === 'feint') {
+        if (t > o.feintMs) {
+          face(h.x);
+          this.pounce(o, now, true);
+        }
+      }
+    },
+    caught(o, now) {
+      o.phase = 'over';
+      o.hand = o.hand || { x: catX, vx: 0 };
+      o.hand.x = catX;
+      document.body.classList.remove('no-cursor');
+      sprite.setToyPose(null);
+      sprite.play('toyTrap');
+      sfx('bonk', 0.03);
+      burst(o, catX, floorY() - 6, 10, QUILT.concat(['#ffffff']), 160, 600);
+      o.final = Math.floor(o.t * 10) / 10;
+      finish(o, 'quilt', Math.floor(o.t), now);
+      played();
+    },
+    end() {
+      document.body.classList.remove('no-cursor');
+    },
+    draw(ctx, o, D, now) {
+      const t = now / 1000;
+      const fy = floorY();
+      const n = Math.round(o.bw / D);
+      const x0 = Math.round((o.bx - o.bw / 2) / D) * D;
+      const h = o.hand;
+      // 손이 꼼지락거리면 볼록한 데가 들썩인다
+      const wig = h && now - (h.moveAt || 0) < 200 ? Math.round(Math.sin(t * 24)) : 0;
+      const amp = h ? (o.phase === 'over' ? 3 : 7 + wig) : 0;
+      const hs = [];
+      for (let i = 0; i < n; i++) {
+        let v = i < 2 || i >= n - 2 ? 2 : 3 + (Math.sin(i * 0.13 + 1) > 0.88 ? 1 : 0);
+        if (h) {
+          const u = (x0 + i * D - h.x) / (6 * D);
+          v += Math.round(amp * Math.exp(-u * u));
+        }
+        hs.push(v);
+      }
+      FT.underCat(ctx, (g) => {
+        for (let i = 0; i < n; i++) {
+          const x = x0 + i * D;
+          const v = hs[i];
+          const lo = Math.min(i ? hs[i - 1] : 0, i < n - 1 ? hs[i + 1] : 0); // 옆 칸이 낮으면 그만큼 옆면 테두리
+          for (let j = 1; j <= v; j++) {
+            const edge = i === 0 || i === n - 1 || j > lo;
+            g.fillStyle = edge && (i === 0 || i === n - 1) ? '#2b1a10' : edge ? QUILT[2] : (Math.floor(i / 4) + Math.floor(j / 2)) % 2 ? QUILT[0] : QUILT[1];
+            if (!edge && i % 4 === 2 && j === 1) g.fillStyle = '#fffaf3'; // 누빈 바늘땀
+            g.fillRect(x, fy - j * D, D, D);
+          }
+          g.fillStyle = '#2b1a10';
+          g.fillRect(x, fy - (v + 1) * D, D, D);
+        }
+      }, [x0 - D, fy - 16 * D, n * D + 2 * D, 17 * D]);
+      // 머리 위 점수판
+      const hx = o.bx;
+      const hy = fy - petPx() * 1.55;
+      if (o.phase === 'ready') {
+        big(ctx, 'READY?', hx, hy, D, '#ffd35c');
+        ftext(ctx, 'HAND UNDER BLANKET', hx, hy + 9 * D, D, '#ffffff');
+      } else if (o.phase === 'play') {
+        ftext(ctx, `TIME ${o.t.toFixed(1)}`, hx - 22 * D, hy, D, o.hand ? '#ffffff' : '#9aa6ff');
+        ftext(ctx, `DODGE ${o.dodges}`, hx + 22 * D, hy, D, '#ffd35c');
+        if (this.k(o) > 0.5 && Math.floor(t * 2) % 2) ftext(ctx, 'SERIOUS MODE', hx, hy - 8 * D, D, '#ff9a9a');
+      } else results(ctx, o, hx, hy, D, now, 'GOTCHA!', `TIME ${o.final.toFixed(1)}S`);
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  // ================= N4 고양이 찾기 (야바위) =================
+  // 엎어 둔 상자 셋. 고양이가 한 상자 밑으로 쏙 들어가면 상자가 이리저리 섞인다. 고양이가 든 상자를 누르면 성공 (연속 성공 기록).
+  // 맞힐수록 더 많이 · 더 빨리 섞는다. 틀리면 엉뚱한 게 나오고 고양이는 다른 상자에서 메롱.
+  // 아주 가끔(연속 3번 넘게 맞히면) 고양이가 반칙을 한다: 상자 셋이 다 비었고, 고양이는 저만치에서 시치미 뚝 떼고 걸어온다 (연속 기록은 그대로)
+  const CRATE = [
+    '.KKKKKKKKKKKKKK.',
+    'KSSSSSSSSSSSSSSK',
+    'KTTTTTTwwTTTTTtK',
+    'KTTTTTTwwTTTTTtK',
+    'KTTTTTTwwTTTTTtK',
+    'KTTTTTTTTTTTTTtK',
+    'KTTCTTTTTTTTTTtK',
+    'KTCCCTTTTTTTTTtK',
+    'KTTCTTTTTTTTTTtK',
+    'KTTTTTTTTTTTTTtK',
+    'KttttttttttttttK',
+    'KKKKKKKKKKKKKKKK',
+  ];
+  const JUNK = [
+    { s: 'SOCK?', rows: ['.KKK..', '.KRK..', '.KWK..', '.KRK..', '.KWKK.', '.KWWWK', '..KKKK'] },
+    { s: 'BONES', rows: ['..K.K.K...', '.KWKWKWK.K', 'KWWWWWWWKW', '.KWKWKWK.K', '..K.K.K...'] },
+    { s: 'YARN', rows: ['.KKKK.', 'KPPpPK', 'KPpPPK', 'KpPPpK', 'KPPpPK', '.KKKK.'] },
+    { s: 'EMPTY', rows: null },
+  ];
+  C.shellgame = {
+    overCat: true,
+    start(o, side) {
+      const P = petPx();
+      const d = this.d();
+      const gap = Math.max(CRATE[0].length * d * 1.6, P * 0.9);
+      const cx = clamp(catX + side * gap * 1.4, gap * 1.6, W() - gap * 1.6);
+      const now = performance.now();
+      o.cx = cx;
+      o.gap = gap;
+      o.boxes = [0, 1, 2].map((i) => ({ slot: i, x: cx + (i - 1) * gap, lift: 0, drop: now + i * 140, cat: false, junk: null }));
+      Object.assign(o, { phase: 'enter', at: now, streak: 0, swaps: [], cheat: false });
+    },
+    d: () => Math.max(2, Math.round(cellPx() * 1.9)),
+    boxH() {
+      return CRATE.length * this.d();
+    },
+    slotX(o, i) {
+      return o.cx + (i - 1) * o.gap;
+    },
+    boxAt(o, x, y) {
+      const w = (CRATE[0].length * this.d()) / 2 + 6;
+      return o.boxes.find((b) => Math.abs(x - b.x) < w && y > floorY() - this.boxH() - 8 + b.lift && y < floorY() + 4) || null;
+    },
+    wantsMouse(o, e) {
+      return !!this.boxAt(o, e.clientX, e.clientY);
+    },
+    down(o, e) {
+      const now = performance.now();
+      const b = this.boxAt(o, e.clientX, e.clientY);
+      if (!b) return;
+      if (o.phase === 'pick') return this.reveal(o, b, now);
+      if (o.phase === 'over' && now - o.overAt > 1200) {
+        // 한 판 더: 고양이는 가운데 상자로
+        o.streak = 0;
+        for (const x of o.boxes) Object.assign(x, { lift: 0, junk: null, cat: false });
+        this.go(o, 'walk', now);
+      }
+    },
+    click() {},
+    go(o, phase, now) {
+      o.phase = phase;
+      o.at = now;
+    },
+    catBox: (o) => o.boxes.find((b) => b.cat),
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      const t = now - o.at;
+      const lift = this.boxH() * 1.3;
+      const liftTo = (b, v, sp = 9) => (b.lift += (v - b.lift) * Math.min(1, dt * sp));
+      switch (o.phase) {
+        case 'enter':
+          // 상자 셋이 하늘에서 툭툭 떨어진다
+          if (t > 900) this.go(o, 'walk', now);
+          break;
+        case 'walk': {
+          // 가운데 상자 앞으로 가서 → 상자가 들리면 쏙
+          for (const b of o.boxes) liftTo(b, 0);
+          const mid = o.boxes.reduce((a, b) => (Math.abs(b.x - o.cx) < Math.abs(a.x - o.cx) ? b : a));
+          if (catLift > 0 || busy(o, now)) return sprite.setMove(0);
+          if (walkTo(mid.x, dt, 1, 3) <= 3) {
+            for (const b of o.boxes) b.cat = b === mid;
+            this.go(o, 'hide', now);
+            pop(o, `ROUND ${o.streak + 1}`, o.cx, floorY() - this.boxH() * 2.4, '#ffffff', 900);
+          }
+          break;
+        }
+        case 'hide': {
+          const b = this.catBox(o);
+          sprite.setMove(0);
+          if (t < 380) liftTo(b, -lift, 14);
+          else {
+            liftTo(b, 0, 18);
+            if (!o.hidden) {
+              o.hidden = true;
+              sprite.setToyPose('toyHidden');
+              sfx('pop', 0.02);
+              burst(o, b.x, floorY() - 2, 6, ['#d6cfc4', '#ffffff'], 90, 400);
+            }
+          }
+          if (t > 900) this.shuffle(o, now);
+          break;
+        }
+        case 'shuffle': {
+          const s = o.swaps[0];
+          if (!s) {
+            this.go(o, 'pick', now);
+            break;
+          }
+          if (now < s.t0) break;
+          // 바꾸기를 시작할 때 그 두 자리에 있는 상자를 잡는다
+          if (!s.boxes) Object.assign(s, { boxes: s.pair.map((sl) => o.boxes.find((x) => x.slot === sl)), ax: this.slotX(o, s.pair[0]), bx: this.slotX(o, s.pair[1]) });
+          const k = Math.min(1, (now - s.t0) / s.ms);
+          const e = k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
+          const [a, b] = s.boxes;
+          a.x = s.ax + (s.bx - s.ax) * e;
+          b.x = s.bx + (s.ax - s.bx) * e;
+          a.lift = -Math.sin(Math.PI * k) * this.boxH() * 0.45; // 하나는 위로 넘고 하나는 바닥으로 미끄러진다
+          b.lift = 0;
+          if (k >= 1) {
+            [a.slot, b.slot] = [b.slot, a.slot];
+            a.lift = 0;
+            o.swaps.shift();
+            if (o.swaps[0]) o.swaps[0].t0 = now;
+            sfx('tick', 0.015);
+          }
+          const cb = this.catBox(o);
+          if (cb) {
+            catX = cb.x;
+            placeCat();
+          }
+          break;
+        }
+        case 'pick':
+          sprite.setMove(0);
+          break;
+        case 'reveal':
+          for (const b of o.boxes) liftTo(b, b.open ? -lift : 0, 12);
+          break;
+        case 'cheat': {
+          // 반칙! 화면 끝에서 휘파람 불며 걸어온다
+          for (const b of o.boxes) liftTo(b, -lift, 10);
+          if (t < 900) break;
+          if (!o.cheatShown) {
+            o.cheatShown = true;
+            sprite.setToyPose(null);
+            const [min, max] = lane();
+            catX = clamp(o.cx + (o.cx < W() / 2 ? 1 : -1) * petPx() * 5, min, max);
+            placeCat();
+            pop(o, 'CHEATER!', o.cx, floorY() - this.boxH() * 2.6, '#ff9a9a', 1400);
+          }
+          if (walkTo(o.cx, dt, 0.7, 3) <= 3) {
+            sprite.play('toyPretend');
+            o.busyUntil = now + 2400;
+            for (const b of o.boxes) b.open = false;
+            this.go(o, 'walk', now);
+          }
+          break;
+        }
+        case 'over':
+          for (const b of o.boxes) liftTo(b, b.open ? -lift : 0, 12);
+          if (catLift <= 0 && !sprite.action) {
+            sprite.setToyPose(null);
+            sprite.setMove(0);
+          }
+          break;
+      }
+    },
+    shuffle(o, now) {
+      o.hidden = false;
+      const n = Math.min(4 + o.streak, 14);
+      const ms = Math.max(170, 480 - o.streak * 32);
+      o.swaps = [];
+      let last = -1;
+      for (let i = 0; i < n; i++) {
+        let pair;
+        do pair = [[0, 1], [1, 2], [0, 2]][Math.floor(Math.random() * 3)];
+        while (pair.join() === last);
+        last = pair.join();
+        o.swaps.push({ pair, ms: pair[0] === 0 && pair[1] === 2 ? ms * 1.25 : ms });
+      }
+      o.swaps[0].t0 = now + 250;
+      // 반칙은 연속 3번 넘게 맞혔을 때 가끔
+      o.cheat = o.streak >= 3 && Math.random() < 0.12;
+      this.go(o, 'shuffle', now);
+    },
+    reveal(o, b, now) {
+      for (const x of o.boxes) x.x = this.slotX(o, x.slot);
+      if (o.cheat) {
+        // 고른 상자도, 나머지도 텅. 고양이는 어디로?
+        o.cheat = false;
+        o.cheatShown = false;
+        for (const x of o.boxes) Object.assign(x, { open: true, cat: false, junk: null });
+        pop(o, '?!', o.cx, floorY() - this.boxH() * 2, '#ffd35c', 900);
+        sfx('lose', 0.02);
+        this.go(o, 'cheat', now);
+        return;
+      }
+      b.open = true;
+      this.go(o, 'reveal', now);
+      if (b.cat) {
+        // 찾았다!
+        o.streak++;
+        sprite.setToyPose(null);
+        sprite.play('toyYay');
+        sfx(o.streak % 5 === 0 ? 'win' : 'quest', 0.03);
+        pop(o, o.streak > 1 ? `FOUND! X${o.streak}` : 'FOUND!', b.x, floorY() - this.boxH() * 2.2, '#9fe3c8', 1000);
+        burst(o, b.x, floorY() - this.boxH(), 12, ['#ffd35c', '#9fe3c8', '#ffffff'], 180, 700);
+        if (best('shellgame', o.streak)) pop(o, 'NEW BEST', b.x, floorY() - this.boxH() * 2.9, '#ffd35c', 1200);
+        if (o.streak % 2 === 1) played();
+        K.later(o, 1800, () => {
+          if (toy !== o) return;
+          b.open = false;
+          this.go(o, 'walk', performance.now());
+        });
+        return;
+      }
+      // 꽝: 엉뚱한 게 나오고, 진짜 상자에서 고양이가 메롱
+      b.junk = JUNK[Math.floor(Math.random() * JUNK.length)];
+      pop(o, b.junk.s, b.x, floorY() - this.boxH() * 2.2, '#cccccc', 900);
+      sfx('lose', 0.025);
+      K.later(o, 650, () => {
+        if (toy !== o) return;
+        const cb = this.catBox(o);
+        cb.open = true;
+        sprite.setToyPose(null);
+        face(b.x);
+        sprite.play('toyBlep');
+        o.final = o.streak;
+        this.go(o, 'over', performance.now());
+        finish(o, 'shellgame', o.streak, performance.now());
+        o.isBest = false; // 기록은 맞힐 때마다 이미 남겼다
+        played();
+      });
+    },
+    draw(ctx, o, D, now) {
+      const d = this.d();
+      const bh = this.boxH();
+      const fy = floorY();
+      for (const b of o.boxes) {
+        // 하늘에서 툭: 떨어지는 동안 위에서
+        let y = fy - bh / 2 + b.lift;
+        if (o.phase === 'enter') {
+          const k = clamp((now - b.drop) / 420, 0, 1);
+          y -= (1 - k * k) * fy * 0.5;
+          if (k >= 1 && !b.landed) {
+            b.landed = true;
+            sfx('tick', 0.02);
+          }
+        }
+        if (b.junk && b.junk.rows && b.lift < -2) stamp(ctx, b.junk.rows, b.x, fy - b.junk.rows.length * D * 0.5 - D, D);
+        // 들린 상자 밑 그림자
+        if (b.lift < -2) for (let i = -5; i <= 5; i++) FT.dotAt(ctx, b.x + i * d, fy - d, d, 'rgba(30,15,8,0.18)');
+        stamp(ctx, CRATE, b.x, y, d);
+      }
+      const hy = fy - bh * 3.2;
+      if (o.phase === 'pick') big(ctx, 'WHERE?', o.cx, hy, D, Math.floor(now / 400) % 2 ? '#ffd35c' : '#ffffff');
+      else if (o.phase === 'shuffle') ftext(ctx, 'WATCH CLOSELY', o.cx, hy, D, '#ffffff');
+      if (o.phase !== 'over' && o.streak) ftext(ctx, `STREAK ${o.streak}`, o.cx, hy + 9 * D, D, '#9fe3c8');
+      if (o.phase === 'over') results(ctx, o, o.cx, hy, D, now, `STREAK ${o.final}`, 'NOT THERE!');
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  // ================= N5 비치볼 배구 =================
+  // 고양이 앞에 작은 네트. 공이 내 쪽으로 넘어오면 공을 눌러서 넘긴다. 고양이는 공 밑으로 달려가 뛰어올라 앞발로 받아넘긴다.
+  // 랠리가 길어질수록 공이 빨라지고(10번부터 금빛, 20번부터 불꽃), 고양이도 가끔 헛손질한다. 바닥에 떨어진 쪽이 진다. 기록은 가장 긴 랠리
+  const BALL_COL = ['#e8534a', '#ffffff', '#6fb0ea', '#ffffff', '#ffd65a', '#ffffff'];
+  C.volley = {
+    cursor: true,
+    overCat: true,
+    start(o, side) {
+      const P = petPx();
+      const netX = clamp(catX + side * P * 1.5, P * 2.5, W() - P * 2.5);
+      Object.assign(o, { dir: side, netX, trail: [] });
+      this.serve(o);
+    },
+    r: () => Math.max(8, Math.round(petPx() * 0.16)),
+    netH: () => petPx() * 0.9,
+    serve(o) {
+      const P = petPx();
+      o.ball = { x: o.netX + o.dir * P * 1.4, y: floorY() - P * 2.4, vx: 0, vy: 0, spin: 0 };
+      Object.assign(o, { phase: 'serve', rally: 0, at: performance.now(), willMiss: false, jumped: false, catSide: false });
+    },
+    speed: (o) => Math.min(1.9, 1 + o.rally * 0.045),
+    // 사람이 공을 친다 (공 근처를 누르면)
+    down(o, e) {
+      const now = performance.now();
+      if (o.phase === 'over') {
+        if (now - o.overAt > 1000) this.serve(o);
+        return;
+      }
+      const b = o.ball;
+      const mine = Math.sign(b.x - o.netX) === o.dir;
+      if (!mine || Math.hypot(e.clientX - b.x, e.clientY - b.y) > this.r() * 1.6 + 16) {
+        sfx('tick', 0.01);
+        return;
+      }
+      const s = this.speed(o);
+      // 누른 자리가 공 아래쪽일수록 높이 뜬다
+      const under = clamp((e.clientY - b.y) / (this.r() * 2), -0.5, 1);
+      b.vx = -o.dir * rand(170, 230) * s;
+      b.vy = -(340 + under * 90) * Math.sqrt(s);
+      b.spin = -o.dir * 8;
+      o.phase = 'play';
+      o.rally++;
+      o.willMiss = Math.random() < (o.rally < 6 ? 0.02 : Math.min(0.45, 0.03 + (o.rally - 6) * 0.035));
+      o.jumped = false;
+      tone(330 + Math.min(o.rally, 20) * 18, 0.08, 0.03);
+      burst(o, b.x, b.y, 6, ['#ffffff', '#ffd35c'], 140, 400);
+      this.cheer(o, b);
+    },
+    // 랠리 몇 번째마다 한마디
+    cheer(o, b) {
+      if (o.rally === 10) pop(o, 'GOLDEN!', b.x, b.y - 24, '#ffd35c', 900);
+      else if (o.rally === 20) pop(o, 'ON FIRE!', b.x, b.y - 24, '#ff9a3c', 900);
+      else if (o.rally % 5 === 0) pop(o, `RALLY ${o.rally}`, b.x, b.y - 24, '#9fe3c8', 800);
+    },
+    click() {},
+    // 공이 고양이 키 높이까지 떨어질 자리
+    landing(o) {
+      const b = o.ball;
+      const g = 520;
+      const hitY = floorY() - petPx() * 0.6;
+      let { x, y, vx, vy } = b;
+      for (let i = 0; i < 240 && !(vy > 0 && y >= hitY); i++) {
+        vy += g / 60;
+        x += vx / 60;
+        y += vy / 60;
+        if (x < 20 || x > W() - 20) vx = -vx * 0.7;
+      }
+      return x;
+    },
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      const P = petPx();
+      const b = o.ball;
+      const r = this.r();
+      const fy = floorY();
+      const netTop = fy - this.netH();
+      // 공: 가볍게 둥실 (서브 전에는 천천히 내려온다)
+      const g = o.phase === 'serve' ? 140 : 520;
+      const px = b.x;
+      b.vy += g * dt;
+      b.vx *= Math.pow(0.995, dt * 60);
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.spin *= Math.pow(0.6, dt);
+      if (b.x < r || b.x > W() - r) {
+        b.x = clamp(b.x, r, W() - r);
+        b.vx = -b.vx * 0.7;
+      }
+      // 네트에 걸리면 튕겨 나온다
+      if (Math.sign(px - o.netX) !== Math.sign(b.x - o.netX) && b.y + r > netTop) {
+        b.x = o.netX + Math.sign(px - o.netX) * (r + 2);
+        b.vx = -b.vx * 0.4;
+        sfx('tick', 0.02);
+      }
+      if (o.phase === 'serve') {
+        // 서브 공은 손 닿는 높이에 둥실둥실
+        b.vy = (fy - P * 1.1 + Math.sin(now / 300) * 6 - b.y) * 3;
+        b.vx = 0;
+      }
+      if (o.rally >= 10 && o.phase === 'play') {
+        o.trail.push({ x: b.x, y: b.y, t: now });
+        if (o.trail.length > 10) o.trail.shift();
+      } else o.trail = [];
+      // 바닥에 닿았다 → 한 판 끝
+      if (b.y + r >= fy) {
+        b.y = fy - r;
+        if (o.phase === 'play') this.point(o, now);
+        b.vy = -Math.abs(b.vy) * 0.35;
+        b.vx *= 0.6;
+      }
+      if (o.phase === 'over') {
+        if (catLift <= 0 && now - o.overAt > 1800 && !sprite.action) {
+          sprite.setToyPose('toyWatch');
+          face(b.x);
+        }
+        return;
+      }
+      // 고양이: 제 쪽 코트에서만 움직인다
+      if (catLift > 0) {
+        if (o.phase === 'play' && !o.willMiss && Math.sign(b.x - o.netX) === -o.dir && canReach(b)) this.bop(o, now);
+        return;
+      }
+      if (busy(o, now)) return sprite.setMove(0);
+      const [min, max] = lane();
+      const lo = o.dir > 0 ? min : o.netX + P * 0.35;
+      const hi = o.dir > 0 ? o.netX - P * 0.35 : max;
+      const coming = o.phase === 'play' && (Math.sign(b.x - o.netX) === -o.dir || Math.sign(b.vx) === -o.dir);
+      if (!coming) {
+        // 기다리는 자리: 네트에서 조금 떨어져 공을 본다
+        const home = o.netX - o.dir * P * 1.1;
+        if (walkTo(clamp(home, lo, hi), dt, 0.8, 4) <= 4) {
+          face(b.x);
+          sprite.setToyPose('toyWatch');
+        }
+        return;
+      }
+      let tx = clamp(this.landing(o), lo, hi);
+      if (o.willMiss) tx = clamp(tx + o.dir * P * 0.7, lo, hi); // 헛다리
+      const d = walkTo(tx, dt, 1.8, 3);
+      if (d <= 3) face(b.x);
+      // 공이 내려오면 폴짝
+      const h = fy - b.y;
+      if (!o.jumped && b.vy > 0 && Math.sign(b.x - o.netX) === -o.dir && h < P * 1.7 && Math.abs(b.x - catX) < P * 0.5) {
+        o.jumped = true;
+        leap(h - P * 0.45);
+      }
+      // 낮게 떨어지면 서서 톡
+      if (!o.willMiss && Math.sign(b.x - o.netX) === -o.dir && canReach(b)) this.bop(o, now);
+    },
+    bop(o, now) {
+      const b = o.ball;
+      const s = this.speed(o);
+      b.vx = o.dir * rand(150, 220) * s;
+      b.vy = -rand(350, 410) * Math.sqrt(s);
+      b.spin = o.dir * 8;
+      o.rally++;
+      o.jumped = false;
+      o.willMiss = false;
+      sfx('bonk', 0.02);
+      tone(392 + Math.min(o.rally, 20) * 18, 0.07, 0.025);
+      pop(o, Math.random() < 0.5 ? 'BOP' : 'PAT', b.x, b.y - 18, '#ffffff', 500);
+      this.cheer(o, b);
+    },
+    point(o, now) {
+      const b = o.ball;
+      const catLost = Math.sign(b.x - o.netX) === -o.dir;
+      o.phase = 'over';
+      o.final = o.rally;
+      o.catLost = catLost;
+      burst(o, b.x, floorY() - 3, 8, ['#d6cfc4', '#ffffff'], 120, 500);
+      finish(o, 'volley', o.rally, now);
+      sprite.setToyPose(null);
+      if (catLift <= 0) {
+        if (catLost) sprite.play(Math.random() < 0.5 ? 'toyTrip' : 'toySulk');
+        else sprite.play('toyYay');
+      }
+      o.busyUntil = now + 1600;
+      if (o.rally >= 3) played();
+    },
+    draw(ctx, o, D, now) {
+      const P = petPx();
+      const fy = floorY();
+      const t = now / 1000;
+      const b = o.ball;
+      const r = this.r();
+      const R = Math.max(3, Math.round(r / D));
+      // 네트: 기둥 + 그물 + 흰 띠 (고양이가 네트 뒤로 지나가지는 않는다)
+      const nh = Math.round(this.netH() / D);
+      const nx = Math.round(o.netX / D) * D;
+      for (let j = 0; j <= nh; j++) {
+        const y = fy - j * D;
+        FT.dotAt(ctx, nx - 2 * D, y, D, '#2b1a10');
+        FT.dotAt(ctx, nx - D, y, D, '#8f95a0');
+        if (j > nh * 0.4) {
+          const tape = j >= nh - 1;
+          const mesh = (i) => (tape ? '#ffffff' : (i + j) % 2 ? '#2b1a10' : 'rgba(255,255,255,0.35)');
+          for (let i = 0; i < 3; i++) FT.dotAt(ctx, nx + i * D, y, D, mesh(i));
+        }
+      }
+      for (let i = -2; i < 3; i++) FT.dotAt(ctx, nx + i * D, fy - (nh + 1) * D, D, '#2b1a10');
+      for (let i = -3; i <= 0; i++) FT.dotAt(ctx, nx + i * D, fy, D, '#2b1a10'); // 받침
+      // 공 그림자 (높이 뜰수록 작다)
+      const sh = Math.max(1, Math.round(R * (1 - Math.min(0.8, (fy - b.y) / (P * 3)))));
+      for (let i = -sh; i <= sh; i++) FT.dotAt(ctx, b.x + i * D, fy - D, D, 'rgba(30,15,8,0.2)');
+      // 금빛 · 불꽃 꼬리
+      for (const [i, p] of o.trail.entries()) {
+        const a = (i + 1) / o.trail.length;
+        FT.dotAt(ctx, p.x + rand(-2, 2), p.y + rand(-2, 2), D, o.rally >= 20 ? `rgba(255,${120 + i * 10},60,${a * 0.8})` : `rgba(255,214,90,${a * 0.7})`);
+      }
+      // 비치볼: 여섯 조각이 돌아간다
+      o.ballRot = (o.ballRot || 0) + (b.spin || 0) * 0.016;
+      const spans = FT.discSpans(R);
+      const x0 = Math.round(b.x / D) * D;
+      const y0 = Math.round(b.y / D) * D;
+      const gold = o.rally >= 10 && o.phase !== 'over';
+      for (const [dy, l, rr] of spans)
+        for (let dx = l; dx <= rr; dx++) {
+          const edge = dx === l || dx === rr || Math.abs(dy) === R || !spans.some(([y2, l2, r2]) => y2 === dy - Math.sign(dy) && dx >= l2 && dx <= r2);
+          let c;
+          if (edge) c = '#2b1a10';
+          else if (dx * dx + dy * dy <= 1) c = '#ffffff';
+          else {
+            const seg = Math.floor((((Math.atan2(dy, dx) + o.ballRot) / (Math.PI * 2)) % 1 + 1) % 1 * 6);
+            c = gold ? (seg % 2 ? '#ffd65a' : '#fff3bf') : BALL_COL[seg];
+          }
+          ctx.fillStyle = c;
+          ctx.fillRect(x0 + dx * D, y0 + dy * D, D, D);
+        }
+      FT.dotAt(ctx, x0 - Math.round(R * 0.45) * D, y0 - Math.round(R * 0.5) * D, D, '#ffffff');
+      // 점수판
+      const hx = o.netX;
+      const hy = fy - this.netH() - 18 * D;
+      if (o.phase === 'serve') {
+        ftext(ctx, 'CLICK THE BALL', hx + o.dir * P * 1.4, b.y - r - 10 * D, D, Math.floor(t * 2) % 2 ? '#ffd35c' : '#ffffff');
+        if (REC().volley) ftext(ctx, `BEST ${REC().volley}`, hx, hy, D, '#ffffff');
+      } else if (o.phase === 'play') big(ctx, String(o.rally), hx, hy, D, o.rally >= 20 ? '#ff9a3c' : o.rally >= 10 ? '#ffd35c' : '#ffffff');
+      else results(ctx, o, hx, hy, D, now, o.catLost ? 'YOU WIN' : 'CAT WINS', `RALLY ${o.final}`);
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  // ================= N6 냥냥 피아노 (따라 치기) =================
+  // 바닥에 동그란 소리판 넷 (도·미·솔·도). 고양이가 폴짝폴짝 밟아 가락을 들려주면, 같은 순서로 판을 눌러 따라 친다.
+  // 맞히면 한 음씩 늘어나고 점점 빨라진다 (기록 = 가장 긴 가락). 8음부터는 가끔 고양이가 신나서 앙코르 연주
+  const PADS = [
+    { c: '#e8534a', d: '#a8322c', l: '#ffb0a8', f: 523.25 },
+    { c: '#ffd65a', d: '#d9a21f', l: '#fff3bf', f: 659.25 },
+    { c: '#78c46a', d: '#4b8f43', l: '#c8f0bf', f: 783.99 },
+    { c: '#6fb0ea', d: '#3d6fb0', l: '#cfe8f7', f: 1046.5 },
+  ];
+  const PAWPRINT = ['.K.K.', 'K.K.K', '.KKK.', '.KKK.'];
+  C.simon = {
+    overCat: true,
+    start(o, side) {
+      const P = petPx();
+      const gap = Math.max(P * 0.6, 48);
+      const cx = clamp(catX + side * gap * 2.2, gap * 2.2, W() - gap * 2.2);
+      Object.assign(o, { cx, gap, seq: [], i: 0, lit: [0, 0, 0, 0], notes: [], hop: null });
+      this.go(o, 'intro', performance.now());
+    },
+    go(o, phase, now) {
+      o.phase = phase;
+      o.at = now;
+    },
+    padX(o, i) {
+      return o.cx + (i - 1.5) * o.gap;
+    },
+    padAt(o, x, y) {
+      if (y == null || y < floorY() - petPx() * 0.6 || y > floorY() + 6) return -1;
+      for (let i = 0; i < 4; i++) if (Math.abs(x - this.padX(o, i)) < o.gap * 0.46) return i;
+      return -1;
+    },
+    wantsMouse(o, e) {
+      return this.padAt(o, e.clientX, e.clientY) >= 0;
+    },
+    down(o, e) {
+      const now = performance.now();
+      const i = this.padAt(o, e.clientX, e.clientY);
+      if (i < 0) return;
+      if (o.phase === 'over') {
+        if (now - o.overAt > 1000) {
+          o.seq = [];
+          this.go(o, 'intro', now);
+        }
+        return;
+      }
+      this.light(o, i, now);
+      if (o.phase !== 'input') return;
+      face(this.padX(o, i));
+      if (i !== o.seq[o.i]) return this.wrong(o, i, now);
+      o.i++;
+      if (o.i < o.seq.length) return;
+      // 한 가락을 다 따라 쳤다
+      const n = o.seq.length;
+      const isBest = best('simon', n);
+      pop(o, isBest && n > 2 ? 'NEW BEST' : n % 5 === 0 ? `${n} NOTES!` : 'NICE', o.cx, floorY() - petPx() * 1.5, isBest ? '#ffd35c' : '#9fe3c8', 900);
+      if (catLift <= 0) {
+        sprite.setToyPose(null);
+        sprite.play('toyYay');
+      }
+      if (n % 2 === 0) played();
+      this.go(o, 'wait', now);
+      o.encore = n >= 8 && Math.random() < 0.3;
+    },
+    click() {},
+    light(o, i, now) {
+      o.lit[i] = now;
+      tone(PADS[i].f, 0.22, 0.03);
+      o.notes.push({ x: this.padX(o, i) + rand(-6, 6), y: floorY() - 8 * itemDot(), t: now, c: PADS[i].c });
+    },
+    wrong(o, i, now) {
+      tone(150, 0.45, 0.035, 'sawtooth', 0.7);
+      o.bad = { i, t: now };
+      o.final = o.seq.length - 1;
+      sprite.setToyPose(null);
+      if (catLift <= 0) sprite.play('toyDeadpan');
+      this.go(o, 'over', now);
+      finish(o, 'simon', o.final, now);
+      o.isBest = false; // 기록은 다 따라 칠 때마다 이미 남겼다
+      o.bestShown = REC().simon || 0;
+      played();
+    },
+    // 고양이가 i 번 판으로 폴짝
+    hopTo(o, i, now, quick) {
+      const tx = this.padX(o, i);
+      const T = quick ? 0.22 : Math.min(0.34, this.beat(o) / 1000 * 0.62);
+      const vy = (1500 * T) / 2;
+      sprite.setToyPose(null);
+      sprite.play('toyLeap');
+      catVy = -vy;
+      catLift = 1;
+      catVx = (tx - catX) / T;
+      o.hop = { i, t: now };
+    },
+    beat: (o) => Math.max(240, 620 - o.seq.length * 28),
+    step(o, dt, now) {
+      commonStep(o, dt, now);
+      o.notes = o.notes.filter((n) => now - n.t < 900);
+      const t = now - o.at;
+      // 폴짝 → 착지하면 판이 울린다
+      if (o.hop) {
+        if (catLift > 0) return;
+        const i = o.hop.i;
+        o.hop = null;
+        catX = this.padX(o, i);
+        placeCat();
+        this.light(o, i, now);
+        burst(o, catX, floorY() - 2, 4, [PADS[i].c, '#ffffff'], 90, 350);
+        o.nextAt = now + this.beat(o) * 0.55;
+      }
+      if (catLift > 0) return;
+      switch (o.phase) {
+        case 'intro':
+          if (walkTo(o.cx, dt, 1, 4) <= 4 || t > 2500) {
+            face(this.padX(o, 0));
+            this.go(o, 'wait', now);
+          }
+          break;
+        case 'wait':
+          // 잠깐 쉬고 다음 가락 (앙코르면 먼저 신나는 연주)
+          sprite.setMove(0);
+          if (t < 1100) break;
+          if (o.encore) {
+            o.encore = false;
+            o.flourish = [0, 1, 2, 3, 2, 1, 0];
+            pop(o, 'ENCORE!', o.cx, floorY() - petPx() * 1.7, '#ff9bb8', 1100);
+            this.go(o, 'flourish', now);
+            break;
+          }
+          o.seq.push(Math.floor(Math.random() * 4));
+          o.i = 0;
+          o.nextAt = now + 300;
+          this.go(o, 'show', now);
+          break;
+        case 'flourish':
+          if (now < (o.nextAt || 0)) break;
+          if (!o.flourish.length) {
+            o.seq.push(Math.floor(Math.random() * 4));
+            o.i = 0;
+            o.nextAt = now + 500;
+            this.go(o, 'show', now);
+            break;
+          }
+          this.hopTo(o, o.flourish.shift(), now, true);
+          break;
+        case 'show':
+          sprite.setMove(0);
+          if (now < (o.nextAt || 0)) break;
+          if (o.i >= o.seq.length) {
+            // 다 들려줬다. 이제 내 차례 — 고양이는 판 뒤로 물러나 지켜본다
+            o.i = 0;
+            this.go(o, 'input', now);
+            break;
+          }
+          this.hopTo(o, o.seq[o.i++], now, false);
+          break;
+        case 'input': {
+          const off = o.cx + (catX < o.cx ? -1 : 1) * o.gap * 2.4;
+          if (walkTo(off, dt, 1.2, 4) <= 4) {
+            face(o.cx);
+            sprite.setToyPose('toyWatch');
+          }
+          break;
+        }
+        case 'over':
+          sprite.setMove(0);
+          break;
+      }
+    },
+    end() {
+      hush();
+    },
+    draw(ctx, o, D, now) {
+      const P = petPx();
+      const fy = floorY();
+      const rx = Math.max(5, Math.round((o.gap * 0.4) / D));
+      const ry = Math.max(2, Math.round(rx * 0.32));
+      const box = [o.cx - o.gap * 2.1, fy - (ry * 2 + 4) * D, o.gap * 4.2, (ry * 2 + 5) * D];
+      FT.underCat(ctx, (g) => {
+        for (let i = 0; i < 4; i++) {
+          const p = PADS[i];
+          const x = this.padX(o, i);
+          const on = now - o.lit[i] < 260;
+          const bad = o.bad && o.bad.i === i && now - o.bad.t < 900;
+          const hint = o.phase === 'over' && o.final >= 0 && o.seq[o.i] === i && Math.floor((now - o.overAt) / 220) % 2 === 0 && now - o.overAt < 1800;
+          const top = fy - (ry + 2) * D - (on ? 0 : D);
+          // 옆면 (두께)
+          oval(g, x, fy - (ry + 1) * D, rx, ry, D, (dx, dy, edge) => (edge ? '#2b1a10' : p.d));
+          // 윗면: 누르면 한 칸 내려가며 밝게
+          oval(g, x, top, rx, ry, D, (dx, dy, edge) => (edge ? '#2b1a10' : bad ? '#ff5a5a' : on || hint ? p.l : dy < 0 && dx < -rx * 0.3 ? p.l : p.c));
+          stamp(g, PAWPRINT, x, top, D);
+        }
+      }, box);
+      // 울릴 때 퍼지는 음표
+      for (const n of o.notes) {
+        const k = (now - n.t) / 900;
+        ctx.globalAlpha = Math.max(0, 1 - k);
+        FT.stampAt(ctx, ['.KK', '.K.', 'KK.'], n.x + Math.sin(k * 6) * 4, n.y - k * 40, D, { K: n.c });
+      }
+      ctx.globalAlpha = 1;
+      const hy = fy - P * 1.25;
+      if (o.phase === 'show' || o.phase === 'flourish') ftext(ctx, 'LISTEN', o.cx, hy, D, '#ffffff');
+      else if (o.phase === 'input') {
+        big(ctx, 'YOUR TURN', o.cx, hy - 2 * D, D, '#ffd35c');
+        // 몇 음째인가: 친 만큼 점이 켜진다
+        const n = o.seq.length;
+        for (let k = 0; k < n; k++) FT.dotAt(ctx, o.cx + (k - (n - 1) / 2) * 3 * D, hy + 8 * D, 2 * D, k < o.i ? '#ffd35c' : 'rgba(255,255,255,0.45)');
+      } else if (o.phase === 'over') results(ctx, o, o.cx, hy - 6 * D, D, now, `NOTES ${o.final}`, 'OOPS');
+      if (o.seq.length && o.phase !== 'over') ftext(ctx, `NOTES ${o.seq.length}`, o.cx, hy - 14 * D, D, '#9fe3c8');
+      commonDraw(ctx, o, D, now);
+    },
+  };
+
+  root.TOY_CUSTOM = Object.assign(root.TOY_CUSTOM || {}, C);
+})(window);
+
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
   } else {
 /* kit/house.js */
 // 하우스 창: 펫 상태, 퀘스트, 업적, 꾸미기, 통계, 설정, 첫 실행 안내.
+// 2.0.0: 홈은 옵시디언을 쓰는 데 도움이 되는 것들(목표 · 집중 타이머 · 할 일 · 퀘스트 · 노트 지도 · 최근 노트).
+//  동네 친구 · 보물 공방 탭, 먹고 싶은 것 · 오늘의 소식 칸, 그날의 기분 딱지, 상점의 모션 페이지는 없앴다.
 // (옵시디언판: 데스크톱판 house.js 사본. 옵시디언 탭 속 iframe 에서 돈다. 바꾼 곳에는 [옵시디언] 표시)
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -59632,7 +61597,7 @@ const icon = (name, px = 16) => PixelArt.svg(name, px);
 // 먹이 카드의 배부름: 도트 아이콘 + 숫자 한 줄. 뜻은 마우스를 올리면
 const foodGain = (it) => `<div class="food-gain" title="${esc(t('shop.gainFood', { n: it.fill }))}"><span>${icon('ricebowl', 11)}+${it.fill}</span></div>`;
 // 먹었을 때 특별한 일이 있는 먹이(프리미엄)는 그 밑에 효과를 짧게 한 줄 (i18n 'foodFx.<키>', 긴 설명은 'foodFxTip.<키>'. 없으면 줄도 없다)
-const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift', inviteCookie: 'paw' };
+const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift' };
 const foodFx = (key) => {
   const k = 'foodFx.' + key;
   const s = t(k);
@@ -59665,8 +61630,8 @@ const hourName = (h) =>
   : T.lang === 'zh' ? (h === 0 ? '凌晨0点' : h === 12 ? '中午12点' : `${h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上'}${h % 12}点`)
   : `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}시`;
 const coins = (n, px = 14) => `${icon('coin', px)}<span>${t('shop.coin', { n: fmt(n) })}</span>`;
-// [옵시디언] 글자·링크·새 노트·세션·노트 열기 퀘스트
-const QUEST_ICON = { chars: 'scroll', links: 'pin', notes: 'map', opens: 'eye', msgs: 'chat', sessions: 'door', tokens: 'coin', replies: 'chats', xp: 'star', poke: 'paw', lift: 'heart', fed: 'ricebowl', snack: 'gift', catch: 'sparkle', rest: 'pillow', spend: 'moneybag', meal: 'ricebowl', early: 'sunrise' };
+// [옵시디언 2.0.0] 옵시디언 습관 퀘스트 (core/gamify.js 의 QUEST_POOL)
+const QUEST_ICON = { chars: 'scroll', links: 'pin', tags: 'pin', heads: 'scroll', daily: 'calendar', tasks: 'check', props: 'gear', embeds: 'eye', organize: 'home', orphans: 'paw', notes: 'map', focus: 'hourglass', todos: 'check', graph: 'map' };
 // 고양이가 한 마리뿐이면 단계 얘기(로드맵·시작 단계 고르기)를 통째로 숨긴다
 const oneStage = () => !D || !D.stages || D.stages.length < 2;
 const MOOD_ICON = { thinking: 'laptop', waiting: 'bang', active: 'eye', idle: 'leaf', sleepy: 'doze', sleeping: 'zzz', hungry: 'ricebowl' };
@@ -59789,83 +61754,6 @@ function mini(canvas) {
   r.demo = canvas.dataset.motion || null;
   r.demoGap = 0;
   return r;
-}
-
-// ---------- 보물 상자 ----------
-// 깜짝 이벤트로 주운 하찮은 보물들. 아직 못 찾은 건 까만 그림자와 ???
-function treasureBox() {
-  const T5 = D.treasures;
-  if (!T5) return '';
-  // 한 번이라도 주운 건(seen) 공방 재료로 다 써서 0개여도 이름이 보인다 (×0 은 흐리게)
-  const cells = T5.list
-    .map((x) =>
-      x.count || x.seen
-        ? `<div class="panel tcell tr-${x.rarity} ${x.count ? '' : 'used'}" title="${esc(t('treasure.' + x.key))}">
-            <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
-            <div class="tnm">${esc(t('treasure.' + x.key))}</div>${x.count !== 1 ? `<div class="tcnt">×${x.count}</div>` : ''}</div>`
-        : `<div class="panel tcell unknown">${icon(x.key, 40)}<div class="tnm">???</div></div>`,
-    )
-    .join('');
-  return `<h2 class="tbox-title">${t('treasure.title')} <span class="muted">${T5.kinds} / ${T5.total}</span></h2>
-    <p class="muted" style="margin-top:-4px">${t('treasure.sub')}</p>
-    <div class="tbox">${cells}</div>`;
-}
-
-// 동네 친구 도감. 한 번도 안 온 친구는 그림자와 ???. 카드를 누르면 TMI 가 펼쳐진다
-let friendOpen = null;
-function friendArt(f, mood) {
-  // 고양이 친구는 sprite.js, 동물 친구는 friends.js 로 그린다 (animate 가 돌린다)
-  return f.art
-    ? `<canvas class="pixel fart" width="48" height="48" data-friend-art="${f.art}"></canvas>`
-    : `<canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${(f.wear || []).join(',') || 'none'}" data-mood="${mood}"></canvas>`;
-}
-function guestBox() {
-  const F = D.friends;
-  if (!F) return '';
-  const now = F.now;
-  const nowCard = now
-    ? `<div class="panel fr-now">${icon('paw', 16)}<b>${esc(t('fr.' + now.id + '.nick'))} ${esc(t('fr.' + now.id + '.name'))}</b>
-        <span class="muted">${t('fr.visiting', { m: Math.max(1, Math.ceil((now.until - Date.now()) / 60000)) })}</span></div>`
-    : '';
-  const cards = F.list.map((f) => {
-    if (!f.visits) {
-      return `<div class="panel gcell unknown">${friendArt(f, 'idle')}<div class="gnm">???</div><div class="gsub">${t('fr.unknown')}</div></div>`;
-    }
-    const hearts = [1, 2, 3].map((i) => `<span class="${i <= f.level ? 'on' : ''}">${icon('heart', 11)}</span>`).join('');
-    const open = friendOpen === f.id;
-    const tmi = open
-      ? `<div class="fr-motto"><small>${t('fr.motto')}</small>“${esc(t('fr.' + f.id + '.motto'))}”</div>
-         <ul class="fr-tmi">${[1, 2, 3, 4].map((i) => `<li>${esc(t('fr.' + f.id + '.tmi' + i))}</li>`).join('')}</ul>
-         <div class="gsub">${t('fr.like')} · ${esc(t('fr.' + f.id + '.like'))}</div>
-         <div class="gsub">${t('fr.home')} · ${esc(t('fr.' + f.id + '.home'))}</div>`
-      : '';
-    // 부르기: 단짝만. 다른 친구가 와 있거나 쉬는 중이면 이유를 보여 준다
-    const why = f.can === 'notBest' ? t('fr.callNotBest') : f.can === 'busy' ? t('fr.callBusy') : f.can === 'cooldown' ? t('fr.callCool', { m: Math.max(1, Math.ceil((F.callReadyAt - Date.now()) / 60000)) }) : '';
-    const call = f.level >= 3 || f.can !== 'notBest'
-      ? `<button class="btn small ${f.can ? '' : 'primary'}" data-fr-call="${f.id}" ${f.can ? 'disabled' : ''}>${icon('bell', 12)}${t('fr.call')}</button>${why ? `<div class="gsub">${esc(why)}</div>` : ''}`
-      : `<div class="gsub">${esc(why)}</div>`;
-    // 선물하기: 단짝 고양이 친구만. 고양이 친구인데 아직 단짝이 아니면 안내만
-    const gift = f.giftable
-      ? `<button class="btn small" data-fr-gift="${f.id}">${icon('gift', 12)}${t('fr.giftBtn')}</button>`
-      : f.fur != null ? `<div class="gsub">${t('fr.giftHint')}</div>` : '';
-    return `<div class="panel gcell ${open ? 'open' : ''}" data-fr-card="${f.id}">
-      ${friendArt(f, 'active')}
-      <div class="fr-nick">${esc(t('fr.' + f.id + '.nick'))}</div>
-      <div class="gnm">${esc(t('fr.' + f.id + '.name'))} <span class="glv">${t('friend.' + f.level)}</span></div>
-      <div class="gsub">${esc(t('fr.' + f.id + '.species'))}</div>
-      <div class="ghearts">${hearts}</div>
-      <div class="fr-bar"><i style="width:${f.next ? Math.round(((f.pts - (f.prev || 0)) / (f.next - (f.prev || 0))) * 100) : 100}%"></i></div>
-      <div class="gsub">${f.next ? t('fr.next', { n: f.next - f.pts, level: t('friend.' + (f.level + 1)) }) : t('fr.bondMaxShort')}</div>
-      <div class="gsub">${t('fr.visits', { n: f.visits })}</div>
-      ${tmi}
-      <div class="fr-more">${open ? t('fr.tmiClose') : t('fr.tmiOpen')}</div>
-      <div class="fr-call">${call}${gift}</div>
-    </div>`;
-  }).join('');
-  return `<h2>${t('fr.title')}</h2>
-    <p class="muted" style="margin-top:-4px">${t('fr.sub')}</p>
-    ${nowCard}
-    <div class="gbox">${cards}</div>`;
 }
 
 // ---------- 자랑 카드 · 리캡 카드 ----------
@@ -60208,11 +62096,8 @@ async function openCard() {
 // 이 모션을 작은 캔버스로 보여 줄 때 붙일 속성. type·curl·wait 는 기분 자세라 그 기분으로
 const motionCanvasAttr = (key) => (PEEK_MOOD[key] ? `data-mood="${PEEK_MOOD[key]}"` : `data-motion="${key}"`);
 const stageNow = () => (D.growth ? D.growth.stageKey : 'cat');
-// 레벨이 아직 안 돼서 상점에서 그림자로 보이는 모션 (설정의 미리보기도 똑같이 그림자로)
-const motionLvLocked = (k) => {
-  const m = D.shop.motion.find((x) => x.key === k);
-  return !!m && m.locked && !m.owned;
-};
+// 이 상황의 모션을 껐나 (2.0.0, 설정 motionsOff)
+const motionOff = (key) => !!(D.motion && (D.motion.off || []).includes(key));
 
 // 이 자리에 지금 골라 둔 모션들
 function motionsIn(sl) {
@@ -60222,7 +62107,10 @@ function motionsIn(sl) {
 
 function motionCard(sl) {
   const on = motionsIn(sl);
-  const thumbs = on.length
+  const off = motionOff(sl.key);
+  const thumbs = off
+    ? `<p class="muted mcard-empty">${t('mot.offNote')}</p>`
+    : on.length
     ? on
         .map(
           (k) => `<div class="mthumb on" data-motion-key="${k}" title="${esc(t('set.peekHint'))}">
@@ -60231,11 +62119,12 @@ function motionCard(sl) {
         )
         .join('')
     : `<p class="muted mcard-empty">${t('mot.off')}</p>`;
-  return `<div class="panel mcard ${sl.multi ? 'multi' : ''}">
-    <div class="mcard-top"><b>${t('slot.' + sl.key)}</b><span class="mtag">${!sl.multi ? t('mot.one') : on.length > 1 ? t('mot.many', { n: on.length }) : t('mot.count', { n: on.length })}</span></div>
+  // 2.0.0: 상황마다 켜고 끄는 스위치. 끄면 그 상황엔 모션 없이 (고양이가 머무는 상황은 기본 자세로)
+  return `<div class="panel mcard ${sl.multi ? 'multi' : ''} ${off ? 'off' : ''}">
+    <div class="mcard-top"><b>${t('slot.' + sl.key)}</b><label class="switch mini" title="${esc(t(off ? 'mot.turnOn' : 'mot.turnOff'))}"><input type="checkbox" data-moff="${sl.key}" ${off ? '' : 'checked'}><span></span></label></div>
     <small class="muted">${t('slot.' + sl.key + 'Sub')}</small>
     <div class="mstrip">${thumbs}</div>
-    <button class="btn ghost small mcard-btn" data-medit="${sl.key}">${icon('gear', 12)}${t('mot.edit')}</button>
+    ${off ? '' : `<div class="mcard-foot"><span class="mtag">${!sl.multi ? t('mot.one') : on.length > 1 ? t('mot.many', { n: on.length }) : t('mot.count', { n: on.length })}</span><button class="btn ghost small mcard-btn" data-medit="${sl.key}">${icon('gear', 12)}${t('mot.edit')}</button></div>`}
   </div>`;
 }
 
@@ -60260,29 +62149,28 @@ function motionGroups() {
 
 // 끌어다 놓는 모션 편집 창.
 //  위: 미리보기(마우스를 올린 모션을 크게) · 고른 모션 칸(여기로 끌어다 놓는다)
-//  아래: 권장 모션 → 다른 모션. 안 산 모션은 자물쇠와 가격이 붙고, 누르면 상점으로 간다
+//  아래: 권장 모션 → 다른 모션. 2.0.0 부터 모션은 모두 열려 있다 (산 것 · 잠긴 것이 없다)
 //  끌어다 놓기 말고 눌러도 넣고 뺄 수 있다. 저장을 눌러야 적용된다
 function openMotionEditor(slotKey) {
   const sl = D.shop.slots.find((x) => x.key === slotKey);
   if (!sl) return;
   let picked = motionsIn(sl).slice();
   let query = '';
-  const paid = D.shop.motion;
+  const more = D.shop.motion;
   const BASIC = new Set(['type', 'curl', 'wait', 'happy', 'levelup', 'wave']);
-  // 이 자리에 끼울 수 있는 것 전부: 이 자리의 기본 모션 + 다른 공짜 모션(기본 자세 빼고) + 상점 모션
+  // 이 자리에 끼울 수 있는 것 전부: 이 자리의 기본 모션 + 다른 기본 모션(기본 자세 빼고) + 나머지 모션
   const freeAll = [...new Set(D.shop.slots.flatMap((x) => x.free))].filter((k) => !BASIC.has(k));
-  const all = [...new Set([...sl.free, ...freeAll, ...paid.map((m) => m.key)])];
+  const all = [...new Set([...sl.free, ...freeAll, ...more.map((m) => m.key)])];
   const info = (k) => {
-    const m = paid.find((x) => x.key === k);
-    return { key: k, locked: !!m && !m.owned, price: m ? m.price : 0, rec: sl.free.includes(k) || (!!m && m.slots.includes(sl.key)) };
+    const m = more.find((x) => x.key === k);
+    return { key: k, rec: sl.free.includes(k) || (!!m && m.slots.includes(sl.key)) };
   };
-  const byOwned = (a, b) => a.locked - b.locked;
-  const rec = all.map(info).filter((x) => x.rec).sort(byOwned);
-  const others = all.map(info).filter((x) => !x.rec).sort(byOwned);
+  const rec = all.map(info).filter((x) => x.rec);
+  const others = all.map(info).filter((x) => !x.rec);
 
-  const chip = (x, where) => `<div class="mchip ${x.locked ? 'locked' : ''} ${where === 'pool' && picked.includes(x.key) ? 'picked' : ''}" data-k="${x.key}" data-where="${where}" ${x.locked ? '' : 'draggable="true"'}>
-      ${x.locked ? icon('lock', 11) : where === 'sel' ? icon('check', 11) : ''}<span>${esc(t('motion.' + x.key))}</span>
-      ${x.locked ? `<small>${coins(x.price, 10)}</small>` : ''}${where === 'sel' && sl.multi ? '<i class="mx">×</i>' : ''}</div>`;
+  const chip = (x, where) => `<div class="mchip ${where === 'pool' && picked.includes(x.key) ? 'picked' : ''}" data-k="${x.key}" data-where="${where}" draggable="true">
+      ${where === 'sel' ? icon('check', 11) : ''}<span>${esc(t('motion.' + x.key))}</span>
+      ${where === 'sel' && sl.multi ? '<i class="mx">×</i>' : ''}</div>`;
   const match = (x) => !query || t('motion.' + x.key).toLowerCase().includes(query);
 
   const el = openModal(
@@ -60310,8 +62198,6 @@ function openMotionEditor(slotKey) {
     delete prevCanvas.dataset.mood;
     if (PEEK_MOOD[k]) prevCanvas.dataset.mood = PEEK_MOOD[k];
     else prevCanvas.dataset.motion = k;
-    prevCanvas.classList.toggle('lv-locked', motionLvLocked(k));
-    prevCanvas.parentElement.classList.toggle('lv-locked-box', motionLvLocked(k)); // [옵시디언] 바탕은 감싼 상자가 (house.css)
     const r = mini(prevCanvas);
     if (r.demo) r.play(r.demo);
     minis.push(r);
@@ -60320,8 +62206,6 @@ function openMotionEditor(slotKey) {
   };
 
   const add = (k) => {
-    const x = info(k);
-    if (x.locked) return;
     if (sl.multi) {
       if (!picked.includes(k)) picked.push(k);
     } else picked = [k];
@@ -60352,11 +62236,6 @@ function openMotionEditor(slotKey) {
       const k = c.dataset.k;
       c.addEventListener('mouseenter', () => preview(k));
       c.addEventListener('click', (e) => {
-        if (c.classList.contains('locked')) {
-          closeModal();
-          shopPage = 'motion';
-          return setTab('shop');
-        }
         if (c.dataset.where === 'sel') remove(k);
         else if (sl.multi && picked.includes(k)) remove(k);
         else add(k);
@@ -60432,8 +62311,8 @@ function showMotionPeek(el, e) {
   const mood = PEEK_MOOD[key];
   const state = el.dataset.locked ? t('set.peekLocked') : el.classList.contains('on') ? t('set.peekOn') : t('set.peekOff');
   const box = document.createElement('div');
-  box.className = 'motion-peek' + (motionLvLocked(key) ? ' lv-locked-box' : ''); // [옵시디언] 바탕은 감싼 상자가 (house.css)
-  box.innerHTML = `<canvas class="pixel ${motionLvLocked(key) ? 'lv-locked' : ''}" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
+  box.className = 'motion-peek';
+  box.innerHTML = `<canvas class="pixel" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" ${mood ? `data-mood="${mood}"` : `data-motion="${key}"`}></canvas>
     <div class="nm">${esc(t('motion.' + key))}</div>
     <div class="st">${state}</div>`;
   document.body.appendChild(box);
@@ -60456,6 +62335,13 @@ function closeMotionPeek() {
 // 상점의 장난감 카드를 우클릭하면 고양이가 그 장난감을 갖고 노는 모습을 보여 준다.
 // 장난감마다 놀이 자세(toys.js)를 차례로 돌린다. 'carry' 는 쥐돌이를 물고 총총
 const TOY_PEEK = {
+  // 4차 장난감 (자세는 toys.js)
+  sunbeam: ['toyBask', 'toyBelly', 'toySunNap'],
+  quilt: ['toyCrouch', 'toyWiggle', 'pounce', 'toyTrap'],
+  fishbowl: ['toyStare', 'toyPawDip', 'toyWet'],
+  shellgame: ['toyWatch', 'toyYay', 'toyBlep'],
+  volley: ['toyWatch', 'toyLeap', 'toyYay'],
+  simon: ['toyLeap', 'toyWatch', 'toyYay'],
   ball: ['toyWiggle', 'pounce', 'toyBat'],
   jingle: ['pounce', 'toyBat', 'toyWiggle'],
   yarn: ['toyYarn', 'toyTangle'],
@@ -60475,12 +62361,12 @@ const TOY_PEEK = {
   cup: ['toyDeadpan', 'toySwipe', 'toyDeadpan'],
   bananapeel: ['toySlip', 'toyPretend'],
   catwheel: ['toyWheel', 'toySlip', 'toyDizzy'],
-  vacuum: ['toyHide', 'toyPeek'],
-  boxtower: ['toyLeap', 'toyPerch'],
-  magichat: ['toyWatch', 'pounce', 'toyProud'],
+  vacuum: ['toyHide', 'toyPeek', 'toyHiss', 'toyRide'],
+  boxtower: ['toyLeap', 'toyPerch', 'toyKing'],
+  magichat: ['toyWatch', 'pounce', 'toyProud', 'toyAchoo'],
   slotmachine: ['toyWatch', 'toyYay', 'toyWatch', 'toyPunch'],
   snowball: ['toySnowman', 'toyBat'],
-  rccar: ['toyWiggle', 'pounce', 'toySitOn'],
+  rccar: ['toyWiggle', 'pounce', 'toySitOn', 'toyRide'],
   ufotoy: ['toyFloat', 'toyLeap'],
   ballshooter: ['pounce', 'toyBat', 'pounce'],
   jumprope: ['toyLeap', 'toyLeap', 'toyTrip'],
@@ -60496,7 +62382,7 @@ const TOY_PEEK = {
 const TOY_DRAWN = new Set(['box', 'bag', 'scratcher', 'yarn', 'catnip', 'catwheel', 'catlaptop']);
 
 // 함께 하는 놀이 카드에 붙는 것: 최고 기록, 줄다리기 난이도 (가진 것만)
-const TOY_RECORD = { whackcat: 'whackcat', rps: 'rps', trampoline: 'trampoline' };
+const TOY_RECORD = { whackcat: 'whackcat', rps: 'rps', trampoline: 'trampoline', jumprope: 'jumprope', quilt: 'quilt', shellgame: 'shellgame', volley: 'volley', simon: 'simon' };
 // 장난감 카드 정보 칸: 하는 일 태그 + 기록·난이도. [옵시디언] 기록·난이도 줄이 붙으면 태그는 한 줄만 (tags-1, house.css)
 function toyTags(it, inShop = false) {
   const extra = toyExtra(it, inShop);
@@ -60561,12 +62447,6 @@ function animate() {
   const off = offscreen();
   if (!off) {
     hero.frame();
-    const ft = performance.now() / 1000;
-    for (const c of document.querySelectorAll('canvas[data-friend-art]')) {
-      const g = c.getContext('2d');
-      g.clearRect(0, 0, 48, 48);
-      PetFriends.draw(g, c.dataset.friendArt, ft + (c.dataset.off ? Number(c.dataset.off) : 0), 'idle', 1);
-    }
     for (const m of minis) {
       if (m.seq) stepToySeq(m);
       // 미리보기 모션은 끝나면 잠깐 쉬었다가 다시 한다
@@ -60676,45 +62556,6 @@ function openSetMotions(key) {
   minis.push(...$$('canvas[data-stage]', el).map(mini));
 }
 
-// ---------- 친구에게 선물하기 ----------
-// 단짝 고양이 친구에게 공방 코스튬을 준다. 고르면 아래에 한 번 더 묻고, 주면 인벤토리에서 빠진다 (main/friends.js 의 gift)
-function openFriendGift(id) {
-  const f = D.friends.list.find((x) => x.id === id);
-  if (!f) return;
-  const mine = D.workshop ? D.workshop.recipes.filter((r) => r.owned) : [];
-  const name = t('fr.' + id + '.name');
-  const cells = mine
-    .map((r) => `<button class="gift-cell" data-gift-pick="${r.key}"><span class="wtag">${t('cslot.' + r.slot)}</span><canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${r.key}"></canvas><div class="nm">${esc(t('item.' + r.key))}</div></button>`)
-    .join('');
-  const el = openModal(
-    `<div class="modal-top"><h2>${esc(t('fr.giftTitle', { name }))}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
-    <p class="muted" style="margin-top:-4px">${t('fr.giftSub')}</p>
-    ${mine.length ? `<div class="gift-grid">${cells}</div>` : `<p class="muted">${t('fr.giftNone')}</p>`}
-    <div class="modal-foot gift-foot" hidden></div>`,
-    'gift-modal',
-  );
-  minis.push(...$$('canvas[data-stage]', el).map(mini));
-  const foot = $('.gift-foot', el);
-  $$('[data-gift-pick]', el).forEach((b) =>
-    b.addEventListener('click', () => {
-      $$('[data-gift-pick]', el).forEach((x) => x.classList.toggle('on', x === b));
-      const r = mine.find((x) => x.key === b.dataset.giftPick);
-      const item = t('item.' + r.key);
-      const lost = (f.wearBy || {})[r.slot];
-      foot.hidden = false;
-      foot.innerHTML = `<span>${esc(t('fr.giftConfirm', { item, name }))}${lost ? `<br><small class="muted">${esc(t('fr.giftLost', { item: t('item.' + lost) }))}</small>` : ''}</span>
-        <button class="btn primary" data-gift-go>${icon('gift', 13)}${t('fr.giftBtn')}</button>`;
-      $('[data-gift-go]', foot).addEventListener('click', async () => {
-        const res = await pet.friendGift(id, r.key);
-        if (res && res.data) await apply(res.data);
-        closeModal();
-        if (res && res.result && res.result.ok) toast(t('fr.gifted', { name, item }), 'gift');
-        renderView();
-      });
-    }),
-  );
-}
-
 // ---------- 장난감 사용법 ----------
 // 예전엔 기본 고양이가 갖고 노는 장면을 움직여 보여 줬다(시연). 2026-09-24 부터 글로만 설명한다:
 // 꺼내는 법 · 노는 법(toyHow) · 고양이 반응(toyDo) · 끝내는 법. 보고 바로 살 수도 있다
@@ -60772,7 +62613,7 @@ function saveUnlocks() {
 }
 function newUnlocks() {
   if (!D || !D.shop) return [];
-  const open = [...D.shop.acc, ...D.shop.motion, ...D.shop.toy].filter((x) => x.level && !x.locked && !x.owned);
+  const open = [...D.shop.acc, ...D.shop.toy].filter((x) => x.level && !x.locked && !x.owned);
   if (!seenUnlocks) {
     seenUnlocks = new Set(open.map((x) => x.key));
     saveUnlocks();
@@ -60880,10 +62721,8 @@ function renderTop() {
     $('#h-lv').textContent = '';
     $('#h-xptext').textContent = t('top.reading');
   }
-  // 오늘 기분 (그날의 기분) + 지금 상태
-  const TEMPER_ICON = { calm: 'leaf', playful: 'sparkle', grumpy: 'bang' };
+  // 지금 상태 (2.0.0: 그날의 기분 딱지는 없앴다)
   $('#h-mood').innerHTML =
-    (D.temper ? `<span class="temper t-${D.temper}">${icon(TEMPER_ICON[D.temper] || 'leaf', 12)}${esc(t('temper.' + D.temper))}</span>` : '') +
     (D.quiet ? icon('bellOff', 13) + `<span>${esc(t('mood.quiet'))}</span>` : '') +
     icon(MOOD_ICON[D.mood] || 'leaf', 13) +
     `<span>${esc(t('mood.' + D.mood))}</span>`;
@@ -60917,7 +62756,7 @@ function renderTop() {
 
 // ---------- 탭 ----------
 
-// 배부름 게이지. 벌이 아니라 덤: 든든하면(50 이상) 보물 · 친구가 더 자주 온다 (main/gauge.js)
+// 배부름 게이지. 벌이 아니라 덤 (core/gauge.js)
 const gaugeRow = (key, v, ic) =>
   `<div class="gauge ${v < 25 ? 'low' : ''}"><span class="gl">${icon(ic, 16)}${t('gauge.' + key)}</span><div class="bar"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
 const gaugeNote = (g) => (g.full ? t('gauge.fullNote') : g.food < 25 ? t('gauge.hungryNote') : t('gauge.okNote'));
@@ -60930,40 +62769,30 @@ function gaugePanel() {
       <div class="panel">${row('food', g.food, 'ricebowl')}<p class="muted gauge-note">${g.full ? icon('sparkle', 12) + ' ' : ''}${note}</p></div>`;
 }
 
-// 오늘 먹고 싶은 것 (main/craving.js): 밥 하나 · 간식 하나. 먹이면 산 값의 절반을 돌려받는다
-const craving = (key) => !!D.craving && [D.craving.meal, D.craving.snack].includes(key) && !D.craving.fed.includes(key);
-function cravingPanel() {
-  const c = D.craving;
-  if (!c) return '';
-  const cell = (key, kind) => {
-    const it = D.shop.food.find((x) => x.key === key);
-    if (!it) return '';
-    const done = c.fed.includes(key);
-    const act = done
-      ? `<span class="crave-done ico-row">${icon('check', 12)}${t('crave.done')}</span>`
-      : `<button class="btn small ${it.stock ? 'primary' : ''}" data-crave="${key}">${t(it.stock ? 'crave.feed' : 'crave.buyFeed')}</button>`;
-    return `<div class="crave-cell ${done ? 'done' : ''}">${icon(key, 32)}
-      <div class="crave-txt"><small>${t('crave.' + kind)}</small><b>${esc(t('item.' + key))}</b><span>${done ? '' : t('crave.back', { n: fmt(Math.floor(it.price / 2)) })}</span></div>${act}</div>`;
-  };
-  return `<h2>${t('crave.title')}</h2>
-      <div class="panel crave"><div class="crave-row">${cell(c.meal, 'meal')}${cell(c.snack, 'snack')}</div><p class="muted small crave-sub">${t('crave.sub')}</p></div>`;
-}
-
 // [옵시디언 1.5.0] 오늘의 목표 + 집중 시간. 홈 맨 위의 큰 칸 (호스트의 D.goal · D.focus = core/goals.js)
 const focusLeft = (end) => {
   const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
+// 2.0.0: 집중 길이를 여기서 바로 고르고, 마친 뒤엔 쉬는 시간(5 · 10분)을 이어서 켠다. 오늘 몇 번 했는지도
 function focusBox() {
   const f = D.focus || { on: false, min: 25 };
   if (f.on)
     return `<div class="focus-box on"><div class="focus-k">${icon('hourglass', 14)}<span data-focus-left="${f.end}">${esc(t('home.focusOn', { left: focusLeft(f.end) }))}</span></div>
       <button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button></div>`;
-  const tot = f.total && f.total.sessions ? `<small class="muted">${t('home.focusTotal', { n: fmt(f.total.sessions), m: fmt(f.total.minutes) })}</small>` : '';
-  return `<div class="focus-box"><button class="btn primary" data-act="focusStart">${icon('hourglass', 13)}${t('home.focusBtn', { m: f.min })}</button>
-    <small class="muted">${t('home.focusSub', { coins: fmt(f.min * 2) })}</small>${tot}</div>`;
-}
-function goalPanel() {
+  if (f.brk)
+    return `<div class="focus-box on brk"><div class="focus-k">${icon('pillow', 14)}<span data-break-left="${f.brk.end}">${esc(t('home.breakOn', { left: focusLeft(f.brk.end) }))}</span></div>
+      <button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button>
+      <button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button></div>`;
+  const tot = f.total || {};
+  const today = tot.today ? `<small class="muted">${t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) })}</small>` : tot.sessions ? `<small class="muted">${t('home.focusTotal', { n: fmt(tot.sessions), m: fmt(tot.minutes) })}</small>` : '';
+  const lens = (f.lengths || [15, 25, 50]).map((m) => `<button class="chip ${m === f.min ? 'on' : ''}" data-focus-min="${m}">${t('home.focusMin', { m })}</button>`).join('');
+  const breaks = (f.breaks || [5, 10]).map((m) => `<button class="btn ghost small" data-act="breakStart" data-min="${m}">${icon('pillow', 11)}${t('home.breakBtn', { m })}</button>`).join('');
+  return `<div class="focus-box"><div class="chips focus-lens">${lens}</div>
+    <button class="btn primary" data-act="focusStart">${icon('hourglass', 13)}${t('home.focusBtn', { m: f.min })}</button>
+    <small class="muted">${t('home.focusSub', { coins: fmt(f.min * 2) })}</small>${today}
+    <div class="focus-breaks">${breaks}</div></div>`;
+}function goalPanel() {
   const g = D.goal;
   if (!g) return '';
   if (!g.on)
@@ -60989,7 +62818,160 @@ function goalPanel() {
 // 집중하는 동안 남은 시간을 1초마다 (호스트는 끝 시각만 준다)
 setInterval(() => {
   for (const el of $$('[data-focus-left]')) el.textContent = t('home.focusOn', { left: focusLeft(Number(el.dataset.focusLeft)) });
+  for (const el of $$('[data-break-left]')) el.textContent = t('home.breakOn', { left: focusLeft(Number(el.dataset.breakLeft)) });
 }, 1000);
+
+// ---------- 홈 (2.0.0) ----------
+// 칸마다 접을 수 있다. 접은 칸은 하우스 저장소(KC_STORE)에 남는다 (기기마다)
+let homeFold = new Set();
+try {
+  homeFold = new Set(JSON.parse(window.KC_STORE.get('homeFold') || '[]'));
+} catch {
+  // 저장소를 못 쓰면 다 펼친 채로
+}
+function toggleFold(id) {
+  if (homeFold.has(id)) homeFold.delete(id);
+  else homeFold.add(id);
+  try {
+    window.KC_STORE.set('homeFold', JSON.stringify([...homeFold]));
+  } catch {
+    // 무시
+  }
+}
+// 홈 칸 하나: 제목 줄(오른쪽에 그 칸의 버튼 + 접기) + 내용
+function homeSec(id, title, acts, body) {
+  const folded = homeFold.has(id);
+  return `<section class="hsec ${folded ? 'folded' : ''}" id="hs-${id}">
+    <div class="h2-row"><h2>${title}</h2><div class="hsec-acts">${folded ? '' : acts}<button class="btn ghost fold" data-fold="${id}" aria-expanded="${!folded}" title="${esc(t(folded ? 'home.unfold' : 'home.fold'))}">${folded ? '+' : '−'}</button></div></div>
+    ${folded ? '' : body}
+  </section>`;
+}
+
+// 할 일: 플러그인 안에만 있는 목록. 노트를 만들지 않는다 (core/todos.js)
+let todoDoneOpen = false;
+let todoEditing = null; // 고치는 중인 할 일 id
+function todoPanel() {
+  const T2 = D.todos || { open: [], done: [] };
+  const row = (x, i, n) =>
+    todoEditing === x.id
+      ? `<li class="todo editing"><input type="text" class="todo-edit" data-todo-edit="${x.id}" value="${esc(x.text)}" maxlength="${T2.maxText || 200}" aria-label="${esc(t('todo.editLbl'))}"></li>`
+      : `<li class="todo ${x.done ? 'done' : ''}">
+        <label class="todo-check"><input type="checkbox" data-todo-toggle="${x.id}" ${x.done ? 'checked' : ''}><span class="box">${x.done ? icon('check', 11) : ''}</span></label>
+        <span class="todo-t" data-todo-text="${x.id}" title="${esc(t('todo.editHint'))}">${esc(x.text)}</span>
+        <span class="todo-acts">${x.done ? '' : `<button class="ic" data-todo-move="${x.id}" data-to="${i - 1}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('todo.up'))}">↑</button><button class="ic" data-todo-move="${x.id}" data-to="${i + 1}" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(t('todo.down'))}">↓</button>`}<button class="ic" data-todo-del="${x.id}" aria-label="${esc(t('todo.del'))}">×</button></span>
+      </li>`;
+  const open = T2.open.length ? `<ul class="todos">${T2.open.map((x, i) => row(x, i, T2.open.length)).join('')}</ul>` : `<p class="muted small todo-empty">${t('todo.empty')}</p>`;
+  const done = T2.done.length
+    ? `<button class="btn ghost small todo-more" data-act="todoDoneOpen">${t(todoDoneOpen ? 'todo.doneHide' : 'todo.doneShow', { n: fmt(T2.done.length) })}</button>
+      ${todoDoneOpen ? `<ul class="todos done-list">${T2.done.map((x, i) => row(x, i, T2.done.length)).join('')}</ul><button class="btn ghost small" data-act="todoClear">${t('todo.clear')}</button>` : ''}`
+    : '';
+  const full = T2.open.length + T2.done.length >= (T2.max || 100);
+  const body = `<div class="panel todo-panel">
+      <form class="todo-add" autocomplete="off"><input type="text" id="todo-new" maxlength="${T2.maxText || 200}" placeholder="${esc(t('todo.placeholder'))}" ${full ? 'disabled' : ''} aria-label="${esc(t('todo.placeholder'))}"><button class="btn primary small" type="submit" ${full ? 'disabled' : ''}>${t('todo.add')}</button></form>
+      ${open}${done}
+      <p class="muted todo-note">${icon('lock', 10)}${t('todo.note')}</p>
+    </div>`;
+  const n = T2.open.length;
+  return homeSec('todo', `${t('todo.title')}${n ? ` <span class="muted">${fmt(n)}</span>` : ''}`, '', body);
+}
+
+// 노트 지도: 지금 연 노트 둘레를 작은 그래프로. 같은 데이터면 늘 같은 그림이 나오게(다시 그려도 안 흔들리게) 정해진 순서로 자리를 잡는다
+const GRAPH_W = 320;
+const GRAPH_H = 210;
+function graphLayout(G) {
+  const n = G.nodes.length;
+  const cx = GRAPH_W / 2;
+  const cy = GRAPH_H / 2;
+  const rings = [0, 45, 75];
+  const byHop = [[], [], []];
+  G.nodes.forEach((nd, i) => byHop[Math.min(2, nd.hop)].push(i));
+  const p = G.nodes.map(() => [cx, cy]);
+  byHop.forEach((list, h) =>
+    list.forEach((i, k) => {
+      const a = (k / Math.max(1, list.length)) * Math.PI * 2 + h * 0.5;
+      p[i] = [cx + Math.cos(a) * rings[h] * 1.35, cy + Math.sin(a) * rings[h]];
+    }),
+  );
+  // 가볍게 밀고 당기기 (노트가 많아도 36개라 금방 끝난다). 서로 조금씩 밀고, 링크는 알맞은 길이로 당기고,
+  // 모두 가운데 쪽으로 살짝 끌어서 가장자리에 몰리지 않게 한다
+  const L = n > 16 ? 34 : n > 10 ? 56 : 90;
+  const C = n > 16 ? 25 : n > 10 ? 40 : 80; // 노트가 많으면 덜 밀어서 상자 안에 들어오게
+  for (let it = 0; it < 120; it++) {
+    const f = p.map(() => [0, 0]);
+    for (let a = 0; a < n; a++)
+      for (let b = a + 1; b < n; b++) {
+        const dx = p[a][0] - p[b][0];
+        const dy = p[a][1] - p[b][1];
+        const d2 = Math.max(16, dx * dx + dy * dy);
+        const k = C / d2;
+        f[a][0] += dx * k; f[a][1] += dy * k;
+        f[b][0] -= dx * k; f[b][1] -= dy * k;
+      }
+    for (const [a, b] of G.edges) {
+      const dx = p[b][0] - p[a][0];
+      const dy = p[b][1] - p[a][1];
+      const d = Math.max(1, Math.hypot(dx, dy));
+      const k = ((d - L) / d) * 0.06;
+      f[a][0] += dx * k; f[a][1] += dy * k;
+      f[b][0] -= dx * k; f[b][1] -= dy * k;
+    }
+    for (let i = 0; i < n; i++) {
+      if (G.nodes[i].hop === 0) continue;
+      f[i][0] += (cx - p[i][0]) * 0.03;
+      f[i][1] += (cy - p[i][1]) * 0.05;
+      p[i][0] = Math.max(34, Math.min(GRAPH_W - 34, p[i][0] + Math.max(-4, Math.min(4, f[i][0]))));
+      p[i][1] = Math.max(16, Math.min(GRAPH_H - 14, p[i][1] + Math.max(-4, Math.min(4, f[i][1]))));
+    }
+  }
+  return p.map(([x, y]) => [Math.round(x), Math.round(y)]);
+}
+function graphPanel() {
+  const H = D.home;
+  const acts = `<button class="btn head-act" data-act="localGraph">${icon('map', 12)}${t('home.localGraph')}</button><button class="btn head-act" data-act="graph">${icon('map', 12)}${t('home.graphView')}</button>`;
+  if (!H) return homeSec('map', t('home.mapTitle'), acts, `<div class="panel"><p class="muted small">${t('home.reading')}</p></div>`);
+  const G = H.graph;
+  const sum = `<p class="muted small map-sum">${t('home.mapSum', { n: fmt(H.notes), l: fmt(H.links), o: fmt((H.orphans && H.orphans.n) || 0) })}</p>`;
+  if (!G || !G.nodes.length)
+    return homeSec('map', t('home.mapTitle'), acts, `<div class="panel map-panel"><p class="muted small">${t('home.mapNone')}</p>${sum}</div>`);
+  const p = graphLayout(G);
+  const few = G.nodes.length <= 12;
+  const lines = G.edges.map(([a, b]) => `<line x1="${p[a][0]}" y1="${p[a][1]}" x2="${p[b][0]}" y2="${p[b][1]}"/>`).join('');
+  const dots = G.nodes
+    .map((nd, i) => {
+      const r = nd.hop === 0 ? 7 : 3 + Math.min(4, nd.deg * 0.5);
+      // 이름은 점 위에. 맨 위 줄에 붙은 점은 아래에 (잘리지 않게)
+      const ly = p[i][1] - r - 3 < 12 ? p[i][1] + r + 10 : p[i][1] - r - 3;
+      const label = nd.hop === 0 || (few && nd.hop === 1) ? `<text x="${p[i][0]}" y="${ly}">${esc(nd.name.length > 14 ? nd.name.slice(0, 13) + '…' : nd.name)}</text>` : '';
+      return `<g class="gn h${nd.hop}" data-open-note="${esc(nd.path)}" tabindex="0" role="button" aria-label="${esc(nd.name)}"><title>${esc(nd.name)}</title><circle cx="${p[i][0]}" cy="${p[i][1]}" r="${r}"/>${label}</g>`;
+    })
+    .join('');
+  const more = G.more ? `<span class="muted small">${t('home.mapMore', { n: fmt(G.more) })}</span>` : '';
+  const body = `<div class="panel map-panel">
+      <svg class="mini-graph" viewBox="0 0 ${GRAPH_W} ${GRAPH_H}" role="img" aria-label="${esc(t('home.mapTitle'))}"><g class="ge">${lines}</g>${dots}</svg>
+      <div class="map-foot"><span class="small">${icon('pin', 11)}<b>${esc(G.nodes[0].name)}</b> · ${t('home.mapNear', { n: fmt(G.nodes.length - 1) })}</span>${more}</div>
+      ${sum}
+    </div>`;
+  return homeSec('map', t('home.mapTitle'), acts, body);
+}
+
+// 최근 노트: 옵시디언이 기억하는 최근에 연 노트. 누르면 연다 (이미 있는 노트만)
+function ago(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 1) return t('home.agoNow');
+  if (m < 60) return t('home.agoMin', { n: m });
+  const h = Math.round(m / 60);
+  if (h < 24) return t('home.agoHour', { n: h });
+  return new Date(ms).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+}
+function recentPanel() {
+  const H = D.home;
+  const list = (H && H.recent) || [];
+  const rows = list.length
+    ? `<ul class="recent">${list.map((x) => `<li><button class="recent-btn" data-open-note="${esc(x.path)}">${icon(x.canvas ? 'map' : 'scroll', 13)}<span class="nm">${esc(x.name)}</span><span class="muted small">${esc(ago(x.mtime))}</span></button></li>`).join('')}</ul>`
+    : `<p class="muted small">${t('home.recentNone')}</p>`;
+  const edited = H && H.editedToday ? `<p class="muted small recent-sum">${t('home.editedToday', { n: fmt(H.editedToday) })}</p>` : '';
+  return homeSec('recent', t('home.recentTitle'), '', `<div class="panel recent-panel">${rows}${edited}</div>`);
+}
 
 // 하루 목표 고르기 (홈의 '바꾸기' · '목표 정하기'). 단위 · 미리 정한 양 · 직접 입력 · 끄기
 const GOAL_PRESETS = { words: [100, 300, 500, 1000, 1667], chars: [300, 1000, 2000, 5000] };
@@ -61056,52 +63038,21 @@ function openGoalPicker() {
   });
 }
 
-// 오늘의 소식 (2026-10-10): 업적 · 보상 · 레벨 · 친구 · 보물. 방해 금지 등으로 못 띄운 말풍선도 여기 남는다
-let newsOpen = false;
-const NEWS_ICON = { grow: 'star', achieve: 'medal', item: 'gift', quest: 'check', attend: 'fire', retro: 'medal', event: 'paw' };
-function newsPanel() {
-  const list = [...(D.news || [])].reverse();
-  const show = newsOpen ? list : list.slice(0, 4);
-  const time = (at) => new Date(at).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
-  const rows = show
-    .map((x) => `<li ${x.link ? `data-news-link="${x.link}"` : ''}><span class="nt">${time(x.at)}</span>${icon(NEWS_ICON[x.kind] || 'sparkle', 13)}<span class="nx">${esc(x.text)}</span></li>`)
-    .join('');
-  const more = list.length > 4 ? `<button class="btn ghost small" data-act="newsMore">${newsOpen ? t('news.less') : t('news.more', { n: list.length - 4 })}</button>` : '';
-  return `<h2>${t('news.title')} <span class="muted">${list.length || ''}</span></h2>
-      <div class="panel news">${list.length ? `<ul class="news-list">${rows}</ul>${more}` : `<p class="muted small">${t('news.empty')}</p>`}</div>`;
-}
-
 // 업적 탭 거르기 (all · todo · done)
 let achFilter = 'todo'; // 업적 탭은 아직 못 한 것부터 보여 준다
 
-// 상점에서 지금 보는 페이지 (meal · snack · acc · motion · toy)
+// 상점에서 지금 보는 페이지 (meal · snack · acc · toy · star. 2.0.0: 모션은 상점에서 뺐다)
 let shopPage = 'meal';
 let freshSnap = null; // '새로 열림' 페이지를 연 순간의 목록 (보는 동안 NEW 가 꺼져도 페이지에서 안 사라지게)
 // 코스튬 칸 (main/shop.js 의 COSTUME_TABS 와 같은 순서). 옷장 인벤토리 탭·상점 코스튬 분류가 쓴다
 const COSTUME_TABS = ['set', 'head', 'face', 'neck', 'back', 'hand', 'effect'];
 let wardTab = 'all';
 // 인벤토리 큰 분류. 코스튬 밑에만 칸 분류(wardTab)가 한 줄 더 붙는다
-const INV_PAGES = ['costume', 'meal', 'snack', 'toy', 'treasure'];
+const INV_PAGES = ['costume', 'meal', 'snack', 'toy'];
 let invPage = 'costume';
-// 보물 공방 탭 안의 페이지: 공방(코스튬 만들기) · 보물 상자(주운 보물 도감)
-let wsPage = 'workshop';
-let exPick = null; // 보물 교환소에서 고른 보물
-// 공방 코스튬의 이야기: "재료: 병뚜껑 2 · 아무 보물 4 · 10월 9일 제작" (예전 기록은 쓴 재료가 없어서 조합표로)
-function wsStory(r) {
-  const used = r.used || Object.fromEntries(r.need.map((m) => [m.key, m.n]));
-  const parts = Object.entries(used).slice(0, 4).map(([k, n]) => `${t('treasure.' + k)} ${n}`);
-  if (!r.used && r.any) parts.push(`${t('workshop.any')} ${r.any}`);
-  if (r.used && Object.keys(used).length > 4) parts.push('…');
-  const date = new Date(r.madeAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
-  return t('workshop.story', { mats: parts.join(' · '), date });
-}
 let shopCostumeTab = 'set'; // 처음 열면 세트부터 (2026-09-29)
-// 상점 모션 페이지에서 고른 상황 ('all' | MOTION_SLOTS 키. 일할 때 셋은 'work' 하나로 묶는다)
-let shopMotionTab = 'work'; // 처음 열면 일할 때부터 (2026-09-29)
 let shopStarTab = 'set'; // 별 상점도 코스튬처럼 칸으로 거른다. 처음 열면 세트부터 (2026-10-09). 털색은 맨 끝 '털색' 칩
-const WORK_SLOTS = ['work', 'workLong', 'workHour'];
-// 모션이 그 상황 칩에 들어가나 (일할 때 칩은 30분·1시간 넘게 일할 때까지 포함)
-const motionInTab = (it, k) => (k === 'work' ? it.slots.some((x) => WORK_SLOTS.includes(x)) : it.slots.includes(k));
+
 
 // 설정의 '경험치에 넣을 프로젝트' 목록을 처음에 몇 줄만 보여 줄지
 const PROJECTS_SHOWN = 6;
@@ -61109,6 +63060,7 @@ let projectsOpen = false;
 const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6.0)
 
 const TABS = {
+  // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것부터 위에. 고양이 상태(배부름 · 레벨)는 맨 아래 작게
   home() {
     const g = D.growth;
     const u = D.today;
@@ -61117,67 +63069,38 @@ const TABS = {
     const hook = D.petShown === false
       ? `<div class="banner">${icon('paw', 22)}<p><b>${t('obs.petOffTitle')}</b><br><span class="muted">${t('obs.petOffDesc')}</span></p><button class="btn primary" data-act="petOn">${t('obs.petOn')}</button></div>`
       : '';
-    // 단계가 여럿이면 성장 로드맵, 하나뿐이면 레벨 칸
     const into = g ? g.xp - g.levelFloor : 0;
     const need = g ? g.levelCeil - g.levelFloor : 1;
-    // 레벨은 맨 위 머리 부분에도 막대가 있어서 여기서는 한 줄로만 (Lv · 막대 · 남은 XP)
-    const growthPanel = oneStage()
-      ? `<div class="panel lvline">
-        <b class="lvtag">Lv.${g ? g.level : 1}</b>
-        <div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
-        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span>
-      </div>`
-      : `<h2>${t('home.roadmap')}</h2>
-      <div class="panel">
-        <div class="road">${D.stages
-          .map((s, i) => {
-            const cls = !g ? 'locked' : i < g.stageIndex ? 'done' : i === g.stageIndex ? 'now' : 'locked';
-            return `<div class="step ${cls}"><canvas class="pixel" data-stage="${s.key}"></canvas>${stageName(s.key)}<br><span class="muted">${fmt(s.min)}</span></div>`;
-          })
-          .join('')}</div>
-        <div class="bar" style="margin-top:10px"><i style="width:${g ? g.progress * 100 : 0}%"></i></div>
-        <p class="center muted" style="margin:8px 0 0">${
-          g ? (g.nextStageKey ? t('home.toNext', { stage: esc(stageName(g.nextStageKey)), xp: fmt(g.xpToNext) }) : t('home.grown')) : t('home.reading')
-        }</p>
-      </div>`;
-    // 오늘 숫자 카드에 소제목을 달고, 자주 켜고 끄는 방해 금지는 그 줄 오른쪽에 둔다
-    const todayHead = `<div class="h2-row"><h2>${t('home.today')}</h2><button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button></div>`;
-    // [옵시디언 1.5.0] 목표를 단어로 세면 첫 카드도 단어로. 세션 카드 자리에 끝낸 할 일 (세션은 통계 탭에)
+    // 오늘 숫자: 한 줄짜리 작은 칸들. 목표를 단어로 세면 첫 칸도 단어로
     const words = D.goal && D.goal.unit === 'words';
-    const firstCard = words
-      ? `<div class="panel stat"><div class="k">${t('home.todayWords')}${info('words')}</div><div class="v">${fmt(u.w || 0)}</div><div class="d">+${fmt(Math.floor(u.c / D.formula.CHARS_PER_XP))} XP</div></div>`
-      : `<div class="panel stat"><div class="k">${t('home.todayChars')}${info('chars')}</div><div class="v">${fmt(u.c)}</div><div class="d">+${fmt(Math.floor(u.c / D.formula.CHARS_PER_XP))} XP</div></div>`;
-    const tasksCard = D.formula.XP_PER_TASK
-      ? `<div class="panel stat"><div class="k">${t('home.todayTasks')}${info('tasks')}</div><div class="v">${fmt(u.k || 0)}</div><div class="d">+${fmt((u.k || 0) * D.formula.XP_PER_TASK)} XP</div></div>`
-      : `<div class="panel stat"><div class="k">${t('home.todaySessions')}${info('sessions')}</div><div class="v">${fmt(u.s)}</div><div class="d">+${fmt(u.s * D.formula.XP_PER_SESSION)} XP</div></div>`;
+    const cell = (k, v, tipKey) => `<div class="tcell2"><span class="k">${k}${tipKey ? info(tipKey) : ''}</span><b>${v}</b></div>`;
+    const todayBody = `<div class="panel today-row">
+        ${words ? cell(t('home.todayWords'), fmt(u.w || 0), 'words') : cell(t('home.todayChars'), fmt(u.c), 'chars')}
+        ${cell(t('home.todayLinks'), fmt(u.l), 'links')}
+        ${cell(t('home.todayNotes'), fmt(u.n), 'notes')}
+        ${cell(t('home.todayTasks'), fmt(u.k || 0), 'tasks')}
+        ${cell(t('home.attendance'), `${icon('fire', 13)}${st.current}`)}
+      </div>`;
+    const quietBtn = `<button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button>`;
+    // 고양이: 레벨 한 줄 + 배부름 한 줄 (밥 주기)
+    const gg = D.gauge || { food: 100, full: true };
+    const catBody = `<div class="panel cat-panel">
+        <div class="lvline"><b class="lvtag">Lv.${g ? g.level : 1}</b><div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
+        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span></div>
+        ${gaugeRow('food', gg.food, 'ricebowl')}
+        <p class="muted gauge-note">${gaugeNote(gg)}</p>
+      </div>`;
+    const feedBtn = `<button class="btn head-act ${gg.food < 50 ? 'alert' : ''}" data-act="feed">${icon('ricebowl', 12)}${t('home.feed')}</button>`;
     return `
       ${hook}
       ${goalPanel()}
-      ${todayHead}
-      <div class="cards">
-        ${firstCard}
-        <div class="panel stat"><div class="k">${t('home.todayLinks')}${info('links')}</div><div class="v">${fmt(u.l)}</div><div class="d">+${fmt(u.l * D.formula.XP_PER_LINK)} XP</div></div>
-        <div class="panel stat"><div class="k">${t('home.todayNotes')}${info('notes')}</div><div class="v">${fmt(u.n)}</div><div class="d">+${fmt(u.n * D.formula.XP_PER_NOTE)} XP</div></div>
-        ${tasksCard}
-        <div class="panel stat"><div class="k">${t('home.attendance')}</div><div class="v ico-row">${icon('fire', 18)}${st.current}</div><div class="d">${t('home.streakSub', { best: st.best, total: st.total })}${D.game.streakGifts && D.game.streakGifts.next ? `<br>${t('streak.nextGift', { n: D.game.streakGifts.left })}` : ''}</div></div>
-      </div>
-
-      ${gaugePanel()}
-
-      ${cravingPanel()}
-
-      ${newsPanel()}
-
+      ${todoPanel()}
       <section id="quests">${TABS.__questsBody()}</section>
-
-      ${growthPanel}
-
-      <h2>${t('home.recentXp')}</h2>
-      <div class="panel">
-        ${D.game.recentBonus.length ? `<ul class="feed">${D.game.recentBonus.map((b) => `<li><span>${esc(why(b))}</span><span class="xp-plus">+${fmt(b.xp)} XP</span></li>`).join('')}</ul>` : `<p class="muted center" style="margin:0">${t('home.recentXpEmpty')}</p>`}
-      </div>`;
+      ${graphPanel()}
+      ${recentPanel()}
+      ${homeSec('today', t('home.today'), quietBtn, todayBody)}
+      ${homeSec('cat', esc(D.settings.petName), feedBtn, catBody)}`;
   },
-
   // 퀘스트는 탭이 아니라 홈 안의 한 칸이다 (7차: 홈에 통합)
   __questsBody() {
     const q = D.game.quests;
@@ -61195,17 +63118,24 @@ const TABS = {
         <button class="btn head-act ${qi.canRefresh ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t('quests.refresh')}</button>
       </div>
       ${q
-        .map(
-          (x) => `
+        .map((x) => {
+          // 2.0.0: 처음 해 보는 사람을 위한 '어떻게' 한 줄 (core/skills.js 의 기술 이름표). 외톨이 노트 퀘스트는 그 노트들을 바로 열 수 있게
+          const howKey = x.skill ? 'skill.' + x.skill + '.how' : '';
+          const how = howKey && t(howKey) !== howKey ? `<div class="quest-how">${icon('bulb', 11)}<span>${esc(t(howKey))}</span></div>` : '';
+          const orphans = x.type === 'orphans' && !x.done && D.home && D.home.orphans && D.home.orphans.list.length
+            ? `<div class="quest-notes">${D.home.orphans.list.map((o) => `<button class="chip" data-open-note="${esc(o.path)}">${esc(o.name)}</button>`).join('')}</div>`
+            : '';
+          return `
         <div class="panel quest ${x.done ? 'done' : ''}">
           <div class="icon">${icon(QUEST_ICON[x.type] || 'star', 26)}</div>
           <div class="body">
             <div class="row"><span><span class="qtier qtier-${x.tier}">${t('quests.tier.' + x.tier)}</span>${esc(x.text)}</span><span class="reward">${x.done ? icon('check', 11) : ''}+${x.xp} XP</span></div>
             <div class="bar ${x.done ? 'good' : ''}"><i style="width:${(x.value / x.target) * 100}%"></i></div>
-            <div class="muted" style="font-size:11px;margin-top:3px">${x.type === 'chars' ? `${fmt(x.value)} / ${fmt(x.target)}` : `${fmt(x.value)} / ${fmt(x.target)}`}</div>
+            <div class="muted" style="font-size:11px;margin-top:3px">${fmt(x.value)} / ${fmt(x.target)}</div>
+            ${x.done ? '' : how}${orphans}
           </div>
-        </div>`,
-        )
+        </div>`;
+        })
         .join('')}
       ${q.length ? '' : `<p class="muted center">${t('home.reading')}</p>`}
       <div class="panel allclear ${q.length && done === q.length ? 'done' : ''}" ${q.length ? '' : 'hidden'}>
@@ -61274,79 +63204,6 @@ const TABS = {
 
   // 옷장: 왼쪽에 지금 입은 모습과 칸별 착용 목록·코디 저장, 오른쪽에 가진 코스튬 인벤토리 (분류 탭).
   // 누르면 그 칸에 입고, 입은 걸 다시 누르면 벗는다. 칸마다 하나씩, 세트는 여러 칸을 한꺼번에 차지한다
-  friends() {
-    // 동네 친구들: 놀러 오는 동네 친구 도감 (보물 상자는 2026-09-24 에 '보물 공방' 탭으로 옮겼다)
-    return guestBox();
-  },
-
-  // 보물 공방: 주운 보물을 재료로 공방 전용 코스튬을 만든다 (main/workshop.js).
-  // 보물 상자(주운 보물 도감)는 위쪽 '보물 상자' 버튼을 눌러야 보인다
-  workshop() {
-    const W = D.workshop;
-    const T5 = D.treasures;
-    const page = W && wsPage !== 'box' ? 'workshop' : 'box';
-    const chips = [
-      ['workshop', W ? `${W.made} / ${W.total}` : ''],
-      ['box', T5 ? `${T5.kinds} / ${T5.total}` : ''],
-    ]
-      .map(([k, n]) => `<button class="chip ${k === page ? 'on' : ''}" data-ws-page="${k}">${t(k === 'box' ? 'treasure.title' : 'workshop.title')}<small>${n}</small></button>`)
-      .join('');
-    const nav = `<nav class="shop-jump ws-pages">${chips}</nav>`;
-    if (page === 'box') return `${nav}${treasureBox()}`;
-    const tr = (k) => esc(t('treasure.' + k));
-    const card = (r) => {
-      const mats = r.need
-        .map((m) => `<li class="${m.have >= m.n ? 'ok' : ''}">${icon(m.key, 16)}<span class="nm">${tr(m.key)}</span><b>${Math.min(m.have, m.n)}/${m.n}</b></li>`)
-        .join('');
-      const any = r.any
-        ? `<li class="${r.anyHave >= r.any ? 'ok' : ''}" title="${esc(t('workshop.anyHint'))}">${icon('gift', 16)}<span class="nm">${t('workshop.any')}</span><b>${Math.min(r.anyHave, r.any)}/${r.any}</b></li>`
-        : '';
-      const on = r.slot && (D.settings.outfit || {})[r.slot] === r.key;
-      // 가진 건 입기, 선물해서 없으면 다시 만들기
-      const foot = r.owned
-        ? `<span class="own">${icon('check', 11)}${t('workshop.made')}</span><button class="btn buy ${on ? '' : 'primary'}" data-ws-wear="${r.key}" data-slot="${r.slot}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`
-        : `<button class="btn buy ${r.ready ? 'primary' : ''}" data-craft="${r.key}" ${r.ready ? '' : 'disabled'}>${t(r.ready ? (r.made ? 'workshop.remake' : 'workshop.make') : 'workshop.collecting')}</button>`;
-      // 모자란 재료를 교환소에서 바꿔 채울 수 있으면 버튼 하나 더
-      const fill = r.fillable ? `<button class="btn ghost buy ws-fill" data-ws-fill="${r.key}">${icon('sparkle', 11)}${t('workshop.fill')}</button>` : '';
-      // 만든 건 '주워 온 잡동사니로 만든 것'이라는 이야기: 쓴 재료 · 만든 날
-      const story = r.made && r.madeAt ? `<div class="ws-story">${esc(wsStory(r))}</div>` : '';
-      // 카드는 늘 네 줄 (그림 · 이름 · 재료 · 버튼). 같은 줄 카드끼리 줄 높이를 맞춘다 (house.css .ws-grid)
-      return `<div class="panel item ws-card ${r.owned ? 'on' : ''} ${r.ready && !r.owned ? 'ready' : ''}">
-        ${r.slot ? `<span class="wtag">${t('cslot.' + r.slot)}</span>` : ''}
-        <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${D.growth ? D.growth.stageKey : 'cat'}" data-acc="${r.key}"></canvas></span></div>
-        <div class="nm">${esc(t('item.' + r.key))}</div>
-        ${story}
-        <ul class="ws-mats">${mats}${any}</ul>
-        <div class="hint">${foot}${fill}</div>
-      </div>`;
-    };
-    const tier = (k) => {
-      const list = W.recipes.filter((r) => r.tier === k);
-      return `<h2>${t('workshop.tier.' + k)} <span class="muted">${list.filter((r) => r.made).length} / ${list.length}</span></h2>
-        <p class="muted" style="margin-top:-4px">${t('workshop.tierSub.' + k)}</p>
-        <div class="wardrobe ws-grid">${list.map(card).join('')}</div>`;
-    };
-    // 보물 교환소: 받을 보물을 고르면 내는 것이 보이고, 바꾸기
-    const ex = W.exchange || [];
-    const exOpt = (rar) => ex.filter((x) => x.rarity === rar)
-      .map((x) => `<option value="${x.key}" ${x.key === exPick ? 'selected' : ''} ${x.ok ? '' : 'data-no="1"'}>${tr(x.key)} (${t('workshop.exHave', { n: x.have })})${x.ok ? '' : ' · ' + t('workshop.exShort')}</option>`)
-      .join('');
-    const cur = ex.find((x) => x.key === exPick) || ex.find((x) => x.ok) || ex[0];
-    const exchange = cur
-      ? `<h2>${t('workshop.exTitle')}</h2>
-      <p class="muted" style="margin-top:-4px">${t('workshop.exSub')}</p>
-      <div class="panel ws-exchange">
-        <select id="ex-pick"><optgroup label="${esc(t('rarity.common'))}">${exOpt('common')}</optgroup><optgroup label="${esc(t('rarity.rare'))}">${exOpt('rare')}</optgroup></select>
-        <span class="muted small ex-cost">${t('workshop.exCost.' + cur.rarity)}</span>
-        <button class="btn primary" data-act="exchange" ${cur.ok ? '' : 'disabled'}>${t('workshop.exDo')}</button>
-      </div>`
-      : '';
-    return `${nav}<h2>${t('workshop.title')} <span class="muted">${W.made} / ${W.total}</span></h2>
-      <p class="muted" style="margin-top:-4px">${t('workshop.sub')}</p>
-      ${exchange}
-      ${tier('easy')}${tier('normal')}${tier('hard')}`;
-  },
-
   wardrobe() {
     const g = D.growth;
     const stage = g ? g.stageKey : 'cat';
@@ -61385,7 +63242,7 @@ const TABS = {
         const on = worn.has(it.key);
         const isNew = !seenItems.has(it.key);
         return `<div class="panel item witem ${on ? 'on' : ''}" data-item="${it.key}" title="${esc(it.name)}">
-          <span class="wtag">${t('cslot.' + it.slot)}</span>${it.workshop ? `<span class="ws-stamp">${t('workshop.stamp')}</span>` : ''}
+          <span class="wtag">${t('cslot.' + it.slot)}</span>
           <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span></div>
           <div class="nm">${esc(it.name)} ${isNew ? '<span class="new">NEW</span>' : ''}</div>
           <div class="fx">${setMoBtn(it.key)}</div>
@@ -61393,7 +63250,7 @@ const TABS = {
         </div>`;
       })
       .join('');
-    // ---- 밥 · 간식 · 장난감 · 보물 재료: 지금 가진 것만. 다 먹거나 다 쓴 건 카드가 사라진다 ----
+    // ---- 밥 · 간식 · 장난감: 지금 가진 것만. 다 먹은 건 카드가 사라진다 ----
     const page = INV_PAGES.includes(invPage) ? invPage : 'costume';
     const pantry = (grp) => D.shop.food.filter((x) => x.group === grp && x.stock > 0);
     const have = {
@@ -61401,7 +63258,6 @@ const TABS = {
       meal: pantry('meal'),
       snack: pantry('snack'),
       toy: D.shop.toy.filter((x) => x.owned),
-      treasure: D.treasures ? D.treasures.list.filter((x) => x.count > 0) : [],
     };
     const pageChips = INV_PAGES.map(
       (k) => `<button class="chip ${k === page ? 'on' : ''} ${have[k].length ? '' : 'empty'}" data-inv-page="${k}">${t('inv.' + k)}<small>${have[k].length}</small></button>`,
@@ -61418,11 +63274,9 @@ const TABS = {
         <div class="fx">${toyTags(it)}</div>
         <div class="hint"><button class="btn primary buy" data-play="${it.key}">${t('inv.play')}</button><button class="btn ghost buy" data-toy-demo="${it.key}">${t('shop.guide')}</button></div>
       </div>`;
-    const treasureCard = (x) => `<div class="panel tcell tr-${x.rarity}" title="${esc(t('treasure.' + x.key))}">
-        <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
-        <div class="tnm">${esc(t('treasure.' + x.key))}</div><div class="tcnt">×${x.count}</div></div>`;
+
     const cat = `<canvas class="pixel closet-cat" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" data-mood="active"></canvas>`;
-    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지, 보물은 공방 가기
+    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지
     const gg = D.gauge || { food: 100, full: true };
     const left =
       page === 'costume'
@@ -61433,10 +63287,7 @@ const TABS = {
           <button class="btn ghost small wide" data-act="undress" ${worn.size ? '' : 'disabled'}>${t('ward.undress')}</button>
           <div class="wsaves-title">${t('ward.saves')}</div>
           <div class="wsaves">${saves}</div>`
-        : page === 'treasure'
-          ? `${cat}<p class="muted inv-note">${t('inv.treasureNote')}</p>
-            <button class="btn small wide" data-act="toWorkshop">${icon('gem', 12)}${t('inv.toWorkshop')}</button>`
-          : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
+        : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
             <p class="muted inv-note">${gaugeNote(gg)}</p>`;
     const right =
       page === 'costume'
@@ -61444,9 +63295,7 @@ const TABS = {
           ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
         : !have[page].length
           ? `<p class="muted center">${t('inv.empty.' + page)}</p>`
-          : page === 'treasure'
-            ? `<div class="tbox">${have.treasure.map(treasureCard).join('')}</div>`
-            : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
+          : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
     const html = `
       <div class="h2-row"><h2>${t('ward.title')}</h2><button class="btn head-act" data-act="card">${icon('sparkle', 12)}${t('card.open')}</button></div>
       <p class="muted" style="margin-top:-4px">${t(page === 'costume' ? 'ward.sub' : 'inv.sub.' + page)}</p>
@@ -61471,25 +63320,22 @@ const TABS = {
     const freshKeys = new Set(freshNow.map((x) => x.key));
     if (freshSnap) for (const k of freshSnap) freshKeys.add(k);
 
-    // 악세사리는 고양이가 쓴 모습으로, 모션은 고양이가 직접 해 보이고, 먹이·장난감은 물건 도트 그대로 보여 준다
+    // 악세사리는 고양이가 쓴 모습으로, 먹이·장난감은 물건 도트 그대로 보여 준다
     const stage = D.growth ? D.growth.stageKey : 'cat';
     const card = (it) => {
-      const name = it.kind === 'motion' ? t('motion.' + it.key) : it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + it.key);
+      const name = it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + it.key);
       const fresh = freshKeys.has(it.key) ? '<span class="new">NEW</span>' : '';
       const preview =
         it.kind === 'acc'
           ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span>`
-          : it.kind === 'motion'
-            ? `<canvas class="pixel" data-stage="${stage}" data-motion="${it.key}"></canvas>`
-            : it.kind === 'fur'
+          : it.kind === 'fur'
               ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-furkey="${it.fur}"></canvas></span>`
               : it.kind === 'food'
               ? foodArt(it.key, 62)
               : `<div class="art">${icon(it.key, 62)}</div>`;
       let foot;
-      if (it.kind === 'motion' && it.owned) foot = `<button class="btn buy" data-act="toMotions">${t('shop.apply')}</button>`;
       // 산 코스튬은 옷장까지 안 가도 여기서 바로 입고 벗는다
-      else if (it.kind === 'acc' && it.owned && it.slot) {
+      if (it.kind === 'acc' && it.owned && it.slot) {
         const on = (D.settings.outfit || {})[it.slot] === it.key;
         foot = `<button class="btn ${on ? '' : 'primary'} buy" data-shop-wear="${it.key}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`;
       }
@@ -61509,19 +63355,13 @@ const TABS = {
       // 먹이는 가진 만큼 바로 꺼내 줄 수도 있다
       if (it.kind === 'food' && it.stock) foot += ` <button class="btn ghost buy" data-give="${it.key}">${t('shop.give')}</button>`;
       const have = it.kind === 'food' && it.stock ? `<span class="own">${t('shop.stock', { n: it.stock })}</span>` : '';
-      // 모션은 어느 상황에 끼우는지만 해시태그로
       // 장난감은 꺼내면 고양이가 뭘 하는지 한 줄로
-      const slot =
-        it.kind === 'motion'
-          ? `<div class="tags">${[...new Set(it.slots.map((x) => (WORK_SLOTS.includes(x) ? 'work' : x)))].map((x) => `<span>#${esc(t('slot.' + x))}</span>`).join('')}</div>`
-          : it.kind === 'toy'
-            ? toyTags(it, true)
-            : '';
+      const slot = it.kind === 'toy' ? toyTags(it, true) : '';
       // 먹이는 하나 먹으면 배부름이 얼마나 차는지
       const gauge = it.kind === 'food'
         ? `${foodGain(it)}${foodFx(it.key)}`
         : '';
-      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : it.kind === 'food' && craving(it.key) ? `<span class="wtag crave-tag">${icon('heart', 9)}${t('crave.tag')}</span>` : '';
+      const slotTag = it.kind === 'acc' && it.slot ? `<span class="wtag">${t('cslot.' + it.slot)}</span>` : '';
       // 이미 가진 물건(먹이 빼고)은 가격 대신 '가짐'. 버튼 줄은 한 줄로 (사기·입기·적용 | 사용법)
       const price =
         it.kind !== 'food' && it.owned
@@ -61550,9 +63390,9 @@ const TABS = {
     const lockRank = (x) => (x.locked && !x.owned ? x.level || 0 : -1);
     const ordered = (list) => list.map((x, i) => [x, i]).sort((a, b) => lockRank(a[0]) - lockRank(b[0]) || a[1] - b[1]).map(([x]) => x);
     const grid = (list) => `<div class="wardrobe shop-grid">${ordered(list.filter((x) => x.key !== 'none')).map(card).join('')}</div>`;
-    // 상점은 밥·간식·악세사리·모션·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
-    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, motion: D.shop.motion, toy: D.shop.toy, star: D.shop.star || [] };
-    if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.motion, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
+    // 상점은 밥·간식·악세사리·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
+    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, toy: D.shop.toy, star: D.shop.star || [] };
+    if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
     const page = pageList[shopPage] ? shopPage : 'meal';
     // 코스튬 페이지는 옷장과 같은 분류(세트·머리·얼굴·목·등·손·효과)로 거를 수 있다
     const costumeTab = COSTUME_TABS.includes(shopCostumeTab) ? shopCostumeTab : 'all';
@@ -61573,18 +63413,8 @@ const TABS = {
             .map((k) => `<button class="chip ${k === starTab ? 'on' : ''}" data-shop-star="${k}">${t(k === 'all' ? 'ward.all' : k === 'fur' ? 'ward.fur' : 'cslot.' + k)}<small>${k === 'all' ? starList.length : starList.filter((x) => starIn(x, k)).length}</small></button>`)
             .join('')}</nav>`
         : '';
-    // 모션 페이지는 상황별로 거를 수 있다 (일할 때 셋은 하나로 묶는다)
-    const MOTION_TABS = D.shop.slots.map((x) => x.key).filter((k) => k !== 'workLong' && k !== 'workHour');
-    const motionTab = MOTION_TABS.includes(shopMotionTab) ? shopMotionTab : 'all';
-    const motionChips =
-      page === 'motion'
-        ? `<nav class="shop-jump costume-tabs">${['all', ...MOTION_TABS]
-            .map((k) => `<button class="chip ${k === motionTab ? 'on' : ''}" data-shop-motion="${k}">${t(k === 'all' ? 'ward.all' : 'slot.' + k)}<small>${k === 'all' ? D.shop.motion.length : D.shop.motion.filter((x) => motionInTab(x, k)).length}</small></button>`)
-            .join('')}</nav>`
-        : '';
     const pageItems =
       page === 'acc' && costumeTab !== 'all' ? pageList.acc.filter((x) => x.slot === costumeTab)
-      : page === 'motion' && motionTab !== 'all' ? pageList.motion.filter((x) => motionInTab(x, motionTab))
       : page === 'star' && starTab !== 'all' ? starList.filter((x) => starIn(x, starTab))
       : pageList[page];
     // 별 상점: Lv80 뒤 별로만 산다. 별이 아직 없으면 무엇을 향해 가는지 보여 주는 진열장이 된다
@@ -61612,7 +63442,7 @@ const TABS = {
     // 맨 위 페이지 버튼 (스크롤해도 따라 붙는다). 개수도 같이
     const count = (k) => (k === 'new' ? (freshSnap ? freshSnap.length : freshNow.length) : pageList[k].filter((x) => x.key !== 'none').length);
     // '새로 열림' 은 새로 열린 게 있을 때만 맨 앞에
-    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'motion', 'toy', ...(pageList.star.length ? ['star'] : [])]
+    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'toy', ...(pageList.star.length ? ['star'] : [])]
       .map((k) => `<button class="chip ${k === page ? 'on' : ''} ${k === 'new' ? 'chip-new' : ''}" data-shop-page="${k}">${t('shop.' + k)}<small>${count(k)}</small></button>`)
       .join('');
     // 이 페이지에 보인 새로 열린 것은 잠깐 뒤 본 걸로 (다음에 그릴 때 NEW 가 꺼진다)
@@ -61634,7 +63464,7 @@ const TABS = {
       </div>
       <div class="shop-sticky">
         <nav class="shop-jump">${jumps}<span class="jump-coins ico-row" title="${esc(t('shop.balanceNow'))}">${coins(w.balance, 13)}</span></nav>
-        ${costumeChips}${motionChips}${starChips}
+        ${costumeChips}${starChips}
       </div>
 
       ${pageBody}`;
@@ -61658,7 +63488,7 @@ const TABS = {
     const L = S.ledger;
     const CAT_ICON = { food: 'ricebowl', dignity: 'ribbon', fun: 'paw', etc: 'gift' };
     // '?' = 구매 목록이 잘려 어디 썼는지 모르는 예전 코인 (main/stats.js 의 untracked)
-    const itemName = (it) => (it.key === '?' ? t('ledger.untracked') : it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key }));
+    const itemName = (it) => (it.key === '?' ? t('ledger.untracked') : it.kind === 'motion' ? t('motion.' + it.key) : it.kind ? t('item.' + it.key) : t('ledger.gone', { key: it.key })); // 2.0.0 전에 산 모션도 가계부에는 남는다
     // 통계 화면에는 항목마다 LEDGER_SHOWN 줄까지만 보이고 나머지는 '… 외 N개'. 전부는 '자세히 보기' 팝업에서
     const ledgerLi = (it) => `<li><span class="ledger-nm">${esc(itemName(it))}</span>${it.count > 1 ? `<span class="ledger-x">×${it.count}</span>` : ''}<span class="ledger-dots"></span><span class="ledger-amt">${fmt(it.total)}</span></li>`;
     const ledgerCatsOf = (all) => L.cats
@@ -61747,6 +63577,11 @@ const TABS = {
           <tr><td><b>${t('stats.total')}</b></td><td>${fmt(g ? g.xp : 0)}</td></tr>
         </table>
         <p class="muted" style="font-size:11px;margin:8px 0 0">${t('stats.formula', { c: D.formula.CHARS_PER_XP, l: D.formula.XP_PER_LINK, n: D.formula.XP_PER_NOTE, s: D.formula.XP_PER_SESSION })}</p>
+      </div>
+
+      <h2>${t('home.recentXp')}</h2>
+      <div class="panel">
+        ${D.game.recentBonus.length ? `<ul class="feed">${D.game.recentBonus.map((b) => `<li><span>${esc(why(b))}</span><span class="xp-plus">+${fmt(b.xp)} XP</span></li>`).join('')}</ul>` : `<p class="muted center" style="margin:0">${t('home.recentXpEmpty')}</p>`}
       </div>`;
   },
 
@@ -61845,6 +63680,7 @@ const TABS = {
 
       <h2 id="set-motions">${t('set.motions')}</h2>
       <p class="muted" style="margin-top:-4px">${t('set.motionsSub')}</p>
+      <div class="panel mset-row"><div class="field"><div class="lbl">${t('set.setMotions')}<small>${t('set.setMotionsSub')}</small></div>${sw('setMotionsOn', s.setMotionsOn !== false)}</div></div>
       <div class="mgroups">${motionCards}</div>
 
       <h2 id="set-projects">${t('set.projects')}</h2>
@@ -61861,15 +63697,6 @@ const TABS = {
         <div class="field"><div class="lbl">${t('set.showNews')}</div><button class="btn ghost" data-act="whatsNew">${t('set.open')}</button></div>
         <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
-
-      ${
-        s.devMode
-          ? `<h2>${t('dev.events')}</h2>
-      <div class="panel"><p class="muted" style="margin:0 0 8px;font-size:12px">${t('dev.eventsSub')}</p><div class="actions">${['fetch', 'bird', 'guest', 'rare']
-        .map((k) => `<button class="btn small" data-dev-event="${k}">${t('dev.ev.' + k)}</button>`)
-        .join('')}</div></div>`
-          : ''
-      }
 
       <h2 id="set-reset">${t('set.reset')}</h2>
       <div class="panel danger">
@@ -62002,8 +63829,8 @@ function checkNumber(el, key) {
 
 function bindView(view) {
   $$('[data-act]', view).forEach((b) => b.addEventListener('click', () => act(b.dataset.act, b)));
-  // 누르는 카드(옷장 코스튬·동네 친구)는 키보드로도 고르고 Enter·Space 로 누른다
-  $$('[data-item], [data-fr-card]', view).forEach((el) => {
+  // 누르는 카드(옷장 코스튬)는 키보드로도 고르고 Enter·Space 로 누른다
+  $$('[data-item]', view).forEach((el) => {
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
@@ -62054,14 +63881,6 @@ function bindView(view) {
       keepScroll();
     }),
   );
-  // 보물 공방 ↔ 보물 상자. 서로 길이가 달라서 맨 위부터 보여 준다
-  $$('[data-ws-page]', view).forEach((el) =>
-    el.addEventListener('click', () => {
-      wsPage = el.dataset.wsPage;
-      renderView();
-      $('#view').scrollTop = 0;
-    }),
-  );
   // 인벤토리 장난감 꺼내기. 이미 놀고 있으면 main 쪽 startPlay 가 놀이를 끝낸다
   $$('[data-play]', view).forEach((el) =>
     el.addEventListener('click', async () => {
@@ -62109,29 +63928,6 @@ function bindView(view) {
       hero.play((D.motion.lists.wear || [])[0] || 'happy');
       toast(t('ward.loaded', { n: Number(el.dataset.outfitLoad) + 1 }), 'sparkle');
       keepScroll();
-    }),
-  );
-  // 동네 친구 카드: 누르면 TMI 펼치기, 부르기 버튼
-  $$('[data-fr-card]', view).forEach((el) =>
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      friendOpen = friendOpen === el.dataset.frCard ? null : el.dataset.frCard;
-      keepScroll();
-    }),
-  );
-  $$('[data-fr-gift]', view).forEach((el) => el.addEventListener('click', () => openFriendGift(el.dataset.frGift)));
-  $$('[data-fr-call]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.friendCall(el.dataset.frCall);
-      if (r && r.data) await apply(r.data);
-      if (r && r.result && !r.result.error) toast(t('fr.called', { name: t('fr.' + el.dataset.frCall + '.name') }), 'paw');
-      renderView();
-    }),
-  );
-  $$('[data-shop-motion]', view).forEach((el) =>
-    el.addEventListener('click', () => {
-      shopMotionTab = el.dataset.shopMotion;
-      keepShopTop();
     }),
   );
   // 세트 카드의 '전용 모션' 버튼 (옷장 카드를 눌러 입는 것과 겹치지 않게 막는다)
@@ -62205,15 +64001,13 @@ function bindView(view) {
   $$('[data-buy]', view).forEach((el) =>
     el.addEventListener('click', async () => {
       const key = el.dataset.buy;
-      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...D.shop.motion, ...(D.shop.star || [])].find((x) => x.key === key);
-      // 모션은 지금 보고 있는 상황 칸에 바로 들어간다 ('전체'면 첫 번째 추천 상황)
-      const r = await pet.buy(key, it && it.kind === 'motion' && shopPage === 'motion' ? shopMotionTab : null);
+      const it = [...D.shop.acc, ...D.shop.food, ...D.shop.toy, ...(D.shop.star || [])].find((x) => x.key === key);
+      const r = await pet.buy(key);
       if (r.payload) await apply(r.payload);
       if (r.ok) {
         hero.play('happy');
-        const name = it && it.kind === 'motion' ? t('motion.' + key) : it && it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + key);
-        if (r.placed) toast(t('toast.motionPlaced', { name, slot: t('slot.' + r.placed) }), 'sparkle');
-        else toast(t('toast.bought', { name }), it && it.stars ? 'star' : key);
+        const name = it && it.kind === 'fur' ? t('fur.' + it.fur) : t('item.' + key);
+        toast(t('toast.bought', { name }), it && it.stars ? 'star' : key);
       } else if (r.reason === 'level') toast(t('toast.needLevel', { n: it.level }), 'lock');
       else if (r.reason === 'coins') toast(t('toast.needCoins'), 'coin');
       else if (r.reason === 'stars') toast(t('toast.needStars'), 'star');
@@ -62272,42 +64066,9 @@ function bindView(view) {
     }),
   );
 
-  // 오늘 먹고 싶은 것: 창고에 있으면 바로, 없으면 사서 바로 먹인다
-  $$('[data-crave]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.crave;
-      const it = D.shop.food.find((x) => x.key === key);
-      if (it && !it.stock) {
-        const b = await pet.buy(key);
-        if (b.payload) await apply(b.payload);
-        if (!b.ok) return toast(t('toast.needCoins'), 'coin');
-      }
-      const r = await pet.useFood(key);
-      if (r.payload) await apply(r.payload);
-      if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
-      renderView();
-    }),
-  );
-  // 소식을 누르면 그 탭으로
-  $$('[data-news-link]', view).forEach((el) => el.addEventListener('click', () => setTab(el.dataset.newsLink === 'quests' ? 'home' : el.dataset.newsLink)));
   // 모션 묶음을 펼치고 접은 걸 기억한다
   $$('details[data-mgroup]', view).forEach((el) =>
     el.addEventListener('toggle', () => (el.open ? mgroupOpen.add(el.dataset.mgroup) : mgroupOpen.delete(el.dataset.mgroup))),
-  );
-  // 보물 교환소
-  const exSel = $('#ex-pick', view);
-  if (exSel)
-    exSel.addEventListener('change', () => {
-      exPick = exSel.value;
-      renderView();
-    });
-  $$('[data-ws-fill]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.fillRecipe(el.dataset.wsFill);
-      if (r.payload) await apply(r.payload);
-      toast(r.ok ? t('workshop.filled', { what: Object.entries(r.got).map(([k, n]) => `${t('treasure.' + k)} ${n}`).join(', ') }) : t('workshop.exShort'), 'gem');
-      renderView();
-    }),
   );
   $$('[data-give]', view).forEach((el) =>
     el.addEventListener('click', async () => {
@@ -62316,30 +64077,6 @@ function bindView(view) {
       if (r.payload) await apply(r.payload);
       if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
       renderView();
-    }),
-  );
-
-  // 보물 공방: 만들기 · 만든 것 입고 벗기
-  $$('[data-craft]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.craft;
-      el.disabled = true;
-      const r = await pet.craft(key);
-      if (r.payload) await apply(r.payload);
-      if (r.ok) toast(t('workshop.crafted', { name: t('item.' + key) }), key);
-      else toast(t('workshop.short'), 'gift');
-      keepScroll();
-    }),
-  );
-  $$('[data-ws-wear]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const key = el.dataset.wsWear;
-      const slot = el.dataset.slot;
-      const wearing = (D.settings.outfit || {})[slot] === key;
-      const name = t('item.' + key);
-      await apply(await pet.set({ outfit: { [slot]: wearing ? null : key } }));
-      toast(wearing ? t('ward.tookOff', { name }) : t('ward.worn', { name }), wearing ? 'check' : key);
-      keepScroll();
     }),
   );
 
@@ -62367,14 +64104,115 @@ function bindView(view) {
     }),
   );
 
-  // 개발자 모드: 깜짝 이벤트 바로 일으키기 (배포 전에 지운다)
-  $$('[data-dev-event]', view).forEach((el) =>
-    el.addEventListener('click', async () => {
-      const r = await pet.devEvent(el.dataset.devEvent);
-      toast(r ? t('dev.eventSent', { type: el.dataset.devEvent }) : t('dev.eventNo'), 'sparkle');
+  // 상황마다 모션 켜고 끄기 (2.0.0)
+  $$('[data-moff]', view).forEach((el) =>
+    el.addEventListener('change', async () => {
+      const k = el.dataset.moff;
+      const off = new Set((D.motion && D.motion.off) || []);
+      if (el.checked) off.delete(k);
+      else off.add(k);
+      await apply(await pet.set({ motionsOff: [...off] }));
+      toast(t(el.checked ? 'toast.motionOn' : 'toast.motionOff', { slot: t('slot.' + k) }), el.checked ? 'sparkle' : 'check');
+      const y = $('#view').scrollTop;
+      renderView();
+      $('#view').scrollTop = y;
+    }),
+  );  $$('[data-medit]', view).forEach((el) => el.addEventListener('click', () => openMotionEditor(el.dataset.medit)));
+
+  // ---------- 홈 (2.0.0) ----------
+  $$('[data-fold]', view).forEach((el) =>
+    el.addEventListener('click', () => {
+      toggleFold(el.dataset.fold);
+      const y = $('#view').scrollTop;
+      renderView();
+      $('#view').scrollTop = y;
     }),
   );
-  $$('[data-medit]', view).forEach((el) => el.addEventListener('click', () => openMotionEditor(el.dataset.medit)));
+  // 집중 길이 고르기 (설정의 집중 시간 길이와 같은 값)
+  $$('[data-focus-min]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      await apply(await pet.set({ focusMin: Number(el.dataset.focusMin) }));
+      renderView();
+    }),
+  );
+  // 이미 있는 노트 열기 (노트 지도 · 최근 노트 · 외톨이 노트). 없는 노트면 아무것도 안 만든다
+  $$('[data-open-note]', view).forEach((el) => {
+    const go = async () => {
+      const ok = await pet.openNote(el.dataset.openNote);
+      if (!ok) toast(t('home.noteGone'), 'bang');
+    };
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        go();
+      }
+    });
+  });
+  // 할 일 (플러그인 안 목록)
+  const todoRun = async (p, keepFocus = false) => {
+    const r = await p;
+    if (r && r.payload) await apply(r.payload);
+    if (r && !r.ok && r.reason === 'full') toast(t('todo.full'), 'bang');
+    const y = $('#view').scrollTop;
+    renderView();
+    $('#view').scrollTop = y;
+    if (keepFocus) {
+      const inp = $('#todo-new');
+      if (inp) inp.focus();
+    }
+    return r;
+  };
+  const addForm = $('.todo-add', view);
+  if (addForm)
+    addForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inp = $('#todo-new', addForm);
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      todoRun(pet.todoAdd(text), true);
+    });
+  $$('[data-todo-toggle]', view).forEach((el) =>
+    el.addEventListener('change', async () => {
+      const r = await todoRun(pet.todoToggle(el.dataset.todoToggle));
+      if (r && r.ok && el.checked) hero.play((D.motion.lists.done || [])[0] || 'happy');
+    }),
+  );
+  $$('[data-todo-del]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoRemove(el.dataset.todoDel))));
+  $$('[data-todo-move]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoMove(el.dataset.todoMove, Number(el.dataset.to)))));
+  // 글을 두 번 누르면 고친다. Enter 저장 · Esc 그만
+  $$('[data-todo-text]', view).forEach((el) =>
+    el.addEventListener('dblclick', () => {
+      todoEditing = el.dataset.todoText;
+      renderView();
+      const inp = $('[data-todo-edit]');
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }),
+  );
+  $$('[data-todo-edit]', view).forEach((el) => {
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const id = todoEditing;
+      todoEditing = null;
+      if (save && el.value.trim()) todoRun(pet.todoEdit(id, el.value));
+      else renderView();
+    };
+    el.addEventListener('keydown', (e) => {
+      if (e.isComposing) return;
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') {
+        e.stopPropagation();
+        finish(false);
+      }
+    });
+    el.addEventListener('blur', () => finish(true));
+  });
 
   $$('select[data-key]', view).forEach((el) =>
     el.addEventListener('change', async () => {
@@ -62448,21 +64286,6 @@ async function act(name, el) {
       pet.poke();
       hero.play('happy');
       break;
-    case 'newsMore':
-      newsOpen = !newsOpen;
-      renderView();
-      break;
-    case 'exchange': {
-      const sel = $('#ex-pick');
-      const key = sel ? sel.value : exPick;
-      if (!key) break;
-      exPick = key;
-      const r = await pet.exchange(key);
-      if (r.payload) await apply(r.payload);
-      toast(r.ok ? t('workshop.exDone', { name: t('treasure.' + key) }) : t('workshop.exShort'), key);
-      renderView();
-      break;
-    }
     case 'feed': {
       const r = await pet.feed();
       if (r && r.payload) await apply(r.payload);
@@ -62502,6 +64325,29 @@ async function act(name, el) {
       await apply(await pet.focusStop());
       renderView();
       break;
+    // 2.0.0: 쉬는 시간 · 집중 길이 고르기
+    case 'breakStart':
+      await apply(await pet.breakStart(Number(el && el.dataset.min) || 5));
+      renderView();
+      break;
+    case 'breakStop':
+      await apply(await pet.breakStop());
+      renderView();
+      break;
+    case 'graph':
+    case 'localGraph': {
+      const ok = await pet.openGraph(name === 'localGraph');
+      if (!ok) toast(t(name === 'localGraph' ? 'home.graphNeedNote' : 'home.graphOff'), 'bang');
+      break;
+    }
+    case 'todoClear':
+      await apply((await pet.todoClear()).payload);
+      renderView();
+      break;
+    case 'todoDoneOpen':
+      todoDoneOpen = !todoDoneOpen;
+      renderView();
+      break;
     case 'goalEdit':
       openGoalPicker();
       break;
@@ -62535,10 +64381,6 @@ async function act(name, el) {
       break;
     case 'reveal':
       pet.revealHooks();
-      break;
-    case 'toWorkshop':
-      wsPage = 'workshop';
-      setTab('workshop');
       break;
     case 'card':
       openCard();
@@ -62729,8 +64571,6 @@ function renderWelcome() {
 const WHATS_NEW = [
   ['star', 'star', 'shop'],
   ['ears', 'heart', 'ears'],
-  ['crave', 'ricebowl', 'home'],
-  ['exchange', 'gem', 'workshop'],
   ['card', 'sparkle', 'card'],
   ['theme', 'gear', 'settings'],
   ['bubble', 'chat', 'home'],
@@ -62739,11 +64579,13 @@ const WHATS_NEW = [
 ];
 // [옵시디언 1.5.0] 하루 목표 · 집중 시간 · 끝낸 할 일 · 단어 · 새 업적
 const WHATS_NEW_OBS = [
-  ['goal', 'star', 'goal'],
-  ['focus', 'hourglass', 'home'],
-  ['tasks', 'check', 'home'],
-  ['words', 'scroll', 'settings'],
-  ['badges', 'medal', 'achievements'],
+  ['home2', 'home', 'home'],
+  ['todo2', 'check', 'home'],
+  ['map2', 'map', 'home'],
+  ['quest2', 'scroll', 'home'],
+  ['motion2', 'sparkle', 'motions'],
+  ['toys2', 'yarn', 'shop'],
+  ['gone2', 'gift', 'wardrobe'],
 ];
 function showWhatsNew() {
   const v = D.version || '';
@@ -62769,7 +64611,13 @@ function showWhatsNew() {
         setTab('home');
         openGoalPicker();
       } else if (go === 'card') openCard();
-      else setTab(go);
+      else if (go === 'motions') {
+        setTab('settings');
+        setTimeout(() => {
+          const m = document.getElementById('set-motions');
+          if (m) m.scrollIntoView({ block: 'start' });
+        }, 30);
+      } else setTab(go);
     }),
   );
   if (D.whatsNew) pet.whatsNewSeen().then((d) => d && (D = d));
@@ -62820,7 +64668,7 @@ if (pet.onToast) pet.onToast((x) => x && toast(x.text, x.icon));
   animate();
 })();
 
-;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetFriends !== undefined) PetFriends = window.PetFriends; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
+;if (window.PetSprite !== undefined) PetSprite = window.PetSprite; if (window.PixelArt !== undefined) PixelArt = window.PixelArt; if (window.I18N !== undefined) I18N = window.I18N; if (window.PetToys !== undefined) PetToys = window.PetToys; if (window.PetSound !== undefined) PetSound = window.PetSound; if (window.ToyKit !== undefined) ToyKit = window.ToyKit;
   }
 };
 };

@@ -601,6 +601,164 @@
       step(r, k, at, dt, a) { if (every(r, 'h', at, 0.25)) r.emit({ type: 'heart', x: r.scr(a.hx + rand(-8, 8)), y: a.top - 2, vy: -8, life: 0.8 }); },
     },
 
+    // ----- 4차 장난감용 자세 (toyplay5.js, 2026-10-17) -----
+    // 고양이가 무엇을 쳐다보나: 놀이가 매 프레임 PetToys.look 에 적어 둔다 (x·y = -1~1. 어항 속 물고기 따라 눈알 굴리기)
+    // 햇살 속에 앉아 눈을 가늘게. 해를 올려다보며 꾸벅
+    toyBask: {
+      len: 3, loop: true,
+      pose(p, k, at) {
+        p.lookY = -1;
+        p.eyes = Math.floor(at * 0.7) % 3 === 2 ? 'closed' : 'half';
+        p.mouth = 'smile'; p.blush = true; p.tail = 'slow'; p.ear = 0;
+        p.sy = 1 + Math.sin(at * 1.6) * 0.02;
+      },
+      step(r, k, at, dt, a) { if (every(r, 's', at, 0.9)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top + rand(-4, 2), vy: -3, life: 0.8 }); },
+    },
+    // 벌러덩 배를 까고 햇볕에 굽는다. 앞발은 접어 들고 꼬리는 살랑
+    toyBelly: {
+      len: 2.6, loop: true,
+      pose(p, k, at) {
+        p.xf = { rot: Math.PI, px: 24, py: 38, oy: 0 };
+        p.noShadow = true;
+        p.armL = p.armR = 'up';
+        p.eyes = Math.floor(at * 0.8) % 4 === 3 ? 'blink' : 'happy';
+        p.mouth = 'smile'; p.blush = true; p.tail = 'wag'; p.ear = 0;
+        p.dangle = Math.floor(at * 1.5) % 2 ? 1 : -1;
+      },
+    },
+    // 햇살 속에서 동그랗게 말아 쿨쿨. 가끔 꿈꾸듯 귀가 쫑긋
+    toySunNap: {
+      len: 4, loop: true,
+      pose(p, k, at) {
+        p.curl = true;
+        p.sy = Math.sin(at * 1.2) > 0.35 ? 1.02 : 1;
+        p.eyes = 'closed'; p.mouth = 'flat'; p.blush = true;
+        p.ear = at % 5 < 0.25 ? 1 : -1;
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 'z', at, 1.6)) r.emit({ type: 'text', s: 'Z', x: r.scr(a.hx + 8), y: a.top - 3, vy: -4, vx: 2, life: 1.3, c: '#9aa6ff' });
+      },
+    },
+    // 배 만지려던 손을 덥석! 끌어안고 뒷발로 팡팡 (배를 보여 주는 건 함정이다)
+    toyTrap: {
+      len: 1.8,
+      pose(p, k, at) {
+        lieDown(p, at, 18);
+        p.armL = p.armR = 'hold';
+        p.eyes = Math.floor(at * 5) % 2 ? 'wide' : 'squint';
+        p.mouth = 'open'; p.ear = -1;
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 't', true)) r.emit({ type: 'text', s: 'GOTCHA', x: r.scr(a.hx - 10), y: a.top - 8, vy: -4, life: 1, c: '#ffd35c' });
+        if (every(r, 'f', at, 0.12)) r.emit({ type: 'dust', x: r.scr(a.hx + rand(-8, 8)), y: GROUND - rand(0, 6), vx: rand(-10, 10), vy: -8, life: 0.35, c: '#f7bd7f' });
+      },
+    },
+    // 뭔가를 뚫어지게 본다. 눈알만 대상을 따라 굴린다 (PetToys.look)
+    toyStare: {
+      len: 1.4, loop: true,
+      pose(p, k, at) {
+        const L = root.PetToys && root.PetToys.look;
+        p.lookX = L ? Math.round(L.x) : 1;
+        p.lookY = L ? Math.round(L.y) : 0;
+        p.eyes = 'wide'; p.ear = 1; p.tail = 'flick';
+        p.mouth = Math.floor(at * 2.5) % 5 === 0 ? 'o' : 'flat';
+        p.xf = { sx: 1.04, sy: 0.96 };
+      },
+    },
+    // 뒷발로 서서 앞발을 물에 쏙 — 첨벙
+    toyPawDip: {
+      len: 1.3,
+      pose(p, k) {
+        const down = k > 0.35 && k < 0.75;
+        p.xf = { sy: down ? 1.02 : 1.14, sx: 0.95 };
+        p.armR = down ? 'claw' : 'up';
+        p.armL = 'rest';
+        p.lookX = 1; p.lookY = down ? 1 : 0;
+        p.eyes = down ? 'squint' : 'wide'; p.mouth = down ? 'flat' : 'o'; p.ear = 1; p.tail = 'flick';
+      },
+    },
+    // 사냥 자세: 납작 엎드려 살금살금 (귀는 앞으로, 꼬리 끝만 톡톡)
+    toyCrouch: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.xf = { sx: 1.12, sy: 0.84 };
+        p.dy = 1;
+        p.eyes = 'wide'; p.mouth = 'flat'; p.ear = 1; p.tail = 'flick'; p.lookY = 1;
+      },
+    },
+    // 진지해진 사냥꾼 (오래 버티면): 눈을 가늘게 뜨고 눈썹을 세운다
+    toyHunt: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.xf = { sx: 1.14, sy: 0.82, ox: Math.floor(at * 14) % 4 === 0 ? 1 : 0 };
+        p.dy = 1;
+        p.eyes = 'squint'; p.brow = 'angry'; p.mouth = 'flat'; p.ear = -1; p.tail = 'flick'; p.lookY = 1;
+      },
+    },
+    // 상자 밑에 쏙 숨었다 (몸을 안 그린다)
+    toyHidden: {
+      len: 1, loop: true,
+      pose(p) { p.hide = true; p.noShadow = true; },
+    },
+    // 메롱 — 혀를 쏙 내밀고 딴 데 본다 (야바위에서 이겼을 때)
+    toyBlep: {
+      len: 1.8,
+      pose(p, k, at) {
+        p.eyes = 'happy'; p.mouth = 'blep'; p.lookX = -1; p.tail = 'wag'; p.ear = 1;
+        p.dy = Math.floor(at * 4) % 2 ? -1 : 0;
+      },
+      step(r, k, at, dt, a) { if (once(r, 't', k > 0.1)) r.emit({ type: 'text', s: 'HEHE', x: r.scr(a.hx + 6), y: a.top - 8, vy: -3, life: 1.1, c: '#ffb0d0' }); },
+    },
+    // 코에 뭔가 앉아서… 에… 에취!
+    toyAchoo: {
+      len: 1.5,
+      pose(p, k) {
+        if (k < 0.55) {
+          p.eyes = k < 0.25 ? 'wide' : 'squint'; p.mouth = 'o'; p.lookY = -1;
+          p.xf = { sy: 1 + seg(k, 0.1, 0.55) * 0.06 };
+        } else {
+          p.eyes = 'closed'; p.mouth = 'big'; p.ear = -1;
+          p.xf = { sy: 0.92, sx: 1.06, oy: 1 };
+        }
+        p.tail = 'flick';
+      },
+      step(r, k, at, dt, a) {
+        if (once(r, 'a', k > 0.55)) {
+          r.emit({ type: 'text', s: 'ACHOO', x: r.scr(a.fx + 6), y: a.top - 6, vy: -5, life: 0.9, c: '#ffffff' });
+          for (let i = 0; i < 6; i++) r.emit({ type: 'spray', x: r.scr(a.fx + 4), y: a.my, vx: rand(10, 40) * (r.facing || 1), vy: rand(-14, 6), ay: 30, life: 0.45, c: '#e9f4ff' });
+        }
+      },
+    },
+    // 뭔가에 올라타고 달린다 (자동차·청소기). 바람에 귀는 뒤로, 눈은 반짝
+    toyRide: {
+      len: 1, loop: true,
+      pose(p, k, at) {
+        p.dy = Math.floor(at * 10) % 2 ? -1 : 0;
+        p.eyes = Math.floor(at * 2) % 3 ? 'happy' : 'star';
+        p.mouth = 'open'; p.ear = -1; p.tail = 'up'; p.noShadow = true; p.blush = true;
+        p.armL = p.armR = 'front';
+      },
+      step(r, k, at, dt, a) {
+        if (every(r, 'l', at, 0.09)) r.emit({ type: 'line', x: r.scr(a.left - 3), y: a.cy + rand(-4, 4), len: 4, life: 0.12 });
+      },
+    },
+    // 하악! 털을 세우고 옆으로 선다 (청소기한테)
+    toyHiss: {
+      len: 1.2,
+      pose(p, k, at) {
+        p.xf = { sy: 1.1, sx: 1.06, ox: Math.floor(at * 24) % 2 ? 1 : 0 };
+        p.eyes = 'wide'; p.brow = 'angry'; p.mouth = 'big'; p.ear = -1; p.tail = 'up';
+      },
+      step(r, k, at, dt, a) { if (once(r, 'h', k > 0.1)) r.emit({ type: 'text', s: 'HSSS', x: r.scr(a.fx + 6), y: a.top - 6, vy: -4, life: 0.9, c: '#ff9a9a' }); },
+    },
+    // 해냈다! 높은 데서 가슴 펴고 왕관 반짝 (상자 탑 꼭대기)
+    toyKing: {
+      len: 2.4, loop: true,
+      pose(p, k, at) { p.eyes = Math.floor(at) % 3 ? 'happy' : 'closed'; p.mouth = 'smile'; p.tail = 'up'; p.noShadow = true; p.xf = { sy: 1.06 }; p.blush = true; },
+      front(g, a) { this.pattern(['Y.Y.Y', 'YYYYY', 'yYyYy'], a.hx - 2, a.top - 5, { Y: '#ffd65a', y: '#d9a21f' }, false); },
+      step(r, k, at, dt, a) { if (every(r, 's', at, 0.3)) r.emit({ type: 'spark', x: r.scr(a.hx + rand(-10, 10)), y: a.top + rand(-6, 0), vy: -6, life: 0.7 }); },
+    },
+
     // ----- 상자 -----
     // 상자로 폴짝 뛰어든다 (상자는 pet.js 가 고양이 쪽으로 당겨 준다)
     toyBoxIn: {
@@ -1145,5 +1303,6 @@
 
   root.PetSprite.TOY_POSES = Object.assign(root.PetSprite.TOY_POSES || {}, TP);
   root.PetSprite.CARRY = Object.assign(root.PetSprite.CARRY || {}, CARRY);
-  root.PetToys = { PLACED, paintPlaced, field, dotAt, line, stampAt, ring, disc, circlePts, discSpans, underCat, wheelDots, WHEEL_R, palOf };
+  // look: 고양이가 쳐다보는 쪽 (toyStare 가 읽는다. 놀이가 매 프레임 적는다)
+  root.PetToys = { PLACED, paintPlaced, field, dotAt, line, stampAt, ring, disc, circlePts, discSpans, underCat, wheelDots, WHEEL_R, palOf, look: { x: 0, y: 0 } };
 })(window);

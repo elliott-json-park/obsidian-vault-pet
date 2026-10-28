@@ -5,6 +5,7 @@
 //  - 채운 날은 state.goalLog 에 남는다. 이어서 채운 날 수(목표 연속)는 출석과 따로 센다
 // 집중 시간: 15 · 25 · 50분 타이머. 그동안 고양이는 말을 아끼고(방해 금지) 머리 위에 남은 시간을 띄운다.
 //  다 마치면 축하 + 코인 · 경험치. 중간에 그만둬도 벌은 없다
+// 쉬는 시간 (2.0.0): 집중을 마치면 홈에서 5분 · 10분 쉬기를 이어서 켤 수 있다 (상은 없다. 끝나면 고양이가 다시 하자고 한다)
 const { dayOf } = require('./usage');
 
 const MIN = 60_000;
@@ -24,6 +25,7 @@ const GOAL_XP = 50;
 const GOAL_LOG_KEEP = 400; // 날짜 기록은 400일치까지
 
 const FOCUS_LENGTHS = [15, 25, 50];
+const BREAK_LENGTHS = [5, 10];
 const FOCUS_COINS_PER_MIN = 2; // 25분 = 50코인
 const FOCUS_XP_PER_MIN = 1; // 25분 = 25 XP
 // 옵시디언을 껐다 켰는데 끝날 시각이 이만큼 넘게 지났으면 (끝까지 했는지 모르니) 상 없이 조용히 접는다
@@ -130,19 +132,47 @@ class Goals {
   // 지금 집중 중이면 { on, min, start, end, left(ms) }
   focusInfo(now = Date.now()) {
     const f = this.state.get('focus');
-    if (!f || !f.end) return { on: false, min: this.focusLength(), lengths: FOCUS_LENGTHS, total: this.focusTotal() };
-    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), lengths: FOCUS_LENGTHS, total: this.focusTotal() };
+    const b = this.state.get('focusBreak');
+    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now } : null;
+    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk };
+    if (!f || !f.end) return { on: false, min: this.focusLength(), ...base };
+    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), ...base };
   }
 
-  focusTotal() {
+  // 지금까지 마친 집중 시간 + 오늘 마친 횟수 · 분 (2.0.0)
+  focusTotal(now = Date.now()) {
     const st = this.state.get('focusStats') || {};
-    return { sessions: st.n || 0, minutes: st.min || 0 };
+    const today = st.day === dayOf(new Date(now));
+    return { sessions: st.n || 0, minutes: st.min || 0, today: today ? st.todayN || 0 : 0, todayMin: today ? st.todayMin || 0 : 0 };
+  }
+
+  // 쉬는 시간 시작 · 그만두기 · 끝났나 (2.0.0). 집중 중이면 쉬기를 켜지 않는다
+  breakStart(min, now = Date.now()) {
+    if (this.focusInfo(now).on) return null;
+    const m = BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
+    const b = { min: m, start: now, end: now + m * MIN };
+    this.state.set({ focusBreak: b });
+    return b;
+  }
+
+  breakStop() {
+    const b = this.state.get('focusBreak');
+    this.state.set({ focusBreak: null });
+    return b && b.end ? b : null;
+  }
+
+  // 쉬는 시간이 막 끝났으면 { min } (너무 오래 지났으면 조용히 접어서 null)
+  breakTick(now = Date.now()) {
+    const b = this.state.get('focusBreak');
+    if (!b || !b.end || now < b.end) return null;
+    this.state.set({ focusBreak: null });
+    return now - b.end > FOCUS_STALE ? null : { min: b.min };
   }
 
   focusStart(min, now = Date.now()) {
     const m = FOCUS_LENGTHS.includes(Number(min)) ? Number(min) : this.focusLength();
     const f = { min: m, start: now, end: now + m * MIN };
-    this.state.set({ focus: f });
+    this.state.set({ focus: f, focusBreak: null });
     return f;
   }
 
@@ -160,9 +190,11 @@ class Goals {
     this.state.set({ focus: null });
     if (now - f.end > FOCUS_STALE) return { stale: true, min: f.min };
     const st = this.state.get('focusStats') || {};
-    this.state.set({ focusStats: { n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now } });
+    const day = dayOf(new Date(now));
+    const same = st.day === day;
+    this.state.set({ focusStats: { ...st, n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now, day, todayN: (same ? st.todayN || 0 : 0) + 1, todayMin: (same ? st.todayMin || 0 : 0) + f.min } });
     return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN };
   }
 }
 
-module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };
+module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };

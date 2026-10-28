@@ -391,9 +391,7 @@ class Brain extends EventEmitter {
     if (!grace && this.hungry(now) && present && this.ready('hungry', 60 * MIN)) {
       const starving = now - this.life.hungrySince > 60 * MIN;
       this.emit('action', 'slot:hungry');
-      // 절반쯤은 오늘 먹고 싶은 밥 이름을 댄다 (main.js 의 cravingMeal)
-      const want = this.cravingMeal && this.cravingMeal();
-      this.say(want && Math.random() < 0.5 ? T.line('hungryCrave', { name: want }) : T.line(starving ? 'starving' : 'hungry'), 'hungry');
+      this.say(T.line(starving ? 'starving' : 'hungry'), 'hungry');
       return;
     }
 
@@ -418,12 +416,6 @@ class Brain extends EventEmitter {
       return;
     }
 
-    // 오늘 먹고 싶은 것을 하루 한 번 말한다 (쉬는 순간에. main.js 의 cravingToday)
-    if (present && this.cravingToday && mood !== 'sleeping' && this.once('crave', d)) {
-      const c = this.cravingToday();
-      if (c) this.talk(T.line('craveAnnounce', c), 'crave');
-    }
-
     // AI 활용 팁: 하루 5번까지, 90분에 한 번. 20분쯤 이어서 일하고 있을 때 (설정 '가끔 AI 활용 팁'으로 끈다)
     const [tipDay, tipN] = String(this.daily.tips || '').split('|');
     const tipsToday = tipDay === dayKey(d) ? Number(tipN) || 0 : 0;
@@ -441,12 +433,6 @@ class Brain extends EventEmitter {
         return;
       }
       const t = this.getStats().today;
-      // 공방에서 만든 옷을 입고 있으면 가끔 그 얘기 (main.js 의 workshopWorn, 2026-10-10)
-      const made = this.workshopWorn && this.workshopWorn();
-      if (made && Math.random() < 0.2) {
-        this.talk(T.line('workshopWear', { item: made }), 'chatter');
-        return;
-      }
       // 실제 있었던 일을 기억해서 말한다 (하루 2번까지. 값이 없으면 안 한다. main.js 의 memoryVars)
       const [memDay, memN] = String(this.daily.memory || '').split('|');
       const memToday = memDay === dayKey(d) ? Number(memN) || 0 : 0;
