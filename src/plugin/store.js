@@ -15,7 +15,8 @@ const DEFAULT_SETTINGS = {
   motions: {},
   idleMotions: null,
   motionsOff: [], // 모션을 끈 상황 (2.0.0. 상황 키 목록 — core/shop.js 의 MOTION_SLOTS)
-  setMotionsOn: true, // 세트 옷을 입으면 그 세트 전용 모션을 '심심할 때'에 섞는다 (2.0.0)
+  setMotionsOn: true,
+  homeLayout: null, // 홈 칸 순서 · 보이기 [{ id, on }] (2.0.1). null 이면 기본 순서로 모두 (kit/house.js 의 HOME_SECTIONS) // 세트 옷을 입으면 그 세트 전용 모션을 '심심할 때'에 섞는다 (2.0.0)
   soundEnabled: true,
   bubblesEnabled: true,
   chatter: true,

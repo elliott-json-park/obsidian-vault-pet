@@ -10,7 +10,7 @@ Vault Pet turns writing into a cozy little game with a goal you can see. A hand-
 
 ## Why you'll love it
 
-- **A Home for getting things done.** Today's goal, a focus timer, a to-do list, today's quests, a note map and your recent notes, all on one screen. Every section folds away, and it reads fine in the narrow right sidebar too.
+- **A Home for getting things done.** Today's goal, a focus timer, a to-do list, today's quests, a note map and your recent notes, all on one screen. Reorder or hide sections with **Customize Home**, fold any section away, and it reads fine in the narrow right sidebar too.
 - **It never touches your notes.** The to-do list lives inside Vault Pet. Nothing on the Home creates, edits or deletes a note; it only opens notes that already exist.
 - **Quests that teach Obsidian.** Three a day: add a tag, write in your daily note, add a property, link an orphan note, move a note into a folder, open the graph view… Each one has a one-line "how" for first-timers.
 - **A daily goal you can see.** Pick a goal like 300 words (or 1,000 characters) a day. A small bar in the status bar fills as you write, and on days you reach it your cat celebrates and pays you 100 coins. Keep it going for a goal streak.
@@ -29,9 +29,9 @@ Vault Pet turns writing into a cozy little game with a goal you can see. A hand-
 ![The house Home in English: today's goal at 0 of 300 words with 15, 25 and 50 minute focus lengths, a Focus 25 min button and 5 and 10 minute breaks, then a to-do list with three to-dos and one done.](docs/home.png)
 
 - **Today's goal and focus timer** at the top. Pick 15, 25 or 50 minutes and start; when you're done, start a 5 or 10 minute break right there. It shows how many sessions you finished today.
-- **To-do.** Type and press Enter. Check it off and your cat hops; double-click to edit; reorder with the arrows; done ones fold away. Saved inside Vault Pet only (synced with your plugin data), so no notes are created. Finishing to-dos counts for quests and badges.
+- **To-do.** Type and press Enter. Check it off and your cat hops; double-click to edit; drag the handle to reorder (or use the arrow keys on it); done ones fold away. Saved inside Vault Pet only (synced with your plugin data), so no notes are created. Finishing to-dos counts for quests and badges.
 - **Current quests.** Three a day (hard, normal, easy), each with a short hint on how to do it. The orphan-note quest lists a few notes with no links so you can open one and link it.
-- **Note map.** A small graph of the note you have open and the notes up to two links away. Click a dot to open that note, or jump to Obsidian's **Local graph** or **Graph view**. Below it: how many notes, links and orphan notes your vault has.
+- **Note map.** A live little graph of the note you have open and the notes up to two links away, moving like Obsidian's graph view: nodes push apart, links pull together, and you can drag a node around and watch the rest follow. Hover a node to light up its neighbors, drag empty space to pan, Ctrl+scroll to zoom. Click a dot to open that note, or jump to Obsidian's **Local graph** or **Graph view**. Below it: how many notes, links and orphan notes your vault has.
 - **Recent notes.** The notes you opened last, one click away, and how many you edited today.
 - **Today's numbers and your cat.** Words or characters, links, new notes, finished tasks and your streak, then your level and fullness (with a Feed button).
 

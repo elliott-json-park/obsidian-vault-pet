@@ -4183,7 +4183,7 @@ input[type='time'],
 /* 오늘 숫자: 작은 칸 한 줄 */
 .panel.today-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
   gap: 6px;
   padding: 10px 12px;
 }
@@ -4251,4 +4251,351 @@ input[type='time'],
 .panel.mset-row {
   margin-bottom: 10px;
   padding: 10px 14px;
+}
+
+/* ---------- [옵시디언 2.0.1] 오늘의 목표 카드 · 집중 줄 ---------- */
+.panel.goal-card {
+  padding: 14px 16px;
+}
+.gc-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gc-v {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.gc-v b {
+  font-family: var(--pixel);
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.gc-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--pixel);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.gc.done .gc-pct {
+  color: var(--good);
+}
+.gc-bar {
+  height: 8px;
+  margin: 10px 0 8px;
+  border-radius: 4px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.gc-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.gc.done .gc-bar > i {
+  background: var(--good);
+}
+.gc-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.gc.done .gc-meta > span:first-child {
+  color: var(--good);
+  font-weight: 700;
+}
+.gc-week {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.gc-week .dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.gc-week .dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--soft);
+}
+.gc-week .dots i.on {
+  background: var(--good);
+}
+.gc-week .dots i.today {
+  outline: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  outline-offset: 1px;
+}
+.gc-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.gc-off {
+  margin: 0;
+}
+.gc-sep {
+  height: 1px;
+  margin: 12px -16px;
+  background: var(--edge);
+}
+.fz {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fz-ic {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--soft);
+}
+.fz.on .fz-ic {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+}
+.fz.on.brk .fz-ic {
+  background: color-mix(in srgb, var(--good) 18%, var(--panel));
+}
+.fz-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fz-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.fz-time {
+  font-family: var(--pixel);
+  font-size: 20px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.fz.brk .fz-time {
+  color: var(--good);
+}
+.fz-bar {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.fz-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+.fz.brk .fz-bar > i {
+  background: var(--good);
+}
+.fz-btns {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 집중 길이: 붙어 있는 작은 단추 셋 */
+.seg-mini {
+  display: inline-flex;
+  border: 1.5px solid var(--edge-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg-mini button {
+  padding: 3px 8px;
+  border: 0;
+  border-right: 1px solid var(--edge);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.seg-mini button:last-child {
+  border-right: 0;
+}
+.seg-mini button:hover {
+  color: var(--ink);
+}
+.seg-mini button.on {
+  background: var(--ink);
+  color: var(--panel);
+  font-weight: 700;
+}
+.fz-offer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0 40px;
+  font-size: 12px;
+  color: var(--good);
+}
+.fz-offer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+}
+/* 좁은 폭(사이드바): 집중 단추는 아래 줄로 */
+@media (max-width: 420px) {
+  .fz {
+    flex-wrap: wrap;
+  }
+  .fz-btns {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .fz-offer {
+    margin-left: 0;
+  }
+}
+
+/* ---------- 할 일 끌기 · 홈 꾸미기 목록 ---------- */
+.todo-grip,
+.hl-row .grip {
+  flex: none;
+  width: 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+  opacity: 0.45;
+}
+.todo:hover .todo-grip,
+.todo-grip:focus-visible,
+.hl-row .grip {
+  opacity: 1;
+}
+.todo-grip:focus-visible,
+.hl-row .grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.todo.dragging,
+.hl-row.dragging {
+  opacity: 0.4;
+}
+.todo.drop-before,
+.hl-row.drop-before {
+  box-shadow: 0 -2px 0 var(--accent);
+}
+.todo.drop-after,
+.hl-row.drop-after {
+  box-shadow: 0 2px 0 var(--accent);
+}
+.hl-modal .modal-box {
+  max-width: 420px;
+}
+.hl-list {
+  list-style: none;
+  margin: 10px 0 14px;
+  padding: 0;
+}
+.hl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.hl-row .nm {
+  flex: 1;
+  min-width: 0;
+}
+.hl-row.off .nm {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.home-foot {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 6px;
+}
+.quest-sub {
+  margin: -4px 0 10px;
+  font-size: 12px;
+}
+
+/* ---------- 움직이는 노트 지도 ---------- */
+.mini-graph-wrap {
+  position: relative;
+}
+.mini-graph {
+  touch-action: none;
+  cursor: grab;
+}
+.mini-graph.panning {
+  cursor: grabbing;
+}
+.mini-graph .ge line {
+  transition: stroke 0.15s, opacity 0.15s;
+}
+.mini-graph .ge line.hl {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+}
+.mini-graph .ge line.dim {
+  opacity: 0.25;
+}
+.mini-graph .gn circle {
+  transition: fill 0.15s, opacity 0.15s;
+}
+.mini-graph .gn text {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.mini-graph .gn.lbl text {
+  opacity: 1;
+}
+.mini-graph .gn.dim circle {
+  opacity: 0.3;
+}
+.mini-graph .gn.hl circle {
+  fill: var(--accent-2);
+}
+.mini-graph .gn.me circle {
+  fill: var(--accent);
+  stroke: var(--ink);
+}
+.mini-graph .gn.me text {
+  font-weight: 700;
+}
+.map-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
 }

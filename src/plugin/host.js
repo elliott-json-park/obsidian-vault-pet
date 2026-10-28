@@ -78,6 +78,8 @@ const EVENT_LINES = new Set(['heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 
 // 모션을 끈 상황 (설정 motionsOff). 고양이가 그 상태로 있어야 하는 상황(같이 쓸 때 · 기다릴 때 · 잘 때)은 끄면 기본 자세로,
 // 잠깐 하는 상황(다 썼을 때 · 레벨 업 · 쓰다듬기 …)은 끄면 아무 모션도 안 한다
 const MOOD_SLOTS = new Set(['work', 'workLong', 'workHour', 'waiting', 'sleep']);
+// 홈 칸 (kit/house.js 의 HOME_SECTIONS 와 같다. 설정 homeLayout 을 거를 때 쓴다)
+const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
 const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']); // 줄넘기 · 4차 장난감 넷
 // 처음 설치한 날 이만큼은 밥 · 배고픔 알림을 쉰다 (만나자마자 '밥 줘' 부터 하지 않게)
 const FIRST_GRACE = 2 * HOUR_MS;
@@ -1658,6 +1660,18 @@ class KitHost {
         } else if (shop.canUseMotion(slot, v)) next[slot] = v;
       }
       allowed.motions = next;
+    }
+    // 홈 칸 순서 · 보이기 (2.0.1): 아는 칸만, 겹치지 않게
+    if ('homeLayout' in allowed) {
+      const v = allowed.homeLayout;
+      if (v === null) allowed.homeLayout = null;
+      else if (!Array.isArray(v)) delete allowed.homeLayout;
+      else {
+        const seen = new Set();
+        allowed.homeLayout = v
+          .filter((x) => x && HOME_SECTIONS.includes(x.id) && !seen.has(x.id) && seen.add(x.id))
+          .map((x) => ({ id: x.id, on: x.on !== false }));
+      }
     }
     // 모션을 끈 상황 (2.0.0): 상황 키 목록만
     if ('motionsOff' in allowed) {

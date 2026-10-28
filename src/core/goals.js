@@ -143,7 +143,7 @@ class Goals {
   focusTotal(now = Date.now()) {
     const st = this.state.get('focusStats') || {};
     const today = st.day === dayOf(new Date(now));
-    return { sessions: st.n || 0, minutes: st.min || 0, today: today ? st.todayN || 0 : 0, todayMin: today ? st.todayMin || 0 : 0 };
+    return { sessions: st.n || 0, minutes: st.min || 0, today: today ? st.todayN || 0 : 0, todayMin: today ? st.todayMin || 0 : 0, lastAt: st.last || 0 };
   }
 
   // 쉬는 시간 시작 · 그만두기 · 끝났나 (2.0.0). 집중 중이면 쉬기를 켜지 않는다

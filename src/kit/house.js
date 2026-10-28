@@ -1194,58 +1194,67 @@ function gaugePanel() {
       <div class="panel">${row('food', g.food, 'ricebowl')}<p class="muted gauge-note">${g.full ? icon('sparkle', 12) + ' ' : ''}${note}</p></div>`;
 }
 
-// [옵시디언 1.5.0] 오늘의 목표 + 집중 시간. 홈 맨 위의 큰 칸 (호스트의 D.goal · D.focus = core/goals.js)
+// [옵시디언 1.5.0] 오늘의 목표 + 집중 시간 (호스트의 D.goal · D.focus = core/goals.js)
+// 2.0.1: 한 장짜리 카드로 다시 짰다. 위는 오늘 쓴 양(큰 숫자 · 얇은 막대 · 남은 양 · 최근 7일 · 연속),
+// 아래는 집중 타이머 한 줄(길이 고르기 · 시작 → 남은 시간 · 막대 → 마친 뒤 쉬기 제안 → 쉬는 중)
 const focusLeft = (end) => {
   const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
-// 2.0.0: 집중 길이를 여기서 바로 고르고, 마친 뒤엔 쉬는 시간(5 · 10분)을 이어서 켠다. 오늘 몇 번 했는지도
-function focusBox() {
+const spanPct = (start, end) => Math.max(0, Math.min(100, ((Date.now() - start) / Math.max(1, end - start)) * 100));
+const BREAK_OFFER_MS = 30 * 60_000; // 집중을 마친 뒤 이만큼은 '잠깐 쉴까요?' 를 보여 준다
+function focusRow() {
   const f = D.focus || { on: false, min: 25 };
-  if (f.on)
-    return `<div class="focus-box on"><div class="focus-k">${icon('hourglass', 14)}<span data-focus-left="${f.end}">${esc(t('home.focusOn', { left: focusLeft(f.end) }))}</span></div>
-      <button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button></div>`;
-  if (f.brk)
-    return `<div class="focus-box on brk"><div class="focus-k">${icon('pillow', 14)}<span data-break-left="${f.brk.end}">${esc(t('home.breakOn', { left: focusLeft(f.brk.end) }))}</span></div>
-      <button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button>
-      <button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button></div>`;
   const tot = f.total || {};
-  const today = tot.today ? `<small class="muted">${t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) })}</small>` : tot.sessions ? `<small class="muted">${t('home.focusTotal', { n: fmt(tot.sessions), m: fmt(tot.minutes) })}</small>` : '';
-  const lens = (f.lengths || [15, 25, 50]).map((m) => `<button class="chip ${m === f.min ? 'on' : ''}" data-focus-min="${m}">${t('home.focusMin', { m })}</button>`).join('');
-  const breaks = (f.breaks || [5, 10]).map((m) => `<button class="btn ghost small" data-act="breakStart" data-min="${m}">${icon('pillow', 11)}${t('home.breakBtn', { m })}</button>`).join('');
-  return `<div class="focus-box"><div class="chips focus-lens">${lens}</div>
-    <button class="btn primary" data-act="focusStart">${icon('hourglass', 13)}${t('home.focusBtn', { m: f.min })}</button>
-    <small class="muted">${t('home.focusSub', { coins: fmt(f.min * 2) })}</small>${today}
-    <div class="focus-breaks">${breaks}</div></div>`;
-}function goalPanel() {
-  const g = D.goal;
-  if (!g) return '';
-  if (!g.on)
-    return `<h2>${t('home.goalTitle')}</h2>
-      <div class="panel goal-hero off"><div class="goal-main"><b>${t('home.goalOffTitle')}</b><p class="muted small">${t('home.goalOffDesc', { coins: fmt(g.coins) })}</p>
-      <button class="btn" data-act="goalEdit">${t('home.goalSet')}</button></div>${focusBox()}</div>`;
-  const W = g.unit === 'words' ? 'W' : 'C';
-  const pct = Math.round(g.pct * 100);
-  const week = g.week.map((d) => `<i class="${d.done ? 'on' : ''}"></i>`).join('');
-  const streak = g.current ? `${icon('fire', 12)}${t('home.goalStreak', { d: g.current })}${g.best > g.current ? ' · ' + t('home.goalBest', { d: g.best }) : ''}` : g.best ? t('home.goalBest', { d: g.best }) : '';
-  return `<div class="h2-row"><h2>${t('home.goalTitle')}</h2><button class="btn head-act" data-act="goalEdit">${icon('gear', 12)}${t('home.goalEdit')}</button></div>
-    <div class="panel goal-hero ${g.done ? 'done' : ''}">
-      <div class="goal-ring" style="--p:${pct}"><span>${g.done ? icon('check', 22) : pct + '%'}</span></div>
-      <div class="goal-main">
-        <div class="goal-v"><b>${fmt(g.value)}</b> <span class="muted">${t('home.goalOf' + W, { target: fmt(g.target) })}</span></div>
-        <div class="bar ${g.done ? 'good' : ''}"><i style="width:${pct}%"></i></div>
-        <div class="goal-sub">${g.done ? t('home.goalDone', { coins: fmt(g.coins) }) : t('home.goalLeft' + W, { n: fmt(g.left) })}</div>
-        <div class="goal-week"><span class="dots" aria-hidden="true">${week}</span><span class="muted ico-row">${streak}</span></div>
-      </div>
-      ${focusBox()}
-    </div>`;
+  // 진행 중 (집중 · 쉬기): 큰 남은 시간 + 지난 만큼 차는 막대
+  const running = (ic, cls, start, end, label, btns) => `<div class="fz on ${cls}">
+      <span class="fz-ic">${icon(ic, 15)}</span>
+      <div class="fz-main"><div class="fz-top"><b class="fz-time" data-left="${end}">${focusLeft(end)}</b><span class="muted small">${label}</span></div>
+      <div class="fz-bar"><i data-span="${start}|${end}" style="width:${spanPct(start, end)}%"></i></div></div>
+      <div class="fz-btns">${btns}</div></div>`;
+  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min })), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
+  if (f.brk)
+    return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min })),
+      `<button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button><button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button>`);
+  const seg = (f.lengths || [15, 25, 50]).map((m) => `<button class="${m === f.min ? 'on' : ''}" data-focus-min="${m}" aria-pressed="${m === f.min}">${t('home.focusMin', { m })}</button>`).join('');
+  const sub = tot.today ? t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) }) : t('home.focusSub', { coins: fmt(f.min * 2) });
+  const offer = tot.lastAt && Date.now() - tot.lastAt < BREAK_OFFER_MS
+    ? `<div class="fz-offer"><span>${icon('pillow', 12)}${t('home.breakAsk')}</span>${(f.breaks || [5, 10]).map((m) => `<button class="btn ghost small" data-act="breakStart" data-min="${m}">${t('home.breakBtn', { m })}</button>`).join('')}</div>`
+    : '';
+  return `<div class="fz">
+      <span class="fz-ic">${icon('hourglass', 15)}</span>
+      <div class="fz-main"><div class="fz-top"><b>${t('home.focusLabel')}</b></div><span class="muted small">${esc(sub)}</span></div>
+      <div class="fz-btns"><div class="seg-mini" role="group" aria-label="${esc(t('focus.setLen'))}">${seg}</div><button class="btn primary small" data-act="focusStart">${icon('hourglass', 11)}${t('home.focusGo')}</button></div>
+    </div>${offer}`;
 }
-// 집중하는 동안 남은 시간을 1초마다 (호스트는 끝 시각만 준다)
+function goalPanel() {
+  const g = D.goal;
+  const edit = `<button class="btn head-act" data-act="goalEdit">${icon('gear', 12)}${t(g && g.on ? 'home.goalEdit' : 'home.goalSet')}</button>`;
+  let top = '';
+  if (g && !g.on) top = `<p class="muted small gc-off">${t('home.goalOffDesc', { coins: fmt(g.coins) })}</p>`;
+  else if (g) {
+    const W = g.unit === 'words' ? 'W' : 'C';
+    const pct = Math.round(g.pct * 100);
+    const week = g.week.map((d, i) => `<i class="${d.done ? 'on' : ''} ${i === g.week.length - 1 ? 'today' : ''}"></i>`).join('');
+    const streak = g.current ? `<span class="gc-streak">${icon('fire', 11)}${t('home.goalStreak', { d: g.current })}</span>` : g.best ? `<span class="muted">${t('home.goalBest', { d: g.best })}</span>` : '';
+    top = `<div class="gc ${g.done ? 'done' : ''}">
+        <div class="gc-row"><div class="gc-v"><b>${fmt(g.value)}</b><span>${t('home.goalSlash' + W, { target: fmt(g.target) })}</span></div>
+          <span class="gc-pct">${g.done ? icon('check', 13) + t('home.goalDoneShort') : pct + '%'}</span></div>
+        <div class="gc-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+        <div class="gc-meta"><span>${g.done ? t('home.goalDone', { coins: fmt(g.coins) }) : t('home.goalLeft' + W, { n: fmt(g.left) })}</span>
+          <span class="gc-week" title="${esc(t('home.goalWeek'))}"><span class="dots" aria-hidden="true">${week}</span>${streak}</span></div>
+      </div>`;
+  }
+  return homeSec('goal', t('home.goalTitle'), edit, `<div class="panel goal-card">${top}${top ? '<div class="gc-sep"></div>' : ''}${focusRow()}</div>`);
+}
+// 집중 · 쉬기 남은 시간과 막대를 1초마다 (호스트는 끝 시각만 준다)
 setInterval(() => {
-  for (const el of $$('[data-focus-left]')) el.textContent = t('home.focusOn', { left: focusLeft(Number(el.dataset.focusLeft)) });
-  for (const el of $$('[data-break-left]')) el.textContent = t('home.breakOn', { left: focusLeft(Number(el.dataset.breakLeft)) });
+  for (const el of $$('[data-left]')) el.textContent = focusLeft(Number(el.dataset.left));
+  for (const el of $$('[data-span]')) {
+    const [a, b] = el.dataset.span.split('|').map(Number);
+    el.style.width = spanPct(a, b) + '%';
+  }
 }, 1000);
-
 // ---------- 홈 (2.0.0) ----------
 // 칸마다 접을 수 있다. 접은 칸은 하우스 저장소(KC_STORE)에 남는다 (기기마다)
 let homeFold = new Set();
@@ -1263,6 +1272,121 @@ function toggleFold(id) {
     // 무시
   }
 }
+// 홈 칸 순서 · 보이기 (2.0.1, 설정 homeLayout = [{ id, on }]. 없으면 기본 순서로 모두 보인다)
+const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
+function homeLayout() {
+  const raw = Array.isArray(D.settings.homeLayout) ? D.settings.homeLayout : [];
+  const out = raw.filter((x) => x && HOME_SECTIONS.includes(x.id)).map((x) => ({ id: x.id, on: x.on !== false }));
+  for (const id of HOME_SECTIONS) if (!out.some((x) => x.id === id)) out.push({ id, on: true });
+  return out;
+}
+const homeSecName = (id) =>
+  ({ goal: t('home.goalTitle'), today: t('home.today'), map: t('home.mapTitle'), todo: t('todo.title'), cat: t('home.secCat', { name: D.settings.petName }), quests: t('quests.title'), recent: t('home.recentTitle') })[id];
+
+// 홈 꾸미기 창: 끌어서 순서, 스위치로 보이기. 바꾸면 바로 저장
+function openHomeLayout() {
+  let list = homeLayout();
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('home.layoutTitle')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('home.layoutSub')}</p>
+    <ul class="hl-list" id="hl-list"></ul>
+    <div class="modal-foot"><button class="btn ghost" id="hl-reset">${t('home.layoutReset')}</button><button class="btn primary" data-close>${t('wn.ok')}</button></div>`,
+    'hl-modal',
+  );
+  const save = async () => {
+    await apply(await pet.set({ homeLayout: list }));
+    renderView();
+  };
+  const draw = () => {
+    $('#hl-list', el).innerHTML = list
+      .map((x, i) => `<li class="hl-row ${x.on ? '' : 'off'}" draggable="true" data-hl="${x.id}">
+        <span class="grip" tabindex="0" role="button" data-hl-grip="${i}" aria-label="${esc(t('home.layoutGrip'))}" title="${esc(t('home.layoutGrip'))}">⠿</span>
+        <span class="nm">${esc(homeSecName(x.id))}</span>
+        <label class="switch mini"><input type="checkbox" data-hl-on="${x.id}" ${x.on ? 'checked' : ''} aria-label="${esc(homeSecName(x.id))}"><span></span></label></li>`)
+      .join('');
+    $$('[data-hl-on]', el).forEach((c) =>
+      c.addEventListener('change', () => {
+        list = list.map((x) => (x.id === c.dataset.hlOn ? { ...x, on: c.checked } : x));
+        draw();
+        save();
+      }),
+    );
+    // 키보드: 손잡이에서 ↑↓
+    $$('[data-hl-grip]', el).forEach((g) =>
+      g.addEventListener('keydown', (e) => {
+        const i = Number(g.dataset.hlGrip);
+        const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1;
+        if (to < 0 || to >= list.length) return;
+        e.preventDefault();
+        const [x] = list.splice(i, 1);
+        list.splice(to, 0, x);
+        draw();
+        save();
+        const n = $(`[data-hl-grip="${to}"]`, el);
+        if (n) n.focus();
+      }),
+    );
+    dragList($('#hl-list', el), '[data-hl]', (from, to) => {
+      const [x] = list.splice(from, 1);
+      list.splice(to, 0, x);
+      draw();
+      save();
+    });
+  };
+  draw();
+  $('#hl-reset', el).addEventListener('click', () => {
+    list = HOME_SECTIONS.map((id) => ({ id, on: true }));
+    draw();
+    save();
+  });
+}
+
+// 목록 끌어다 놓기 (할 일 · 홈 꾸미기). 놓을 자리에 줄이 보이고, 놓으면 onMove(원래 순번, 새 순번)
+function dragList(ul, rowSel, onMove) {
+  let from = -1;
+  const rows = () => $$(rowSel, ul);
+  const clear = () => rows().forEach((r) => r.classList.remove('drop-before', 'drop-after', 'dragging'));
+  const target = (y) => {
+    const list = rows();
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i].getBoundingClientRect();
+      if (y < r.top + r.height / 2) return i;
+    }
+    return list.length;
+  };
+  rows().forEach((r, i) => {
+    r.addEventListener('dragstart', (e) => {
+      from = i;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      r.classList.add('dragging');
+    });
+    r.addEventListener('dragend', () => {
+      from = -1;
+      clear();
+    });
+  });
+  ul.addEventListener('dragover', (e) => {
+    if (from < 0) return;
+    e.preventDefault();
+    const to = target(e.clientY);
+    const list = rows();
+    list.forEach((r) => r.classList.remove('drop-before', 'drop-after'));
+    if (to < list.length) list[to].classList.add('drop-before');
+    else if (list.length) list[list.length - 1].classList.add('drop-after');
+  });
+  ul.addEventListener('drop', (e) => {
+    if (from < 0) return;
+    e.preventDefault();
+    let to = target(e.clientY);
+    if (to > from) to--;
+    const f = from;
+    from = -1;
+    clear();
+    if (to !== f) onMove(f, to);
+  });
+}
+
 // 홈 칸 하나: 제목 줄(오른쪽에 그 칸의 버튼 + 접기) + 내용
 function homeSec(id, title, acts, body) {
   const folded = homeFold.has(id);
@@ -1277,18 +1401,20 @@ let todoDoneOpen = false;
 let todoEditing = null; // 고치는 중인 할 일 id
 function todoPanel() {
   const T2 = D.todos || { open: [], done: [] };
-  const row = (x, i, n) =>
+  // 2.0.1: 안 끝낸 할 일은 손잡이(⠿)를 끌어 순서를 바꾼다. 손잡이에서 ↑↓ 키로도
+  const row = (x, i) =>
     todoEditing === x.id
       ? `<li class="todo editing"><input type="text" class="todo-edit" data-todo-edit="${x.id}" value="${esc(x.text)}" maxlength="${T2.maxText || 200}" aria-label="${esc(t('todo.editLbl'))}"></li>`
-      : `<li class="todo ${x.done ? 'done' : ''}">
+      : `<li class="todo ${x.done ? 'done' : ''}" ${x.done ? '' : `data-todo-row="${x.id}"`}>
+        ${x.done ? '' : `<span class="todo-grip" tabindex="0" role="button" data-todo-grip="${x.id}" data-i="${i}" aria-label="${esc(t('todo.dragHint'))}" title="${esc(t('todo.dragHint'))}">⠿</span>`}
         <label class="todo-check"><input type="checkbox" data-todo-toggle="${x.id}" ${x.done ? 'checked' : ''}><span class="box">${x.done ? icon('check', 11) : ''}</span></label>
         <span class="todo-t" data-todo-text="${x.id}" title="${esc(t('todo.editHint'))}">${esc(x.text)}</span>
-        <span class="todo-acts">${x.done ? '' : `<button class="ic" data-todo-move="${x.id}" data-to="${i - 1}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('todo.up'))}">↑</button><button class="ic" data-todo-move="${x.id}" data-to="${i + 1}" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(t('todo.down'))}">↓</button>`}<button class="ic" data-todo-del="${x.id}" aria-label="${esc(t('todo.del'))}">×</button></span>
+        <span class="todo-acts"><button class="ic" data-todo-del="${x.id}" aria-label="${esc(t('todo.del'))}">×</button></span>
       </li>`;
-  const open = T2.open.length ? `<ul class="todos">${T2.open.map((x, i) => row(x, i, T2.open.length)).join('')}</ul>` : `<p class="muted small todo-empty">${t('todo.empty')}</p>`;
+  const open = T2.open.length ? `<ul class="todos" id="todo-open">${T2.open.map((x, i) => row(x, i)).join('')}</ul>` : `<p class="muted small todo-empty">${t('todo.empty')}</p>`;
   const done = T2.done.length
     ? `<button class="btn ghost small todo-more" data-act="todoDoneOpen">${t(todoDoneOpen ? 'todo.doneHide' : 'todo.doneShow', { n: fmt(T2.done.length) })}</button>
-      ${todoDoneOpen ? `<ul class="todos done-list">${T2.done.map((x, i) => row(x, i, T2.done.length)).join('')}</ul><button class="btn ghost small" data-act="todoClear">${t('todo.clear')}</button>` : ''}`
+      ${todoDoneOpen ? `<ul class="todos done-list">${T2.done.map((x, i) => row(x, i)).join('')}</ul><button class="btn ghost small" data-act="todoClear">${t('todo.clear')}</button>` : ''}`
     : '';
   const full = T2.open.length + T2.done.length >= (T2.max || 100);
   const body = `<div class="panel todo-panel">
@@ -1300,56 +1426,26 @@ function todoPanel() {
   return homeSec('todo', `${t('todo.title')}${n ? ` <span class="muted">${fmt(n)}</span>` : ''}`, '', body);
 }
 
-// 노트 지도: 지금 연 노트 둘레를 작은 그래프로. 같은 데이터면 늘 같은 그림이 나오게(다시 그려도 안 흔들리게) 정해진 순서로 자리를 잡는다
+// ---------- 노트 지도 (2.0.1): 옵시디언 그래프 뷰처럼 움직이는 그래프 ----------
+// 노드끼리 서로 밀어내고(전하), 링크는 용수철처럼 당기고, 모두 가운데로 살짝 끌린다(중력). 처음엔 흩어졌다가 자리를 잡으며
+// 천천히 멈춘다(알파가 식는다). 노드를 끌면 다시 살아나고, 놓으면 제자리를 찾아간다. 마우스를 올리면 그 노드와 이웃만 밝게.
+// 빈 곳을 끌면 화면 이동, Ctrl(⌘)+휠이면 확대, 빈 곳 두 번 누르면 원래대로. 노드를 누르면(끌지 않고) 그 노트를 연다.
+// 홈을 다시 그려도(데이터가 와도) 같은 노드는 그 자리 · 속도 그대로 이어서 움직인다 (graphSim 에 남겨 둔다)
 const GRAPH_W = 320;
 const GRAPH_H = 210;
-function graphLayout(G) {
-  const n = G.nodes.length;
-  const cx = GRAPH_W / 2;
-  const cy = GRAPH_H / 2;
-  const rings = [0, 45, 75];
-  const byHop = [[], [], []];
-  G.nodes.forEach((nd, i) => byHop[Math.min(2, nd.hop)].push(i));
-  const p = G.nodes.map(() => [cx, cy]);
-  byHop.forEach((list, h) =>
-    list.forEach((i, k) => {
-      const a = (k / Math.max(1, list.length)) * Math.PI * 2 + h * 0.5;
-      p[i] = [cx + Math.cos(a) * rings[h] * 1.35, cy + Math.sin(a) * rings[h]];
-    }),
-  );
-  // 가볍게 밀고 당기기 (노트가 많아도 36개라 금방 끝난다). 서로 조금씩 밀고, 링크는 알맞은 길이로 당기고,
-  // 모두 가운데 쪽으로 살짝 끌어서 가장자리에 몰리지 않게 한다
-  const L = n > 16 ? 34 : n > 10 ? 56 : 90;
-  const C = n > 16 ? 25 : n > 10 ? 40 : 80; // 노트가 많으면 덜 밀어서 상자 안에 들어오게
-  for (let it = 0; it < 120; it++) {
-    const f = p.map(() => [0, 0]);
-    for (let a = 0; a < n; a++)
-      for (let b = a + 1; b < n; b++) {
-        const dx = p[a][0] - p[b][0];
-        const dy = p[a][1] - p[b][1];
-        const d2 = Math.max(16, dx * dx + dy * dy);
-        const k = C / d2;
-        f[a][0] += dx * k; f[a][1] += dy * k;
-        f[b][0] -= dx * k; f[b][1] -= dy * k;
-      }
-    for (const [a, b] of G.edges) {
-      const dx = p[b][0] - p[a][0];
-      const dy = p[b][1] - p[a][1];
-      const d = Math.max(1, Math.hypot(dx, dy));
-      const k = ((d - L) / d) * 0.06;
-      f[a][0] += dx * k; f[a][1] += dy * k;
-      f[b][0] -= dx * k; f[b][1] -= dy * k;
-    }
-    for (let i = 0; i < n; i++) {
-      if (G.nodes[i].hop === 0) continue;
-      f[i][0] += (cx - p[i][0]) * 0.03;
-      f[i][1] += (cy - p[i][1]) * 0.05;
-      p[i][0] = Math.max(34, Math.min(GRAPH_W - 34, p[i][0] + Math.max(-4, Math.min(4, f[i][0]))));
-      p[i][1] = Math.max(16, Math.min(GRAPH_H - 14, p[i][1] + Math.max(-4, Math.min(4, f[i][1]))));
-    }
-  }
-  return p.map(([x, y]) => [Math.round(x), Math.round(y)]);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const graphSim = { key: '', nodes: [], links: [], nbr: [], byPath: new Map(), alpha: 0, alphaTarget: 0, svg: null, zoom: null, raf: 0, timer: 0, view: { x: 0, y: 0, k: 1 }, hover: -1, drag: null, pan: null };
+window.VP_GRAPH = graphSim; // 확인용 (테스트 · 실제 앱 점검에서 시뮬레이션 상태를 본다)
+const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+// 문자열마다 정해진 0~1 값 (새 노드가 처음 나타나는 자리. 같은 노트면 늘 같은 자리에서 나온다)
+function hashUnit(s, salt) {
+  let h = 2166136261 ^ salt;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 10007) / 10007;
 }
+const graphKey = (G) => (G && G.nodes.length ? `${G.nodes.length}.${G.edges.length}.${Math.floor(hashUnit(G.nodes.map((n) => n.path).join('\n'), 7) * 1e9)}` : '');
+const shortName = (s) => (s.length > 16 ? s.slice(0, 15) + '…' : s);
+
 function graphPanel() {
   const H = D.home;
   const acts = `<button class="btn head-act" data-act="localGraph">${icon('map', 12)}${t('home.localGraph')}</button><button class="btn head-act" data-act="graph">${icon('map', 12)}${t('home.graphView')}</button>`;
@@ -1358,27 +1454,343 @@ function graphPanel() {
   const sum = `<p class="muted small map-sum">${t('home.mapSum', { n: fmt(H.notes), l: fmt(H.links), o: fmt((H.orphans && H.orphans.n) || 0) })}</p>`;
   if (!G || !G.nodes.length)
     return homeSec('map', t('home.mapTitle'), acts, `<div class="panel map-panel"><p class="muted small">${t('home.mapNone')}</p>${sum}</div>`);
-  const p = graphLayout(G);
-  const few = G.nodes.length <= 12;
-  const lines = G.edges.map(([a, b]) => `<line x1="${p[a][0]}" y1="${p[a][1]}" x2="${p[b][0]}" y2="${p[b][1]}"/>`).join('');
-  const dots = G.nodes
-    .map((nd, i) => {
-      const r = nd.hop === 0 ? 7 : 3 + Math.min(4, nd.deg * 0.5);
-      // 이름은 점 위에. 맨 위 줄에 붙은 점은 아래에 (잘리지 않게)
-      const ly = p[i][1] - r - 3 < 12 ? p[i][1] + r + 10 : p[i][1] - r - 3;
-      const label = nd.hop === 0 || (few && nd.hop === 1) ? `<text x="${p[i][0]}" y="${ly}">${esc(nd.name.length > 14 ? nd.name.slice(0, 13) + '…' : nd.name)}</text>` : '';
-      return `<g class="gn h${nd.hop}" data-open-note="${esc(nd.path)}" tabindex="0" role="button" aria-label="${esc(nd.name)}"><title>${esc(nd.name)}</title><circle cx="${p[i][0]}" cy="${p[i][1]}" r="${r}"/>${label}</g>`;
-    })
-    .join('');
   const more = G.more ? `<span class="muted small">${t('home.mapMore', { n: fmt(G.more) })}</span>` : '';
+  // 그림은 mountGraph 가 그린다 (여기 글은 그래프가 바뀔 때만 달라져서, 데이터가 와도 다시 그리지 않는다)
   const body = `<div class="panel map-panel">
-      <svg class="mini-graph" viewBox="0 0 ${GRAPH_W} ${GRAPH_H}" role="img" aria-label="${esc(t('home.mapTitle'))}"><g class="ge">${lines}</g>${dots}</svg>
+      <div class="mini-graph-wrap" data-graph="${graphKey(G)}"><svg class="mini-graph" viewBox="0 0 ${GRAPH_W} ${GRAPH_H}" role="group" aria-label="${esc(t('home.mapTitle'))}"></svg></div>
       <div class="map-foot"><span class="small">${icon('pin', 11)}<b>${esc(G.nodes[0].name)}</b> · ${t('home.mapNear', { n: fmt(G.nodes.length - 1) })}</span>${more}</div>
+      <p class="muted map-hint">${t('map.hint')}</p>
       ${sum}
     </div>`;
   return homeSec('map', t('home.mapTitle'), acts, body);
 }
 
+// 홈을 그린 뒤 그래프를 붙인다 (paintView → bindView)
+function mountGraph(root) {
+  const S = graphSim;
+  const wrap = $('.mini-graph-wrap', root);
+  const G = D.home && D.home.graph;
+  if (!wrap || !G || !G.nodes.length) {
+    stopGraph();
+    S.svg = null;
+    return;
+  }
+  const key = wrap.dataset.graph;
+  const fresh = key !== S.key;
+  const prev = S.byPath;
+  const cx = GRAPH_W / 2;
+  const cy = GRAPH_H / 2;
+  const nodes = G.nodes.map((nd, i) => {
+    const old = prev.get(nd.path);
+    return { i, path: nd.path, name: nd.name, hop: nd.hop, deg: nd.deg, r: nd.hop === 0 ? 6.5 : 3 + Math.min(4, nd.deg * 0.45), x: old ? old.x : NaN, y: old ? old.y : NaN, vx: old ? old.vx : 0, vy: old ? old.vy : 0, fx: null, fy: null };
+  });
+  const seen = new Set();
+  const links = [];
+  for (const [a, b] of G.edges) {
+    const k = a < b ? a + '-' + b : b + '-' + a;
+    if (a === b || seen.has(k) || !nodes[a] || !nodes[b]) continue;
+    seen.add(k);
+    links.push({ s: nodes[a], t: nodes[b] });
+  }
+  const nbr = nodes.map(() => new Set());
+  for (const l of links) {
+    nbr[l.s.i].add(l.t.i);
+    nbr[l.t.i].add(l.s.i);
+  }
+  // 새 노드는 자리를 이미 가진 이웃 곁에서 (없으면 가운데 둘레에서) 나온다
+  const placed = (n) => !isNaN(n.x);
+  for (let pass = 0; pass < 3; pass++)
+    for (const n of nodes) {
+      if (placed(n)) continue;
+      const base = [...nbr[n.i]].map((j) => nodes[j]).find(placed);
+      if (!base && pass < 2 && n.hop > 0) continue;
+      const a = hashUnit(n.path, 1) * Math.PI * 2;
+      const d = n.hop === 0 && !base ? 0 : 18 + hashUnit(n.path, 2) * 26;
+      n.x = (base ? base.x : cx) + Math.cos(a) * d;
+      n.y = (base ? base.y : cy) + Math.sin(a) * d;
+    }
+  Object.assign(S, { key, nodes, links, nbr, byPath: new Map(nodes.map((n) => [n.path, n])), hover: -1, drag: null, pan: null });
+  if (fresh) S.alpha = prev.size ? 0.6 : 1;
+  buildGraph(wrap.querySelector('svg'));
+  if (reduceMotion()) {
+    for (let i = 0; i < 300 && S.alpha > 0.004; i++) graphTick();
+    renderGraph();
+    return;
+  }
+  renderGraph();
+  startGraph();
+}
+
+function buildGraph(svg) {
+  const S = graphSim;
+  const mk = (tag, cls) => {
+    const el = document.createElementNS(SVGNS, tag);
+    if (cls) el.setAttribute('class', cls);
+    return el;
+  };
+  S.svg = svg;
+  svg.innerHTML = '';
+  const zoom = mk('g', 'g-zoom');
+  const ge = mk('g', 'ge');
+  const gn = mk('g', 'gns');
+  zoom.append(ge, gn);
+  svg.append(zoom);
+  S.zoom = zoom;
+  applyView();
+  for (const l of S.links) {
+    l.el = mk('line');
+    ge.append(l.el);
+  }
+  const few = S.nodes.length <= 12;
+  for (const n of S.nodes) {
+    const g = mk('g', `gn h${Math.min(2, n.hop)}`);
+    g.setAttribute('tabindex', '0');
+    g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', n.name);
+    const title = mk('title');
+    title.textContent = n.name;
+    const c = mk('circle');
+    c.setAttribute('r', n.r);
+    const tx = mk('text');
+    tx.textContent = shortName(n.name);
+    g.append(title, c, tx);
+    n.base = n.hop === 0 || (few && n.hop === 1); // 늘 이름을 보이는 노드
+    n.el = g;
+    n.c = c;
+    n.tx = tx;
+    gn.append(g);
+    g.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      svg.setPointerCapture(e.pointerId);
+      S.drag = { n, x: e.clientX, y: e.clientY, moved: false };
+      n.fx = n.x;
+      n.fy = n.y;
+      S.alphaTarget = 0.25;
+      wakeGraph(0.25);
+    });
+    g.addEventListener('pointerenter', () => setHover(n.i));
+    g.addEventListener('pointerleave', () => !S.drag && setHover(-1));
+    g.addEventListener('focus', () => setHover(n.i));
+    g.addEventListener('blur', () => setHover(-1));
+    g.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openGraphNote(n);
+      }
+    });
+  }
+  setHover(-1);
+  // 화면 좌표 → 그래프 좌표 (확대 · 이동을 거슬러)
+  const toGraph = (e) => {
+    const p = svg.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(zoom.getScreenCTM().inverse());
+  };
+  const toView = (e) => {
+    const p = svg.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  svg.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || S.drag) return;
+    svg.setPointerCapture(e.pointerId);
+    const q = toView(e);
+    S.pan = { qx: q.x, qy: q.y, x: S.view.x, y: S.view.y };
+    svg.classList.add('panning');
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (S.drag) {
+      const d = S.drag;
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) d.moved = true;
+      if (!d.moved) return;
+      const p = toGraph(e);
+      d.n.fx = p.x;
+      d.n.fy = p.y;
+      wakeGraph(0.25);
+    } else if (S.pan) {
+      const q = toView(e);
+      S.view.x = S.pan.x + (q.x - S.pan.qx);
+      S.view.y = S.pan.y + (q.y - S.pan.qy);
+      applyView();
+    }
+  });
+  const end = () => {
+    const d = S.drag;
+    S.drag = null;
+    S.pan = null;
+    svg.classList.remove('panning');
+    if (!d) return;
+    d.n.fx = null;
+    d.n.fy = null;
+    S.alphaTarget = 0;
+    wakeGraph(0.15);
+    if (!d.moved) openGraphNote(d.n);
+    else setHover(-1);
+  };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  svg.addEventListener('dblclick', (e) => {
+    if (e.target.closest && e.target.closest('.gn')) return;
+    S.view = { x: 0, y: 0, k: 1 };
+    applyView();
+  });
+  // Ctrl(⌘)+휠 · 트랙패드 오므리기로 확대. 그냥 휠은 홈을 스크롤한다
+  svg.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const q = toView(e);
+    const k = Math.max(0.5, Math.min(3, S.view.k * Math.exp(-e.deltaY * 0.002)));
+    const gx = (q.x - S.view.x) / S.view.k;
+    const gy = (q.y - S.view.y) / S.view.k;
+    S.view = { k, x: q.x - gx * k, y: q.y - gy * k };
+    applyView();
+  }, { passive: false });
+}
+
+function applyView() {
+  const v = graphSim.view;
+  if (graphSim.zoom) graphSim.zoom.setAttribute('transform', `translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})`);
+}
+
+async function openGraphNote(n) {
+  const ok = await pet.openNote(n.path);
+  if (!ok) toast(t('home.noteGone'), 'bang');
+}
+
+// 마우스를 올린 노드와 그 이웃만 밝게, 나머지는 흐리게. 이름은 늘 보이는 노드 + 밝은 노드
+function setHover(i) {
+  const S = graphSim;
+  S.hover = i;
+  const on = i >= 0 ? new Set([i, ...S.nbr[i]]) : null;
+  for (const n of S.nodes) {
+    if (!n.el) continue;
+    n.el.classList.toggle('hl', !!on && on.has(n.i));
+    n.el.classList.toggle('dim', !!on && !on.has(n.i));
+    n.el.classList.toggle('lbl', n.base || (!!on && on.has(n.i)));
+    n.el.classList.toggle('me', n.i === i);
+  }
+  for (const l of S.links) {
+    if (!l.el) continue;
+    const hot = !!on && (l.s.i === i || l.t.i === i);
+    l.el.classList.toggle('hl', hot);
+    l.el.classList.toggle('dim', !!on && !hot);
+  }
+}
+
+// 한 걸음 (d3-force 와 같은 방식: 전하 · 링크 · 중력, 속도 감쇠 0.4)
+function graphTick() {
+  const S = graphSim;
+  const N = S.nodes;
+  const n = N.length;
+  S.alpha += (S.alphaTarget - S.alpha) * 0.0228;
+  const a = S.alpha;
+  const charge = n > 16 ? -70 : n > 8 ? -120 : -170;
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++) {
+      const A = N[i];
+      const B = N[j];
+      let dx = B.x - A.x;
+      let dy = B.y - A.y;
+      let d2 = dx * dx + dy * dy;
+      if (d2 < 0.01) {
+        dx = (hashUnit(A.path, 3) - 0.5) * 0.1;
+        dy = (hashUnit(B.path, 3) - 0.5) * 0.1;
+        d2 = dx * dx + dy * dy + 0.01;
+      }
+      d2 = Math.max(d2, 25);
+      const w = (charge * a) / d2;
+      A.vx += dx * w;
+      A.vy += dy * w;
+      B.vx -= dx * w;
+      B.vy -= dy * w;
+    }
+  const dist = n > 16 ? 34 : n > 8 ? 46 : 58;
+  for (const l of S.links) {
+    const cs = S.nbr[l.s.i].size || 1;
+    const ct = S.nbr[l.t.i].size || 1;
+    const bias = cs / (cs + ct);
+    let x = l.t.x + l.t.vx - l.s.x - l.s.vx;
+    let y = l.t.y + l.t.vy - l.s.y - l.s.vy;
+    const len = Math.hypot(x, y) || 0.01;
+    const k = ((len - dist) / len) * a * (1 / Math.min(cs, ct));
+    x *= k;
+    y *= k;
+    l.t.vx -= x * bias;
+    l.t.vy -= y * bias;
+    l.s.vx += x * (1 - bias);
+    l.s.vy += y * (1 - bias);
+  }
+  const cx = GRAPH_W / 2;
+  const cy = GRAPH_H / 2;
+  for (const p of N) {
+    p.vx += (cx - p.x) * 0.035 * a;
+    p.vy += (cy - p.y) * 0.06 * a;
+    if (p.fx != null) {
+      p.x = Math.max(12, Math.min(GRAPH_W - 12, p.fx));
+      p.y = Math.max(16, Math.min(GRAPH_H - 8, p.fy));
+      p.vx = 0;
+      p.vy = 0;
+      continue;
+    }
+    p.vx *= 0.6;
+    p.vy *= 0.6;
+    // 상자 밖으로는 못 나간다 (위는 이름 자리를 남긴다). 확대 · 이동은 보는 자리만 바꾼다
+    p.x = Math.max(12, Math.min(GRAPH_W - 12, p.x + p.vx));
+    p.y = Math.max(16, Math.min(GRAPH_H - 8, p.y + p.vy));
+  }
+}
+
+function renderGraph() {
+  const S = graphSim;
+  for (const l of S.links) {
+    if (!l.el) continue;
+    l.el.setAttribute('x1', l.s.x.toFixed(1));
+    l.el.setAttribute('y1', l.s.y.toFixed(1));
+    l.el.setAttribute('x2', l.t.x.toFixed(1));
+    l.el.setAttribute('y2', l.t.y.toFixed(1));
+  }
+  for (const n of S.nodes) {
+    if (!n.c) continue;
+    n.c.setAttribute('cx', n.x.toFixed(1));
+    n.c.setAttribute('cy', n.y.toFixed(1));
+    n.tx.setAttribute('x', n.x.toFixed(1));
+    n.tx.setAttribute('y', (n.y - n.r - 3).toFixed(1));
+  }
+}
+
+function stopGraph() {
+  cancelAnimationFrame(graphSim.raf);
+  clearTimeout(graphSim.timer);
+  graphSim.raf = 0;
+  graphSim.timer = 0;
+}
+
+function startGraph() {
+  const S = graphSim;
+  if (S.raf || S.timer) return;
+  const step = () => {
+    S.raf = 0;
+    S.timer = 0;
+    if (!S.svg || !S.svg.isConnected) return;
+    // 화면에 안 보이면(뒤에 깔린 탭 · 접은 사이드바) 쉬다가 다시 본다
+    if (offscreen()) {
+      S.timer = setTimeout(step, 500);
+      return;
+    }
+    graphTick();
+    renderGraph();
+    if (S.alpha > 0.004 || S.alphaTarget > 0) S.raf = requestAnimationFrame(step);
+  };
+  S.raf = requestAnimationFrame(step);
+}
+
+function wakeGraph(a) {
+  graphSim.alpha = Math.max(graphSim.alpha, a);
+  startGraph();
+}
 // 최근 노트: 옵시디언이 기억하는 최근에 연 노트. 누르면 연다 (이미 있는 노트만)
 function ago(ms) {
   const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
@@ -1485,7 +1897,7 @@ let projectsOpen = false;
 const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6.0)
 
 const TABS = {
-  // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것부터 위에. 고양이 상태(배부름 · 레벨)는 맨 아래 작게
+  // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것들. 2.0.1: 칸 순서 · 보이기는 '홈 꾸미기'에서 (homeLayout)
   home() {
     const g = D.growth;
     const u = D.today;
@@ -1496,37 +1908,46 @@ const TABS = {
       : '';
     const into = g ? g.xp - g.levelFloor : 0;
     const need = g ? g.levelCeil - g.levelFloor : 1;
-    // 오늘 숫자: 한 줄짜리 작은 칸들. 목표를 단어로 세면 첫 칸도 단어로
-    const words = D.goal && D.goal.unit === 'words';
-    const cell = (k, v, tipKey) => `<div class="tcell2"><span class="k">${k}${tipKey ? info(tipKey) : ''}</span><b>${v}</b></div>`;
-    const todayBody = `<div class="panel today-row">
-        ${words ? cell(t('home.todayWords'), fmt(u.w || 0), 'words') : cell(t('home.todayChars'), fmt(u.c), 'chars')}
-        ${cell(t('home.todayLinks'), fmt(u.l), 'links')}
-        ${cell(t('home.todayNotes'), fmt(u.n), 'notes')}
-        ${cell(t('home.todayTasks'), fmt(u.k || 0), 'tasks')}
-        ${cell(t('home.attendance'), `${icon('fire', 13)}${st.current}`)}
-      </div>`;
-    const quietBtn = `<button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button>`;
-    // 고양이: 레벨 한 줄 + 배부름 한 줄 (밥 주기)
-    const gg = D.gauge || { food: 100, full: true };
-    const catBody = `<div class="panel cat-panel">
-        <div class="lvline"><b class="lvtag">Lv.${g ? g.level : 1}</b><div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
-        <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span></div>
-        ${gaugeRow('food', gg.food, 'ricebowl')}
-        <p class="muted gauge-note">${gaugeNote(gg)}</p>
-      </div>`;
-    const feedBtn = `<button class="btn head-act ${gg.food < 50 ? 'alert' : ''}" data-act="feed">${icon('ricebowl', 12)}${t('home.feed')}</button>`;
+    const parts = {
+      goal: goalPanel,
+      // 오늘 숫자: 한 줄짜리 작은 칸들. 목표를 단어로 세면 첫 칸도 단어로
+      today: () => {
+        const words = D.goal && D.goal.unit === 'words';
+        const cell = (k, v, tipKey) => `<div class="tcell2"><span class="k">${k}${tipKey ? info(tipKey) : ''}</span><b>${v}</b></div>`;
+        const body = `<div class="panel today-row">
+          ${words ? cell(t('home.todayWords'), fmt(u.w || 0), 'words') : cell(t('home.todayChars'), fmt(u.c), 'chars')}
+          ${cell(t('home.todayLinks'), fmt(u.l), 'links')}
+          ${cell(t('home.todayNotes'), fmt(u.n), 'notes')}
+          ${cell(t('home.todayTasks'), fmt(u.k || 0), 'tasks')}
+          ${cell(t('home.attendance'), `${icon('fire', 13)}${st.current}`)}
+        </div>`;
+        const quietBtn = `<button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button>`;
+        return homeSec('today', t('home.today'), quietBtn, body);
+      },
+      map: graphPanel,
+      todo: todoPanel,
+      // 고양이: 레벨 한 줄 + 배부름 한 줄 (밥 주기)
+      cat: () => {
+        const gg = D.gauge || { food: 100, full: true };
+        const body = `<div class="panel cat-panel">
+          <div class="lvline"><b class="lvtag">Lv.${g ? g.level : 1}</b><div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
+          <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span></div>
+          ${gaugeRow('food', gg.food, 'ricebowl')}
+          <p class="muted gauge-note">${gaugeNote(gg)}</p>
+        </div>`;
+        const feedBtn = `<button class="btn head-act ${gg.food < 50 ? 'alert' : ''}" data-act="feed">${icon('ricebowl', 12)}${t('home.feed')}</button>`;
+        return homeSec('cat', esc(D.settings.petName), feedBtn, body);
+      },
+      quests: () => TABS.__questsBody(),
+      recent: recentPanel,
+    };
+    const shown = homeLayout().filter((x) => x.on);
     return `
       ${hook}
-      ${goalPanel()}
-      ${todoPanel()}
-      <section id="quests">${TABS.__questsBody()}</section>
-      ${graphPanel()}
-      ${recentPanel()}
-      ${homeSec('today', t('home.today'), quietBtn, todayBody)}
-      ${homeSec('cat', esc(D.settings.petName), feedBtn, catBody)}`;
-  },
-  // 퀘스트는 탭이 아니라 홈 안의 한 칸이다 (7차: 홈에 통합)
+      ${shown.map((x) => parts[x.id]()).join('')}
+      ${shown.length ? '' : `<p class="muted center">${t('home.allHidden')}</p>`}
+      <div class="home-foot"><button class="btn ghost small" data-act="homeLayout">${icon('gear', 12)}${t('home.customize')}</button></div>`;
+  },  // 퀘스트는 탭이 아니라 홈 안의 한 칸이다 (7차: 홈에 통합)
   __questsBody() {
     const q = D.game.quests;
     const done = q.filter((x) => x.done).length;
@@ -1536,12 +1957,10 @@ const TABS = {
     const mins = Math.max(1, Math.ceil(Math.max(0, qi.nextAt - Date.now()) / 6e4));
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return `
-      <div class="quest-head">
-        <div><h2>${t('quests.title')}</h2>
-        <p class="muted" style="margin-top:-4px">${qi.canRefresh ? t('quests.subReady') : h ? t('quests.subWait', { h, m }) : t('quests.subWaitMin', { m })}</p></div>
-        <button class="btn head-act ${qi.canRefresh ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t('quests.refresh')}</button>
-      </div>
+    // 2.0.1: 다른 홈 칸처럼 접을 수 있게 homeSec 으로
+    const refresh = `<button class="btn head-act ${qi.canRefresh ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t('quests.refresh')}</button>`;
+    return homeSec('quests', t('quests.title'), refresh, `
+      <p class="muted quest-sub">${qi.canRefresh ? t('quests.subReady') : h ? t('quests.subWait', { h, m }) : t('quests.subWaitMin', { m })}</p>
       ${q
         .map((x) => {
           // 2.0.0: 처음 해 보는 사람을 위한 '어떻게' 한 줄 (core/skills.js 의 기술 이름표). 외톨이 노트 퀘스트는 그 노트들을 바로 열 수 있게
@@ -1566,7 +1985,7 @@ const TABS = {
       <div class="panel allclear ${q.length && done === q.length ? 'done' : ''}" ${q.length ? '' : 'hidden'}>
         ${icon(done === q.length ? 'sparkle' : 'gift', 15)} ${done === q.length ? t('quests.allClearDone', { xp: D.game.allClearXp }) : t('quests.allClearTodo', { xp: D.game.allClearXp })}
       </div>
-      <p class="muted ico-row" style="margin-top:14px;font-size:12px">${icon('bulb', 14)}<span>${t('quests.tip', { n: fmt(D.game.questsDone) })}</span></p>`;
+      <p class="muted ico-row" style="margin-top:14px;font-size:12px">${icon('bulb', 14)}<span>${t('quests.tip', { n: fmt(D.game.questsDone) })}</span></p>`);
   },
 
   achievements() {
@@ -2160,6 +2579,7 @@ function paintView(html) {
   minis = [...$$('canvas[data-stage]', view).map(mini), ...minis.filter((m) => m.canvas.isConnected && !view.contains(m.canvas))];
   bindView(view);
   labelFields(view);
+  mountGraph(view);
 }
 
 const typingIn = (root) => {
@@ -2209,7 +2629,7 @@ function setTab(t) {
     return showWhatsNew();
   }
   // 퀘스트는 홈 안으로 들어갔다 (트레이 메뉴·말풍선 링크가 'quests' 로 부른다)
-  const jump = t === 'quests' ? 'quests' : null;
+  const jump = t === 'quests' ? 'hs-quests' : null;
   if (jump) t = 'home';
   if (!isTab(t)) t = 'home';
   tab = t;
@@ -2605,7 +3025,33 @@ function bindView(view) {
     }),
   );
   $$('[data-todo-del]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoRemove(el.dataset.todoDel))));
-  $$('[data-todo-move]', view).forEach((el) => el.addEventListener('click', () => todoRun(pet.todoMove(el.dataset.todoMove, Number(el.dataset.to)))));
+  // 할 일 순서: 손잡이를 끌어다 놓기, 손잡이에서 ↑↓ 키 (2.0.1)
+  const openUl = $('#todo-open', view);
+  if (openUl) {
+    $$('[data-todo-row]', openUl).forEach((li) => {
+      const grip = $('.todo-grip', li);
+      // 손잡이를 잡았을 때만 끌린다 (글 고르기 · 체크와 안 부딪히게)
+      grip.addEventListener('pointerdown', () => (li.draggable = true));
+      li.addEventListener('dragend', () => (li.draggable = false));
+      li.addEventListener('pointerup', () => (li.draggable = false));
+    });
+    dragList(openUl, '[data-todo-row]', (from, to) => {
+      const id = $$('[data-todo-row]', openUl)[from].dataset.todoRow;
+      todoRun(pet.todoMove(id, to));
+    });
+    $$('[data-todo-grip]', openUl).forEach((g) =>
+      g.addEventListener('keydown', async (e) => {
+        const i = Number(g.dataset.i);
+        const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1;
+        if (to < 0 || to >= $$('[data-todo-row]', openUl).length) return;
+        e.preventDefault();
+        const id = g.dataset.todoGrip;
+        await todoRun(pet.todoMove(id, to));
+        const n = $(`[data-todo-grip="${id}"]`);
+        if (n) n.focus();
+      }),
+    );
+  }
   // 글을 두 번 누르면 고친다. Enter 저장 · Esc 그만
   $$('[data-todo-text]', view).forEach((el) =>
     el.addEventListener('dblclick', () => {
@@ -2768,6 +3214,9 @@ async function act(name, el) {
     case 'todoClear':
       await apply((await pet.todoClear()).payload);
       renderView();
+      break;
+    case 'homeLayout':
+      openHomeLayout();
       break;
     case 'todoDoneOpen':
       todoDoneOpen = !todoDoneOpen;

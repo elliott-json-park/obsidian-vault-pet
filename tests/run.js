@@ -1033,6 +1033,24 @@ test('house · 펫 화면: 없앤 기능(친구 · 보물 · 공방 · 기분 ·
   for (const f of ['core/friends.js', 'core/treasure.js', 'core/workshop.js', 'core/craving.js', 'kit/friends.js']) assert.ok(!fs.existsSync(path.join(src, f)), f);
 });
 
+test('home: 칸 순서 · 보이기 설정은 아는 칸만 겹치지 않게, 기본 순서는 목표 · 오늘 · 노트 지도 · 할 일 · 고양이 · 퀘스트 · 최근 노트 (2.0.1)', async () => {
+  const fs = require('fs');
+  const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  const order = (code) => JSON.parse(code.match(/const HOME_SECTIONS = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
+  const want = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
+  assert.deepStrictEqual(order(house), want);
+  assert.deepStrictEqual(order(fs.readFileSync(path.join(src, 'plugin/host.js'), 'utf8')), want, '호스트와 같은 목록');
+  const { host, settings } = makeHost();
+  assert.strictEqual(settings.get('homeLayout'), null);
+  await host.onInvoke('house:set', null, { homeLayout: [{ id: 'map', on: true }, { id: 'nope' }, { id: 'map', on: false }, { id: 'todo', on: false }, 'x'] });
+  assert.deepStrictEqual(settings.get('homeLayout'), [{ id: 'map', on: true }, { id: 'todo', on: false }]);
+  await host.onInvoke('house:set', null, { homeLayout: 'bad' });
+  assert.deepStrictEqual(settings.get('homeLayout'), [{ id: 'map', on: true }, { id: 'todo', on: false }], '모양이 틀리면 그대로');
+  await host.onInvoke('house:set', null, { homeLayout: null });
+  assert.strictEqual(settings.get('homeLayout'), null, '기본으로 되돌리기');
+  for (const lang of I18N.LANGS) for (const k of ['home.customize', 'home.layoutSub', 'home.secCat', 'home.goalSlashW', 'home.goalSlashC', 'home.focusLabel', 'home.breakAsk', 'todo.dragHint', 'map.hint']) assert.ok(I18N.UI[lang][k], `${lang} ${k}`);
+});
+
 test('shop: 장난감 36종 — 4차 6종까지 아이콘 · 이름 · 노는 법 · 반응 글이 다 있다', () => {
   const shop = require(path.join(src, 'core/shop'));
   const PixelArt = require(path.join(src, 'kit/pixelart'));
@@ -1269,7 +1287,7 @@ test('focus: 시작하면 방해 금지 + 머리 위 시간, 끝나면 축하 ·
   assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.kind === 'focus' && /25/.test(x.text)), '끝 말풍선은 방해 금지여도 나온다');
   assert.ok(sent.some(([ch, x]) => ch === 'pet:focus' && x === null));
   assert.strictEqual(host.gamify.st.cnt.focus, 1);
-  assert.deepStrictEqual(host.goals.focusTotal(), { sessions: 1, minutes: 25, today: 1, todayMin: 25 });
+  assert.deepStrictEqual(host.goals.focusTotal(), { sessions: 1, minutes: 25, today: 1, todayMin: 25, lastAt: host.goals.focusTotal().lastAt });
   assert.strictEqual(state.get('focus'), null);
 });
 
