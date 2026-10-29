@@ -25,7 +25,7 @@ const { SyncBook } = require('./sync');
 const vaultmap = require('./vaultmap');
 const { VIEWS } = require('../core/skills');
 const PixelArt = require('../kit/pixelart');
-const { UsageTracker, measure, folderKey, pathKey, inFolders, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
+const { UsageTracker, measure, measureCanvas, folderKey, pathKey, inFolders, LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET } = require('../core/usage');
 const { goalConfig, GOAL_PRESETS, GOAL_RANGE, FOCUS_LENGTHS } = require('../core/goals');
 
 const VIEW_TYPE = 'kitcommit-house';
@@ -40,6 +40,7 @@ const EMPTY_WAIT = 25_000; // 새로 만든 빈 노트가 이만큼 비어 있�
 // 그쪽 노트 기록이 이미 그 글을 덮고 있어서 두 번 세지 않는다 (1.5.1, plugin/sync.js)
 const FOREIGN_WAIT = 30_000;
 const LOCAL_EDIT = 2 * MIN; // 이 안에 이 기기 편집기에서 손댄 노트는 이 기기에서 쓴 글
+const WRITABLE = ['md', 'canvas']; // 글을 세는 파일. 캔버스는 텍스트 카드만 (2.2.0, 이슈 #8)
 const PREMERGE_EVERY = 10 * MIN; // 합치기 전 자료(data.premerge.json)를 남기는 간격
 const SUB_MAX = 500; // 설정에 보이는 하위 폴더 수 상한 (1.6.0)
 const ORPHAN_FIXED_KEEP = 2000; // 외톨이에서 벗어난 노트를 이만큼 기억한다 (같은 노트로 두 번 세지 않게, 2.0.0)
@@ -452,8 +453,8 @@ class KitCommitPlugin extends Plugin {
     }));
     this.registerEvent(vault.on('rename', (f, old) => {
       // 기록 없는 노트(뺀 폴더에 있던 노트 등)가 옮겨 들어오면 지금 크기를 기준으로만 잡는다 (옮긴 건 새로 쓴 글이 아니다)
-      const fresh = (f instanceof TFolder ? this.app.vault.getMarkdownFiles().filter((x) => x.path.startsWith(f.path + '/')) : [f])
-        .filter((x) => x instanceof TFile && x.extension === 'md' && !this.usage.known(old + x.path.slice(f.path.length)));
+      const fresh = (f instanceof TFolder ? this.writable().filter((x) => x.path.startsWith(f.path + '/')) : [f])
+        .filter((x) => x instanceof TFile && WRITABLE.includes(x.extension) && !this.usage.known(old + x.path.slice(f.path.length)));
       this.usage.rename(old, f.path);
       for (const x of fresh) this.baselineFile(x);
       this.noteRename(f, old);
@@ -596,10 +597,34 @@ class KitCommitPlugin extends Plugin {
     this.pasted.set(file.path, { c: (fresh ? p.c : 0) + m.chars, l: (fresh ? p.l : 0) + m.links, w: (fresh ? p.w || 0 : 0) + m.words, at: Date.now() });
   }
 
+  // 글을 세는 파일: 노트와 캔버스 (2.2.0, 이슈 #8)
+  writable() {
+    return this.app.vault.getFiles().filter((f) => WRITABLE.includes(f.extension));
+  }
+
+  // 노트는 그대로, 캔버스는 텍스트 카드의 글만 잰다
+  measureOf(f, text) {
+    return f.extension === 'canvas' ? measureCanvas(text) : measure(text);
+  }
+
+  // 캔버스 텍스트 카드에 이미 있는 글을 기준으로만 잡는다 (처음 설치 · 2.2.0 으로 올린 첫 실행).
+  // 2.1.0 까지는 캔버스 내용을 안 재서 기록이 0 이라, 그대로 두면 이미 써 둔 카드 글이 다음 저장 때 한꺼번에 세진다
+  async baselineCanvases() {
+    for (const f of this.app.vault.getFiles()) {
+      if (f.extension !== 'canvas' || this.isExcludedPath(f.path)) continue;
+      try {
+        this.usage.observe(f.path, measureCanvas(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+      } catch {
+        // 못 읽으면 다음 기회에 (그때는 상한 안에서 센다)
+      }
+    }
+    this.meta.canvasText = true;
+  }
+
   async baselineFile(f) {
     if (this.isExcludedPath(f.path)) return;
     try {
-      this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+      this.usage.observe(f.path, this.measureOf(f, await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
       this.saveSoon();
     } catch {
       // 못 읽으면 다음 기회에 (그때는 상한 안에서 센다)
@@ -609,11 +634,11 @@ class KitCommitPlugin extends Plugin {
   // 뺐던 폴더를 다시 넣었다. 그동안 안 읽었으니, 지금 크기를 기준으로만 잡는다 (뺀 동안 쓴 글이 한꺼번에 세지지 않게)
   async rebaseline(ids) {
     const want = new Set(ids);
-    for (const f of this.app.vault.getMarkdownFiles()) {
+    for (const f of this.writable()) {
       // 하위 폴더만 다시 넣었는데 위 폴더가 아직 빠져 있으면 그대로 둔다
       if (!inFolders(f.path, want) || this.isExcludedPath(f.path)) continue;
       try {
-        this.usage.observe(f.path, measure(await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
+        this.usage.observe(f.path, this.measureOf(f, await this.app.vault.cachedRead(f)), new Date(), { mtime: f.stat.mtime, baseline: true });
       } catch {
         // 못 읽으면 다음 기회에
       }
@@ -647,19 +672,21 @@ class KitCommitPlugin extends Plugin {
           await new Promise((r) => window.setTimeout(r, 0));
         }
       }
-      for (const f of vault.getFiles()) if (f.extension === 'canvas') U.observe(f.path, { chars: 0, links: 0 }, new Date(), { baseline: true, mtime: f.stat.mtime });
+      await this.baselineCanvases();
       this.meta.baseline = base;
       this.meta.scanned = true;
     } else {
+      if (!this.meta.canvasText) await this.baselineCanvases();
       const budget = { ...OFFLINE_BUDGET };
       U.keepOnly(vault.getFiles().map((f) => f.path));
-      for (const f of files) {
+      const canvases = vault.getFiles().filter((f) => f.extension === 'canvas' && !this.isExcludedPath(f.path));
+      for (const f of [...files, ...canvases]) {
         const seen = U.mtimeOf(f.path);
         if (seen !== null && seen >= f.stat.mtime) continue;
         // 기록이 없는데 지난번 저장 전부터 그대로인 노트 = 뺀 폴더에서 옮겨 왔거나 밖에서 들어온 노트. 기준만 잡는다
         const moved = seen === null && !U.known(f.path) && this.prevSeen && f.stat.mtime <= this.prevSeen;
         try {
-          const m = measure(await vault.cachedRead(f));
+          const m = this.measureOf(f, await vault.cachedRead(f));
           if (moved) U.observe(f.path, m, new Date(), { mtime: f.stat.mtime, baseline: true });
           else U.observe(f.path, m, new Date(f.stat.mtime), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, offline: true });
         } catch {
@@ -686,6 +713,8 @@ class KitCommitPlugin extends Plugin {
       this.usage.canvas(f.path);
       this.saveSoon();
       this.host.onUsage();
+      // 카드에 쓴 글도 센다 (2.2.0)
+      this.queue(f);
       return;
     }
     if (f.extension !== 'md') return;
@@ -708,7 +737,9 @@ class KitCommitPlugin extends Plugin {
   }
 
   queue(f) {
-    if (!(f instanceof TFile) || f.extension !== 'md' || this.isExcludedPath(f.path)) return;
+    if (!(f instanceof TFile) || !WRITABLE.includes(f.extension) || this.isExcludedPath(f.path)) return;
+    // 2.2.0 으로 올린 첫 실행에서 캔버스 기준을 잡는 중이면 기다린다 (그 전 글이 새 글로 세지지 않게)
+    if (f.extension === 'canvas' && !this.meta.canvasText) return;
     this.pending.add(f.path);
     window.clearTimeout(this.flushTimer);
     this.flushTimer = window.setTimeout(() => this.flush(), 1500);
@@ -744,7 +775,7 @@ class KitCommitPlugin extends Plugin {
       const paste = this.pasted.get(path);
       if (paste && Date.now() - paste.at > PASTE_KEEP) this.pasted.delete(path);
       const skip = this.pasted.get(path);
-      const r = this.usage.observe(path, measure(text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, skip });
+      const r = this.usage.observe(path, this.measureOf(f, text), new Date(), { mtime: f.stat.mtime, cap: LIVE_CHAR_CAP, linkCap: LIVE_LINK_CAP, budget, skip });
       if (skip) {
         // 붙여 넣은 글이 아직 파일에 다 안 들어왔을 수 있다. 남은 몫은 조금 더 들고 있는다
         skip.c -= r.skipped.c;

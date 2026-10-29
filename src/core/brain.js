@@ -433,6 +433,12 @@ class Brain extends EventEmitter {
         return;
       }
       const t = this.getStats().today;
+      // 공방에서 만든 옷을 입고 있으면 가끔 그 얘기 (host 의 workshopWorn. 공방을 끄면 null, 2.2.0 에 돌아왔다)
+      const made = this.workshopWorn && this.workshopWorn();
+      if (made && Math.random() < 0.2) {
+        this.talk(T.line('workshopWear', { item: made }), 'chatter');
+        return;
+      }
       // 실제 있었던 일을 기억해서 말한다 (하루 2번까지. 값이 없으면 안 한다. main.js 의 memoryVars)
       const [memDay, memN] = String(this.daily.memory || '').split('|');
       const memToday = memDay === dayKey(d) ? Number(memN) || 0 : 0;

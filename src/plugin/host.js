@@ -2,6 +2,7 @@
 // 창·트레이·IPC 로 하던 일을 옵시디언의 오버레이(펫 무대)·상태 표시줄·메뉴·iframe 다리로 옮겼다.
 // 성장·상점·퀘스트·업적·게이지는 core/* (데스크톱판과 같은 코드)가 그대로 한다.
 // 2.0.0: 동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 없앴다. 홈의 할 일 · 노트 지도 · 쉬는 시간을 더했다
+// 2.2.0: 동네 친구 · 보물 공방(깜짝 이벤트 · 보물 · 교환소)이 돌아왔다 (이슈 #9). 설정 friendsOn · workshopOn 으로 끈다 (syncFeatures)
 const { Menu, Notice, setIcon } = require('obsidian');
 const { computeGrowth, xpOf, levelOf, FURS, EAR_SHAPES, STAGES, foldStage, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK } = require('../core/growth');
 const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS } = require('../core/goals');
@@ -9,6 +10,9 @@ const { Brain } = require('../core/brain');
 const { Gamify } = require('../core/gamify');
 const { SET_MOTIONS, COSTUME_SLOTS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, slotOf, find: findItem } = require('../core/shop');
 const stats = require('../core/stats');
+const { Treasures, TREASURES } = require('../core/treasure');
+const { Workshop } = require('../core/workshop');
+const { Friends, FRIENDS, FRIEND_STEPS } = require('../core/friends');
 const { Gauge } = require('../core/gauge');
 const { Todos } = require('../core/todos');
 const { migrateV2 } = require('../core/migrate2');
@@ -33,11 +37,13 @@ const OMAKASE_LOCK = 4 * HOUR_MS; // 참치 뱃살 오마카세: 4시간 배부�
 // 배부름을 고정하는 음식: 비쌀수록 길다 (2026-09-27 가격 정리. 데스크톱판 0.4.0: 기운이 없어져 배부름만 고정).
 // 용 사탕은 기운 가득 대신 6시간 '든든' 고정
 const BOTH_LOCK = { afternoonTea: 2 * HOUR_MS, dragonCandy: 6 * HOUR_MS, royalTable: 8 * HOUR_MS, dragonKingFeast: 24 * HOUR_MS };
-// 구름 마시멜로: 먹고 잠깐 뒤 둥실 신나서 우다다 (2.0.0: 깜짝 이벤트를 없애서)
+// 구름 마시멜로: 공방을 켰으면 먹고 잠깐 뒤 깜짝 이벤트 하나, 껐으면 둥실 신나서 우다다 (2.0.0 의 효과)
+const MALLOW_EVENT_MS = 25_000;
 const MALLOW_ZOOM_MS = 6_000;
-const GOLD_MOUSE_COINS = [40, 120]; // 황금 쥐 초콜릿: 코인 (2.0.0: 예전엔 보물)
+const GOLD_MOUSE_RARE = 0.3; // 황금 쥐 초콜릿 (공방을 켰을 때): 보물 1개 확정. 이 확률로 드문 보물, 아니면 흔한 보물
+const GOLD_MOUSE_COINS = [40, 120]; // 황금 쥐 초콜릿 (공방을 껐을 때): 코인
 const MYSTERY_PREMIUM = 0.15; // 미스터리 간식 상자: 프리미엄 간식이 나올 확률
-const FORTUNE_GIFT = 0.2; // 포춘 쿠키: 코인을 같이 받을 확률
+const FORTUNE_GIFT = 0.2; // 포춘 쿠키: 보물(공방을 켰을 때 반쯤)이나 코인을 같이 받을 확률
 const FORTUNE_COINS = 50;
 // 기본 '냠냠' 대신 자기 말을 하는 간식
 const PREMIUM_TALK = new Set(['fortuneCookie', 'mysteryBox']);
@@ -73,8 +79,14 @@ const TOY_OFFER_GAP = 60 * MIN;
 const TOY_OFFER_PER_DAY = 3;
 const TOY_OFFER_MS = 20_000;
 const THEMES = ['auto', 'cream', 'cocoa', 'mint', 'sakura', 'choco'];
-// 펫 판이 부탁하는 말 (들어 올리기 · 떨어뜨리기 · 커서 사냥). 깜짝 이벤트 · 친구 말은 2.0.0 에 없앴다
-const EVENT_LINES = new Set(['heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
+// 펫 판이 부탁하는 말 (들어 올리기 · 떨어뜨리기 · 커서 사냥 · 깜짝 이벤트 · 친구)
+const EVENT_LINES = new Set(['eventFetchOut', 'eventFetchBack', 'eventBird', 'eventGuest', 'eventGuestBye', 'eventRare', 'heldLong', 'heldEscape', 'dropHigh', 'huntCatch', 'huntMiss']);
+// 깜짝 이벤트 · 친구가 하는 말 (그 기능을 껐으면 안 한다)
+const WORKSHOP_LINES = new Set(['eventFetchOut', 'eventFetchBack', 'eventBird', 'eventRare']);
+const FRIEND_LINES = new Set(['eventGuest', 'eventGuestBye']);
+// 바닥 보물은 하루를 넉넉히 기다리고, LOOT_KEEP 개까지만 기억한다
+const LOOT_TTL = 24 * HOUR_MS;
+const LOOT_KEEP = 20;
 // 모션을 끈 상황 (설정 motionsOff). 고양이가 그 상태로 있어야 하는 상황(같이 쓸 때 · 기다릴 때 · 잘 때)은 끄면 기본 자세로,
 // 잠깐 하는 상황(다 썼을 때 · 레벨 업 · 쓰다듬기 …)은 끄면 아무 모션도 안 한다
 const MOOD_SLOTS = new Set(['work', 'workLong', 'workHour', 'waiting', 'sleep']);
@@ -107,8 +119,11 @@ class KitHost {
     this.sleepPokes = [];
     this.hideTimer = null;
     this.timers = [];
-    // 바닥에 떨어뜨렸는데 아직 안 먹은 먹이. 'pet:treat-eaten' 은 여기 있는 것만 믿는다
+    // 바닥에 떨어뜨렸는데 아직 안 먹은 먹이 · 안 주운 보물. 'pet:treat-eaten' · 'pet:treasure' 는 여기 있는 것만 믿는다
     this.floorTreats = [];
+    this.pendingLoot = [];
+    // 지금 켜져 있는 돌아온 기능 (설정 friendsOn · workshopOn). 바뀌는 순간을 syncFeatures 가 알아챈다
+    this.featOn = null;
     // 말풍선 상한 · 업적 말풍선 묶기 · 장난감 권하기 · 하우스 알림
     this.bubbleLog = [];
     this.chatterMuteUntil = 0;
@@ -129,6 +144,9 @@ class KitHost {
     this.syncStrings();
     this.gamify = new Gamify(state, usage, () => settings.data, () => this.T);
     this.shop = new Shop(state, usage, () => settings.data, () => this.growth);
+    this.treasures = new Treasures(state);
+    this.workshop = new Workshop(state, this.treasures, this.shop);
+    this.friends = new Friends(state);
     // 평생 산 횟수(bought)·한 번이라도 가졌던 코스튬 수(accEver)는 gamify 가 purchaseStats·옷장에서 직접 읽는다
     this.gamify.extra = () => {
       const w = this.shop.wallet();
@@ -141,6 +159,7 @@ class KitHost {
       return {
         owned: kinds, totalAcc: ACCESSORIES.filter((a) => a.key !== 'none' && !a.exclusive && !a.stars).length, totalToy: TOYS.length,
         spent: w.spent, earned: w.earned, balance: w.balance,
+        treasureKinds: this.treasures.summary().kinds,
         maxBacklinks: this.plugin.linkStats().max,
         orphans: this.plugin.orphanList ? this.plugin.orphanList().length : 0,
       };
@@ -153,12 +172,16 @@ class KitHost {
       state.set({ stageScheme: STAGES.length });
     }
     this.migrateShop();
-    // 2.0.0: 보물 → 코인, 공방 코스튬은 옷장에, 없앤 기능의 기록은 지운다 (한 번만. core/migrate2.js)
+    // 2.0.0: 없앤 기능(그날의 기분 · 먹고 싶은 것 · 오늘의 소식)의 기록을 지운다 (한 번만. core/migrate2.js).
+    // 2.2.0: 보물 · 친구 기록은 이제 그대로 둔다
     this.v2 = migrateV2(state);
     this.goals = new Goals(state, settings, usage);
     this.gauge = new Gauge(state);
     // 홈의 할 일 (플러그인 안에만 있는 목록). 처음 끝낸 할 일마다 업적 · 퀘스트 숫자
     this.todos = new Todos(state, () => this.noteSkill('todoDone'));
+    // 지난번 바닥에 두고 끈 보물은 상자로 들어갔다 (treasure.js 의 recoverLoot)
+    if (this.treasures.recovered.length) this.houseToast(this.T.t('toast.lootKept', { n: this.treasures.recovered.length }), 'gift');
+    this.featOn = this.featureFlags();
 
     const brain = new Brain(() => settings.data, () => ({ today: usage.today() }), () => this.T);
     this.brain = brain;
@@ -168,6 +191,13 @@ class KitHost {
     brain.graceUntil = (state.get('startedAt') || 0) + FIRST_GRACE;
     // 옵시디언판은 타이핑을 hook 처럼 늘 알려 준다 (plugin/main.js 의 onType). 그래서 '같이 쓰는 중'은 타이핑할 때만이다
     brain.lastHookAt = Date.now();
+    // 공방에서 만든 옷을 입고 있으면 그 이름 (수다에 가끔 섞인다). 상점에서 산 같은 옷은 빼고, 공방을 껐으면 안 한다
+    brain.workshopWorn = () => {
+      if (!this.workshopOn()) return null;
+      const made = new Set((state.get('workshopMade') || []).map((x) => x && x.key));
+      const worn = Object.values(settings.get('outfit') || {}).filter((k) => made.has(k));
+      return worn.length ? this.T.t('item.' + worn[Math.floor(Math.random() * worn.length)]) : null;
+    };
     // 기억해서 하는 말에 끼울 실제 있었던 일
     brain.memoryVars = () => this.memoryVars();
     brain.on('bubble', ({ text, kind, extra }) => this.bubble(text, kind, undefined, undefined, extra && extra.ms, extra));
@@ -222,6 +252,7 @@ class KitHost {
     if (this.brain) this.brain.life = state.get('life') || { hungrySince: 0, fedAt: 0 };
     this.syncStrings();
     this.plugin.relabel();
+    this.syncFeatures(); // 다른 기기에서 친구 · 공방을 껐다 켰을 수 있다
     this.recomputeGrowth();
     this.send('pet:config', this.petConfig());
     this.pushState();
@@ -533,6 +564,30 @@ class KitHost {
     this.pushHouse();
   }
 
+  // 펫 판에 떨군 보물 (깜짝 이벤트 · 친구 선물). 'pet:treasure' 는 여기 있는 것만 받는다
+  expectLoot(key, id = null) {
+    if (key) this.pendingLoot = [...this.pendingLoot, { key, id, at: Date.now() }].slice(-LOOT_KEEP);
+  }
+
+  takeLoot(key) {
+    const now = Date.now();
+    this.pendingLoot = this.pendingLoot.filter((x) => now - x.at < LOOT_TTL);
+    const i = this.pendingLoot.findIndex((x) => x.key === key);
+    if (i < 0) return false;
+    this.pendingLoot.splice(i, 1);
+    return true;
+  }
+
+  // 바닥 보물을 고양이가 챙겨 둔다: 아직 안 주운 보물(eventLoot)을 상자에 넣고 펫 판의 바닥 보물을 치운다.
+  // 공방을 끌 때 · 펫 판을 새로 만들 때 (가진 것은 하나도 사라지지 않는다, 2.2.0). 넣은 개수
+  keepLoot() {
+    const kept = this.treasures.recoverLoot();
+    this.pendingLoot = [];
+    this.send('pet:loot-keep');
+    if (kept.length) this.houseToast(this.T.t('toast.lootKept', { n: kept.length }), 'gift');
+    return kept.length;
+  }
+
   // 하우스의 '밥 주기' 버튼. 창고에 있는 밥 중 마지막에 준 밥 → 싼 것 순서로 하나 꺼낸다
   feed() {
     const wasHungry = this.brain.hungry();
@@ -573,6 +628,10 @@ class KitHost {
     if (fed) v.fav = T.t('item.' + fed[0]);
     const worn = Object.values(this.cleanOutfit(settings.get('outfit')) || {});
     if (worn.length) v.outfit = T.t('item.' + worn[Math.floor(Math.random() * worn.length)]);
+    // 이틀 안에 다녀간 동네 친구 (친구를 껐으면 말하지 않는다)
+    const list = this.friendsOn() ? (state.get('friends') || {}).list || {} : {};
+    const recent = Object.entries(list).filter(([, o]) => o.lastAt && Date.now() - o.lastAt < 2 * 86_400_000).sort((a, b) => b[1].lastAt - a[1].lastAt)[0];
+    if (recent) v.friend = T.t('fr.' + recent[0] + '.name');
     // 어제 점심을 걸렀다고 대답했으면
     const lunch = (state.get('replies') || {}).lunch;
     if (lunch && lunch.day === yKey && lunch.ans === 'no') v.skipped = ''; // 빈 글자 (대사의 {skipped} 는 '이 대사를 골라도 된다'는 표시)
@@ -686,21 +745,135 @@ class KitHost {
     return typeof a === 'string' && a.startsWith('slot:') ? this.motionFor(a.slice(5)) : a;
   }
 
+  // ---------- 동네 친구 · 보물 공방 켜고 끄기 (2.2.0) ----------
+
+  friendsOn() {
+    return this.settings.get('friendsOn') !== false;
+  }
+
+  workshopOn() {
+    return this.settings.get('workshopOn') !== false;
+  }
+
+  featureFlags() {
+    return { friends: this.friendsOn(), workshop: this.workshopOn() };
+  }
+
+  // 설정이 바뀐 순간 (하우스 · 다른 기기). 끄면 지금 일을 접되 가진 것은 하나도 지우지 않는다:
+  //  친구를 끄면 놀러 와 있던 친구가 인사하고 돌아간다 (두고 가는 보물은 상자로 바로)
+  //  공방을 끄면 바닥에 떨어진 보물은 고양이가 상자에 챙겨 둔다
+  // 다시 켜면 남아 있던 보물 · 친밀도 · 만든 옷 그대로 이어서 한다
+  syncFeatures() {
+    if (!this.friends || !this.treasures) return;
+    const was = this.featOn || this.featureFlags();
+    const now = this.featureFlags();
+    this.featOn = now;
+    if (was.friends && !now.friends) {
+      if (this.friends.st().visit) {
+        this.friends.finish({ keep: true, noGift: !now.workshop });
+        this.send('pet:friend-leave');
+      }
+    } else if (!was.friends && now.friends) this.friends.resume();
+    if (was.workshop && !now.workshop) this.keepLoot();
+  }
+
+  // ---------- 깜짝 이벤트·동네 친구 ----------
+
+  maybeEvent(force = false, type = null) {
+    if (!this.workshopOn()) return null;
+    if (!this.pet || !this.petVisible() || this.loading) return null;
+    if (!force && this.plugin.idleSeconds() > 5 * 60) return null;
+    const busy = !!this.playing || this.isQuiet();
+    const still = ['sleeping', 'sleepy', 'thinking', 'waiting'].includes(this.brain.mood);
+    // 배가 든든하면(full) 깜짝 이벤트가 더 잦다 (데스크톱판 0.4.0)
+    const ev = this.treasures.roll({ busy, asleep: still, force, type, full: this.gauge.full() });
+    if (ev) {
+      this.expectLoot(ev.treasure, ev.id);
+      this.send('pet:event', ev);
+    }
+    return ev;
+  }
+
+  friendTick() {
+    if (!this.friends || !this.pet || this.loading || !this.friendsOn()) return;
+    const noGift = !this.workshopOn(); // 공방을 껐으면 두고 가는 보물도 없다
+    const v0 = this.friends.st().visit;
+    // 펫 판이 인사를 못 하고 시간이 한참 지났으면 여기서 보낸다. 두고 간 보물은 상자로 바로 (keep)
+    if (v0 && v0.until + MIN <= Date.now()) {
+      this.friends.finish({ keep: true, noGift });
+      this.send('pet:friend-leave');
+      this.pushHouse();
+    } else if (v0 && v0.until > Date.now() - MIN) return; // 아직 놀러 와 있거나, 펫 판이 인사하고 보물을 떨굴 1분
+    const away = this.plugin.idleSeconds() > 5 * 60;
+    const v = this.friends.tick({ away, busy: this.isQuiet() || !this.petVisible(), full: this.gauge.full(), noGift });
+    // tick 이 시간 다 된 친구를 보냈으면 펫 판에서도 내보낸다
+    if (this.friends.takeLeft()) {
+      this.send('pet:friend-leave');
+      this.pushHouse();
+    }
+    if (v) this.friendArrive(v);
+  }
+
+  friendArrive(v) {
+    this.sendFriend(v);
+    if (v.up && v.level > 0) this.later(() => this.bubble(this.T.line('guestFriend', { guest: this.T.t('fr.' + v.id + '.name'), level: this.T.t('friend.' + v.level) }), 'event'), 9000);
+    this.pushHouse();
+  }
+
+  sendFriend(v) {
+    const f = FRIENDS.find((x) => x.id === v.id);
+    if (f) this.send('pet:friend', { id: v.id, fur: f.fur != null ? f.fur : null, art: f.art || null, kind: v.kind, until: v.until, wear: this.friends.wearList(v.id) });
+  }
+
+  // 친구 카드 (펫 판). treasures = 공방을 켰나 (껐으면 물물교환 칸을 숨긴다)
+  friendInfo() {
+    const v = this.friends.current();
+    if (!v) return null;
+    const f = FRIENDS.find((x) => x.id === v.id);
+    const one = this.friends.summary().list.find((x) => x.id === v.id);
+    const box = this.state.get('treasures') || {};
+    const pantry = Object.entries(this.state.get('pantry') || {})
+      .filter(([k, n]) => n > 0 && FOODS.find((x) => x.key === k))
+      .map(([k, n]) => ({ key: k, n, group: FOODS.find((x) => x.key === k).group }));
+    return { id: v.id, fur: f.fur, art: f.art, kind: v.kind, until: v.until, level: one.level, pts: one.pts, prev: FRIEND_STEPS[one.level], next: one.next, want: { ...v.want, have: box[v.want.key] || 0 }, gift: v.gift, traded: v.traded, feeds: v.feeds, maxFeeds: 3, pantry, treasures: this.workshopOn() };
+  }
+
+  friendResult(r) {
+    if (r && r.ok && r.up && r.level > 0) this.later(() => this.bubble(this.T.line('guestFriend', { guest: this.T.t('fr.' + r.id + '.name'), level: this.T.t('friend.' + r.level) }), 'event'), 2500);
+    this.pushState();
+    this.pushHouse();
+    return r;
+  }
+
   // 프리미엄 밥·간식을 먹었다. 먹은 횟수·종류는 업적용으로 센다
   premiumEaten(it) {
     const { T, gamify } = this;
     gamify.count('premium');
     gamify.count('pf_' + it.key);
     const later = (fn) => this.later(fn, 2600);
+    // 공방을 켰으면 황금 쥐 초콜릿 · 포춘 쿠키에서 보물이 나오고, 구름 마시멜로는 깜짝 이벤트 (1.6.1 처럼)
+    const ws = this.workshopOn();
+    const pickTreasure = (rarity) => {
+      const pool = TREASURES.filter((x) => x.rarity === rarity);
+      const tk = pool[Math.floor(Math.random() * pool.length)].key;
+      this.treasures.add(tk);
+      return tk;
+    };
     if (it.key === 'otoroOmakase') {
       this.gauge.lockFood(OMAKASE_LOCK);
       later(() => this.bubble(T.line('omakaseLock'), 'fed'));
     } else if (BOTH_LOCK[it.key]) {
       this.gauge.lockFood(BOTH_LOCK[it.key]);
       later(() => this.bubble(T.line('bothLock', { h: BOTH_LOCK[it.key] / HOUR_MS }), 'fed'));
+    } else if (it.key === 'cloudMallow' && ws) {
+      later(() => this.bubble(T.line('mallowSurprise'), 'fed'));
+      this.later(() => this.maybeEvent(true), MALLOW_EVENT_MS);
     } else if (it.key === 'cloudMallow') {
       later(() => this.bubble(T.line('mallowEvent'), 'fed'));
       this.later(() => this.send('pet:action', 'zoomies'), MALLOW_ZOOM_MS);
+    } else if (it.key === 'goldMouseChoco' && ws) {
+      const tk = pickTreasure(Math.random() < GOLD_MOUSE_RARE ? 'rare' : 'common');
+      later(() => this.bubble(T.line('goldMouseTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
     } else if (it.key === 'goldMouseChoco') {
       const [lo, hi] = GOLD_MOUSE_COINS;
       const n = lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -711,8 +884,13 @@ class KitHost {
     } else if (it.key === 'fortuneCookie') {
       this.bubble(T.line('fortune'), 'treat');
       if (Math.random() < FORTUNE_GIFT) {
-        this.shop.give({ coins: FORTUNE_COINS });
-        later(() => this.bubble(T.line('fortuneCoins', { n: FORTUNE_COINS }), 'item'));
+        if (ws && Math.random() < 0.5) {
+          const tk = pickTreasure('common');
+          later(() => this.bubble(T.line('fortuneTreasure', { item: T.t('treasure.' + tk) }), 'item', 'workshop'));
+        } else {
+          this.shop.give({ coins: FORTUNE_COINS });
+          later(() => this.bubble(T.line('fortuneCoins', { n: FORTUNE_COINS }), 'item'));
+        }
       }
     } else if (it.key === 'mysteryBox') {
       const premium = Math.random() < MYSTERY_PREMIUM;
@@ -1098,6 +1276,10 @@ class KitHost {
       version: this.plugin.manifest ? this.plugin.manifest.version : '',
       whatsNew: state.get('whatsNew') || null, // 업데이트 뒤 아직 안 본 '새로 생긴 것' (버전 문자열)
       vault: this.vaultStats(),
+      // 동네 친구 · 보물 공방 (2.2.0 에 돌아왔다). 꺼도 가진 것은 그대로라 늘 보내고, 탭을 숨기는 건 하우스가 설정을 보고 한다
+      treasures: this.treasures.summary(),
+      workshop: this.workshop.summary(),
+      friends: this.friends.summary(),
       toyRecords: state.get('toyRecords') || {},
     };
   }
@@ -1191,6 +1373,8 @@ class KitHost {
     if (this.loading) return;
     this.recapNudge();
     this.askTick();
+    this.maybeEvent();
+    this.friendTick();
     this.gamify.tick(this.brain.lastActivity, this.brain.streakMs());
     this.recomputeGrowth();
   }
@@ -1256,11 +1440,15 @@ class KitHost {
         this.dragging = false;
         this.playing = null;
         this.refundTreats();
+        // 바닥에 있던 보물은 새 화면에 없다. 고양이가 상자에 챙겨 둔다 (예전엔 다음에 켤 때까지 기다렸다)
+        if (this.pendingLoot.length || (state.get('eventLoot') || []).length) this.keepLoot();
         this.send('pet:config', this.petConfig());
         this.pushState();
         this.send('pet:quiet', this.isQuiet());
         this.sendFocus();
         if (this.loading) this.send('pet:loading', this.plugin.loadingProgress || 0);
+        const visit = this.friendsOn() ? this.friends.current() : null;
+        if (visit) this.sendFriend(visit);
         const refund = state.get('refundNote');
         if (refund) {
           state.set({ refundNote: 0 });
@@ -1285,6 +1473,13 @@ class KitHost {
           this.dragging = true;
           gamify.count('lift');
           this.stage.setInteractive(true);
+          // 자거나 졸 때 들어 올리면 깬다 (2.2.0, 이슈 #10). 세 번 콕 찔러 깨운 것처럼 5분은 깨어 있는다.
+          // 그전에는 들린 채로도 Z 가 나오고, 내려놓으면 그대로 다시 잤다
+          if (['sleeping', 'sleepy'].includes(brain.mood)) {
+            this.sleepPokes.length = 0;
+            brain.wake(Date.now());
+            if (brain.ready('liftWake', 20_000)) this.bubble(T.line('pokeWake'), 'poke');
+          }
           return;
         }
         this.dragging = false;
@@ -1377,11 +1572,35 @@ class KitHost {
         }
         return;
       }
+      // 펫 판이 깜짝 이벤트를 못 보여 줬다 (고양이가 바빴다). 오늘 횟수를 돌려받고 그 보물은 안 기다린다
+      case 'pet:event-skip': {
+        if (a[0] == null || !this.workshopOn()) return;
+        const k = String(a[0]);
+        if (this.treasures.skip(k)) this.pendingLoot = this.pendingLoot.filter((x) => x.id !== k);
+        return;
+      }
+      case 'pet:treasure': {
+        const key = a[0];
+        // 공방을 껐으면 줍지 않는다 (끌 때 바닥 보물은 이미 상자에 넣었다)
+        if (!this.workshopOn() || !this.takeLoot(key)) return;
+        const r = this.treasures.add(key);
+        if (!r) return;
+        const item = T.t('treasure.' + key);
+        this.bubble(T.line(r.fresh ? 'treasureNew' : 'treasureGot', { item, n: r.kinds, total: r.total }), 'item', 'workshop');
+        this.sound('quest');
+        gamify.count('treasure');
+        this.pushHouse();
+        return;
+      }
       case 'pet:event-say': {
-        const [kind] = a;
+        const [kind, vars] = a;
         if (!EVENT_LINES.has(kind)) return;
+        if ((WORKSHOP_LINES.has(kind) && !this.workshopOn()) || (FRIEND_LINES.has(kind) && !this.friendsOn())) return;
         if (['dropHigh', 'huntMiss', 'heldLong'].includes(kind) && !brain.ready('say:' + kind, 30_000)) return;
-        this.bubble(T.line(kind), 'event');
+        const v = {};
+        if (vars && vars.item && TREASURES.some((x) => x.key === vars.item)) v.item = T.t('treasure.' + vars.item);
+        if (vars && vars.friend && FRIENDS.some((x) => x.id === vars.friend)) v.guest = T.t('fr.' + vars.friend + '.name');
+        this.bubble(T.line(kind, v), 'event');
         return;
       }
     }
@@ -1424,7 +1643,9 @@ class KitHost {
   // ---------- IPC: 답을 돌려주는 것 (ipcMain.handle) ----------
 
   async onInvoke(ch, frame, ...a) {
-    const { settings, state, gamify, shop, T } = this;
+    const { settings, state, gamify, shop, friends, T } = this;
+    // 끈 기능의 통로는 거절한다 (2.2.0). 하우스는 탭을 숨기지만, 열려 있던 창 · 다른 기기에서 늦게 올 수 있다
+    const off = (extra) => ({ ok: false, reason: 'off', ...extra });
     switch (ch) {
       case 'house:get':
         return this.housePayload();
@@ -1473,6 +1694,45 @@ class KitHost {
         this.recomputeGrowth();
         return { ok, payload: this.housePayload() };
       }
+      case 'house:friend-call': {
+        if (!this.friendsOn()) return off({ result: { error: 'off' }, data: this.housePayload() });
+        const v = friends.call(String(a[0]));
+        if (v && !v.error) {
+          this.showPet();
+          this.friendArrive(v);
+        }
+        return { result: v, data: this.housePayload() };
+      }
+      case 'house:friend-gift': {
+        if (!this.friendsOn()) return off({ result: { error: 'off' }, data: this.housePayload() });
+        const r = friends.gift(String(a[0]), String(a[1]));
+        if (r.ok) {
+          settings.set({ outfit: this.cleanOutfit(settings.get('outfit')) });
+          this.syncAccessory();
+          this.sound('achieve');
+          const v = friends.current();
+          if (v && v.id === r.id) this.send('pet:friend-wear', { id: r.id, wear: friends.wearList(r.id) });
+          this.send('pet:config', this.petConfig()); // 선물한 옷을 입고 있었으면 벗는다
+          this.pushState();
+        }
+        return { result: r, data: this.housePayload() };
+      }
+      // 개발자 모드: 깜짝 이벤트 · 친구를 바로 일으킨다 (끈 기능은 안 된다)
+      case 'dev:event': {
+        if (!settings.get('devMode')) return null;
+        const type = a[0];
+        if (type === 'guest' || type === 'friend') {
+          if (!this.friendsOn()) return null;
+          if (friends.current()) {
+            friends.finish({ noGift: !this.workshopOn() });
+            this.send('pet:friend-leave');
+          }
+          const v = friends.start(FRIENDS[Math.floor(Math.random() * FRIENDS.length)].id, 'visit');
+          if (v) this.friendArrive(v);
+          return v;
+        }
+        return this.maybeEvent(true, type);
+      }
       case 'card:save':
         return this.plugin.saveCard(String(a[0] || ''), String(a[1] || 'cat'));
       case 'card:copy':
@@ -1501,6 +1761,32 @@ class KitHost {
         }
         return { payload: this.housePayload(), ok: r.ok, reason: r.reason || null, placed };
       }
+      // 보물 교환소: 쌓인 보물을 원하는 보물로. 바꿔 받은 건 도감에 안 들어간다
+      case 'workshop:exchange': {
+        if (!this.workshopOn()) return off({ payload: this.housePayload() });
+        const r = this.workshop.exchange(String(a[0]));
+        if (r.ok) this.sound('pop');
+        return { payload: this.housePayload(), ...r };
+      }
+      case 'workshop:fill': {
+        if (!this.workshopOn()) return off({ payload: this.housePayload() });
+        const r = this.workshop.fill(String(a[0]));
+        if (r.ok) this.sound('pop');
+        return { payload: this.housePayload(), ...r };
+      }
+      // 공방에서 만들기: 옷장에 넣고 만든 기록(workshopMade)을 남긴다. 상점에서 이미 산 옷이면 'made' 로 거절한다
+      case 'workshop:craft': {
+        if (!this.workshopOn()) return off({ payload: this.housePayload() });
+        const key = a[0];
+        const r = this.workshop.craft(key);
+        if (r.ok) {
+          this.sound('achieve');
+          this.send('pet:action', 'happy');
+          this.bubble(T.t('workshop.crafted', { name: T.t(`item.${key}`) }), 'item', 'wardrobe');
+          this.growthSoon(); // 코스튬 개수 업적
+        }
+        return { payload: this.housePayload(), ok: r.ok, reason: r.reason || null };
+      }
       case 'shop:use':
         return { ok: this.giveFood(a[0]), payload: this.housePayload() };
       case 'house:play': {
@@ -1519,6 +1805,33 @@ class KitHost {
           for (const [i, key] of r.prize.entries()) this.later(() => this.dropTreat(key), 1600 + i * 400);
           this.pushHouse();
         }
+        return r;
+      }
+      case 'pet:friend-info':
+        return this.friendsOn() ? this.friendInfo() : null;
+      case 'pet:friend-trade': {
+        // 물물교환은 보물을 주고받는다: 친구 · 공방 둘 다 켜져 있어야 한다
+        if (!this.friendsOn() || !this.workshopOn()) return off({ error: 'off' });
+        const v = friends.current();
+        const r = friends.trade();
+        if (r && r.ok && v) this.bubble(T.t('fr.gotGift', { name: T.t('fr.' + v.id + '.name'), food: T.t('item.' + r.gift.key), n: r.gift.n }), 'item');
+        return this.friendResult(r);
+      }
+      case 'pet:friend-feed': {
+        if (!this.friendsOn()) return off({ error: 'off' });
+        const it = FOODS.find((x) => x.key === a[0]);
+        if (!it) return { error: 'none' };
+        return this.friendResult(friends.feed(a[0], it.group));
+      }
+      case 'pet:friend-bye': {
+        if (!this.friendsOn()) return null; // 끌 때 이미 돌려보냈다
+        const r = friends.finish({ noGift: !this.workshopOn() });
+        // 펫 판이 떠나는 자리에 떨군다. 줍기 전에 끄면 다음에 켤 때 상자로 (treasure.js 의 eventLoot)
+        if (r && r.gift) {
+          this.expectLoot(r.gift);
+          this.treasures.noteLoot(r.gift);
+        }
+        this.pushHouse();
         return r;
       }
       // 데스크톱판의 자동 실행·Claude Code 연결. 옵시디언판에는 없다 (화면에서도 뺐다)
@@ -1685,6 +1998,8 @@ class KitHost {
     const showBefore = !!settings.get('showPet');
     const excludedBefore = settings.get('excludedProjects') || [];
     settings.set(allowed);
+    // 동네 친구 · 보물 공방을 껐다 켰다 (2.2.0): 와 있던 친구 돌려보내기 · 바닥 보물 챙기기
+    if ('friendsOn' in allowed || 'workshopOn' in allowed) this.syncFeatures();
     if ('outfit' in allowed || allowed.devMode === false) {
       settings.set({ outfit: this.cleanOutfit(settings.get('outfit')) });
       this.syncAccessory();

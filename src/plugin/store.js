@@ -16,6 +16,9 @@ const DEFAULT_SETTINGS = {
   idleMotions: null,
   motionsOff: [], // 모션을 끈 상황 (2.0.0. 상황 키 목록 — core/shop.js 의 MOTION_SLOTS)
   setMotionsOn: true,
+  // 2.2.0 (이슈 #9): 돌아온 두 기능. 끄면 새로 일어나지 않고 탭도 숨지만, 가진 것(보물 · 친밀도 · 만든 옷)은 그대로 남는다
+  friendsOn: true, // 동네 친구가 놀러 온다 (kit/house.js 친구 탭 · core/friends.js)
+  workshopOn: true, // 깜짝 이벤트 · 보물 · 보물 상자 · 교환소 · 공방 만들기 (core/treasure.js · core/workshop.js)
   homeLayout: null, // 홈 칸 순서 · 보이기 [{ id, on }] (2.0.1). null 이면 기본 순서로 모두 (kit/house.js 의 HOME_SECTIONS) // 세트 옷을 입으면 그 세트 전용 모션을 '심심할 때'에 섞는다 (2.0.0)
   soundEnabled: true,
   bubblesEnabled: true,

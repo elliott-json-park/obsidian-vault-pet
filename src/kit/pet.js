@@ -57,6 +57,7 @@ pet.onConfig((c) => {
   document.documentElement.lang = T.locale; // 중국어면 :lang(zh) 글꼴로 (pet.css)
   sprite.setFur(c.fur);
   sprite.setEars(c.ears);
+  bubblesOn = c.bubbles !== false;
   lowPower = !!c.lowPower;
   clearTimeout(pendingWearTimer);
   pendingWear = null;
@@ -86,6 +87,7 @@ pet.onReset(() => {
 let stageTimer = null;
 pet.onState((s) => {
   realMood = s.mood;
+  quietNow = !!s.quiet;
   syncMood();
   if (s.growth) {
     const prevKey = growth ? growth.stageKey : null;
@@ -456,6 +458,7 @@ const floorY = () => window.innerHeight - 4;
 // 바닥에서 집을 수 있는 것: 간식, 장난감, 장난감이 내놓은 것들(공 발사기의 공·눈덩이…)
 const items = () => [
   ...treats,
+  ...loot,
   ...(toy && toy.el && !toy.el.hidden ? [toy] : []),
   ...(toy && toy.extras ? toy.extras.filter((x) => x.el && !x.el.hidden && !x.noGrab) : []),
 ];
@@ -1829,14 +1832,724 @@ function stepFall(dt) {
   placeCat();
 }
 
+// ---------- 깜짝 이벤트 ----------
+// 2.0.0 에 없앴다가 2.2.0 에 돌아왔다 (이슈 #9). 설정에서 공방(workshopOn)을 끄면 호스트가 안 보내고,
+// 바닥에 남은 보물은 pet:loot-keep 으로 치운다 (호스트가 상자에 넣었다)
+// core/treasure.js 가 가끔 보낸다.
+//  fetch : 화면 밖으로 나갔다가 보물을 물고 돌아온다   bird : 새가 날아가다 보물을 떨어뜨린다
+//  rare : 평소엔 안 하는 모션을 한 번   (동네 친구는 아래 '동네 친구' 가 따로 맡는다)
+// 보물은 바닥에 떨어지고, 눌러서 줍는다. 한참 안 주우면 고양이가 알아서 챙겨 둔다
+let ev = null; // 진행 중인 fetch (bird 는 따로 날아다닌다)
+let birds = [];
+let loot = []; // 바닥에 떨어진 보물
+const LOOT_KEEP_MS = 10 * 60_000;
+// 손님 고양이 털색은 sprite.js 의 PetSprite.GUEST_FURS (도감도 같이 쓴다)
+const GUEST_FURS = PetSprite.GUEST_FURS;
+
+function spawnLoot(key, x, y) {
+  const o = spawnItem(key);
+  o.el.classList.add('loot');
+  Object.assign(o, { loot: true, born: performance.now(), x: clamp(x, o.half, window.innerWidth - o.half), y, vx: rand(-40, 40), vy: -60 });
+  placeItem(o);
+  loot.push(o);
+  return o;
+}
+
+function collectLoot(o) {
+  if (!loot.includes(o)) return;
+  loot = loot.filter((x) => x !== o);
+  o.el.classList.remove('loot');
+  o.el.classList.add('collect');
+  setTimeout(() => o.el.remove(), 520);
+  if (soundOn) PetSound.play('pop', 0.02);
+  pet.treasure(o.key);
+}
+
+// 고양이가 딴 걸 하고 있지 않나: 아래 '커서 사냥' 의 catFree (물어 오기 중이면 아니다)
+
+pet.onEvent((e) => {
+  const now = performance.now();
+  if (e.type === 'bird') return startBird(e.treasure);
+  // 고양이가 바쁘면 건너뛰고 main 에 알린다 (오늘 횟수를 돌려받는다)
+  if (!catFree() || hunt) return pet.eventSkip(e.id);
+  if (e.type === 'rare') {
+    if (pendingRare) pet.eventSkip(pendingRare.id);
+    pendingRare = { id: e.id, motion: e.motion, until: performance.now() + 60_000 };
+    return;
+  }
+  if (sprite.motion) sprite.cancel();
+  strollTo = null;
+  const [min, max] = lane();
+  const side = catX - min < max - catX ? -1 : 1; // 가까운 쪽 화면 끝으로
+  if (e.type === 'fetch') {
+    ev = { type: 'fetch', id: e.id, key: e.treasure, phase: 'out', side, home: catX, x: catX, until: 0 };
+    pet.eventSay('eventFetchOut');
+  }
+  void now;
+});
+
+// 공방을 껐거나 펫 판을 새로 만들었다 (2.2.0): 호스트가 아직 안 주운 보물을 상자에 넣었다. 화면에서만 치운다
+pet.onLootKeep(() => {
+  for (const o of loot) o.el.remove();
+  if (held && held.o.loot) held = null;
+  loot = [];
+  for (const b of birds) b.dropped = true;
+  pendingRare = null;
+  if (ev) {
+    ev.key = null; // 들고 오던 보물도 상자에 들어갔다
+    endFetch(false);
+  }
+});
+
+// 새 한 마리. 화면 한쪽에서 날아와 고양이 근처에서 보물을 떨어뜨리고 반대쪽으로 사라진다
+function startBird(key) {
+  const el = document.createElement('canvas');
+  el.className = 'bird';
+  document.body.appendChild(el);
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  if (dir < 0) el.classList.add('left');
+  const P = petPx();
+  const x0 = dir > 0 ? -30 : window.innerWidth + 30;
+  const at = catX != null ? catX : window.innerWidth / 2;
+  birds.push({ el, key, dir, x: x0, y0: floorY() - P * rand(1.7, 2.6), t: 0, dropX: clamp(at + rand(-140, 140), 40, window.innerWidth - 40), dropped: !key, frame: -1 });
+}
+
+function stepBirds(dt) {
+  for (const b of birds) {
+    b.t += dt;
+    b.x += b.dir * 180 * dt;
+    b.y = b.y0 + Math.sin(b.t * 5) * 6;
+    const f = Math.floor(b.t / 0.14) % 2;
+    if (f !== b.frame) {
+      b.frame = f;
+      PixelArt.paint(b.el, f ? 'bird1' : 'bird2', itemDot());
+    }
+    b.el.style.left = `${Math.round(b.x)}px`;
+    b.el.style.top = `${Math.round(b.y)}px`;
+    if (!b.dropped && (b.dir > 0 ? b.x >= b.dropX : b.x <= b.dropX)) {
+      b.dropped = true;
+      spawnLoot(b.key, b.x, b.y + 10);
+      // 깨어 있으면 고양이가 올려다보고 한마디
+      if (catX != null && !sprite.busy() && ['idle', 'active', 'thinking'].includes(sprite.mood)) {
+        face(b.x);
+        if (!toy && !treats.length) sprite.play('perk');
+      }
+      pet.eventSay('eventBird');
+    }
+    if (b.x < -60 || b.x > window.innerWidth + 60) b.gone = true;
+  }
+  for (const b of birds) if (b.gone) b.el.remove();
+  birds = birds.filter((b) => !b.gone);
+}
+
+// 드문 모션은 고양이가 한가할 때 한다 (바쁘면 1분까지 기다린다)
+let pendingRare = null;
+function stepRare(now) {
+  if (!pendingRare) return;
+  if (now > pendingRare.until) {
+    pet.eventSkip(pendingRare.id);
+    return (pendingRare = null);
+  }
+  if (!catFree() || hunt || sprite.busy() || sprite.move || !['idle', 'active'].includes(sprite.mood)) return;
+  sprite.play(pendingRare.motion, { times: 1 });
+  pendingRare = null;
+  pet.eventSay('eventRare');
+}
+
+// fetch 진행. 고양이를 이쪽에서 움직였으면 true
+function stepEvent(dt, now) {
+  if (!ev) return false;
+  const P = petPx();
+  const [min, max] = lane();
+  if (ev.type === 'fetch') {
+    // 사람이 들어 올리거나 간식을 주면 그만둔다
+    if (dragging || lifted || treats.length || toy) {
+      endFetch(false);
+      return false;
+    }
+    const speed = 150;
+    if (ev.phase === 'out') {
+      // 화면 끝까지 걸어가서, 끝을 넘어 밖으로 나간다 (catX 는 끝에 두고 캔버스만 더 민다)
+      if (Math.abs(catX - (ev.side < 0 ? min : max)) > 2) {
+        walkTo(ev.side < 0 ? min : max, dt);
+        ev.x = catX;
+        return true;
+      }
+      ev.x += ev.side * speed * dt;
+      sprite.setMove(ev.side * speed);
+      canvas.style.left = `${Math.round(ev.x - P / 2)}px`;
+      if (Math.abs(ev.x - catX) > P) {
+        ev.phase = 'away';
+        ev.until = now + rand(5000, 9000);
+        canvas.style.visibility = 'hidden';
+        sprite.setMove(0);
+      }
+      return true;
+    }
+    if (ev.phase === 'away') {
+      if (now < ev.until) return true;
+      ev.phase = 'in';
+      canvas.style.visibility = '';
+      sprite.carry = 'treasure';
+      sprite.carryKey = ev.key;
+      return true;
+    }
+    if (ev.phase === 'in') {
+      ev.x -= ev.side * speed * dt;
+      sprite.setMove(-ev.side * speed);
+      canvas.style.left = `${Math.round(ev.x - P / 2)}px`;
+      if (ev.side < 0 ? ev.x >= catX : ev.x <= catX) {
+        ev.phase = 'back';
+        ev.backTo = clamp(catX - ev.side * rand(80, 200), min, max);
+      }
+      return true;
+    }
+    if (ev.phase === 'back') {
+      if (walkTo(ev.backTo, dt) > 2) return true;
+      endFetch(true);
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------- 동네 친구 (7차) ----------
+// main/friends.js 가 두 시간쯤마다 한 친구를 보낸다 (단짝은 하우스에서 불러도 온다). 정해진 시간만큼 머물다 간다.
+//  - 고양이 옆 자리에 와서 앉아 있다가 가끔 자리를 옮기고, 장난감이 나와 있으면 같이 쫓아가 폴짝
+//  - 가끔 우리 고양이와 수다 (한 번 올 때 두 번쯤)
+//  - 들어서 옮길 수 있고, 더블 클릭하면 카드가 뜬다 (TMI · 남은 시간 · 물물교환 · 밥·간식 주기)
+// 고양이 친구(fur)는 sprite.js 의 PetRenderer, 동물 친구(art)는 friends.js 의 PetFriends.draw 로 그린다
+let friend = null;
+let quietNow = false; // 방해 금지 (main 이 pushState 로 알려 준다)
+let bubblesOn = true; // 설정의 말풍선 켜기
+const FSPEED = 110;
+const fbubble = document.createElement('div');
+fbubble.className = 'bubble fbubble';
+fbubble.hidden = true;
+document.body.appendChild(fbubble);
+const cbubble = document.createElement('div'); // 수다할 때 우리 고양이 말 (보통 말풍선과 따로)
+cbubble.className = 'bubble fbubble cat';
+cbubble.hidden = true;
+document.body.appendChild(cbubble);
+let fcard = null; // 누르면 뜨는 친구 카드
+// 카드 윗줄을 끌어 옮긴 자리 ({ left, top }). 먹이를 주거나 교환해서 카드를 다시 그려도 그 자리에 둔다.
+// 사람이 카드를 닫거나 친구가 가면 다시 친구 옆에 붙는다
+let fcardPos = null;
+let fcardDrag = null;
+
+pet.onFriend((f) => startFriend(f));
+pet.onFriendLeave(() => friend && friendBye(true));
+pet.onFriendWear((w) => friend && friend.r && friend.id === w.id && friend.r.setAccessory(w.wear));
+
+function friendName(id) {
+  return T.t('fr.' + id + '.name');
+}
+
+function startFriend(f) {
+  if (friend) removeFriend();
+  const c = document.createElement('canvas');
+  c.className = 'friend';
+  c.width = c.height = PetSprite.GRID;
+  document.body.appendChild(c);
+  let r = null;
+  if (f.fur != null) {
+    r = new PetSprite.PetRenderer(c);
+    r.fur = PetSprite.GUEST_FURS[f.fur];
+    r.setStage('cat');
+    r.setAccessory(f.wear || 'none'); // 선물 받은 공방 코스튬
+    r.setMood('idle');
+  }
+  const P = petPx();
+  const [min, max] = lane();
+  // 고양이와 가까운 화면 끝에서 들어온다
+  const fromLeft = catX == null ? Math.random() < 0.5 : catX < (min + max) / 2;
+  const now = performance.now();
+  const stay = Math.max(30_000, f.until - Date.now());
+  friend = {
+    ...f, canvas: c, r, ctx: c.getContext('2d'), x: fromLeft ? -P / 2 : window.innerWidth + P / 2, lift: 0, vy: 0,
+    facing: fromLeft ? 1 : -1, state: 'enter', target: 0, wanderAt: now + 25_000, leaveAt: now + stay,
+    chatAt: now + (f.kind === 'call' ? 35_000 : 70_000), chat2At: now + (f.kind === 'call' ? 170_000 : 330_000), chats: [], talked: new Set(),
+    eatUntil: 0, food: null, hopAt: 0, said: false,
+  };
+  friend.target = friendSpot();
+  c.addEventListener('mousedown', grabFriend);
+  placeFriend();
+}
+
+// 우리 고양이 옆 (화면 안쪽) 자리
+function friendSpot() {
+  const P = petPx();
+  const [min, max] = lane();
+  if (catX == null) return (min + max) / 2;
+  const side = catX > (min + max) / 2 ? -1 : 1;
+  return clamp(catX + side * P * rand(0.9, 1.6), min, max);
+}
+
+function placeFriend() {
+  if (!friend) return;
+  const P = petPx();
+  const c = friend.canvas;
+  c.style.width = c.style.height = `${P}px`;
+  c.style.left = `${Math.round(friend.x - P / 2)}px`;
+  c.style.bottom = `${Math.round(friend.lift)}px`;
+}
+
+function removeFriend() {
+  if (!friend) return;
+  friend.canvas.remove();
+  if (friend.food) friend.food.remove();
+  fbubble.hidden = true;
+  cbubble.hidden = true;
+  closeFriendCard(true);
+  friend = null;
+}
+
+// 시간이 다 됐다: 인사하고 (가끔 보물을 두고) 화면 밖으로
+async function friendBye(fromMain) {
+  if (!friend || friend.state === 'bye') return;
+  friend.state = 'bye';
+  closeFriendCard(true);
+  // 나갈 쪽은 main 의 답을 기다리기 전에 정한다. 기다리는 사이 stepFriend 가 exit 없이 걸으면 x 가 NaN 이 돼서
+  // 친구가 그 자리에 굳은 채 안 사라졌다 (1차 테스트 피드백, 2026-09-29)
+  const [min, max] = lane();
+  friend.exit = friend.x > (min + max) / 2 ? window.innerWidth + petPx() : -petPx();
+  const r = fromMain ? null : await pet.friendBye().catch(() => null);
+  if (!friend) return;
+  if (r && r.gift) spawnLoot(r.gift, friend.x, floorY() - 20);
+  friendSay(friendLine('bye', 'fr.bye'), 'f');
+  pet.eventSay('eventGuestBye', { friend: friend.id, item: (r && r.gift) || undefined });
+}
+
+// 친구마다 다른 멘트 (i18n 'fr.<id>.<kind>', 여러 개면 '|' 로 나눠 하나 고른다). 없으면 공통 멘트
+function friendLine(kind, common) {
+  const key = friend ? 'fr.' + friend.id + '.' + kind : '';
+  const s = key ? T.t(key) : key;
+  if (!s || s === key) return common ? T.t(common) : '';
+  const all = String(s).split('|');
+  return all[Math.floor(Math.random() * all.length)];
+}
+
+// 말풍선: who = 'f'(친구) | 'c'(우리 고양이)
+function friendSay(text, who, ms = 3200) {
+  const el = who === 'c' ? cbubble : fbubble;
+  el.textContent = text;
+  el.hidden = false;
+  placeFriendOverlays();
+  requestAnimationFrame(() => el.classList.add('show'));
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => (el.hidden = true), 150);
+  }, ms);
+}
+
+// 수다 한 판: 'f:…|c:…|f:…' 를 한 줄씩 번갈아
+function friendChat() {
+  if (!friend || quietNow || !bubblesOn) return;
+  const all = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter((i) => !friend.talked.has(i) && T.t('fr.' + friend.id + '.talk' + i) !== 'fr.' + friend.id + '.talk' + i);
+  if (!all.length) return;
+  const i = all[Math.floor(Math.random() * all.length)];
+  friend.talked.add(i);
+  const lines = String(T.t('fr.' + friend.id + '.talk' + i)).split('|').map((x) => [x.slice(0, 1), x.slice(2)]);
+  const now = performance.now();
+  friend.chats = lines.map(([who, text], k) => ({ at: now + k * 3400, who, text }));
+}
+
+function stepFriend(dt, now) {
+  if (!friend) return;
+  const f = friend;
+  const P = petPx();
+  const [min, max] = lane();
+  // 떠날 때
+  if (f.state !== 'bye' && now >= f.leaveAt && !f.held) friendBye(false);
+  // 들려 있으면 떨어뜨릴 때까지 아무것도 안 한다. 놓으면 바닥으로 뚝
+  if (!f.held && f.lift > 0) {
+    f.vy -= 1400 * dt;
+    f.lift = Math.max(0, f.lift + f.vy * dt);
+    if (f.lift === 0) {
+      if (f.vy < -500) friendSay(friendLine('thrown') || '!!', 'f', 2000);
+      f.vy = 0;
+    }
+  }
+  let mode = 'idle';
+  if (f.held) mode = 'held';
+  else if (f.state === 'bye') {
+    const d = f.exit - f.x;
+    if (!Number.isFinite(d)) return removeFriend(); // 갈 곳을 잃었으면 그냥 보낸다
+    f.x += Math.sign(d) * FSPEED * 1.2 * dt;
+    f.facing = Math.sign(d) || f.facing;
+    mode = 'walk';
+    if (Math.abs(d) < 4) return removeFriend();
+  } else if (now < f.eatUntil) mode = 'eat';
+  else {
+    if (f.food) {
+      f.food.remove();
+      f.food = null;
+    }
+    // 장난감이 나와 있으면 그쪽으로 가서 폴짝 (흔드는 장난감은 커서 쪽으로)
+    let goal = f.target;
+    if (toy) {
+      const tx = isCursorToy() ? mouseX : toy.x;
+      if (tx != null) goal = clamp(tx + (tx > f.x ? -P * 0.4 : P * 0.4), min, max);
+    } else if (now > f.wanderAt) {
+      f.target = friendSpot();
+      goal = f.target;
+      f.wanderAt = now + rand(25_000, 45_000);
+    }
+    const d = goal - f.x;
+    if (Math.abs(d) > 3) {
+      f.x += Math.sign(d) * Math.min(Math.abs(d), FSPEED * dt);
+      f.facing = Math.sign(d);
+      mode = 'walk';
+    } else {
+      if (f.state === 'enter') {
+        f.state = 'here';
+        friendSay(friendLine('hi', 'fr.hi'), 'f', 2800);
+        pet.eventSay('eventGuest', { friend: f.id });
+        // 선물받은 공방 코스튬을 입고 왔으면 자랑한다 (2026-10-10)
+        const gift = Array.isArray(f.wear) && f.wear.length ? f.wear[Math.floor(Math.random() * f.wear.length)] : null;
+        if (gift) setTimeout(() => friend === f && friendSay(T.t('fr.wearGift', { item: T.t('item.' + gift) }), 'f', 3600), 4200);
+        if (f.r) f.r.play('wave');
+      }
+      if (catX != null && !toy) f.facing = Math.sign(catX - f.x) || f.facing;
+      if (toy && now > f.hopAt) f.hopAt = now + rand(1200, 2600);
+      if (toy && now < f.hopAt - 600 && now > f.hopAt - 1300) mode = 'hop';
+    }
+    // 수다: 도착하고 한참 뒤 한 번, 몇 분 뒤 또 한 번 (말풍선이 비어 있을 때만)
+    if (f.state === 'here' && bubbleEl.hidden && !fcard) {
+      if (f.chatAt && now > f.chatAt) { f.chatAt = 0; friendChat(); }
+      else if (f.chat2At && now > f.chat2At) { f.chat2At = 0; friendChat(); }
+    }
+  }
+  for (const c of f.chats) if (!c.done && now >= c.at) { c.done = true; friendSay(c.text, c.who); if (c.who === 'c' && catX != null) face(f.x); }
+  // 그리기
+  if (f.r) {
+    f.r.setFacing(f.facing);
+    f.r.setMove(mode === 'walk' ? f.facing * FSPEED : 0);
+    f.r.setHeld(mode === 'held' ? { rot: 0, legs: 0, px: 24, py: 36 } : null);
+    if (mode === 'hop' && !f.r.action) f.r.play('happy');
+    f.r.frame();
+  } else {
+    f.ctx.clearRect(0, 0, PetSprite.GRID, PetSprite.GRID);
+    PetFriends.draw(f.ctx, f.art, now / 1000, mode, f.facing);
+  }
+  placeFriend();
+}
+
+// 친구 말풍선 · 수다 중 우리 고양이 말풍선을 머리 위에 놓되 서로, 그리고 보통 말풍선과 겹치지 않게 한다.
+// 먼저 옆으로 밀어 비키고(꼬리는 --tail-x 로 계속 말한 쪽을 가리킨다), 화면이 좁아 못 비키면 위로 쌓는다
+const BUBBLE_GAP = 8;
+function placeChatBubbles(P) {
+  const W = window.innerWidth, H = window.innerHeight;
+  // 보통 말풍선(업적·대사 등)은 placeOverlays 가 이미 놓았다. 여기서는 피해 갈 자리로만 쓴다
+  const main = !bubbleEl.hidden && catX != null
+    ? { x: parseFloat(bubbleEl.style.left) || catX, w: bubbleEl.offsetWidth, h: bubbleEl.offsetHeight, bottom: parseFloat(bubbleEl.style.bottom) || 0 }
+    : null;
+  const box = (el, owner, bottom) => ({ el, owner, x: owner, w: el.offsetWidth, h: el.offsetHeight, bottom });
+  const list = [];
+  if (friend && !fbubble.hidden) list.push(box(fbubble, friend.x, friend.lift + P * 0.62));
+  if (catX != null && !cbubble.hidden) {
+    // 보통 말풍선이 떠 있으면 그 위로 (예전엔 44px 만 올려서 두 줄짜리 말풍선과 겹쳤다)
+    const over = main && !bubbleEl.classList.contains('below') ? main.bottom + main.h + BUBBLE_GAP + 4 : catLift + P * 0.62;
+    list.push(box(cbubble, catX, over));
+  }
+  if (!list.length) return;
+  const fitX = (b) => (b.x = Math.max(b.w / 2 + 6, Math.min(W - b.w / 2 - 6, b.x)));
+  const hitY = (a, b) => a.bottom < b.bottom + b.h + BUBBLE_GAP && b.bottom < a.bottom + a.h + BUBBLE_GAP;
+  const needX = (a, b) => (a.w + b.w) / 2 + BUBBLE_GAP - Math.abs(a.x - b.x);
+  const hits = (a, b) => hitY(a, b) && needX(a, b) > 0;
+  // 움직이지 않는 것(o)에서 b 를 비킨다: 말한 쪽 방향으로 밀고, 안 되면 그 위로
+  const dodge = (b, o) => {
+    if (!hits(b, o)) return;
+    const dir = Math.sign(b.owner - o.x) || (b.owner < W / 2 ? 1 : -1);
+    b.x += dir * needX(b, o);
+    fitX(b);
+    if (hits(b, o)) b.bottom = o.bottom + o.h + BUBBLE_GAP;
+  };
+  for (const b of list) fitX(b);
+  if (main) for (const b of list) dodge(b, main);
+  if (list.length === 2 && hits(list[0], list[1])) {
+    // 둘 다 반씩 비켜선다. 화면 끝에 막히면 다른 쪽이 마저 비킨다
+    const [a, b] = list;
+    const dir = Math.sign(a.owner - b.owner) || 1;
+    const half = needX(a, b) / 2;
+    a.x += dir * half;
+    b.x -= dir * half;
+    fitX(a);
+    fitX(b);
+    if (hits(a, b)) {
+      b.x -= dir * needX(a, b);
+      fitX(b);
+    }
+    if (hits(a, b)) {
+      a.x += dir * needX(a, b);
+      fitX(a);
+    }
+    if (hits(a, b)) a.bottom = b.bottom + b.h + BUBBLE_GAP; // 그래도 안 되면 친구 말풍선을 위로
+    if (main) dodge(a, main);
+  }
+  for (const b of list) {
+    b.bottom = Math.max(4, Math.min(b.bottom, H - b.h - 4));
+    b.el.style.left = `${Math.round(b.x)}px`;
+    b.el.style.bottom = `${Math.round(b.bottom)}px`;
+    const room = Math.max(0, b.w / 2 - 12);
+    b.el.style.setProperty('--tail-x', `${Math.round(clamp(b.owner - b.x, -room, room))}px`);
+  }
+}
+
+// 말풍선·카드 자리 (고양이 말풍선과 같은 식으로 머리 위에)
+function placeFriendOverlays() {
+  if (!friend && cbubble.hidden && fbubble.hidden) return; // 떠 있는 게 없으면 재지 않는다
+  const P = petPx();
+  placeChatBubbles(P);
+  // 카드는 머리 위가 아니라 친구 옆에 붙인다. 말풍선이 머리 위 가운데에 뜨니까 말풍선 반 폭만큼 더 비켜 선다.
+  // 고양이가 있는 쪽은 고양이 말풍선이 뜨니 반대쪽을 먼저 쓰고, 화면 끝이라 자리가 없으면 다른 쪽으로
+  if (fcard && friend && fcardPos) {
+    // 사람이 옮겨 둔 자리. 창 밖으로는 못 나간다
+    const w = fcard.offsetWidth, h = fcard.offsetHeight;
+    const left = Math.max(8, Math.min(window.innerWidth - w - 8, fcardPos.left));
+    const top = Math.max(8, Math.min(window.innerHeight - h - 8, fcardPos.top));
+    fcard.style.left = `${Math.round(left)}px`;
+    fcard.style.bottom = `${Math.round(window.innerHeight - top - h)}px`;
+  } else if (fcard && friend) {
+    const w = fcard.offsetWidth, h = fcard.offsetHeight;
+    const half = (el) => (el.hidden ? 0 : el.offsetWidth / 2);
+    const gap = Math.max(P * 0.45, half(fbubble), 70) + 8;
+    const rightX = friend.x + gap, leftX = friend.x - gap - w;
+    const fitsR = rightX + w <= window.innerWidth - 8, fitsL = leftX >= 8;
+    const preferR = catX == null ? true : catX < friend.x;
+    const x = (preferR ? fitsR : !fitsL) ? (fitsR ? rightX : leftX) : fitsL ? leftX : rightX;
+    fcard.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, x)))}px`;
+    fcard.style.bottom = `${Math.round(Math.max(8, Math.min(window.innerHeight - h - 8, friend.lift)))}px`;
+  }
+}
+
+// ---- 들어서 옮기기 ----
+function grabFriend(e) {
+  if (e.button !== 0 || !friend || friend.state === 'bye') return;
+  e.stopPropagation();
+  friend.held = { dx: e.clientX - friend.x, dy: window.innerHeight - e.clientY - friend.lift, x0: e.clientX, y0: e.clientY, moved: false };
+  document.body.classList.add('dragging');
+}
+function moveFriend(e) {
+  if (!friend || !friend.held) return false;
+  const h = friend.held;
+  if (!h.moved && Math.hypot(e.clientX - h.x0, e.clientY - h.y0) < 5) return true;
+  h.moved = true;
+  const [min, max] = lane();
+  friend.x = clamp(e.clientX - h.dx, min, max);
+  friend.lift = Math.max(0, window.innerHeight - e.clientY - h.dy);
+  friend.vy = 0;
+  friend.target = friend.x;
+  placeFriend();
+  return true;
+}
+// 놓을 때: 끌지 않고 눌렀다 뗐으면(클릭) 친구 카드(물물교환·밥 주기·친밀도)를 열고, 열려 있으면 접는다. 끌었으면 거기 내려놓는다
+function dropFriend() {
+  if (!friend || !friend.held) return false;
+  const clicked = !friend.held.moved;
+  friend.held = null;
+  document.body.classList.remove('dragging');
+  if (clicked) fcard ? closeFriendCard(true) : openFriendCard();
+  return true;
+}
+function isOverFriend(e) {
+  if (!friend) return false;
+  const r = friend.canvas.getBoundingClientRect();
+  const gx = ((e.clientX - r.left) / r.width) * PetSprite.GRID;
+  const gy = ((e.clientY - r.top) / r.height) * PetSprite.GRID;
+  if (friend.r) return friend.r.hit(gx, gy);
+  return PetFriends.hit(friend.art, friend.facing < 0 ? PetSprite.GRID - 1 - gx : gx, gy);
+}
+function isOverFriendUi(e) {
+  const inside = (el) => {
+    if (!el || el.hidden) return false;
+    const r = el.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  };
+  return inside(fcard) || isOverFriend(e);
+}
+
+// ---- 친구 카드: 친밀도 · 남은 시간 · 물물교환 · 밥·간식 주기 ----
+async function openFriendCard() {
+  if (!friend || friend.state === 'bye') return;
+  const info = await pet.friendInfo().catch(() => null);
+  if (!info || !friend || info.id !== friend.id) return;
+  closeFriendCard();
+  const id = info.id;
+  const ic = (k, n = 16) => PixelArt.svg(k, n);
+  const hearts = [1, 2, 3].map((i) => `<span class="${i <= info.level ? 'on' : ''}">${ic('heart', 11)}</span>`).join('');
+  // 친밀도 막대: 지금 단계에서 다음 단계까지 얼마나 찼나 (단짝이면 가득). 단계 점수는 main/friends.js 의 FRIEND_STEPS
+  const prev = info.prev || 0;
+  const pct = info.next ? Math.round(((info.pts - prev) / (info.next - prev)) * 100) : 100;
+  const bondNote = info.next
+    ? T.t('fr.toNext', { level: T.t('friend.' + (info.level + 1)), n: info.next - info.pts })
+    : T.t('fr.bondMax');
+  const w = info.want, g = info.gift;
+  const enough = w.have >= w.n;
+  const tradeBtn = info.traded
+    ? `<span class="fc-note">${esc(T.t('fr.traded'))}</span>`
+    : `<button class="fc-btn" data-fc="trade" ${enough ? '' : 'disabled'}>${esc(T.t('fr.trade'))}</button>${enough ? '' : `<span class="fc-note">${esc(T.t('fr.short'))}</span>`}`;
+  const full = info.feeds >= info.maxFeeds;
+  const foods = info.pantry.length
+    ? info.pantry.map((p) => `<button class="fc-food" data-feed="${p.key}" data-group="${p.group}" title="${esc(T.t('item.' + p.key))}" ${full ? 'disabled' : ''}>${ic(p.key, 26)}<small>${p.n}</small></button>`).join('')
+    : `<span class="fc-note">${esc(T.t('fr.feedNone'))}</span>`;
+  fcard = document.createElement('div');
+  fcard.className = 'fcard';
+  // 윗줄(이름·별명)은 잡고 끌어서 카드를 옮기는 손잡이다
+  fcard.innerHTML = `
+    <div class="fc-head" title="${esc(T.t('fr.cardDrag'))}">
+      <span class="fc-grip" aria-hidden="true"></span>
+      <div class="fc-id">
+        <div class="fc-name">${esc(friendName(id))}</div>
+        <div class="fc-sp">${esc(T.t('fr.' + id + '.nick'))} · ${esc(T.t('fr.' + id + '.species'))}</div>
+      </div>
+      <button class="fc-x" data-fc="close" aria-label="${esc(T.t('modal.close'))}" title="${esc(T.t('modal.close'))}">×</button>
+    </div>
+    <div class="fc-body">
+      <div class="fc-time">${ic('hourglass', 12)}<span class="fc-left"></span></div>
+      <div class="fc-bond">
+        <div class="fc-bond-top"><span class="fc-hearts">${hearts}</span><b>${esc(T.t('friend.' + info.level))}</b><span class="fc-note">${esc(bondNote)}</span></div>
+        <div class="fc-bar"><i style="width:${pct}%"></i></div>
+      </div>
+      ${info.treasures === false ? '' : `<div class="fc-sec">
+        <div class="fc-title"><b>${esc(T.t('fr.want'))}</b><small>${esc(T.t('fr.ptsTrade'))}</small></div>
+        <div class="fc-trade">
+          <div class="fc-box">${ic(w.key, 24)}<span><b>${esc(T.t('treasure.' + w.key))} ×${w.n}</b><small class="${enough ? 'ok' : 'lack'}">${esc(T.t('fr.have', { n: w.have }))}</small></span></div>
+          <span class="fc-arrow">→</span>
+          <div class="fc-box gift">${ic(g.key, 24)}<span><b>×${g.n}</b><small>${esc(T.t('fr.gift'))}</small></span></div>
+        </div>
+        <div class="fc-row">${tradeBtn}</div>
+      </div>`}
+      <div class="fc-sec">
+        <div class="fc-title"><b>${esc(T.t('fr.feed'))}</b><small class="${full ? 'lack' : ''}">${esc(full ? T.t('fr.full') : T.t('fr.feedLeft', { n: info.maxFeeds - info.feeds }))}</small></div>
+        <div class="fc-note">${esc(T.t('fr.ptsFeed'))}</div>
+        <div class="fc-foods">${foods}</div>
+      </div>
+    </div>`;
+  document.body.appendChild(fcard);
+  fcard.querySelector('.fc-head').addEventListener('mousedown', grabCard);
+  const tickLeft = () => {
+    if (!fcard || !friend) return;
+    const ms = Math.max(0, friend.until - Date.now());
+    fcard.querySelector('.fc-left').textContent = T.t('fr.left', { m: Math.floor(ms / 60000), s: Math.floor((ms % 60000) / 1000) });
+  };
+  tickLeft();
+  fcard._timer = setInterval(tickLeft, 1000);
+  fcard.addEventListener('mousedown', (e) => e.stopPropagation());
+  fcard.addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.fc === 'close') return closeFriendCard(true);
+    if (b.dataset.fc === 'trade') {
+      const r = await pet.friendTrade();
+      if (r && r.ok) {
+        friendSay(friendLine('thanks', 'fr.thanks'), 'f');
+        if (friend && friend.r) friend.r.play('happy');
+        openFriendCard();
+      }
+      return;
+    }
+    if (b.dataset.feed) {
+      const r = await pet.friendFeed(b.dataset.feed);
+      if (r && r.ok && friend) {
+        friendEat(b.dataset.feed);
+        openFriendCard();
+      } else if (r && r.error === 'full') friendSay(friendLine('full', 'fr.fullSay'), 'f');
+    }
+  });
+  placeFriendOverlays();
+}
+// forget: 사람이 닫았으면 끌어 옮긴 자리도 잊는다 (다시 그릴 때는 그대로 둔다)
+function closeFriendCard(forget) {
+  if (forget) fcardPos = null;
+  if (fcardDrag) dropCard();
+  if (!fcard) return;
+  clearInterval(fcard._timer);
+  fcard.remove();
+  fcard = null;
+}
+
+// ---- 친구 카드 끌어 옮기기: 윗줄(이름 칸)을 잡고 끈다 ----
+function grabCard(e) {
+  if (e.button !== 0 || !fcard || e.target.closest('button')) return;
+  const r = fcard.getBoundingClientRect();
+  fcardDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+  fcard.classList.add('moving');
+  document.body.classList.add('dragging');
+  e.preventDefault();
+}
+function moveCard(e) {
+  if (!fcardDrag || !fcard) return false;
+  fcardPos = { left: e.clientX - fcardDrag.dx, top: e.clientY - fcardDrag.dy };
+  placeFriendOverlays();
+  return true;
+}
+function dropCard() {
+  if (!fcardDrag) return false;
+  fcardDrag = null;
+  if (fcard) fcard.classList.remove('moving');
+  document.body.classList.remove('dragging');
+  return true;
+}
+
+// 받아먹기: 발 앞에 먹이를 놓고, 우리 고양이처럼 한 입씩 야금야금 (친구 쪽 가장자리부터 이빨 자국으로 사라진다)
+const FRIEND_BITE_MS = 640;
+function friendEat(key) {
+  const f = friend;
+  if (!f) return;
+  if (f.food) f.food.remove();
+  const el = document.createElement('canvas');
+  el.className = 'friend-food';
+  PixelArt.paint(el, key, itemDot());
+  document.body.appendChild(el);
+  const fx = f.x + f.facing * petPx() * 0.22;
+  el.style.left = `${Math.round(fx - el.width / 2)}px`;
+  el.style.bottom = `${Math.round(f.lift)}px`;
+  f.food = el;
+  // 한 입 간격 × (BITES + 1): 마지막 한 입 뒤 잠깐 있다가 치운다 (stepFriend 가 eatUntil 이 지나면 치운다)
+  f.eatUntil = performance.now() + FRIEND_BITE_MS * (BITES + 1);
+  const bite = { key, el };
+  const fromLeft = f.x < fx;
+  for (let i = 1; i <= BITES; i++)
+    setTimeout(() => {
+      if (friend !== f || f.food !== el) return;
+      if (f.r) f.r.play('nibble');
+      if (soundOn) PetSound.play('pop', 0.015);
+      paintBitten(bite, i / (BITES + 1), fromLeft);
+    }, FRIEND_BITE_MS * (i - 0.5));
+  setTimeout(() => friend === f && friendSay(friendLine('yum', 'fr.yum'), 'f'), 1600);
+}
+
+// 물어 오기 끝: 입에 문 보물을 발 앞에 내려놓는다 (중간에 그만뒀으면 그냥 들고 온 셈 치고 떨군다)
+function endFetch(done) {
+  if (!ev) return;
+  const key = ev.key;
+  const id = ev.id;
+  // 이미 밖에 나갔다 왔으면(보물을 찾았으면) 끊겨도 그 자리에 떨군다
+  const found = ['away', 'in', 'back'].includes(ev.phase);
+  canvas.style.visibility = '';
+  sprite.carry = null;
+  sprite.carryKey = null;
+  ev = null;
+  placeCat();
+  // 나가기도 전에 끊겼으면 보물은 안 떨어진다. 오늘 횟수를 돌려받는다
+  if (key && !(done || found) && id) pet.eventSkip(id);
+  if (!key || !(done || found)) return;
+  spawnLoot(key, catX + sprite.facing * petPx() * 0.3, floorY() - petPx() * 0.25);
+  if (!done) return;
+  sprite.play('happy');
+  pet.eventSay('eventFetchBack', { item: key });
+}
+
 // ---------- 커서 사냥 ----------
 // 커서가 바닥 가까이에서 한참 가만히 있으면, 가끔 고양이가 몸을 낮춰 살금살금 다가가
 // 엉덩이를 씰룩이다 덮친다. 다가가는 동안 커서가 움직이면 멈칫하고 그만둔다
 let hunt = null;
 let nextHunt = performance.now() + 3 * 60_000;
 const HUNT_STILL_MS = 7000;
-// 고양이가 딴 걸 하고 있지 않나 (먹기·놀기·들림 중이면 사냥은 건너뛴다)
-const catFree = () => !toy && !treats.length && !held && !dragging && !lifted && catLift <= 0 && catX != null;
+// 고양이가 딴 걸 하고 있지 않나 (먹기·놀기·들림·물어 오기 중이면 사냥 · 깜짝 이벤트는 건너뛴다)
+const catFree = () => !ev && !toy && !treats.length && !held && !dragging && !lifted && catLift <= 0 && catX != null;
 
 function stepHunt(dt, now) {
   const P = petPx();
@@ -1851,8 +2564,8 @@ function stepHunt(dt, now) {
     strollTo = null;
     sprite.setToyPose('huntCrouch');
   }
-  // 사람이 들어 올리거나 먹이·장난감이 끼어들면 그만
-  if (dragging || lifted || toy || treats.length) return endHunt(false), false;
+  // 사람이 들어 올리거나 먹이·장난감·이벤트가 끼어들면 그만
+  if (dragging || lifted || toy || treats.length || ev) return endHunt(false), false;
   const moved = lastMouseMove !== hunt.startMove;
   if (hunt.phase === 'stalk') {
     if (moved) {
@@ -1933,18 +2646,26 @@ function loop() {
   if (toy && toy.el && !toy.noPhysics) stepItem(toy, dt);
   if (toy && toy.extras) for (const x of toy.extras) if (x.el && !x.noPhysics) stepItem(x, dt);
   for (const o of treats) stepItem(o, dt);
+  for (const o of loot) {
+    stepItem(o, dt);
+    if (now - o.born > LOOT_KEEP_MS && !(held && held.o === o)) collectLoot(o);
+  }
+  stepBirds(dt);
+  stepRare(now);
+  stepFriend(dt, now);
   stepField(dt, now);
   stepFall(dt);
   stepSwing(dt);
   // 끌려가는 중이거나 들렸다 떨어지는 중이면 걷지 않는다
-  // 커서 사냥 중이면 걷기·주우러 가기는 쉰다
-  const evBusy = !dragging && !lifted && stepHunt(dt, now);
+  // 깜짝 이벤트(물어 오기)나 커서 사냥이 고양이를 쥐고 있으면 걷기·주우러 가기는 쉰다
+  const evBusy = stepEvent(dt, now) || (!dragging && !lifted && stepHunt(dt, now));
   if (dragging || lifted) sprite.setMove(0);
   else if (!evBusy && !stepChase(dt, now)) stepStroll(dt, now);
   updateFloorShadow();
   sprite.frame();
   drawField(now);
   placeOverlays();
+  placeFriendOverlays();
   // 커서는 가만있는데 고양이가 걸어 나갔거나 말풍선이 사라졌으면 창이 클릭을 계속 붙잡지 않게 다시 본다
   if (over && now - lastHoverCheck > 120) {
     lastHoverCheck = now;
@@ -1956,8 +2677,8 @@ function loop() {
 // 다음 장면까지 쉬는 시간. 움직이는 게 있으면 촘촘히, 가만히 있으면 성기게 그린다
 // 저전력 모드(lowPower)면 사람이 직접 만지는 중이 아닐 때 초당 8장 정도로 줄인다
 function loopDelay(now) {
-  const touching = dragging || held || press || toy;
-  const moving = touching || treats.length || hunt || sprite.move || sprite.busy() || catLift > 0;
+  const touching = dragging || held || press || toy || (friend && friend.held);
+  const moving = touching || treats.length || loot.length || birds.length || ev || friend || hunt || sprite.move || sprite.busy() || catLift > 0;
   if (lowPower && !touching) return 125;
   if (moving) return 33;
   if (sprite.mood === 'sleeping') return 160;
@@ -2012,14 +2733,14 @@ function setOver(v) {
   pet.hover(v);
 }
 
-// 이 자리에서 창이 클릭을 받아야 하나 (고양이·말풍선·바닥 물건·흔드는 장난감)
+// 이 자리에서 창이 클릭을 받아야 하나 (고양이·말풍선·친구·바닥 물건·흔드는 장난감)
 function hoverTest(e) {
-  return isOverPet(e) || isOverBubble(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e));
+  return isOverPet(e) || isOverBubble(e) || isOverFriendUi(e) || !!itemAt(e) || isCursorToy() || !!(toy && toy.C && toy.C.wantsMouse && toy.C.wantsMouse(toy, e));
 }
 
 // 마우스가 안 움직여도 마지막 자리로 다시 본다. 누르고 있는 중에는 건드리지 않는다
 function recheckHover() {
-  if (dragging || held || press || cursorDown || mouseX == null) return;
+  if (dragging || held || press || cursorDown || fcardDrag || (friend && friend.held) || mouseX == null) return;
   setOver(hoverTest({ clientX: mouseX, clientY: mouseY }));
 }
 
@@ -2077,7 +2798,7 @@ function trackRub(e) {
   if (rub.since && now - rub.since >= RUB_MS && rub.flips >= 4) {
     rub.since = 0;
     rub.until = now + 3500;
-    if (!treats.some((o) => o.eating) && !hunt) sprite.play('purr');
+    if (!treats.some((o) => o.eating) && !hunt && !ev) sprite.play('purr');
     pet.rub();
   }
 }
@@ -2093,13 +2814,17 @@ function nearBody(e) {
 window.addEventListener('mousemove', (e) => {
   if (e.clientX !== mouseX || e.clientY !== mouseY) lastMouseMove = performance.now();
   // 버튼을 뗀 걸 못 들었다 (작업표시줄처럼 창 밖에서 뗐다). 끌던 건 여기서 놓는다
-  if (e.buttons === 0 && (dragging || held || cursorDown)) onMouseUp(e);
+  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
   else if (e.buttons === 0 && press) press = null; // 눌렀다가 창 밖에서 뗀 것. 끌기로 이어지지 않게
   // 흔드는 장난감(낚싯대·깃털·비눗방울·레이저)은 쥐지 않아도 마우스를 따라다닌다
   mouseX = e.clientX;
   mouseY = e.clientY;
   updateGaze();
   trackRub(e);
+  // 친구 카드를 끄는 중이면 카드가 따라온다
+  if (moveCard(e)) return;
+  // 들고 있는 동네 친구는 마우스를 따라온다
+  if (moveFriend(e)) return;
   // 손에 쥔 물건은 마우스를 그대로 따라온다. 던질 속도를 재려고 최근 위치를 몇 개 남긴다
   if (held) {
     const o = held.o;
@@ -2137,13 +2862,13 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mouseleave', (e) => {
   sprite.gaze = null;
-  if (e.buttons === 0 && (dragging || held || cursorDown)) onMouseUp(e);
+  if (e.buttons === 0 && (dragging || held || cursorDown || fcardDrag || (friend && friend.held))) onMouseUp(e);
   if (!dragging) setOver(false);
 });
 
 // 창이 포커스를 잃으면(다른 창 클릭·Alt+Tab) 버튼을 뗀 소식이 안 올 수 있다. 끌던 건 놓는다
 window.addEventListener('blur', () => {
-  if (dragging || held || cursorDown) onMouseUp({ button: 0, buttons: 0, clientX: mouseX != null ? mouseX : 0, clientY: mouseY != null ? mouseY : 0 });
+  if (dragging || held || cursorDown || fcardDrag || (friend && friend.held)) onMouseUp({ button: 0, buttons: 0, clientX: mouseX != null ? mouseX : 0, clientY: mouseY != null ? mouseY : 0 });
 });
 
 // 바닥 물건 집기 — 고양이 끌기보다 먼저 본다
@@ -2179,6 +2904,8 @@ canvas.addEventListener('mousedown', (e) => {
 
 window.addEventListener('mouseup', (e) => onMouseUp(e));
 function onMouseUp(e) {
+  if (dropCard()) return;
+  if (dropFriend()) return;
   // 놓는 순간의 손목 속도를 그대로 물건에 넘긴다
   if (cursorDown && toy) {
     const quick = performance.now() - cursorDown.t < 260;
@@ -2192,6 +2919,13 @@ function onMouseUp(e) {
   if (held) {
     const o = held.o;
     // 거의 안 움직이고 금방 뗐으면 던진 게 아니라 톡 누른 것
+    // 보물은 톡 누르면 줍는다
+    if (o.loot && Math.hypot(e.clientX - held.x0, e.clientY - held.y0) < 6 && performance.now() - held.t0 < 400) {
+      o.el.classList.remove('held');
+      held = null;
+      collectLoot(o);
+      return;
+    }
     const mine = o === toy || (toy && toy.extras && toy.extras.includes(o));
     if (mine && Math.hypot(e.clientX - held.x0, e.clientY - held.y0) < 5 && performance.now() - held.t0 < 300) {
       o.el.classList.remove('held');

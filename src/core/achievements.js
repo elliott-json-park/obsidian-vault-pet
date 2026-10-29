@@ -1,11 +1,13 @@
 // 업적. 킷커밋 데스크톱판의 업적표를 옵시디언에 맞게 옮겼다 (대화·세션·토큰·Claude 활용 → 글쓰기·링크·새 노트·세션·옵시디언 활용).
 // 2.0.0: 옵시디언을 잘 쓰게 돕는 쪽으로 (정리 습관 · 화면 열어 보기 · 할 일). 보물 · 모션 · 먹고 싶은 것 · 친구 업적은 뺐고, 모션 보상은 코인으로 바꿨다.
+// 2.2.0: 보물 공방이 돌아와서 보물 모으기 업적 셋도 돌아왔다 (설정에서 공방을 끄면 더 오르지 않을 뿐, 받은 건 그대로)
 //  tier   : easy · normal · hard · legend
 //  reward : { food: { 키: 개수 } } · { item: 키 } · { coins: n }. 이미 갖고 있는 아이템이면 그 값만큼 코인으로 준다
 //  c 는 gamify.js 의 context(): c.all{c,l,n,s,v,e} 누적 · c.today 오늘 · c.hours[0..23] 시각별 기록 횟수 · c.use(usage.obsidianUse) · c.maxBacklinks
 // 이름·설명은 i18n 의 ach.<id>.name / ach.<id>.desc, icon 은 pixelart.js 의 도트 이름.
 const { PREMIUM_FOODS } = require('./shop');
 const { VIEWS } = require('./skills');
+const { TREASURES } = require('./treasure');
 
 const XP = { easy: 50, normal: 150, hard: 400, legend: 1000 };
 const n = (c, k) => (c.st.cnt && c.st.cnt[k]) || 0;
@@ -151,6 +153,10 @@ const RAW = [
   ['acc_all', 'collect', 'legend', 'ribbon', (c) => (c.accEver != null ? c.accEver : c.owned.acc), (c) => c.totalAcc, { coins: 1100 }],
   ['toy_5', 'collect', 'normal', 'paw', (c) => c.owned.toy, 5, { item: 'bearhood' }],
   ['toy_all', 'collect', 'hard', 'paw', (c) => c.owned.toy, (c) => c.totalToy, { coins: 1050 }],
+  // 2.2.0: 깜짝 이벤트 · 친구에게서 주운 보물 종류 (host 의 gamify.extra 가 treasureKinds 를 준다)
+  ['treasure_1', 'collect', 'easy', 'gift', (c) => c.treasureKinds || 0, 1, { food: { churu: 2 } }],
+  ['treasure_10', 'collect', 'normal', 'gift', (c) => c.treasureKinds || 0, 10, { item: 'clover' }],
+  ['treasure_all', 'collect', 'legend', 'gem', (c) => c.treasureKinds || 0, TREASURES.length, { item: 'goldaura' }],
   ['rich_5k', 'collect', 'normal', 'moneybag', (c) => c.balance, 5000, { coins: 1100 }],
   ['rich_50k', 'collect', 'legend', 'gem', (c) => c.balance, 50000, { item: 'scarf' }],
 

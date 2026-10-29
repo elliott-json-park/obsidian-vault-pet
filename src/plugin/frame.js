@@ -19,8 +19,20 @@ const API = [
   ['toyRecord', 'send', 'pet:toy-record'],
   ['stat', 'send', 'pet:stat'],
   ['treatEaten', 'send', 'pet:treat-eaten'],
+  ['treasure', 'send', 'pet:treasure'],
   ['rub', 'send', 'pet:rub'],
-  ['eventSay', 'send', 'pet:event-say'], // 들어 올리기 · 떨어뜨리기 · 커서 사냥 말 (깜짝 이벤트는 2.0.0 에 없앴다)
+  // 동네 친구 · 깜짝 이벤트 (2.0.0 에 없앴다가 2.2.0 에 돌아왔다. 설정 friendsOn · workshopOn 으로 끈다)
+  ['onFriend', 'on', 'pet:friend'],
+  ['onFriendLeave', 'on', 'pet:friend-leave'],
+  ['onFriendWear', 'on', 'pet:friend-wear'],
+  ['friendInfo', 'invoke', 'pet:friend-info'],
+  ['friendTrade', 'invoke', 'pet:friend-trade'],
+  ['friendFeed', 'invoke', 'pet:friend-feed'],
+  ['friendBye', 'invoke', 'pet:friend-bye'],
+  ['eventSay', 'send', 'pet:event-say'], // 깜짝 이벤트 · 친구 · 들어 올리기 · 떨어뜨리기 · 커서 사냥 말
+  ['onEvent', 'on', 'pet:event'],
+  ['eventSkip', 'send', 'pet:event-skip'], // 바빠서 못 보여 준 깜짝 이벤트 (오늘 횟수를 돌려받는다)
+  ['onLootKeep', 'on', 'pet:loot-keep'], // 공방을 껐다: 바닥 보물을 치운다 (호스트가 상자에 넣었다, 2.2.0)
   ['slot', 'invoke', 'pet:slot'],
   ['onPlay', 'on', 'pet:play'],
   ['onTreat', 'on', 'pet:treat'],
@@ -44,6 +56,9 @@ const API = [
   ['onboarded', 'invoke', 'house:onboarded'],
   ['whatsNewSeen', 'invoke', 'house:whats-new-seen'], // '새로 생긴 것' 창을 봤다
   ['refreshQuests', 'invoke', 'quest:refresh'],
+  ['friendCall', 'invoke', 'house:friend-call'],
+  ['friendGift', 'invoke', 'house:friend-gift'],
+  ['devEvent', 'invoke', 'dev:event'],
   ['saveCard', 'invoke', 'card:save'],
   ['copyCard', 'invoke', 'card:copy'],
   ['recap', 'invoke', 'card:recap'], // 리캡 카드 숫자 (core/recap.js)
@@ -52,6 +67,9 @@ const API = [
   ['preview', 'invoke', 'house:preview'],
   ['feed', 'invoke', 'pet:feed'],
   ['buy', 'invoke', 'shop:buy'],
+  ['craft', 'invoke', 'workshop:craft'],
+  ['exchange', 'invoke', 'workshop:exchange'], // 보물 교환소: 원하는 보물 하나 받기
+  ['fillRecipe', 'invoke', 'workshop:fill'], // 조합에 모자란 재료를 바꿔 채우기
   ['useFood', 'invoke', 'shop:use'],
   ['play', 'invoke', 'house:play'],
   ['setLogin', 'invoke', 'login:set'],

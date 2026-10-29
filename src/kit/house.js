@@ -1,6 +1,7 @@
 // 하우스 창: 펫 상태, 퀘스트, 업적, 꾸미기, 통계, 설정, 첫 실행 안내.
 // 2.0.0: 홈은 옵시디언을 쓰는 데 도움이 되는 것들(목표 · 집중 타이머 · 할 일 · 퀘스트 · 노트 지도 · 최근 노트).
 //  동네 친구 · 보물 공방 탭, 먹고 싶은 것 · 오늘의 소식 칸, 그날의 기분 딱지, 상점의 모션 페이지는 없앴다.
+// 2.2.0: 동네 친구 · 보물 공방 탭 · 인벤토리의 보물 페이지가 돌아왔다 (이슈 #9). 설정에서 끄면 숨는다 (frOn · wsOn)
 // (옵시디언판: 데스크톱판 house.js 사본. 옵시디언 탭 속 iframe 에서 돈다. 바꾼 곳에는 [옵시디언] 표시)
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -23,12 +24,19 @@ const icon = (name, px = 16) => PixelArt.svg(name, px);
 const foodGain = (it) => `<div class="food-gain" title="${esc(t('shop.gainFood', { n: it.fill }))}"><span>${icon('ricebowl', 11)}+${it.fill}</span></div>`;
 // 먹었을 때 특별한 일이 있는 먹이(프리미엄)는 그 밑에 효과를 짧게 한 줄 (i18n 'foodFx.<키>', 긴 설명은 'foodFxTip.<키>'. 없으면 줄도 없다)
 const FOOD_FX_ICON = { otoroOmakase: 'lock', royalTable: 'lock', dragonKingFeast: 'lock', afternoonTea: 'lock', dragonCandy: 'lock', cloudMallow: 'sparkle', roomService: 'sparkle', goldMouseChoco: 'gem', fortuneCookie: 'star', mysteryBox: 'gift' };
+// 돌아온 두 기능을 켰나 (설정 friendsOn · workshopOn, 2.2.0). 꺼도 가진 것은 그대로고 화면에서만 숨는다
+const frOn = () => !(D && D.settings && D.settings.friendsOn === false);
+const wsOn = () => !(D && D.settings && D.settings.workshopOn === false);
+// 공방을 켰으면 황금 쥐 초콜릿 · 포춘 쿠키 · 구름 마시멜로는 보물 · 깜짝 이벤트 효과라 그 글로 ('foodFxWs.<키>', 'foodFxTipWs.<키>')
+const fxWs = (key) => wsOn() && t('foodFxWs.' + key) !== 'foodFxWs.' + key;
 const foodFx = (key) => {
-  const k = 'foodFx.' + key;
+  const ws = fxWs(key);
+  const k = (ws ? 'foodFxWs.' : 'foodFx.') + key;
   const s = t(k);
   if (s === k) return '';
-  const tip = t('foodFxTip.' + key);
-  return `<div class="food-fx" title="${esc(tip === 'foodFxTip.' + key ? s : tip)}">${FOOD_FX_ICON[key] ? icon(FOOD_FX_ICON[key], 11) : ''}${esc(s)}</div>`;
+  const tk = (ws ? 'foodFxTipWs.' : 'foodFxTip.') + key;
+  const tip = t(tk);
+  return `<div class="food-fx" title="${esc(tip === tk ? s : tip)}">${FOOD_FX_ICON[key] ? icon(FOOD_FX_ICON[key], 11) : ''}${esc(s)}</div>`;
 };
 // 움직이는 먹이(프리미엄)는 data-anim 을 달아 두면 아래 루프가 프레임을 바꿔 그린다
 // [옵시디언] iframe 이라 숨긴 고양이·뒤에 깔린 탭·접은 사이드바에서도 document.hidden 이 false 다. 화면에 안 보이면 쉰다
@@ -179,6 +187,83 @@ function mini(canvas) {
   r.demo = canvas.dataset.motion || null;
   r.demoGap = 0;
   return r;
+}
+
+// ---------- 보물 상자 ----------
+// 깜짝 이벤트로 주운 하찮은 보물들. 아직 못 찾은 건 까만 그림자와 ???
+function treasureBox() {
+  const T5 = D.treasures;
+  if (!T5) return '';
+  // 한 번이라도 주운 건(seen) 공방 재료로 다 써서 0개여도 이름이 보인다 (×0 은 흐리게)
+  const cells = T5.list
+    .map((x) =>
+      x.count || x.seen
+        ? `<div class="panel tcell tr-${x.rarity} ${x.count ? '' : 'used'}" title="${esc(t('treasure.' + x.key))}">
+            <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
+            <div class="tnm">${esc(t('treasure.' + x.key))}</div>${x.count !== 1 ? `<div class="tcnt">×${x.count}</div>` : ''}</div>`
+        : `<div class="panel tcell unknown">${icon(x.key, 40)}<div class="tnm">???</div></div>`,
+    )
+    .join('');
+  return `<h2 class="tbox-title">${t('treasure.title')} <span class="muted">${T5.kinds} / ${T5.total}</span></h2>
+    <p class="muted" style="margin-top:-4px">${t('treasure.sub')}</p>
+    <div class="tbox">${cells}</div>`;
+}
+
+// 동네 친구 도감. 한 번도 안 온 친구는 그림자와 ???. 카드를 누르면 TMI 가 펼쳐진다
+let friendOpen = null;
+function friendArt(f, mood) {
+  // 고양이 친구는 sprite.js, 동물 친구는 friends.js 로 그린다 (animate 가 돌린다)
+  return f.art
+    ? `<canvas class="pixel fart" width="48" height="48" data-friend-art="${f.art}"></canvas>`
+    : `<canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${(f.wear || []).join(',') || 'none'}" data-mood="${mood}"></canvas>`;
+}
+function guestBox() {
+  const F = D.friends;
+  if (!F) return '';
+  const now = F.now;
+  const nowCard = now
+    ? `<div class="panel fr-now">${icon('paw', 16)}<b>${esc(t('fr.' + now.id + '.nick'))} ${esc(t('fr.' + now.id + '.name'))}</b>
+        <span class="muted">${t('fr.visiting', { m: Math.max(1, Math.ceil((now.until - Date.now()) / 60000)) })}</span></div>`
+    : '';
+  const cards = F.list.map((f) => {
+    if (!f.visits) {
+      return `<div class="panel gcell unknown">${friendArt(f, 'idle')}<div class="gnm">???</div><div class="gsub">${t('fr.unknown')}</div></div>`;
+    }
+    const hearts = [1, 2, 3].map((i) => `<span class="${i <= f.level ? 'on' : ''}">${icon('heart', 11)}</span>`).join('');
+    const open = friendOpen === f.id;
+    const tmi = open
+      ? `<div class="fr-motto"><small>${t('fr.motto')}</small>“${esc(t('fr.' + f.id + '.motto'))}”</div>
+         <ul class="fr-tmi">${[1, 2, 3, 4].map((i) => `<li>${esc(t('fr.' + f.id + '.tmi' + i))}</li>`).join('')}</ul>
+         <div class="gsub">${t('fr.like')} · ${esc(t('fr.' + f.id + '.like'))}</div>
+         <div class="gsub">${t('fr.home')} · ${esc(t('fr.' + f.id + '.home'))}</div>`
+      : '';
+    // 부르기: 단짝만. 다른 친구가 와 있거나 쉬는 중이면 이유를 보여 준다
+    const why = f.can === 'notBest' ? t('fr.callNotBest') : f.can === 'busy' ? t('fr.callBusy') : f.can === 'cooldown' ? t('fr.callCool', { m: Math.max(1, Math.ceil((F.callReadyAt - Date.now()) / 60000)) }) : '';
+    const call = f.level >= 3 || f.can !== 'notBest'
+      ? `<button class="btn small ${f.can ? '' : 'primary'}" data-fr-call="${f.id}" ${f.can ? 'disabled' : ''}>${icon('bell', 12)}${t('fr.call')}</button>${why ? `<div class="gsub">${esc(why)}</div>` : ''}`
+      : `<div class="gsub">${esc(why)}</div>`;
+    // 선물하기: 단짝 고양이 친구만. 고양이 친구인데 아직 단짝이 아니면 안내만
+    const gift = f.giftable
+      ? `<button class="btn small" data-fr-gift="${f.id}">${icon('gift', 12)}${t('fr.giftBtn')}</button>`
+      : f.fur != null ? `<div class="gsub">${t('fr.giftHint')}</div>` : '';
+    return `<div class="panel gcell ${open ? 'open' : ''}" data-fr-card="${f.id}">
+      ${friendArt(f, 'active')}
+      <div class="fr-nick">${esc(t('fr.' + f.id + '.nick'))}</div>
+      <div class="gnm">${esc(t('fr.' + f.id + '.name'))} <span class="glv">${t('friend.' + f.level)}</span></div>
+      <div class="gsub">${esc(t('fr.' + f.id + '.species'))}</div>
+      <div class="ghearts">${hearts}</div>
+      <div class="fr-bar"><i style="width:${f.next ? Math.round(((f.pts - (f.prev || 0)) / (f.next - (f.prev || 0))) * 100) : 100}%"></i></div>
+      <div class="gsub">${f.next ? t('fr.next', { n: f.next - f.pts, level: t('friend.' + (f.level + 1)) }) : t('fr.bondMaxShort')}</div>
+      <div class="gsub">${t('fr.visits', { n: f.visits })}</div>
+      ${tmi}
+      <div class="fr-more">${open ? t('fr.tmiClose') : t('fr.tmiOpen')}</div>
+      <div class="fr-call">${call}${gift}</div>
+    </div>`;
+  }).join('');
+  return `<h2>${t('fr.title')}</h2>
+    <p class="muted" style="margin-top:-4px">${t('fr.sub')}</p>
+    ${nowCard}
+    <div class="gbox">${cards}</div>`;
 }
 
 // ---------- 자랑 카드 · 리캡 카드 ----------
@@ -872,6 +957,12 @@ function animate() {
   const off = offscreen();
   if (!off) {
     hero.frame();
+    const ft = performance.now() / 1000;
+    for (const c of document.querySelectorAll('canvas[data-friend-art]')) {
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, 48, 48);
+      PetFriends.draw(g, c.dataset.friendArt, ft + (c.dataset.off ? Number(c.dataset.off) : 0), 'idle', 1);
+    }
     for (const m of minis) {
       if (m.seq) stepToySeq(m);
       // 미리보기 모션은 끝나면 잠깐 쉬었다가 다시 한다
@@ -979,6 +1070,45 @@ function openSetMotions(key) {
     'setmo-modal',
   );
   minis.push(...$$('canvas[data-stage]', el).map(mini));
+}
+
+// ---------- 친구에게 선물하기 ----------
+// 단짝 고양이 친구에게 공방 코스튬을 준다. 고르면 아래에 한 번 더 묻고, 주면 인벤토리에서 빠진다 (main/friends.js 의 gift)
+function openFriendGift(id) {
+  const f = D.friends.list.find((x) => x.id === id);
+  if (!f) return;
+  const mine = D.workshop ? D.workshop.recipes.filter((r) => r.owned) : [];
+  const name = t('fr.' + id + '.name');
+  const cells = mine
+    .map((r) => `<button class="gift-cell" data-gift-pick="${r.key}"><span class="wtag">${t('cslot.' + r.slot)}</span><canvas class="pixel" data-stage="cat" data-fur="${f.fur}" data-acc="${r.key}"></canvas><div class="nm">${esc(t('item.' + r.key))}</div></button>`)
+    .join('');
+  const el = openModal(
+    `<div class="modal-top"><h2>${esc(t('fr.giftTitle', { name }))}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('fr.giftSub')}</p>
+    ${mine.length ? `<div class="gift-grid">${cells}</div>` : `<p class="muted">${t('fr.giftNone')}</p>`}
+    <div class="modal-foot gift-foot" hidden></div>`,
+    'gift-modal',
+  );
+  minis.push(...$$('canvas[data-stage]', el).map(mini));
+  const foot = $('.gift-foot', el);
+  $$('[data-gift-pick]', el).forEach((b) =>
+    b.addEventListener('click', () => {
+      $$('[data-gift-pick]', el).forEach((x) => x.classList.toggle('on', x === b));
+      const r = mine.find((x) => x.key === b.dataset.giftPick);
+      const item = t('item.' + r.key);
+      const lost = (f.wearBy || {})[r.slot];
+      foot.hidden = false;
+      foot.innerHTML = `<span>${esc(t('fr.giftConfirm', { item, name }))}${lost ? `<br><small class="muted">${esc(t('fr.giftLost', { item: t('item.' + lost) }))}</small>` : ''}</span>
+        <button class="btn primary" data-gift-go>${icon('gift', 13)}${t('fr.giftBtn')}</button>`;
+      $('[data-gift-go]', foot).addEventListener('click', async () => {
+        const res = await pet.friendGift(id, r.key);
+        if (res && res.data) await apply(res.data);
+        closeModal();
+        if (res && res.result && res.result.ok) toast(t('fr.gifted', { name, item }), 'gift');
+        renderView();
+      });
+    }),
+  );
 }
 
 // ---------- 장난감 사용법 ----------
@@ -1167,6 +1297,9 @@ function renderTop() {
     $('.tx', b).textContent = t('tab.' + b.dataset.tab);
     b.title = t('tab.' + b.dataset.tab);
   }
+  // 끈 기능의 탭은 숨기고, 보고 있던 탭이 숨었으면 홈으로 (다른 창 · 다른 기기에서 껐을 때)
+  for (const b of $$('#tabs button')) b.hidden = tabHidden(b.dataset.tab);
+  if (tabHidden(tab)) tab = 'home';
   $('#dot-wardrobe').hidden = !D.game.items.some((it) => it.unlocked && !seenItems.has(it.key));
   $('#dot-shop').hidden = !newUnlocks().length;
   $$('#tabs button').forEach((b) => {
@@ -1885,8 +2018,22 @@ let freshSnap = null; // '새로 열림' 페이지를 연 순간의 목록 (보�
 const COSTUME_TABS = ['set', 'head', 'face', 'neck', 'back', 'hand', 'effect'];
 let wardTab = 'all';
 // 인벤토리 큰 분류. 코스튬 밑에만 칸 분류(wardTab)가 한 줄 더 붙는다
-const INV_PAGES = ['costume', 'meal', 'snack', 'toy'];
+// 보물(treasure)은 공방을 켰을 때만 (2.2.0. invPages)
+const INV_PAGES = ['costume', 'meal', 'snack', 'toy', 'treasure'];
+const invPages = () => INV_PAGES.filter((k) => k !== 'treasure' || wsOn());
 let invPage = 'costume';
+// 보물 공방 탭 안의 페이지: 공방(코스튬 만들기) · 보물 상자(주운 보물 도감)
+let wsPage = 'workshop';
+let exPick = null; // 보물 교환소에서 고른 보물
+// 공방 코스튬의 이야기: "재료: 병뚜껑 2 · 아무 보물 4 · 10월 9일 제작" (예전 기록은 쓴 재료가 없어서 조합표로)
+function wsStory(r) {
+  const used = r.used || Object.fromEntries(r.need.map((m) => [m.key, m.n]));
+  const parts = Object.entries(used).slice(0, 4).map(([k, n]) => `${t('treasure.' + k)} ${n}`);
+  if (!r.used && r.any) parts.push(`${t('workshop.any')} ${r.any}`);
+  if (r.used && Object.keys(used).length > 4) parts.push('…');
+  const date = new Date(r.madeAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+  return t('workshop.story', { mats: parts.join(' · '), date });
+}
 let shopCostumeTab = 'set'; // 처음 열면 세트부터 (2026-09-29)
 let shopStarTab = 'set'; // 별 상점도 코스튬처럼 칸으로 거른다. 처음 열면 세트부터 (2026-10-09). 털색은 맨 끝 '털색' 칩
 
@@ -2048,6 +2195,81 @@ const TABS = {
 
   // 옷장: 왼쪽에 지금 입은 모습과 칸별 착용 목록·코디 저장, 오른쪽에 가진 코스튬 인벤토리 (분류 탭).
   // 누르면 그 칸에 입고, 입은 걸 다시 누르면 벗는다. 칸마다 하나씩, 세트는 여러 칸을 한꺼번에 차지한다
+  // 동네 친구 · 보물 공방 (2.0.0 에 없앴다가 2.2.0 에 돌아왔다). 설정에서 끄면 탭이 숨는다 (isTab)
+  friends() {
+    // 동네 친구들: 놀러 오는 동네 친구 도감 (보물 상자는 2026-09-24 에 '보물 공방' 탭으로 옮겼다)
+    return guestBox();
+  },
+
+  // 보물 공방: 주운 보물을 재료로 공방 코스튬을 만든다 (core/workshop.js). 2.0.0 부터 상점에서도 파는 옷이라
+  // 상점에서 산 것은 '가짐'으로 보이고 따로 만들지 않는다.
+  // 보물 상자(주운 보물 도감)는 위쪽 '보물 상자' 버튼을 눌러야 보인다
+  workshop() {
+    const W = D.workshop;
+    const T5 = D.treasures;
+    const page = W && wsPage !== 'box' ? 'workshop' : 'box';
+    const chips = [
+      ['workshop', W ? `${W.made} / ${W.total}` : ''],
+      ['box', T5 ? `${T5.kinds} / ${T5.total}` : ''],
+    ]
+      .map(([k, n]) => `<button class="chip ${k === page ? 'on' : ''}" data-ws-page="${k}">${t(k === 'box' ? 'treasure.title' : 'workshop.title')}<small>${n}</small></button>`)
+      .join('');
+    const nav = `<nav class="shop-jump ws-pages">${chips}</nav>`;
+    if (page === 'box') return `${nav}${treasureBox()}`;
+    const tr = (k) => esc(t('treasure.' + k));
+    const card = (r) => {
+      const mats = r.need
+        .map((m) => `<li class="${m.have >= m.n ? 'ok' : ''}">${icon(m.key, 16)}<span class="nm">${tr(m.key)}</span><b>${Math.min(m.have, m.n)}/${m.n}</b></li>`)
+        .join('');
+      const any = r.any
+        ? `<li class="${r.anyHave >= r.any ? 'ok' : ''}" title="${esc(t('workshop.anyHint'))}">${icon('gift', 16)}<span class="nm">${t('workshop.any')}</span><b>${Math.min(r.anyHave, r.any)}/${r.any}</b></li>`
+        : '';
+      const on = r.slot && (D.settings.outfit || {})[r.slot] === r.key;
+      // 가진 건 입기, 선물해서 없으면 다시 만들기 (상점에서 산 건 '가짐')
+      const foot = r.owned
+        ? `<span class="own">${icon('check', 11)}${t(r.made ? 'workshop.made' : 'shop.owned')}</span><button class="btn buy ${on ? '' : 'primary'}" data-ws-wear="${r.key}" data-slot="${r.slot}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`
+        : `<button class="btn buy ${r.ready ? 'primary' : ''}" data-craft="${r.key}" ${r.ready ? '' : 'disabled'}>${t(r.ready ? (r.made ? 'workshop.remake' : 'workshop.make') : 'workshop.collecting')}</button>`;
+      // 모자란 재료를 교환소에서 바꿔 채울 수 있으면 버튼 하나 더
+      const fill = r.fillable ? `<button class="btn ghost buy ws-fill" data-ws-fill="${r.key}">${icon('sparkle', 11)}${t('workshop.fill')}</button>` : '';
+      // 만든 건 '주워 온 잡동사니로 만든 것'이라는 이야기: 쓴 재료 · 만든 날
+      const story = r.made && r.madeAt ? `<div class="ws-story">${esc(wsStory(r))}</div>` : '';
+      // 카드는 늘 네 줄 (그림 · 이름 · 재료 · 버튼). 같은 줄 카드끼리 줄 높이를 맞춘다 (house.css .ws-grid)
+      return `<div class="panel item ws-card ${r.owned ? 'on' : ''} ${r.ready && !r.owned ? 'ready' : ''}">
+        ${r.slot ? `<span class="wtag">${t('cslot.' + r.slot)}</span>` : ''}
+        <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${D.growth ? D.growth.stageKey : 'cat'}" data-acc="${r.key}"></canvas></span></div>
+        <div class="nm">${esc(t('item.' + r.key))}</div>
+        ${story}
+        <ul class="ws-mats">${mats}${any}</ul>
+        <div class="hint">${foot}${fill}</div>
+      </div>`;
+    };
+    const tier = (k) => {
+      const list = W.recipes.filter((r) => r.tier === k);
+      return `<h2>${t('workshop.tier.' + k)} <span class="muted">${list.filter((r) => r.made).length} / ${list.length}</span></h2>
+        <p class="muted" style="margin-top:-4px">${t('workshop.tierSub.' + k)}</p>
+        <div class="wardrobe ws-grid">${list.map(card).join('')}</div>`;
+    };
+    // 보물 교환소: 받을 보물을 고르면 내는 것이 보이고, 바꾸기
+    const ex = W.exchange || [];
+    const exOpt = (rar) => ex.filter((x) => x.rarity === rar)
+      .map((x) => `<option value="${x.key}" ${x.key === exPick ? 'selected' : ''} ${x.ok ? '' : 'data-no="1"'}>${tr(x.key)} (${t('workshop.exHave', { n: x.have })})${x.ok ? '' : ' · ' + t('workshop.exShort')}</option>`)
+      .join('');
+    const cur = ex.find((x) => x.key === exPick) || ex.find((x) => x.ok) || ex[0];
+    const exchange = cur
+      ? `<h2>${t('workshop.exTitle')}</h2>
+      <p class="muted" style="margin-top:-4px">${t('workshop.exSub')}</p>
+      <div class="panel ws-exchange">
+        <select id="ex-pick"><optgroup label="${esc(t('rarity.common'))}">${exOpt('common')}</optgroup><optgroup label="${esc(t('rarity.rare'))}">${exOpt('rare')}</optgroup></select>
+        <span class="muted small ex-cost">${t('workshop.exCost.' + cur.rarity)}</span>
+        <button class="btn primary" data-act="exchange" ${cur.ok ? '' : 'disabled'}>${t('workshop.exDo')}</button>
+      </div>`
+      : '';
+    return `${nav}<h2>${t('workshop.title')} <span class="muted">${W.made} / ${W.total}</span></h2>
+      <p class="muted" style="margin-top:-4px">${t('workshop.sub')}</p>
+      ${exchange}
+      ${tier('easy')}${tier('normal')}${tier('hard')}`;
+  },
+
   wardrobe() {
     const g = D.growth;
     const stage = g ? g.stageKey : 'cat';
@@ -2086,7 +2308,7 @@ const TABS = {
         const on = worn.has(it.key);
         const isNew = !seenItems.has(it.key);
         return `<div class="panel item witem ${on ? 'on' : ''}" data-item="${it.key}" title="${esc(it.name)}">
-          <span class="wtag">${t('cslot.' + it.slot)}</span>
+          <span class="wtag">${t('cslot.' + it.slot)}</span>${it.workshop ? `<span class="ws-stamp">${t('workshop.stamp')}</span>` : ''}
           <div class="pv"><span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="${it.key}"></canvas></span></div>
           <div class="nm">${esc(it.name)} ${isNew ? '<span class="new">NEW</span>' : ''}</div>
           <div class="fx">${setMoBtn(it.key)}</div>
@@ -2094,16 +2316,18 @@ const TABS = {
         </div>`;
       })
       .join('');
-    // ---- 밥 · 간식 · 장난감: 지금 가진 것만. 다 먹은 건 카드가 사라진다 ----
-    const page = INV_PAGES.includes(invPage) ? invPage : 'costume';
+    // ---- 밥 · 간식 · 장난감 · 보물 재료: 지금 가진 것만. 다 먹거나 다 쓴 건 카드가 사라진다 ----
+    const pages = invPages();
+    const page = pages.includes(invPage) ? invPage : 'costume';
     const pantry = (grp) => D.shop.food.filter((x) => x.group === grp && x.stock > 0);
     const have = {
       costume: mine,
       meal: pantry('meal'),
       snack: pantry('snack'),
       toy: D.shop.toy.filter((x) => x.owned),
+      treasure: D.treasures ? D.treasures.list.filter((x) => x.count > 0) : [],
     };
-    const pageChips = INV_PAGES.map(
+    const pageChips = pages.map(
       (k) => `<button class="chip ${k === page ? 'on' : ''} ${have[k].length ? '' : 'empty'}" data-inv-page="${k}">${t('inv.' + k)}<small>${have[k].length}</small></button>`,
     ).join('');
     const foodCard = (it) => `<div class="panel item inv-item">
@@ -2118,9 +2342,11 @@ const TABS = {
         <div class="fx">${toyTags(it)}</div>
         <div class="hint"><button class="btn primary buy" data-play="${it.key}">${t('inv.play')}</button><button class="btn ghost buy" data-toy-demo="${it.key}">${t('shop.guide')}</button></div>
       </div>`;
-
+    const treasureCard = (x) => `<div class="panel tcell tr-${x.rarity}" title="${esc(t('treasure.' + x.key))}">
+        <span class="trar">${t('rarity.' + x.rarity)}</span>${icon(x.key, 40)}
+        <div class="tnm">${esc(t('treasure.' + x.key))}</div><div class="tcnt">×${x.count}</div></div>`;
     const cat = `<canvas class="pixel closet-cat" data-stage="${stage}" data-acc="${esc(D.settings.accessory || 'none')}" data-mood="active"></canvas>`;
-    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지
+    // 왼쪽 패널: 코스튬은 입은 칸·코디 저장, 밥·간식·장난감은 배부름 게이지, 보물은 공방 가기
     const gg = D.gauge || { food: 100, full: true };
     const left =
       page === 'costume'
@@ -2131,7 +2357,10 @@ const TABS = {
           <button class="btn ghost small wide" data-act="undress" ${worn.size ? '' : 'disabled'}>${t('ward.undress')}</button>
           <div class="wsaves-title">${t('ward.saves')}</div>
           <div class="wsaves">${saves}</div>`
-        : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
+        : page === 'treasure'
+          ? `${cat}<p class="muted inv-note">${t('inv.treasureNote')}</p>
+            <button class="btn small wide" data-act="toWorkshop">${icon('gem', 12)}${t('inv.toWorkshop')}</button>`
+          : `${cat}<div class="inv-gauge">${gaugeRow('food', gg.food, 'ricebowl')}</div>
             <p class="muted inv-note">${gaugeNote(gg)}</p>`;
     const right =
       page === 'costume'
@@ -2139,7 +2368,9 @@ const TABS = {
           ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
         : !have[page].length
           ? `<p class="muted center">${t('inv.empty.' + page)}</p>`
-          : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
+          : page === 'treasure'
+            ? `<div class="tbox">${have.treasure.map(treasureCard).join('')}</div>`
+            : `<div class="wardrobe inv-grid inv-uni">${have[page].map(page === 'toy' ? toyCard : foodCard).join('')}</div>`;
     const html = `
       <div class="h2-row"><h2>${t('ward.title')}</h2><button class="btn head-act" data-act="card">${icon('sparkle', 12)}${t('card.open')}</button></div>
       <p class="muted" style="margin-top:-4px">${t(page === 'costume' ? 'ward.sub' : 'inv.sub.' + page)}</p>
@@ -2481,6 +2712,8 @@ const TABS = {
         <div class="field theme-field"><div class="lbl">${t('set.theme')}<small>${t('set.themeSub')}</small></div>
           <div class="theme-picks">${THEMES.map((k) => `<button class="theme-pick ${themeOf(s.theme) === k ? 'on' : ''}" data-theme-pick="${k}" aria-pressed="${themeOf(s.theme) === k}">${k === 'auto' ? `<i class="sw sw-auto"></i>` : `<i class="sw" style="background:${THEME_SWATCH[k][0]}"><b style="background:${THEME_SWATCH[k][1]}"></b></i>`}${t('theme.' + k)}</button>`).join('')}</div></div>
         <div class="field"><div class="lbl">${t('obs.showPet')}<small>${t('obs.showPetDesc')}</small></div>${sw('showPet', s.showPet !== false)}</div>
+        <div class="field"><div class="lbl">${t('set.friendsOn')}<small>${t('set.friendsOnSub')}</small></div>${sw('friendsOn', s.friendsOn !== false)}</div>
+        <div class="field"><div class="lbl">${t('set.workshopOn')}<small>${t('set.workshopOnSub')}</small></div>${sw('workshopOn', s.workshopOn !== false)}</div>
       </div>
 
       <h2 id="set-goal">${t('goal.setHead')}</h2>
@@ -2541,6 +2774,16 @@ const TABS = {
         <div class="field"><div class="lbl">${t('set.showNews')}</div><button class="btn ghost" data-act="whatsNew">${t('set.open')}</button></div>
         <div class="field"><div class="lbl">${t('obs.feedback')}<small>${t('obs.feedbackDesc')}</small></div><button class="btn ghost" data-act="feedback">${t('obs.feedbackBtn')}</button></div>
       </div>
+
+      ${
+        s.devMode
+          ? `<h2>${t('dev.events')}</h2>
+      <div class="panel"><p class="muted" style="margin:0 0 8px;font-size:12px">${t('dev.eventsSub')}</p><div class="actions">${['fetch', 'bird', 'guest', 'rare']
+        .filter((k) => (k === 'guest' ? frOn() : wsOn()))
+        .map((k) => `<button class="btn small" data-dev-event="${k}">${t('dev.ev.' + k)}</button>`)
+        .join('')}</div></div>`
+          : ''
+      }
 
       <h2 id="set-reset">${t('set.reset')}</h2>
       <div class="panel danger">
@@ -2619,8 +2862,10 @@ function labelFields(root) {
   }
 }
 
-// 탭이 아닌 속 함수 (__ 로 시작) 는 탭으로 치지 않는다
-const isTab = (t) => typeof TABS[t] === 'function' && !t.startsWith('__');
+// 끈 기능의 탭 (2.2.0): 친구 · 공방은 설정에서 끄면 숨는다
+const tabHidden = (t) => (t === 'friends' && !frOn()) || (t === 'workshop' && !wsOn());
+// 탭이 아닌 속 함수 (__ 로 시작) 와 숨은 탭은 탭으로 치지 않는다
+const isTab = (t) => typeof TABS[t] === 'function' && !t.startsWith('__') && !tabHidden(t);
 
 function setTab(t) {
   // '새로 생긴 것' 말풍선 링크: 홈을 열고 창을 띄운다
@@ -2674,8 +2919,8 @@ function checkNumber(el, key) {
 
 function bindView(view) {
   $$('[data-act]', view).forEach((b) => b.addEventListener('click', () => act(b.dataset.act, b)));
-  // 누르는 카드(옷장 코스튬)는 키보드로도 고르고 Enter·Space 로 누른다
-  $$('[data-item]', view).forEach((el) => {
+  // 누르는 카드(옷장 코스튬·동네 친구)는 키보드로도 고르고 Enter·Space 로 누른다
+  $$('[data-item], [data-fr-card]', view).forEach((el) => {
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
@@ -2726,6 +2971,14 @@ function bindView(view) {
       keepScroll();
     }),
   );
+  // 보물 공방 ↔ 보물 상자. 서로 길이가 달라서 맨 위부터 보여 준다
+  $$('[data-ws-page]', view).forEach((el) =>
+    el.addEventListener('click', () => {
+      wsPage = el.dataset.wsPage;
+      renderView();
+      $('#view').scrollTop = 0;
+    }),
+  );
   // 인벤토리 장난감 꺼내기. 이미 놀고 있으면 main 쪽 startPlay 가 놀이를 끝낸다
   $$('[data-play]', view).forEach((el) =>
     el.addEventListener('click', async () => {
@@ -2773,6 +3026,23 @@ function bindView(view) {
       hero.play((D.motion.lists.wear || [])[0] || 'happy');
       toast(t('ward.loaded', { n: Number(el.dataset.outfitLoad) + 1 }), 'sparkle');
       keepScroll();
+    }),
+  );
+  // 동네 친구 카드: 누르면 TMI 펼치기, 부르기 버튼
+  $$('[data-fr-card]', view).forEach((el) =>
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      friendOpen = friendOpen === el.dataset.frCard ? null : el.dataset.frCard;
+      keepScroll();
+    }),
+  );
+  $$('[data-fr-gift]', view).forEach((el) => el.addEventListener('click', () => openFriendGift(el.dataset.frGift)));
+  $$('[data-fr-call]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const r = await pet.friendCall(el.dataset.frCall);
+      if (r && r.data) await apply(r.data);
+      if (r && r.result && !r.result.error) toast(t('fr.called', { name: t('fr.' + el.dataset.frCall + '.name') }), 'paw');
+      renderView();
     }),
   );
   // 세트 카드의 '전용 모션' 버튼 (옷장 카드를 눌러 입는 것과 겹치지 않게 막는다)
@@ -2915,6 +3185,21 @@ function bindView(view) {
   $$('details[data-mgroup]', view).forEach((el) =>
     el.addEventListener('toggle', () => (el.open ? mgroupOpen.add(el.dataset.mgroup) : mgroupOpen.delete(el.dataset.mgroup))),
   );
+  // 보물 교환소
+  const exSel = $('#ex-pick', view);
+  if (exSel)
+    exSel.addEventListener('change', () => {
+      exPick = exSel.value;
+      renderView();
+    });
+  $$('[data-ws-fill]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const r = await pet.fillRecipe(el.dataset.wsFill);
+      if (r.payload) await apply(r.payload);
+      toast(r.ok ? t('workshop.filled', { what: Object.entries(r.got).map(([k, n]) => `${t('treasure.' + k)} ${n}`).join(', ') }) : t('workshop.exShort'), 'gem');
+      renderView();
+    }),
+  );
   $$('[data-give]', view).forEach((el) =>
     el.addEventListener('click', async () => {
       const key = el.dataset.give;
@@ -2922,6 +3207,38 @@ function bindView(view) {
       if (r.payload) await apply(r.payload);
       if (r.ok) toast(t('toast.served', { name: t('item.' + key) }), key);
       renderView();
+    }),
+  );
+
+  // 보물 공방: 만들기 · 만든 것 입고 벗기
+  $$('[data-craft]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const key = el.dataset.craft;
+      el.disabled = true;
+      const r = await pet.craft(key);
+      if (r.payload) await apply(r.payload);
+      if (r.ok) toast(t('workshop.crafted', { name: t('item.' + key) }), key);
+      else toast(t('workshop.short'), 'gift');
+      keepScroll();
+    }),
+  );
+  $$('[data-ws-wear]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const key = el.dataset.wsWear;
+      const slot = el.dataset.slot;
+      const wearing = (D.settings.outfit || {})[slot] === key;
+      const name = t('item.' + key);
+      await apply(await pet.set({ outfit: { [slot]: wearing ? null : key } }));
+      toast(wearing ? t('ward.tookOff', { name }) : t('ward.worn', { name }), wearing ? 'check' : key);
+      keepScroll();
+    }),
+  );
+
+  // 개발자 모드: 깜짝 이벤트 · 친구 바로 일으키기 (배포 전에 지운다)
+  $$('[data-dev-event]', view).forEach((el) =>
+    el.addEventListener('click', async () => {
+      const r = await pet.devEvent(el.dataset.devEvent);
+      toast(r ? t('dev.eventSent', { type: el.dataset.devEvent }) : t('dev.eventNo'), 'sparkle');
     }),
   );
 
@@ -3156,6 +3473,21 @@ async function act(name, el) {
     case 'poke':
       pet.poke();
       hero.play('happy');
+      break;
+    case 'exchange': {
+      const sel = $('#ex-pick');
+      const key = sel ? sel.value : exPick;
+      if (!key) break;
+      exPick = key;
+      const r = await pet.exchange(key);
+      if (r.payload) await apply(r.payload);
+      toast(r.ok ? t('workshop.exDone', { name: t('treasure.' + key) }) : t('workshop.exShort'), key);
+      renderView();
+      break;
+    }
+    case 'toWorkshop':
+      wsPage = 'workshop';
+      setTab('workshop');
       break;
     case 'feed': {
       const r = await pet.feed();
@@ -3459,7 +3791,7 @@ const WHATS_NEW_OBS = [
   ['quest2', 'scroll', 'home'],
   ['motion2', 'sparkle', 'motions'],
   ['toys2', 'yarn', 'shop'],
-  ['gone2', 'gift', 'wardrobe'],
+  ['back22', 'paw', 'friends'], // 2.2.0: 동네 친구 · 보물 공방이 돌아왔다 (2.0.0 의 '정리한 것' 줄 자리)
 ];
 function showWhatsNew() {
   const v = D.version || '';
@@ -3506,7 +3838,7 @@ $$('#tabs button').forEach((b) => {
 });
 // 탭 줄은 Tab 키로 한 번만 들어가고, 안에서는 화살표·Home·End 로 옮긴다
 $('#tabs').addEventListener('keydown', (e) => {
-  const list = $$('#tabs button');
+  const list = $$('#tabs button').filter((b) => !b.hidden);
   const i = list.indexOf(document.activeElement);
   if (i < 0) return;
   const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: list.length - 1 }[e.key];

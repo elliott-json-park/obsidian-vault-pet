@@ -499,6 +499,7 @@ class Gamify extends EventEmitter {
   summary() {
     const T = this.getStrings();
     const c = this.lastGrowth ? this.context({ level: this.lastGrowth.level, stageIndex: this.lastGrowth.stageIndex }) : null;
+    const made = new Set((this.st.workshopMade || []).map((x) => x && x.key));
     return {
       achCats: CATS,
       achTiers: TIERS,
@@ -517,6 +518,7 @@ class Gamify extends EventEmitter {
         price: it.price,
         slot: it.slot || null,
         covers: it.covers || null,
+        workshop: made.has(it.key), // 보물 공방에서 만든 것 (인벤토리 카드의 '공방' 도장. 상점에서 산 같은 옷에는 안 붙는다, 2.2.0)
         name: T.t(`item.${it.key}`),
         unlocked: this.st.items.includes(it.key) || !!this.getSettings().devMode, // 개발자 모드면 전부 (배포 전에 지운다)
       })),

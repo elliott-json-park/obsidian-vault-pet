@@ -23,6 +23,8 @@ const DEVICE_SETTINGS = ['position', 'showPet', 'houseInSidebar', 'lowPower'];
 const DEVICE_STATE = [
   'quietUntil', 'focus', 'focusQuiet', 'focusBreak', 'lastVersion', 'whatsNew', 'ui', 'lineMemory', 'brainDaily',
   'pending', 'replies', 'recapNudged', 'refundNote', 'toyOffers', 'lastFood', 'lastMeal',
+  // 2.2.0: 돌아온 깜짝 이벤트 · 친구의 기기 몫 (오늘 이벤트 횟수 · 이 기기 바닥에 떨어진 보물 · 1.x 손님 기록)
+  'eventLog', 'eventLoot', 'guests',
 ];
 const TIMED_STATE = ['gauge', 'life'];
 const HISTORY_MAX = 12;
@@ -200,9 +202,11 @@ function bonusKey(x) {
 const STATE = objOf({
   // 코인 · 별 · 횟수: 양쪽에서 늘어난 만큼
   walletSpent: SUM, walletBonus: SUM, starsSpent: SUM, questsDone: SUM, pokes: SUM, mealsTaken: SUM, restsTaken: SUM,
-  pantry: mapOf(SUM), cnt: mapOf(SUM),
+  pantry: mapOf(SUM), treasures: mapOf(SUM), cnt: mapOf(SUM),
   focusStats: objOf({ n: SUM, min: SUM, last: MAX }),
   purchaseStats: objOf({ v: MAX }, DEEP_SUM),
+  // 동네 친구 (2.2.0 에 돌아왔다): 친밀도 · 방문 횟수는 늘어난 만큼, 지금 놀러 온 친구 · 다음 방문 · 부르기 쉬는 시간은 기기마다
+  friends: objOf({ list: mapOf(objOf({ pts: SUM, visits: SUM, lastAt: MAX })), visit: DEVICE, nextAt: DEVICE, callReadyAt: DEVICE }),
   // 한 번 오르면 안 내려가는 것
   lastLevel: MAX, lastStage: MAX, stageScheme: MAX, starsPaid: MAX, maxStreakMin: MAX, attendDay: MAX, mealDay: MAX, restDay: MAX, earlyDay: MAX,
   goalLog: mapOf(MAX), toyRecords: DEEP_MAX,
@@ -212,6 +216,8 @@ const STATE = objOf({
   items: unionOf(String),
   retiredPaid: unionOf(String),
   todoTomb: unionOf(String, 200),
+  treasureSeen: unionOf(String), // 한 번이라도 주운 보물 (도감)
+  workshopMade: unionOf((p) => `${p.at}|${p.key}`), // 공방에서 만든 기록
   bonus: unionOf(bonusKey),
   purchases: unionOf((p) => `${p.at}|${p.key}|${p.price}`, 300),
   starLog: unionOf((p) => `${p.at}|${p.key}`, 200),

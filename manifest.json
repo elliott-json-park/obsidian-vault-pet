@@ -1,7 +1,7 @@
 {
   "id": "vault-pet",
   "name": "Vault Pet",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "minAppVersion": "1.5.0",
   "description": "A pixel cat that helps you build good note habits: focus timer, to-do list, note map and quests for links, tags, daily notes and tidying up. It levels up as you write, with costumes and toys.",
   "author": "Elliott Park",

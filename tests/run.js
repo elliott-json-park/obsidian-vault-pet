@@ -89,6 +89,55 @@ test('usage: 새 노트는 10자 넘으면 한 번만, 붙여넣기는 상한까
   assert.strictEqual(u.totals().n, 1);
 });
 
+test('canvas: 텍스트 카드의 글만 재고, 새 캔버스는 첫 저장부터 단어를 센다 (2.2.0, 이슈 #8)', () => {
+  const { measureCanvas } = require(path.join(src, 'core/usage'));
+  const board = (...texts) => JSON.stringify({ nodes: [
+    ...texts.map((text, i) => ({ id: 't' + i, type: 'text', text, x: 0, y: 0, width: 200, height: 60 })),
+    { id: 'f', type: 'file', file: '긴 노트.md' }, { id: 'l', type: 'link', url: 'https://example.com' }, { id: 'g', type: 'group', label: '그룹 이름' },
+  ], edges: [] });
+  const m = measureCanvas(board('hello brave world', '# 제목 [[노트]] #태그'));
+  assert.strictEqual(m.words, 3 + 3, '카드 두 장의 단어 (끼워 넣은 노트 · 링크 · 그룹 이름은 빼고)');
+  assert.strictEqual(m.links, 1);
+  assert.strictEqual(m.head, 1);
+  assert.strictEqual(m.tag, 1);
+  assert.strictEqual(measureCanvas(board('---\ntitle: x\n---')).prop, 0, '카드 첫 줄의 --- 는 앞머리(속성)가 아니다');
+  assert.deepStrictEqual(measureCanvas('{ 깨진'), measure(''));
+  assert.deepStrictEqual(measureCanvas(''), measure(''));
+  // 새 캔버스: 새 노트 수에는 안 들어가고, 첫 저장의 단어도 센다
+  const u = new UsageTracker();
+  u.canvas('보드.canvas');
+  u.observe('보드.canvas', measureCanvas(board('one two three four five six seven eight')), new Date());
+  assert.strictEqual(u.totals().w, 8);
+  assert.strictEqual(u.totals().n, 0, '캔버스는 노트가 아니다');
+  u.observe('보드.canvas', measureCanvas(board('one two three four five six seven eight', 'nine ten')), new Date());
+  assert.strictEqual(u.totals().w, 10, '늘어난 만큼만');
+});
+
+test('canvas: 2.2.0 으로 올린 첫 실행은 카드에 이미 있던 글을 기준으로만 잡는다 (이슈 #8)', async () => {
+  const KitCommitPlugin = require(path.join(src, 'plugin/main'));
+  const { measureCanvas } = require(path.join(src, 'core/usage'));
+  const card = (text) => JSON.stringify({ nodes: [{ id: 'a', type: 'text', text }] });
+  const f = Object.assign(new fakeObsidian.TFile(), { path: '보드.canvas', extension: 'canvas', stat: { mtime: 5000 } });
+  const content = { '보드.canvas': card('이미 써 둔 카드 글이 꽤 길게 있다') };
+  const self = Object.assign(Object.create(KitCommitPlugin.prototype), {
+    app: { vault: { getMarkdownFiles: () => [], getFiles: () => [f], cachedRead: async (x) => content[x.path] } },
+    usage: new UsageTracker(), meta: { scanned: true }, prevSeen: 0,
+    isExcludedPath: () => false, setLoading() {}, saveSoon() {},
+  });
+  // 2.1.0 까지의 기록: 캔버스는 내용을 안 재고 0 으로 기준만 잡았다
+  self.usage.observe(f.path, { chars: 0, links: 0 }, new Date(), { baseline: true, mtime: 1000 });
+  self.queue(f);
+  assert.ok(!self.pending, '기준을 잡기 전에는 캔버스 변화를 받지 않는다');
+  await self.scan();
+  assert.strictEqual(self.meta.canvasText, true);
+  assert.strictEqual(self.usage.totals().c, 0, '업데이트하자마자 예전 카드 글이 한꺼번에 세지지 않는다');
+  content[f.path] = card('이미 써 둔 카드 글이 꽤 길게 있다 그리고 새로 쓴 말');
+  self.usage.observe(f.path, self.measureOf(f, content[f.path]), new Date());
+  assert.strictEqual(self.usage.totals().w, 4, '그 뒤에 쓴 단어만');
+  assert.deepStrictEqual(self.measureOf({ extension: 'md' }, '# 노트'), measure('# 노트'));
+  assert.deepStrictEqual(self.measureOf(f, content[f.path]), measureCanvas(content[f.path]));
+});
+
 test('usage: 30분 넘게 쉬면 글쓰기 세션이 하나 늘고 알린다', () => {
   const u = new UsageTracker();
   let sessions = 0;
@@ -207,9 +256,9 @@ function makeHost(pre = {}) {
 test('host: 켜지면 성장·퀘스트가 잡히고 house:get 이 하우스에 필요한 걸 다 준다', async () => {
   const { host } = makeHost();
   const d = await host.onInvoke('house:get');
-  for (const k of ['settings', 'growth', 'today', 'game', 'shop', 'stats', 'vault', 'motion', 'gauge', 'todos', 'home', 'skills', 'projects', 'formula']) assert.ok(d[k] !== undefined, k);
-  // 2.0.0 에 없앤 것은 하우스에 안 간다
-  for (const k of ['treasures', 'workshop', 'friends', 'craving', 'news', 'temper']) assert.strictEqual(d[k], undefined, k);
+  for (const k of ['settings', 'growth', 'today', 'game', 'shop', 'stats', 'vault', 'motion', 'gauge', 'todos', 'home', 'skills', 'projects', 'formula', 'treasures', 'workshop', 'friends']) assert.ok(d[k] !== undefined, k);
+  // 2.0.0 에 없앤 것은 하우스에 안 간다 (친구 · 보물 · 공방은 2.2.0 에 돌아왔다)
+  for (const k of ['craving', 'news', 'temper']) assert.strictEqual(d[k], undefined, k);
   assert.strictEqual(d.game.quests.length, 3);
   assert.ok(d.shop.wallet.balance >= 1000, '환영 용돈');
   assert.strictEqual(d.pastLevel, growth.levelOf(growth.xpOf({ c: 50000, l: 100, n: 30, s: 0 })));
@@ -244,8 +293,8 @@ test('host: 상점에서 사고 입고, 밥을 사서 먹인다', async () => {
   assert.ok(host.gamify.st.cnt.fed >= 1);
 });
 
-test('host: 프리미엄 음식 — 고정·코인·업적 횟수, 먹이에 쓴 코인', async () => {
-  const { host } = makeHost();
+test('host: 프리미엄 음식 — 고정·코인·업적 횟수, 먹이에 쓴 코인 (공방을 끄면 2.x 효과)', async () => {
+  const { host } = makeHost({ settings: { workshopOn: false } });
   host.shop.state.set({ walletBonus: 100000 });
   for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:buy', null, key)).ok, key);
   assert.ok(host.gamify.st.cnt.foodSpent > 0);
@@ -255,7 +304,7 @@ test('host: 프리미엄 음식 — 고정·코인·업적 횟수, 먹이에 쓴
   for (const key of ['royalTable', 'goldMouseChoco', 'mysteryBox']) assert.ok((await host.onInvoke('shop:use', null, key)).ok, key);
   host.onSend('pet:treat-eaten', null, 'royalTable');
   assert.ok(host.gauge.locked(), '수라상은 배부름 8시간 고정');
-  // 2.0.0: 황금 쥐 초콜릿은 보물 대신 코인 40~120
+  // 공방을 껐으면 황금 쥐 초콜릿은 보물 대신 코인 40~120 (2.0.0 효과)
   const before = host.shop.wallet().balance;
   host.onSend('pet:treat-eaten', null, 'goldMouseChoco');
   const got = host.shop.wallet().balance - before;
@@ -296,6 +345,15 @@ test('host: 쓰다듬기·들기·장난감 놀이 흐름', async () => {
   host.onSend('pet:drag', null, 'start');
   host.onSend('pet:drag', null, 'end', { x: 321 });
   assert.deepStrictEqual(host.settings.get('position'), { x: 321, v: 3 });
+  // 자는 고양이를 들어 올리면 깬다 (2.2.0, 이슈 #10). 내려놓아도 5분은 다시 자지 않는다
+  host.brain.mood = 'sleeping';
+  sent.length = 0;
+  host.onSend('pet:drag', null, 'start');
+  assert.ok(!['sleeping', 'sleepy'].includes(host.brain.mood), host.brain.mood);
+  assert.ok(host.brain.wokenUntil > Date.now() + 4 * 60e3, '5분은 깨어 있는다');
+  host.onSend('pet:drag', null, 'end', { x: 321 });
+  host.brain.tick();
+  assert.ok(!['sleeping', 'sleepy'].includes(host.brain.mood), '내려놓아도 바로 다시 자지 않는다');
   assert.strictEqual(host.petConfig().startX, 321);
   const toy = host.shop.summary().toy.find((x) => !x.locked);
   host.shop.state.set({ walletBonus: 100000 });
@@ -837,10 +895,10 @@ test('quests: 예전 퀘스트 묶음(쓰다듬기 등)은 새로 뽑고, 태그
   assert.ok(seen);
 });
 
-test('achievements: 보물 · 모션 수집 · 먹고 싶은 것 · 친구 업적이 없고, 정리 습관 묶음이 있다. 모션 보상은 코인으로', () => {
+test('achievements: 모션 수집 · 먹고 싶은 것 · 초대장 업적이 없고, 정리 습관 묶음이 있다. 모션 보상은 코인으로. 보물 업적 셋은 돌아왔다 (2.2.0)', () => {
   const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
-  for (const gone of ['treasure_1', 'treasure_all', 'motion_10', 'motion_30', 'craving_1', 'invite_ok', 'smoke_break']) assert.ok(!ids.has(gone), gone);
-  for (const want of ['prop_1', 'move_1', 'orphan_1', 'graph_1', 'views_all', 'todo_1', 'dailyc_1k']) assert.ok(ids.has(want), want);
+  for (const gone of ['motion_10', 'motion_30', 'craving_1', 'invite_ok', 'smoke_break']) assert.ok(!ids.has(gone), gone);
+  for (const want of ['prop_1', 'move_1', 'orphan_1', 'graph_1', 'views_all', 'todo_1', 'dailyc_1k', 'treasure_1', 'treasure_10', 'treasure_all']) assert.ok(ids.has(want), want);
   assert.ok(CATS.includes('organize'));
   const shop = require(path.join(src, 'core/shop'));
   for (const a of ACHIEVEMENTS) if (a.reward && a.reward.item) assert.ok(!shop.find(a.reward.item, 'motion'), `${a.id}: 모션 보상`);
@@ -913,26 +971,32 @@ test('sync: 할 일은 id 로 합치고, 늦게 고친 쪽 · 어느 기기에�
   assert.deepStrictEqual(m.state.todoTomb, ['b']);
 });
 
-test('migrate v2: 보물은 코인으로, 공방 코스튬은 옷장에, 없앤 기능의 기록은 지운다 (한 번만)', () => {
+test('migrate v2: 그날의 기분 · 먹고 싶은 것 · 소식만 지우고, 보물 · 친구 · 공방 기록은 그대로 둔다 (한 번만, 2.2.0)', () => {
   const { migrateV2 } = require(path.join(src, 'core/migrate2'));
-  const st = new Store({ treasures: { bottlecap: 3, worm: 1, oldkey: 1 }, eventLoot: [{ key: 'receipt' }], workshopMade: [{ key: 'capcrown', at: 1 }, { key: 'gatekeeper', at: 2 }], items: ['none', 'capcrown'], friends: { list: {} }, craving: {}, temper: {}, news: {}, walletBonus: 10 }, {}, () => {});
+  const keep = { treasures: { bottlecap: 3, worm: 1, oldkey: 1 }, treasureSeen: ['bottlecap', 'worm', 'oldkey', 'receipt'], eventLoot: [{ id: 'x', key: 'receipt', at: 1 }], eventLog: { day: 'd', n: 2, last: 1 }, workshopMade: [{ key: 'capcrown', at: 1 }, { key: 'gatekeeper', at: 2 }], friends: { list: { dust: { pts: 60, visits: 9, wear: { set: 'gatekeeper' } } }, migrated: true }, guests: { dust: { visits: 1 } } };
+  const st = new Store({ ...clone(keep), items: ['none', 'capcrown'], craving: {}, temper: {}, news: {}, walletBonus: 10 }, {}, () => {});
   const r = migrateV2(st);
-  assert.strictEqual(r.treasures, 6);
-  assert.strictEqual(r.coins, 3 * 15 + 40 + 120 + 15);
-  assert.strictEqual(st.get('walletBonus'), 10 + r.coins);
-  assert.deepStrictEqual(r.restored, ['gatekeeper'], '선물해서 옷장에 없던 공방 코스튬을 돌려준다');
-  assert.ok(st.get('items').includes('gatekeeper'));
-  for (const k of ['treasures', 'eventLoot', 'workshopMade', 'friends', 'craving', 'temper', 'news']) assert.strictEqual(st.get(k), undefined, k);
+  assert.deepStrictEqual(r.removed.sort(), ['craving', 'news', 'temper']);
+  for (const k of ['craving', 'temper', 'news']) assert.strictEqual(st.get(k), undefined, k);
+  for (const [k, v] of Object.entries(keep)) assert.deepStrictEqual(st.get(k), v, k);
+  assert.strictEqual(st.get('walletBonus'), 10, '보물을 코인으로 바꾸지 않는다');
+  assert.deepStrictEqual(st.get('items'), ['none', 'capcrown'], '친구가 입은 옷은 친구에게 그대로');
   assert.strictEqual(migrateV2(st), null, '두 번은 안 한다');
-  // 공방 코스튬은 이제 상점에서 판다
+  // 1.x 에서 바로 올라와도 보물 · 친구 · 바닥 보물이 남는다 (바닥 보물은 켤 때 상자로)
+  const { host, state } = makeHost({ state: clone(keep) });
+  assert.strictEqual(state.get('treasures').receipt, 1, '바닥 보물은 상자로');
+  assert.strictEqual(state.get('treasures').bottlecap, 3);
+  assert.strictEqual(host.friends.summary().list.find((f) => f.id === 'dust').level, 3);
+  assert.ok(host.workshop.summary().recipes.find((x) => x.key === 'gatekeeper').made, '선물한 공방 코스튬도 만든 기록은 남는다');
+  // 공방 코스튬은 상점에서도 판다 (2.0.0) · 공방에서도 만든다 (2.2.0)
   const shop = require(path.join(src, 'core/shop'));
   const gk = shop.find('gatekeeper');
-  assert.ok(gk.price > 0 && !gk.workshop);
-  // 초대장 쿠키는 상점에서 빠지고 창고분은 돌려준다
-  const { host, state } = makeHost({ state: { pantry: { inviteCookie: 2 }, walletSpent: 5000 } });
-  assert.ok(!state.get('pantry').inviteCookie);
-  assert.strictEqual(state.get('walletSpent'), 4000);
-  assert.ok(host);
+  assert.ok(gk.price > 0 && gk.workshop);
+  // 초대장 쿠키는 상점에서 빠지고 창고분은 돌려준다 (돌아오지 않았다)
+  const inv = makeHost({ state: { pantry: { inviteCookie: 2 }, walletSpent: 5000 } });
+  assert.ok(!inv.state.get('pantry').inviteCookie);
+  assert.strictEqual(inv.state.get('walletSpent'), 4000);
+  assert.ok(!shop.FOODS.some((x) => x.key === 'inviteCookie'));
 });
 
 test('focus: 마친 뒤 쉬는 시간을 켜고, 끝나면 다시 하자고 한다 (2.0.0)', async () => {
@@ -1021,16 +1085,21 @@ test('plugin: 노트 옮기기 · 이름 바꾸기 · 화면 열어 보기 · �
   assert.deepStrictEqual(got, [['orphanFix', 1]]);
 });
 
-test('house · 펫 화면: 없앤 기능(친구 · 보물 · 공방 · 기분 · 먹고 싶은 것 · 소식)의 통로를 부르지 않는다', () => {
+test('house · 펫 화면: 하우스가 부르는 pet.* 통로는 frame.js 에 다 있고, 없앤 기능(기분 · 먹고 싶은 것 · 소식)은 안 부른다', () => {
   const fs = require('fs');
   const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
-  for (const n of ['pet.friend', 'pet.craft', 'pet.exchange', 'pet.fillRecipe', 'pet.devEvent', 'PetFriends', 'D.treasures', 'D.workshop', 'D.friends', 'D.craving', 'D.news', 'D.temper', 'data-crave', 'data-ws-']) assert.ok(!house.includes(n), 'house ' + n);
+  for (const n of ['D.craving', 'D.news', 'D.temper', 'data-crave']) assert.ok(!house.includes(n), 'house ' + n);
+  // 2.2.0: 친구 · 공방 통로가 돌아왔다
+  for (const n of ['pet.friendCall', 'pet.friendGift', 'pet.craft', 'pet.exchange', 'pet.fillRecipe', 'pet.devEvent', 'PetFriends', 'D.treasures', 'D.workshop', 'D.friends']) assert.ok(house.includes(n), 'house ' + n);
   const code = ['kit/pet.js', 'kit/toyplay.js', 'kit/toyplay2.js', 'kit/toyplay3.js', 'kit/toyplay4.js', 'kit/toyplay5.js'].map((f) => fs.readFileSync(path.join(src, f), 'utf8')).join('\n');
-  for (const n of ['pet.onEvent', 'pet.treasure', 'pet.eventSkip', 'pet.onFriend', 'pet.friend', 'PetFriends', 'temper']) assert.ok(!code.includes(n), n);
+  assert.ok(!code.includes('temper'), 'temper');
+  for (const n of ['pet.onEvent', 'pet.treasure', 'pet.eventSkip', 'pet.onFriend', 'pet.friendInfo', 'pet.onLootKeep', 'PetFriends']) assert.ok(code.includes(n), n);
   const frame = fs.readFileSync(path.join(src, 'plugin/frame.js'), 'utf8');
   const bridge = new Set([...frame.matchAll(/\['(\w+)', '(?:send|invoke|on)'/g)].map((m) => m[1]));
   for (const used of new Set([...house.matchAll(/\bpet\.(\w+)\(/g)].map((m) => m[1]))) assert.ok(bridge.has(used), 'bridge ' + used);
-  for (const f of ['core/friends.js', 'core/treasure.js', 'core/workshop.js', 'core/craving.js', 'kit/friends.js']) assert.ok(!fs.existsSync(path.join(src, f)), f);
+  for (const used of new Set([...code.matchAll(/\bpet\.(\w+)\(/g)].map((m) => m[1]))) assert.ok(bridge.has(used), 'pet bridge ' + used);
+  for (const f of ['core/friends.js', 'core/treasure.js', 'core/workshop.js', 'kit/friends.js']) assert.ok(fs.existsSync(path.join(src, f)), f);
+  assert.ok(!fs.existsSync(path.join(src, 'core/craving.js')), 'craving.js');
 });
 
 test('home: 칸 순서 · 보이기 설정은 아는 칸만 겹치지 않게, 기본 순서는 목표 · 오늘 · 노트 지도 · 할 일 · 고양이 · 퀘스트 · 최근 노트 (2.0.1)', async () => {
@@ -1084,7 +1153,7 @@ test('펫 · 하우스 화면: 함께 올라가는 스크립트에 같은 맨 �
   const HOUSE = list('HOUSE');
   assert.ok(PET.includes('kit/toyplay5.js'), 'toyplay5');
   assert.ok(COMMON.includes('kit/i18n-v2.js'), 'i18n-v2');
-  assert.ok(!COMMON.includes('kit/friends.js'), 'friends.js 는 뺐다');
+  assert.ok(COMMON.includes('kit/friends.js'), 'friends.js 가 돌아왔다 (2.2.0)');
   const NAME = /^(?:async\s+)?function\s+([A-Za-z0-9_$]+)|^(?:const|let|var|class)\s+([A-Za-z0-9_$]+)/gm;
   for (const [page, files] of [['pet', [...COMMON, ...PET]], ['house', [...COMMON, ...HOUSE]]]) {
     const seen = new Map();
@@ -1643,6 +1712,294 @@ test('plugin: 이 기기에서 쓰지 않은 노트 변화는 30초 기다렸다
   const u = new UsageTracker(merged.usage);
   assert.strictEqual(u.observe('일기/a.md', measure('a'.repeat(400)), new Date(), { cap: 3000 }).dc, 0);
   assert.strictEqual(u.totals().c, 300, '다른 기기가 센 300자를 한 번만');
+});
+
+/* ── 동네 친구 · 보물 공방 (2.2.0, 이슈 #9) ── */
+
+// 펫 판에 보낸 것 중 이 채널만
+const sentOf = (sent, ch) => sent.filter(([c]) => c === ch).map(([, p]) => p);
+
+test('features: 동네 친구 · 보물 공방 스위치는 처음부터 켜져 있고, 설정 화면 · 세 언어 글이 있다', async () => {
+  assert.strictEqual(DEFAULT_SETTINGS.friendsOn, true);
+  assert.strictEqual(DEFAULT_SETTINGS.workshopOn, true);
+  const { host } = makeHost();
+  assert.ok(host.friendsOn() && host.workshopOn());
+  const d = await host.onInvoke('house:get');
+  assert.strictEqual(d.settings.friendsOn, true);
+  assert.strictEqual(d.settings.workshopOn, true);
+  // 켜고 끄기는 true/false 만
+  await host.onInvoke('house:set', null, { friendsOn: 'no', workshopOn: 0 });
+  assert.ok(host.friendsOn() && host.workshopOn());
+  const fs = require('fs');
+  const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  for (const k of ['friendsOn', 'workshopOn']) {
+    assert.ok(house.includes(`sw('${k}'`), 'switch ' + k);
+    for (const lang of I18N.LANGS) for (const key of [`set.${k}`, `set.${k}Sub`]) assert.ok(I18N.UI[lang][key], `${lang} ${key}`);
+  }
+  for (const lang of I18N.LANGS) {
+    for (const k of ['tab.friends', 'tab.workshop', 'wn.back22.t', 'wn.back22.d', 'foodFxWs.goldMouseChoco', 'foodFxWs.cloudMallow', 'foodFxWs.fortuneCookie']) assert.ok(I18N.UI[lang][k], `${lang} ${k}`);
+    for (const k of ['eventFetchOut', 'eventBird', 'eventGuest', 'treasureNew', 'goldMouseTreasure', 'fortuneTreasure', 'mallowSurprise', 'workshopWear']) assert.ok(I18N.LINE[lang][k], `${lang} line ${k}`);
+  }
+  // 하우스 탭 버튼
+  const build = fs.readFileSync(path.join(__dirname, '..', 'scripts/build.js'), 'utf8');
+  for (const tab of ['friends', 'workshop']) assert.ok(build.includes(`data-tab="${tab}"`), tab);
+});
+
+test('workshop: 깜짝 이벤트 → 바닥 보물 → 줍기. 떨군 보물만 받고, 건너뛴 이벤트는 오늘 횟수를 돌려준다', async () => {
+  const { host, sent, state } = makeHost();
+  const ev = host.maybeEvent(true, 'fetch');
+  assert.ok(ev && ev.treasure, '물어 오기');
+  assert.ok(sentOf(sent, 'pet:event').some((e) => e.id === ev.id));
+  assert.strictEqual(state.get('eventLoot').length, 1, '줍기 전에 끄면 다음에 상자로');
+  host.onSend('pet:treasure', null, 'oldkey-없는-보물');
+  host.onSend('pet:treasure', null, ev.treasure);
+  assert.strictEqual(state.get('treasures')[ev.treasure], 1);
+  assert.deepStrictEqual(state.get('eventLoot'), []);
+  assert.strictEqual(host.gamify.st.cnt.treasure, 1);
+  host.onSend('pet:treasure', null, ev.treasure);
+  assert.strictEqual(state.get('treasures')[ev.treasure], 1, '한 번 떨군 건 한 번만');
+  // 펫 판이 못 보여 준 이벤트
+  const ev2 = host.maybeEvent(true, 'bird');
+  const n = state.get('eventLog').n;
+  host.onSend('pet:event-skip', null, ev2.id);
+  assert.strictEqual(state.get('eventLog').n, n - 1);
+  host.onSend('pet:treasure', null, ev2.treasure);
+  assert.ok(!(state.get('treasures')[ev2.treasure] > (ev2.treasure === ev.treasure ? 1 : 0)), '건너뛴 이벤트의 보물은 안 받는다');
+  // 보물 업적 (treasureKinds)
+  host.recomputeGrowth();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(host.gamify.context({}).treasureKinds >= 1);
+});
+
+test('workshop: 프리미엄 먹이 — 공방을 켜면 황금 쥐 초콜릿은 보물, 구름 마시멜로는 깜짝 이벤트 (1.6.1)', async () => {
+  const { host, state } = makeHost();
+  host.shop.state.set({ walletBonus: 100000 });
+  for (const key of ['goldMouseChoco', 'cloudMallow']) {
+    assert.ok((await host.onInvoke('shop:buy', null, key)).ok, key);
+    assert.ok((await host.onInvoke('shop:use', null, key)).ok, key);
+  }
+  const coins = host.shop.wallet().balance;
+  host.onSend('pet:treat-eaten', null, 'goldMouseChoco');
+  assert.strictEqual(host.shop.wallet().balance, coins, '코인이 아니라');
+  assert.strictEqual(Object.values(state.get('treasures') || {}).reduce((a, n) => a + n, 0), 1, '보물 1개');
+  const timers = [];
+  host.later = (fn, ms) => timers.push([fn, ms]);
+  host.onSend('pet:treat-eaten', null, 'cloudMallow');
+  const ev = timers.find(([, ms]) => ms === 25_000);
+  assert.ok(ev, '25초 뒤 깜짝 이벤트');
+  assert.ok(!timers.some(([, ms]) => ms === 6_000), '우다다가 아니라');
+  // 상점 글도 공방 쪽
+  const fs = require('fs');
+  assert.ok(fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8').includes("'foodFxWs.'"));
+});
+
+test('workshop off: 이벤트를 굴리지 않고, 공방 통로는 거절하고, 바닥 보물은 상자로 (다시 켜면 그대로 이어서)', async () => {
+  const { host, sent, state } = makeHost();
+  const ev = host.maybeEvent(true, 'fetch');
+  assert.ok(ev);
+  state.set({ treasures: { bottlecap: 9, worm: 1 } });
+  const before = { ...state.get('treasures') };
+  sent.length = 0;
+  await host.onInvoke('house:set', null, { workshopOn: false });
+  // 바닥 보물은 고양이가 챙겨 둔다
+  assert.deepStrictEqual(state.get('eventLoot'), []);
+  assert.strictEqual(state.get('treasures')[ev.treasure], (before[ev.treasure] || 0) + 1, '바닥 보물이 상자에');
+  assert.strictEqual(host.pendingLoot.length, 0);
+  assert.ok(sentOf(sent, 'pet:loot-keep').length === 1, '펫 판의 바닥 보물을 치운다');
+  // 굴리지도 보내지도 않는다
+  sent.length = 0;
+  const log = JSON.stringify(state.get('eventLog'));
+  for (let i = 0; i < 20; i++) host.minuteTick();
+  assert.strictEqual(host.maybeEvent(true, 'bird'), null);
+  assert.strictEqual(sentOf(sent, 'pet:event').length, 0);
+  assert.strictEqual(JSON.stringify(state.get('eventLog')), log, '오늘 횟수도 그대로');
+  // 줍기 · 교환소 · 채우기 · 만들기는 거절, 가진 보물은 그대로
+  host.onSend('pet:treasure', null, ev.treasure);
+  for (const [ch, arg] of [['workshop:exchange', 'receipt'], ['workshop:fill', 'capcrown'], ['workshop:craft', 'capcrown']]) {
+    const r = await host.onInvoke(ch, null, arg);
+    assert.strictEqual(r.ok, false, ch);
+    assert.strictEqual(r.reason, 'off', ch);
+  }
+  assert.ok(!(state.get('items') || []).includes('capcrown'));
+  assert.strictEqual(state.get('treasures').bottlecap, 9, '아무것도 지우지 않는다');
+  // 이벤트 말도 안 한다
+  sent.length = 0;
+  host.onSend('pet:event-say', null, 'eventBird');
+  assert.strictEqual(sentOf(sent, 'pet:bubble').length, 0);
+  // 다시 켜면 그대로
+  await host.onInvoke('house:set', null, { workshopOn: true });
+  const r = await host.onInvoke('workshop:exchange', null, 'receipt');
+  assert.ok(r.ok, '모아 둔 보물로 바로 교환');
+  assert.ok(host.maybeEvent(true, 'bird'));
+});
+
+test('friends: 놀러 와서 물물교환 · 밥 주기 · 인사, 두고 간 보물은 떨군 것만 줍는다 (1.6.1)', async () => {
+  const { host, sent, state } = makeHost();
+  host.friends.save({ nextAt: 0 });
+  host.friendTick();
+  const v = host.friends.current();
+  assert.ok(v, '친구가 왔다');
+  assert.ok(sentOf(sent, 'pet:friend').some((f) => f.id === v.id));
+  state.set({ treasures: { [v.want.key]: v.want.n }, pantry: { churu: 2 } });
+  const info = await host.onInvoke('pet:friend-info');
+  assert.strictEqual(info.id, v.id);
+  assert.strictEqual(info.treasures, true, '공방을 켰으면 물물교환 칸');
+  const t = await host.onInvoke('pet:friend-trade');
+  assert.ok(t.ok, '물물교환');
+  assert.ok(!(state.get('treasures')[v.want.key] > 0));
+  assert.ok(state.get('pantry')[v.gift.key] >= v.gift.n);
+  const f = await host.onInvoke('pet:friend-feed', null, 'churu');
+  assert.ok(f.ok, '밥 주기');
+  // 인사하고 가며 떨군 보물
+  const bye = await host.onInvoke('pet:friend-bye');
+  assert.ok(bye && bye.id === v.id);
+  assert.strictEqual(host.friends.current(), null);
+  if (bye.gift) {
+    host.onSend('pet:treasure', null, bye.gift);
+    assert.ok(state.get('treasures')[bye.gift] >= 1);
+  }
+  assert.ok(host.friends.summary().list.find((x) => x.id === v.id).visits >= 1);
+  // 단짝만 부를 수 있다
+  const call = await host.onInvoke('house:friend-call', null, 'dust');
+  assert.strictEqual(call.result.error, 'notBest');
+});
+
+test('friends off: 친구가 안 오고, 와 있던 친구는 인사하고 돌아간다 (친밀도 · 보물은 그대로). 다시 켜면 이어서', async () => {
+  const { host, sent, state } = makeHost();
+  host.friends.save({ nextAt: 0 });
+  host.friendTick();
+  const v = host.friends.current();
+  assert.ok(v);
+  state.set({ treasures: { bottlecap: 2 } });
+  const pts = host.friends.summary().list.find((x) => x.id === v.id).pts;
+  sent.length = 0;
+  await host.onInvoke('house:set', null, { friendsOn: false });
+  assert.strictEqual(host.friends.current(), null, '돌아갔다');
+  assert.strictEqual(sentOf(sent, 'pet:friend-leave').length, 1, '펫 판에서도 나간다');
+  assert.strictEqual(host.friends.summary().list.find((x) => x.id === v.id).pts, pts, '친밀도는 그대로');
+  assert.ok(state.get('treasures').bottlecap >= 2);
+  // 안 오고, 통로는 거절
+  host.friends.save({ nextAt: 0 });
+  sent.length = 0;
+  for (let i = 0; i < 5; i++) host.minuteTick();
+  assert.strictEqual(sentOf(sent, 'pet:friend').length, 0);
+  assert.strictEqual(host.friends.current(), null);
+  assert.strictEqual(await host.onInvoke('pet:friend-info'), null);
+  for (const ch of ['pet:friend-trade', 'pet:friend-feed']) assert.strictEqual((await host.onInvoke(ch, null, 'churu')).reason, 'off', ch);
+  for (const ch of ['house:friend-call', 'house:friend-gift']) {
+    const r = await host.onInvoke(ch, null, 'dust', 'capcrown');
+    assert.strictEqual(r.reason, 'off', ch);
+    assert.ok(r.data, ch);
+  }
+  host.settings.set({ devMode: true });
+  assert.strictEqual(await host.onInvoke('dev:event', null, 'guest'), null);
+  // 다시 켜면 이어서 (켜자마자 오지는 않는다)
+  await host.onInvoke('house:set', null, { friendsOn: true });
+  assert.ok(host.friends.st().nextAt > Date.now(), '20분~두 시간 뒤');
+  assert.strictEqual(host.friends.summary().list.find((x) => x.id === v.id).pts, pts);
+  host.friends.save({ nextAt: 0 });
+  host.friendTick();
+  assert.ok(host.friends.current(), '다시 온다');
+});
+
+test('friends: 공방을 끄면 친구는 와도 보물을 주고받지 않는다 (물물교환 거절 · 두고 가는 보물 없음)', async () => {
+  const { host, state } = makeHost({ settings: { workshopOn: false } });
+  host.friends.save({ nextAt: 0 });
+  host.friendTick();
+  const v = host.friends.current();
+  assert.ok(v, '친구는 온다');
+  state.set({ treasures: { [v.want.key]: 99 } });
+  assert.strictEqual((await host.onInvoke('pet:friend-info')).treasures, false);
+  assert.strictEqual((await host.onInvoke('pet:friend-trade')).reason, 'off');
+  assert.strictEqual(state.get('treasures')[v.want.key], 99);
+  const real = Math.random;
+  Math.random = () => 0; // 늘 선물하는 운이어도
+  try {
+    const bye = await host.onInvoke('pet:friend-bye');
+    assert.strictEqual(bye.gift, null);
+  } finally {
+    Math.random = real;
+  }
+  assert.deepStrictEqual(state.get('eventLoot') || [], []);
+});
+
+test('workshop: 공방 코스튬은 상점에서 사도, 보물로 만들어도 된다 (만들면 옷장 + 만든 기록, 산 옷은 다시 안 만든다)', async () => {
+  const { host, state } = makeHost();
+  const { RECIPES } = require(path.join(src, 'core/workshop'));
+  const shop = require(path.join(src, 'core/shop'));
+  for (const r of RECIPES) assert.ok(shop.find(r.key).workshop && shop.find(r.key).price > 0, r.key);
+  // 사기 (예전처럼)
+  host.growth = { ...host.growth, level: 80 };
+  state.set({ walletBonus: 100000 });
+  const b = await host.onInvoke('shop:buy', null, 'capcrown');
+  assert.ok(b.ok, '산다');
+  assert.ok(state.get('items').includes('capcrown'));
+  const again = await host.onInvoke('workshop:craft', null, 'capcrown');
+  assert.strictEqual(again.reason, 'made', '산 옷은 이미 가졌다');
+  const card = (await host.onInvoke('house:get')).workshop.recipes.find((x) => x.key === 'capcrown');
+  assert.ok(card.owned && !card.made, '산 옷: 가짐 (만든 기록은 없음)');
+  // 만들기
+  const r = RECIPES.find((x) => x.key === 'receiptcape');
+  const box = { ...r.need };
+  for (const k of ['bottlecap', 'rubberband', 'button', 'pebble']) box[k] = (box[k] || 0) + 2;
+  state.set({ treasures: box });
+  const c = await host.onInvoke('workshop:craft', null, 'receiptcape');
+  assert.ok(c.ok, '만든다');
+  assert.ok(state.get('items').includes('receiptcape'));
+  assert.ok(state.get('workshopMade').some((x) => x.key === 'receiptcape'));
+  assert.strictEqual(state.get('treasures').receipt || 0, 0, '재료를 썼다');
+  const d = await host.onInvoke('house:get');
+  assert.ok(d.game.items.find((x) => x.key === 'receiptcape').workshop, '만든 옷엔 공방 도장');
+  assert.ok(!d.game.items.find((x) => x.key === 'capcrown').workshop, '산 옷엔 없다');
+  // 만든 옷도 상점에서는 '가짐'
+  assert.ok(d.shop.acc.find((x) => x.key === 'receiptcape').owned);
+});
+
+test('sync: 보물은 늘어난 만큼, 도감 · 만든 기록은 합집합, 친밀도는 더하고 방문 · 바닥 보물은 기기마다 (2.2.0)', () => {
+  const base = devData();
+  Object.assign(base.state, { treasures: { bottlecap: 2 }, treasureSeen: ['bottlecap'], workshopMade: [], friends: { list: { dust: { pts: 10, visits: 3, lastAt: 1 } }, visit: null, nextAt: 5, callReadyAt: 0 }, eventLoot: [], eventLog: { day: 'd', n: 1, last: 1 } });
+  const mine = clone(base);
+  const theirs = clone(base);
+  mine.state.treasures = { bottlecap: 5, worm: 1 };
+  mine.state.treasureSeen = ['bottlecap', 'worm'];
+  mine.state.workshopMade = [{ key: 'capcrown', at: 10 }];
+  mine.state.friends.list.dust = { pts: 12, visits: 4, lastAt: 20 };
+  mine.state.friends.visit = { id: 'dust', until: 99 };
+  mine.state.eventLoot = [{ id: 'm', key: 'worm', at: 1 }];
+  theirs.state.treasures = { bottlecap: 1, receipt: 2 };
+  theirs.state.treasureSeen = ['bottlecap', 'receipt'];
+  theirs.state.workshopMade = [{ key: 'gatekeeper', at: 11 }];
+  theirs.state.friends.list.dust = { pts: 15, visits: 5, lastAt: 30 };
+  theirs.state.friends.list.coal = { pts: 1, visits: 1, lastAt: 31 };
+  theirs.state.friends.nextAt = 77;
+  theirs.state.eventLoot = [{ id: 't', key: 'receipt', at: 2 }];
+  theirs.state.eventLog = { day: 'd', n: 4, last: 2 };
+  const m = mergeData(sharedOf(base), mine, theirs, { now: SYNC_T0 });
+  const s = m.state;
+  assert.deepStrictEqual(s.treasures, { bottlecap: 4, worm: 1, receipt: 2 }, '2 + 3 - 1');
+  assert.deepStrictEqual([...s.treasureSeen].sort(), ['bottlecap', 'receipt', 'worm']);
+  assert.deepStrictEqual(s.workshopMade.map((x) => x.key).sort(), ['capcrown', 'gatekeeper']);
+  assert.strictEqual(s.friends.list.dust.pts, 17, '10 + 2 + 5');
+  assert.strictEqual(s.friends.list.dust.visits, 6);
+  assert.strictEqual(s.friends.list.dust.lastAt, 30);
+  assert.ok(s.friends.list.coal, '상대가 처음 만난 친구');
+  assert.deepStrictEqual(s.friends.visit, { id: 'dust', until: 99 }, '방문은 이 기기 것');
+  assert.strictEqual(s.friends.nextAt, 5, '다음 방문도 이 기기 것');
+  assert.deepStrictEqual(s.eventLoot, [{ id: 'm', key: 'worm', at: 1 }], '바닥 보물은 이 기기 것');
+  assert.strictEqual(s.eventLog.n, 1, '오늘 이벤트 횟수도 이 기기 것');
+  // 설정 스위치는 공유 (기기마다 따로가 아니다)
+  const ds = require(path.join(src, 'plugin/sync'));
+  assert.ok(!(ds.DEVICE_SETTINGS || []).includes('friendsOn'));
+});
+
+test('host: 다른 기기에서 공방을 껐다 (sync 뒤 reloadShared) — 바닥 보물을 상자에 넣는다', () => {
+  const { host, state, settings } = makeHost();
+  const ev = host.maybeEvent(true, 'fetch');
+  settings.data.workshopOn = false; // 합친 설정이 들어왔다
+  host.reloadShared();
+  assert.deepStrictEqual(state.get('eventLoot'), []);
+  assert.strictEqual(state.get('treasures')[ev.treasure], 1);
+  assert.strictEqual(host.maybeEvent(true), null);
 });
 
 (async () => {

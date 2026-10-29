@@ -113,6 +113,21 @@ function measure(text) {
   return { chars, words, links: wiki.length + md.length, tag: tags.length, task: tasks.length, done: done.length, head: heads.length, embed: embeds.length, callout: callouts.length, prop: front ? countProps(front) : 0 };
 }
 
+// 캔버스 한 개를 잰다 (2.2.0, 이슈 #8). 텍스트 카드의 글만 노트처럼 잰다.
+// 노트를 끼워 넣은 카드 · 링크 카드 · 그룹 이름은 뺀다 (끼워 넣은 노트는 그 노트를 고칠 때 이미 센다)
+function measureCanvas(text) {
+  let nodes;
+  try {
+    nodes = JSON.parse(String(text || '').trim() || '{}').nodes;
+  } catch {
+    return EMPTY();
+  }
+  if (!Array.isArray(nodes)) return EMPTY();
+  const cards = nodes.filter((n) => n && n.type === 'text' && typeof n.text === 'string').map((n) => n.text);
+  // 앞의 빈 줄: 첫 카드가 '---' 로 시작해도 앞머리(속성)로 읽지 않게
+  return cards.length ? measure('\n' + cards.join('\n\n')) : EMPTY();
+}
+
 // 경로 토막 해시 (FNV 두 개를 이어 붙인다)
 const SEG_CACHE = new Map();
 function hashSeg(s) {
@@ -210,7 +225,7 @@ class UsageTracker extends EventEmitter {
   //  opts.baseline : 설치할 때 이미 있던 노트. 지금 크기만 기억하고 아무것도 세지 않는다
   //  opts.cap/linkCap : 한 번에 늘어난 양의 상한 (붙여넣기)
   //  opts.budget : 한꺼번에 여러 노트가 바뀔 때 전체로 줄 수 있는 몫
-  //  opts.canvas : 캔버스 파일 (내용은 안 재고, 새로 만든 것만 센다)
+  //  캔버스는 measureCanvas 로 텍스트 카드의 글만 잰 값을 넣는다 (2.2.0). 새 노트(n)로는 세지 않는다 (canvas() 가 표시해 둔다)
   observe(path, m, when = new Date(), opts = {}) {
     const key = pathKey(path);
     const f = this.d.files[key] || this.revive(key);
@@ -292,11 +307,12 @@ class UsageTracker extends EventEmitter {
     if (t > proj.last) proj.last = t;
   }
 
-  // 캔버스를 새로 만들었다
+  // 캔버스를 새로 만들었다. '새 노트로 셌음'(1)으로 표시해 새 노트 수에는 안 들어가고,
+  // 단어 · 속성 칸까지 0 으로 채워 첫 저장부터 단어를 센다 (2.2.0. 칸이 없으면 첫 저장은 기준만 잡는다)
   canvas(path, when = new Date()) {
     const key = pathKey(path);
     if (this.d.files[key] || this.revive(key)) return;
-    this.d.files[key] = [0, 0, 0, 1];
+    this.d.files[key] = [0, 0, 0, 1, ...FEATURES.map(() => 0), 0, 0];
     const { b } = this.bucket(folderKey(folderOf(path)), when);
     (b.t ||= {}).canvas = (b.t.canvas || 0) + 1;
   }
@@ -518,6 +534,6 @@ class UsageTracker extends EventEmitter {
 }
 
 module.exports = {
-  UsageTracker, measure, countWords, pathKey, folderKey, folderOf, inFolders, dayOf, hourKey, hourKeyToMs,
+  UsageTracker, measure, measureCanvas, countWords, pathKey, folderKey, folderOf, inFolders, dayOf, hourKey, hourKeyToMs,
   LIVE_CHAR_CAP, LIVE_LINK_CAP, FLUSH_BUDGET, OFFLINE_BUDGET, NOTE_MIN_CHARS, SESSION_GAP, ROOT,
 };
