@@ -163,7 +163,19 @@ class Brain extends EventEmitter {
   // 자는데 자꾸 건드려서 깼다. 5분은 깨어 있는다
   wake(at = Date.now()) {
     this.wokenUntil = at + 5 * MIN;
+    this.napAt = 0;
     this.tick();
+  }
+
+  // 우클릭 '재우기' (2.3.0, 이슈 #11). 다시 글을 쓰거나 노트를 열거나, 찌르거나 들어 올릴 때까지 잔다
+  tuckIn(at = Date.now()) {
+    this.napAt = at;
+    this.wokenUntil = 0;
+    this.tick();
+  }
+
+  napping() {
+    return !!this.napAt;
   }
 
   // 사용자가 Claude Code 를 쓰고 있다는 신호
@@ -342,7 +354,10 @@ class Brain extends EventEmitter {
     let mood;
     // 자꾸 건드려서 깨웠으면 한동안은 졸거나 자지 않는다 (wake())
     const woken = now < (this.wokenUntil || 0);
-    if (waitingAt && now - waitingAt < WAIT_FOR) mood = 'waiting';
+    // 재운 뒤에 다시 쓰기 시작했으면 (activity · 타이핑 hook) 낮잠은 끝
+    if (this.napAt && (this.lastActivity > this.napAt || this.generating > this.napAt)) this.napAt = 0;
+    if (this.napAt) mood = 'sleeping';
+    else if (waitingAt && now - waitingAt < WAIT_FOR) mood = 'waiting';
     else if (hooksLive ? this.gen.size > 0 : idle < 45_000) mood = 'thinking';
     else if (this.justFed(now)) mood = 'idle';
     else if (this.hungry(now) && idle < 30 * MIN) mood = 'hungry';

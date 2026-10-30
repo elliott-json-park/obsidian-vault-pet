@@ -366,6 +366,29 @@ test('host: 쓰다듬기·들기·장난감 놀이 흐름', async () => {
   assert.strictEqual(host.playing, null);
 });
 
+test('host: 우클릭 재우기 — 다시 쓰거나 들어 올릴 때까지 잔다 (이슈 #11)', () => {
+  const { host } = makeHost();
+  const b = host.brain;
+  b.activity(Date.now() - 1000);
+  b.tick();
+  assert.notStrictEqual(b.mood, 'sleeping');
+  host.tuckIn();
+  assert.strictEqual(b.mood, 'sleeping', '재우면 바로 잔다');
+  b.tick();
+  assert.strictEqual(b.mood, 'sleeping', '그냥 두면 계속 잔다');
+  // 들어 올리면 깬다
+  host.onSend('pet:drag', null, 'start');
+  host.onSend('pet:drag', null, 'end', { x: 100 });
+  assert.notStrictEqual(b.mood, 'sleeping');
+  assert.ok(!b.napping());
+  // 다시 재운 뒤 글을 쓰기 시작하면 깬다
+  host.tuckIn();
+  assert.strictEqual(b.mood, 'sleeping');
+  b.hook({ name: 'UserPromptSubmit', at: Date.now() + 1, sessionId: 'obsidian' });
+  assert.notStrictEqual(b.mood, 'sleeping', '쓰기 시작하면 깬다');
+  assert.ok(!b.napping());
+});
+
 test('host: 타이핑 hook 흉내 — 쓰는 동안 thinking, 빈 노트는 waiting', () => {
   const { host } = makeHost();
   const b = host.brain;

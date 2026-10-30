@@ -1,5 +1,5 @@
 /*
- * Vault Pet 2.2.0 — Obsidian plugin (built 2026-10-29)
+ * Vault Pet 2.3.0 — Obsidian plugin (built 2026-10-30)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -450,7 +450,19 @@ class Brain extends EventEmitter {
   // 자는데 자꾸 건드려서 깼다. 5분은 깨어 있는다
   wake(at = Date.now()) {
     this.wokenUntil = at + 5 * MIN;
+    this.napAt = 0;
     this.tick();
+  }
+
+  // 우클릭 '재우기' (2.3.0, 이슈 #11). 다시 글을 쓰거나 노트를 열거나, 찌르거나 들어 올릴 때까지 잔다
+  tuckIn(at = Date.now()) {
+    this.napAt = at;
+    this.wokenUntil = 0;
+    this.tick();
+  }
+
+  napping() {
+    return !!this.napAt;
   }
 
   // 사용자가 Claude Code 를 쓰고 있다는 신호
@@ -629,7 +641,10 @@ class Brain extends EventEmitter {
     let mood;
     // 자꾸 건드려서 깨웠으면 한동안은 졸거나 자지 않는다 (wake())
     const woken = now < (this.wokenUntil || 0);
-    if (waitingAt && now - waitingAt < WAIT_FOR) mood = 'waiting';
+    // 재운 뒤에 다시 쓰기 시작했으면 (activity · 타이핑 hook) 낮잠은 끝
+    if (this.napAt && (this.lastActivity > this.napAt || this.generating > this.napAt)) this.napAt = 0;
+    if (this.napAt) mood = 'sleeping';
+    else if (waitingAt && now - waitingAt < WAIT_FOR) mood = 'waiting';
     else if (hooksLive ? this.gen.size > 0 : idle < 45_000) mood = 'thinking';
     else if (this.justFed(now)) mood = 'idle';
     else if (this.hungry(now) && idle < 30 * MIN) mood = 'hungry';
@@ -5563,6 +5578,8 @@ class KitHost {
       foodMenu('meal', 'tray.feed', 'tray.noMeals', 'ricebowl'),
       foodMenu('snack', 'tray.treats', 'tray.noTreats', 'churu'),
       ...toyMenu,
+      // 재우기 (2.3.0, 이슈 #11). 이미 자고 있으면 뺀다
+      this.brain.mood === 'sleeping' ? null : { title: T.t('tray.tuckIn'), icon: 'pillow', click: () => this.tuckIn() },
       { sep: true },
       sizeMenu,
       muteItem,
@@ -5570,6 +5587,13 @@ class KitHost {
       ...this.commonMenu(),
     ]);
     menu.showAtPosition(pos || { x: 100, y: 100 });
+  }
+
+  // 고양이를 재운다. 다시 쓰기 시작하거나, 찌르거나 들어 올리면 깬다
+  tuckIn() {
+    if (this.playing) this.stopPlay();
+    this.sleepPokes.length = 0;
+    this.brain.tuckIn(Date.now());
   }
 
   // ---------- 장난감 놀이 ----------
@@ -10563,6 +10587,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tray.toys': '장난감 꺼내기',
       'tray.noToys': '장난감 사러 가기',
       'tray.stopPlay': '그만 놀기',
+      'tray.tuckIn': '재우기',
       'play.hint': '장난감을 끌어 보세요 · 우클릭하면 끝나요',
       'play.hintThrow': '끌었다 놓으면 던지고, 톡 누르면 장난감이 반응해요 · 우클릭하면 끝나요',
       'play.hintPlace': '끌어서 옮길 수 있어요 · 우클릭하면 치워요',
@@ -12750,6 +12775,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tray.toys': 'Pull out a toy',
       'tray.noToys': 'Buy toys',
       'tray.stopPlay': 'Stop playing',
+      'tray.tuckIn': 'Put to bed',
       'play.hint': 'Drag the toy around · right-click to stop',
       'play.hintThrow': 'Drag and let go to throw it · right-click to stop',
       'play.hintPlace': 'Drag it around · right-click to put it away',
@@ -14927,6 +14953,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'tray.toys': '拿出玩具',
       'tray.noToys': '去买玩具',
       'tray.stopPlay': '不玩了',
+      'tray.tuckIn': '哄它睡觉',
       'play.hint': '拖动玩具试试 · 右键结束',
       'play.hintThrow': '拖动后松手就能扔出去 · 右键结束',
       'play.hintPlace': '可以拖来拖去 · 右键收起',
@@ -23762,6 +23789,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'tray.toys': '장난감 꺼내기',
       'tray.noToys': '장난감 사러 가기',
       'tray.stopPlay': '그만 놀기',
+      'tray.tuckIn': '재우기',
       'play.hint': '장난감을 끌어 보세요 · 우클릭하면 끝나요',
       'play.hintThrow': '끌었다 놓으면 던지고, 톡 누르면 장난감이 반응해요 · 우클릭하면 끝나요',
       'play.hintPlace': '끌어서 옮길 수 있어요 · 우클릭하면 치워요',
@@ -25949,6 +25977,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'tray.toys': 'Pull out a toy',
       'tray.noToys': 'Buy toys',
       'tray.stopPlay': 'Stop playing',
+      'tray.tuckIn': 'Put to bed',
       'play.hint': 'Drag the toy around · right-click to stop',
       'play.hintThrow': 'Drag and let go to throw it · right-click to stop',
       'play.hintPlace': 'Drag it around · right-click to put it away',
@@ -28126,6 +28155,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'tray.toys': '拿出玩具',
       'tray.noToys': '去买玩具',
       'tray.stopPlay': '不玩了',
+      'tray.tuckIn': '哄它睡觉',
       'play.hint': '拖动玩具试试 · 右键结束',
       'play.hintThrow': '拖动后松手就能扔出去 · 右键结束',
       'play.hintPlace': '可以拖来拖去 · 右键收起',

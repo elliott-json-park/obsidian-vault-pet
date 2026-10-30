@@ -510,6 +510,8 @@ class KitHost {
       foodMenu('meal', 'tray.feed', 'tray.noMeals', 'ricebowl'),
       foodMenu('snack', 'tray.treats', 'tray.noTreats', 'churu'),
       ...toyMenu,
+      // 재우기 (2.3.0, 이슈 #11). 이미 자고 있으면 뺀다
+      this.brain.mood === 'sleeping' ? null : { title: T.t('tray.tuckIn'), icon: 'pillow', click: () => this.tuckIn() },
       { sep: true },
       sizeMenu,
       muteItem,
@@ -517,6 +519,13 @@ class KitHost {
       ...this.commonMenu(),
     ]);
     menu.showAtPosition(pos || { x: 100, y: 100 });
+  }
+
+  // 고양이를 재운다. 다시 쓰기 시작하거나, 찌르거나 들어 올리면 깬다
+  tuckIn() {
+    if (this.playing) this.stopPlay();
+    this.sleepPokes.length = 0;
+    this.brain.tuckIn(Date.now());
   }
 
   // ---------- 장난감 놀이 ----------
