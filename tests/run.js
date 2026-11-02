@@ -767,6 +767,21 @@ test('star shop: 별 코스튬 · 별 털색은 별로만 사고, 코스튬 개�
   assert.ok(host.gamify.extra().totalAcc < shop.ACCESSORIES.length - 56);
 });
 
+test('star shop: 상점의 입기 버튼이 별 코스튬도 찾아서 산 세트를 입힌다 (#12)', async () => {
+  const house = require('fs').readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  const m = house.match(/const it = (.+?)\.find\(\(x\) => x\.key === el\.dataset\.shopWear\);/);
+  assert.ok(m, '입기 버튼의 물건 찾기 줄이 있다');
+  const { host } = makeHost();
+  host.growth = { ...host.growth, stars: 6, maxed: true };
+  const r = await host.onInvoke('shop:buy', null, 'xcelestialemperor');
+  assert.ok(r.ok, r.reason);
+  const list = new Function('D', `return ${m[1]};`)({ shop: host.shop.summary() });
+  const it = list.find((x) => x.key === 'xcelestialemperor');
+  assert.ok(it && it.slot === 'set', '버튼이 산 별 세트를 찾는다');
+  const p = await host.onInvoke('house:set', null, { outfit: { [it.slot]: it.key } });
+  assert.strictEqual(p.settings.outfit.set, 'xcelestialemperor');
+});
+
 test('ears: 귀 모양은 정해진 13가지만, 고르면 펫 판에 바로 간다', async () => {
   const { host, sent } = makeHost();
   assert.strictEqual(growth.EAR_SHAPES.length, 13);

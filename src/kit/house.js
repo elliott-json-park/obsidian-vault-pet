@@ -3171,7 +3171,7 @@ function bindView(view) {
   // 상점 코스튬 카드의 입기·벗기
   $$('[data-shop-wear]', view).forEach((el) =>
     el.addEventListener('click', async () => {
-      const it = D.shop.acc.find((x) => x.key === el.dataset.shopWear);
+      const it = [...D.shop.acc, ...(D.shop.star || [])].find((x) => x.key === el.dataset.shopWear); // 별 코스튬은 star 목록에만 있다
       if (!it || !it.slot) return;
       const wearing = (D.settings.outfit || {})[it.slot] === it.key;
       const name = t('item.' + it.key);
