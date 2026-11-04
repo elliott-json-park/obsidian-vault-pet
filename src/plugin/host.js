@@ -609,6 +609,25 @@ class KitHost {
     return { ok: true, wasHungry, key: meal.key };
   }
 
+  // 자동 급식 (2.4.0, 이슈 #13). 켜 두면 배가 고파질 때(25 아래) 창고의 밥을 하나 꺼내 준다.
+  // 산 밥만 쓴다 (창고가 비었으면 아무것도 안 한다). 고양이가 보이면 바닥에 놓아 걸어가 먹고, 숨겨 두었으면 그대로 먹은 걸로 친다
+  autoFeed() {
+    if (!this.settings.get('autoFeed') || this.playing || this.gauge.locked()) return false;
+    if (this.gauge.get().food >= 25) return false;
+    const isMeal = (k) => FOODS.some((x) => x.key === k && x.group === 'meal');
+    if (this.floorTreats.some(isMeal)) return false; // 이미 바닥에 밥이 있다
+    if (this.pet && this.settings.get('showPet') && !(this.stage && this.stage.hidden)) return this.feed().ok;
+    const pantry = this.state.get('pantry') || {};
+    const key = [this.state.get('lastMeal')].find((k) => isMeal(k) && pantry[k] > 0) || (FOODS.find((x) => x.group === 'meal' && pantry[x.key] > 0) || {}).key;
+    const it = key && this.shop.useFood(key);
+    if (!it) return false;
+    this.state.set({ lastFood: key, lastMeal: key });
+    this.gauge.eat('meal', fillOf(it));
+    this.gamify.count('fed');
+    this.brain.meal();
+    return true;
+  }
+
   // ---------- 기억하는 고양이 · 하루 한 번 질문 · 쉬는 틈에 한 판 ----------
 
   // 기억 대사(LINE.memory)에 끼울 실제 있었던 일. 값이 없는 건 빼고 준다 (그 값을 쓰는 대사는 안 고른다).
@@ -1395,6 +1414,7 @@ class KitHost {
     this.brain.tick();
     this.gauge.tick();
     if (this.gauge.get().food < 25 && !this.brain.hungry()) this.brain.getHungry();
+    this.autoFeed();
     this.checkWorkTier();
     this.toyOfferTick();
     this.focusTick();
@@ -2030,7 +2050,10 @@ class KitHost {
       const back = excludedBefore.filter((id) => !(allowed.excludedProjects || []).includes(id));
       if (back.length && this.plugin.rebaseline) this.plugin.rebaseline(back);
       // 누적값이 한꺼번에 바뀌어도 퀘스트 진행도는 그대로 두게 기준값을 같이 민다
+      const coinsBefore = shop.writtenCoins();
       gamify.rebaseQuests(() => this.usage.setExcluded(allowed.excludedProjects));
+      // 이미 번 코인은 폴더를 빼도 남는다 (2.4.0, 이슈 #14)
+      shop.keepCoins(coinsBefore - shop.writtenCoins());
       this.state.set({ lastLevel: null, lastStage: null });
       this.recomputeGrowth();
     }

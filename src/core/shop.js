@@ -932,7 +932,8 @@ class Shop {
   wallet() {
     const tokens = this.usage.totals(this.since()).c;
     // 토큰 코인은 하루씩 계단식으로 센다 (coinsForDay). 업적 보상으로 받은 코인(이미 가진 걸 또 받았을 때)도 번 코인에 넣는다
-    const earned = coinsSince(this.usage, this.since()) + WELCOME_COINS + (this.state.get('walletBonus') || 0);
+    // 폴더를 빼기 전에 그 폴더로 번 코인(walletKept)도 번 코인이다 (2.4.0)
+    const earned = this.writtenCoins() + WELCOME_COINS + (this.state.get('walletBonus') || 0) + (this.state.get('walletKept') || 0);
     const spent = this.state.get('walletSpent') || 0;
     return {
       earned,
@@ -944,6 +945,19 @@ class Shop {
       since: this.since(), // 처음 만난 시각. 상점에서 "언제부터 세는지" 를 보여 준다
       stars: this.starWallet(),
     };
+  }
+
+  // 지금 세는 폴더에서 쓴 글 · 끝낸 할 일로 번 코인
+  writtenCoins() {
+    return coinsSince(this.usage, this.since());
+  }
+
+  // 폴더를 빼거나 다시 넣어서 writtenCoins 가 delta 만큼 줄었다 (2.4.0, 이슈 #14).
+  // 이미 번 코인은 그대로 둔다: 뺄 때 줄어든 만큼 walletKept 에 남기고, 다시 넣어 돌아오면 그만큼 거둔다.
+  // (예전에는 폴더를 빼면 그 폴더로 번 코인이 소급해서 사라져, 쓴 코인보다 번 코인이 적어지면 지갑이 0 에 묶였다)
+  keepCoins(delta) {
+    if (!delta) return;
+    this.state.set({ walletKept: Math.max(0, (this.state.get('walletKept') || 0) + delta) });
   }
 
   // 별 지갑: 딴 별(경험치에서 바로 나온다) − 별 상점에서 쓴 별

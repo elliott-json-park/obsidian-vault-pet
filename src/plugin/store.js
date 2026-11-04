@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   sleepyAfterMin: 30,
   sleepAfterMin: 60,
   lateNightEnabled: true,
+  autoFeed: false, // 배가 고파지면 창고의 밥을 하나 꺼내 준다 (2.4.0, 이슈 #13)
 
   excludedProjects: [], // 경험치에서 뺄 폴더 (폴더 이름의 해시)
   showPet: true, // 화면에 고양이를 띄운다 (끄면 하우스에서만 본다)

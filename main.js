@@ -1,5 +1,5 @@
 /*
- * Vault Pet 2.3.1 — Obsidian plugin (built 2026-11-02)
+ * Vault Pet 2.4.0 — Obsidian plugin (built 2026-11-04)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -3085,7 +3085,8 @@ class Shop {
   wallet() {
     const tokens = this.usage.totals(this.since()).c;
     // 토큰 코인은 하루씩 계단식으로 센다 (coinsForDay). 업적 보상으로 받은 코인(이미 가진 걸 또 받았을 때)도 번 코인에 넣는다
-    const earned = coinsSince(this.usage, this.since()) + WELCOME_COINS + (this.state.get('walletBonus') || 0);
+    // 폴더를 빼기 전에 그 폴더로 번 코인(walletKept)도 번 코인이다 (2.4.0)
+    const earned = this.writtenCoins() + WELCOME_COINS + (this.state.get('walletBonus') || 0) + (this.state.get('walletKept') || 0);
     const spent = this.state.get('walletSpent') || 0;
     return {
       earned,
@@ -3097,6 +3098,19 @@ class Shop {
       since: this.since(), // 처음 만난 시각. 상점에서 "언제부터 세는지" 를 보여 준다
       stars: this.starWallet(),
     };
+  }
+
+  // 지금 세는 폴더에서 쓴 글 · 끝낸 할 일로 번 코인
+  writtenCoins() {
+    return coinsSince(this.usage, this.since());
+  }
+
+  // 폴더를 빼거나 다시 넣어서 writtenCoins 가 delta 만큼 줄었다 (2.4.0, 이슈 #14).
+  // 이미 번 코인은 그대로 둔다: 뺄 때 줄어든 만큼 walletKept 에 남기고, 다시 넣어 돌아오면 그만큼 거둔다.
+  // (예전에는 폴더를 빼면 그 폴더로 번 코인이 소급해서 사라져, 쓴 코인보다 번 코인이 적어지면 지갑이 0 에 묶였다)
+  keepCoins(delta) {
+    if (!delta) return;
+    this.state.set({ walletKept: Math.max(0, (this.state.get('walletKept') || 0) + delta) });
   }
 
   // 별 지갑: 딴 별(경험치에서 바로 나온다) − 별 상점에서 쓴 별
@@ -5677,6 +5691,25 @@ class KitHost {
     return { ok: true, wasHungry, key: meal.key };
   }
 
+  // 자동 급식 (2.4.0, 이슈 #13). 켜 두면 배가 고파질 때(25 아래) 창고의 밥을 하나 꺼내 준다.
+  // 산 밥만 쓴다 (창고가 비었으면 아무것도 안 한다). 고양이가 보이면 바닥에 놓아 걸어가 먹고, 숨겨 두었으면 그대로 먹은 걸로 친다
+  autoFeed() {
+    if (!this.settings.get('autoFeed') || this.playing || this.gauge.locked()) return false;
+    if (this.gauge.get().food >= 25) return false;
+    const isMeal = (k) => FOODS.some((x) => x.key === k && x.group === 'meal');
+    if (this.floorTreats.some(isMeal)) return false; // 이미 바닥에 밥이 있다
+    if (this.pet && this.settings.get('showPet') && !(this.stage && this.stage.hidden)) return this.feed().ok;
+    const pantry = this.state.get('pantry') || {};
+    const key = [this.state.get('lastMeal')].find((k) => isMeal(k) && pantry[k] > 0) || (FOODS.find((x) => x.group === 'meal' && pantry[x.key] > 0) || {}).key;
+    const it = key && this.shop.useFood(key);
+    if (!it) return false;
+    this.state.set({ lastFood: key, lastMeal: key });
+    this.gauge.eat('meal', fillOf(it));
+    this.gamify.count('fed');
+    this.brain.meal();
+    return true;
+  }
+
   // ---------- 기억하는 고양이 · 하루 한 번 질문 · 쉬는 틈에 한 판 ----------
 
   // 기억 대사(LINE.memory)에 끼울 실제 있었던 일. 값이 없는 건 빼고 준다 (그 값을 쓰는 대사는 안 고른다).
@@ -6463,6 +6496,7 @@ class KitHost {
     this.brain.tick();
     this.gauge.tick();
     if (this.gauge.get().food < 25 && !this.brain.hungry()) this.brain.getHungry();
+    this.autoFeed();
     this.checkWorkTier();
     this.toyOfferTick();
     this.focusTick();
@@ -7098,7 +7132,10 @@ class KitHost {
       const back = excludedBefore.filter((id) => !(allowed.excludedProjects || []).includes(id));
       if (back.length && this.plugin.rebaseline) this.plugin.rebaseline(back);
       // 누적값이 한꺼번에 바뀌어도 퀘스트 진행도는 그대로 두게 기준값을 같이 민다
+      const coinsBefore = shop.writtenCoins();
       gamify.rebaseQuests(() => this.usage.setExcluded(allowed.excludedProjects));
+      // 이미 번 코인은 폴더를 빼도 남는다 (2.4.0, 이슈 #14)
+      shop.keepCoins(coinsBefore - shop.writtenCoins());
       this.state.set({ lastLevel: null, lastStage: null });
       this.recomputeGrowth();
     }
@@ -8846,6 +8883,7 @@ const DEFAULT_SETTINGS = {
   sleepyAfterMin: 30,
   sleepAfterMin: 60,
   lateNightEnabled: true,
+  autoFeed: false, // 배가 고파지면 창고의 밥을 하나 꺼내 준다 (2.4.0, 이슈 #13)
 
   excludedProjects: [], // 경험치에서 뺄 폴더 (폴더 이름의 해시)
   showPet: true, // 화면에 고양이를 띄운다 (끄면 하우스에서만 본다)
@@ -9091,7 +9129,7 @@ function bonusKey(x) {
 }
 const STATE = objOf({
   // 코인 · 별 · 횟수: 양쪽에서 늘어난 만큼
-  walletSpent: SUM, walletBonus: SUM, starsSpent: SUM, questsDone: SUM, pokes: SUM, mealsTaken: SUM, restsTaken: SUM,
+  walletSpent: SUM, walletBonus: SUM, walletKept: SUM, starsSpent: SUM, questsDone: SUM, pokes: SUM, mealsTaken: SUM, restsTaken: SUM,
   pantry: mapOf(SUM), treasures: mapOf(SUM), cnt: mapOf(SUM),
   focusStats: objOf({ n: SUM, min: SUM, last: MAX }),
   purchaseStats: objOf({ v: MAX }, DEEP_SUM),
@@ -11604,6 +11642,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'set.bedtime': '취침 시간',
       'set.bedtimeSub': '30분 전부터 꾸벅꾸벅 졸고, 지나서도 일하면 자러 가자고 해요',
       'set.lateNight': '취침 잔소리',
+      'set.autoFeed': '자동 급식',
+      'set.autoFeedSub': '배가 고파지면 창고에 있는 밥을 하나 꺼내 줘요. 창고가 비면 쉬어요',
       'set.lateNightSub': '취침 시간이 지나도 일하고 있으면 한마디 해요',
       'set.minutes': '분',
       'set.hooks': 'Claude Code 연결',
@@ -13790,6 +13830,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'set.bedtime': 'Bedtime',
       'set.bedtimeSub': 'Gets drowsy 30 minutes before, and nags if you are still working after',
       'set.lateNight': 'Bedtime nagging',
+      'set.autoFeed': 'Auto-feed',
+      'set.autoFeedSub': 'When your cat gets hungry, it serves a meal from your pantry. Nothing happens when the pantry is empty',
       'set.lateNightSub': 'Says something if you are still working past bedtime',
       'set.minutes': 'min',
       'set.hooks': 'Claude Code connection',
@@ -15981,6 +16023,8 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'set.bedtime': '就寝时间',
       'set.bedtimeSub': '提前 30 分钟开始打瞌睡，过了时间还在工作就会催你睡觉',
       'set.lateNight': '睡前唠叨',
+      'set.autoFeed': '自动喂食',
+      'set.autoFeedSub': '猫咪饿了时，从储藏室拿出一份饭。储藏室空了就不喂',
       'set.lateNightSub': '过了就寝时间还在工作时，会念叨你一句',
       'set.minutes': '分钟',
       'set.hooks': 'Claude Code 连接',
@@ -24806,6 +24850,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'set.bedtime': '취침 시간',
       'set.bedtimeSub': '30분 전부터 꾸벅꾸벅 졸고, 지나서도 일하면 자러 가자고 해요',
       'set.lateNight': '취침 잔소리',
+      'set.autoFeed': '자동 급식',
+      'set.autoFeedSub': '배가 고파지면 창고에 있는 밥을 하나 꺼내 줘요. 창고가 비면 쉬어요',
       'set.lateNightSub': '취침 시간이 지나도 일하고 있으면 한마디 해요',
       'set.minutes': '분',
       'set.hooks': 'Claude Code 연결',
@@ -26992,6 +27038,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'set.bedtime': 'Bedtime',
       'set.bedtimeSub': 'Gets drowsy 30 minutes before, and nags if you are still working after',
       'set.lateNight': 'Bedtime nagging',
+      'set.autoFeed': 'Auto-feed',
+      'set.autoFeedSub': 'When your cat gets hungry, it serves a meal from your pantry. Nothing happens when the pantry is empty',
       'set.lateNightSub': 'Says something if you are still working past bedtime',
       'set.minutes': 'min',
       'set.hooks': 'Claude Code connection',
@@ -29183,6 +29231,8 @@ module.exports.run = function run(window, document, pet, kind) {
       'set.bedtime': '就寝时间',
       'set.bedtimeSub': '提前 30 分钟开始打瞌睡，过了时间还在工作就会催你睡觉',
       'set.lateNight': '睡前唠叨',
+      'set.autoFeed': '自动喂食',
+      'set.autoFeedSub': '猫咪饿了时，从储藏室拿出一份饭。储藏室空了就不喂',
       'set.lateNightSub': '过了就寝时间还在工作时，会念叨你一句',
       'set.minutes': '分钟',
       'set.hooks': 'Claude Code 连接',
@@ -66626,6 +66676,7 @@ const TABS = {
       <div class="panel">
         <div class="field"><div class="lbl">${t('set.lunch')}</div><div class="inline"><input type="time" data-key="lunchTime" value="${esc(s.lunchTime)}">${sw('lunchEnabled', s.lunchEnabled)}</div></div>
         <div class="field"><div class="lbl">${t('set.dinner')}</div><div class="inline"><input type="time" data-key="dinnerTime" value="${esc(s.dinnerTime)}">${sw('dinnerEnabled', s.dinnerEnabled)}</div></div>
+        <div class="field"><div class="lbl">${t('set.autoFeed')}<small>${t('set.autoFeedSub')}</small></div>${sw('autoFeed', !!s.autoFeed)}</div>
         <div class="field"><div class="lbl">${t('set.rest')}<small>${t('set.restSub')}</small></div><div class="inline"><input type="number" min="15" max="600" step="5" data-key="restAfterMin" value="${s.restAfterMin}">${t('set.minutes')}</div></div>
         <div class="field"><div class="lbl">${t('set.sleepy')}<small>${t('set.sleepySub')}</small></div><div class="inline"><input type="number" min="5" max="600" step="5" data-key="sleepyAfterMin" value="${s.sleepyAfterMin}">${t('set.minutes')}</div></div>
         <div class="field"><div class="lbl">${t('set.sleep')}</div><div class="inline"><input type="number" min="10" max="1440" step="5" data-key="sleepAfterMin" value="${s.sleepAfterMin}">${t('set.minutes')}</div></div>

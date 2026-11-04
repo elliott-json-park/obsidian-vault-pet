@@ -435,6 +435,37 @@ test('host: 뺀 폴더는 성장에서 빠진다', async () => {
   assert.ok(host.growth.xp < xp);
 });
 
+test('host: 폴더를 빼도 이미 번 코인은 남고, 다시 넣으면 두 번 세지 않는다 (#14)', async () => {
+  const { host, usage } = makeHost();
+  usage.observe('일기/a.md', measure('가'.repeat(1000)), new Date());
+  host.onUsage();
+  const before = host.shop.wallet().earned;
+  const id = usage.projects(['일기']).find((p) => p.label === '일기').id;
+  await host.onInvoke('house:set', null, { excludedProjects: [id] });
+  assert.ok(host.shop.writtenCoins() < before - 1000, '뺀 폴더의 글은 더 세지 않는다');
+  assert.strictEqual(host.shop.wallet().earned, before);
+  await host.onInvoke('house:set', null, { excludedProjects: [] });
+  assert.strictEqual(host.shop.wallet().earned, before);
+  assert.strictEqual(host.state.get('walletKept'), 0);
+});
+
+test('host: 자동 급식은 켰을 때만, 창고의 밥으로 배고픈 고양이를 먹인다 (#13)', async () => {
+  const { host } = makeHost();
+  const meal = host.shop.summary().food.find((x) => x.group === 'meal' && !x.premium).key;
+  host.state.set({ pantry: { [meal]: 2 } });
+  host.pet = null; // 고양이 판이 없어도 먹는다
+  host.gauge.g.food = 10;
+  assert.strictEqual(host.autoFeed(), false, '꺼져 있으면 안 준다');
+  await host.onInvoke('house:set', null, { autoFeed: true });
+  assert.strictEqual(host.autoFeed(), true);
+  assert.ok(host.gauge.get().food > 25);
+  assert.strictEqual(host.shop.stock(meal), 1);
+  assert.strictEqual(host.autoFeed(), false, '배부르면 안 준다');
+  host.gauge.g.food = 10;
+  host.state.set({ pantry: {} });
+  assert.strictEqual(host.autoFeed(), false, '창고가 비면 안 준다');
+});
+
 /* ── Vault Pet 0.x 에서 넘어오기 ── */
 
 const legacyMod = require(path.join(src, 'plugin/legacy'));
