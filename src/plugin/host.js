@@ -188,6 +188,7 @@ class KitHost {
     brain.daily = state.get('brainDaily') || {};
     brain.life = state.get('life') || { hungrySince: 0, fedAt: 0 };
     brain.systemIdle = () => this.plugin.idleSeconds();
+    brain.isFull = () => !!this.gauge && this.gauge.full(); // 2.4.1, 이슈 #16
     brain.graceUntil = (state.get('startedAt') || 0) + FIRST_GRACE;
     // 옵시디언판은 타이핑을 hook 처럼 늘 알려 준다 (plugin/main.js 의 onType). 그래서 '같이 쓰는 중'은 타이핑할 때만이다
     brain.lastHookAt = Date.now();

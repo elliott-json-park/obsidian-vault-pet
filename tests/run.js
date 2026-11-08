@@ -314,6 +314,31 @@ test('host: 프리미엄 음식 — 고정·코인·업적 횟수, 먹이에 쓴
   assert.strictEqual(host.gamify.st.cnt.pf_royalTable, 1);
 });
 
+test('host: 배가 든든하면 밥때 알림이 와도 배고프지 않다 — 용왕님 생일상 고정 (2.4.1, 이슈 #16)', () => {
+  const { host } = makeHost();
+  const { brain, gauge } = host;
+  const now = Date.now();
+  // 생일상을 먹고 배부름 100, 24시간 고정
+  gauge.g = { food: 100, at: now, foodLockUntil: 0 };
+  gauge.lockFood(24 * HOUR_MS, now);
+  brain.getHungry(now); // 점심 알림
+  assert.ok(!brain.hungry(now), '고정 중에는 배고프지 않다');
+  // 2.4.0 에서 이미 저장된 배고픔도 가려진다 (재시작해도 배고프다던 것)
+  brain.life = { hungrySince: now - HOUR_MS, fedAt: now - 2 * HOUR_MS };
+  assert.ok(!brain.hungry(now));
+  brain.tick(now);
+  assert.notStrictEqual(brain.mood, 'hungry');
+  // 고정이 없어도 배부름 50 이상이면 밥때에 배고파하지 않는다
+  gauge.g = { food: 80, at: now, foodLockUntil: 0 };
+  brain.life = { hungrySince: 0, fedAt: 0 };
+  brain.getHungry(now);
+  assert.ok(!brain.hungry(now));
+  // 배가 정말 고프면 그대로 배고프다
+  gauge.g = { food: 10, at: now, foodLockUntil: 0 };
+  brain.getHungry(now);
+  assert.ok(brain.hungry(now));
+});
+
 test('host: 배고파도 놀고, 한참 쓰다 쉬는 틈에 권한 장난감을 누르면 「기다림의 달인」 횟수가 오른다', async () => {
   const { host, sent, plugin } = makeHost();
   const toy = host.shop.summary().toy.find((x) => !x.locked);
