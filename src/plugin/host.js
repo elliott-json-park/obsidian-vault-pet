@@ -230,6 +230,8 @@ class KitHost {
     const ver = this.plugin.manifest ? this.plugin.manifest.version : '';
     if (!ver || this.state.get('lastVersion') === ver) return;
     this.state.set({ lastVersion: ver, whatsNew: this.state.get('onboarded') ? ver : null });
+    // 2.5.0: 업데이트한 기존 사용자에게만 별 안내를 한 번 걸어 둔다 (새로 설치한 사람은 아직 써 보지 않았으니 묻지 않는다)
+    if (this.state.get('whatsNew') && !this.state.get('starAsked')) this.state.set({ starPending: true });
     if (this.state.get('whatsNew')) this.later(() => this.state.get('whatsNew') && this.bubble(this.T.t('pet.whatsNew', { v: ver }), 'item', 'whatsnew'), 9000);
   }
 
@@ -1303,6 +1305,8 @@ class KitHost {
       petShown: !!settings.get('showPet'),
       firstRun: !state.get('onboarded'),
       version: this.plugin.manifest ? this.plugin.manifest.version : '',
+      // 2.5.0: 업데이트한 기존 사용자에게 GitHub 별 안내 창을 딱 한 번 ('새로 생긴 것' 창을 닫은 뒤. 보상 없음)
+      starAsk: !!state.get('starPending') && !state.get('starAsked'),
       whatsNew: state.get('whatsNew') || null, // 업데이트 뒤 아직 안 본 '새로 생긴 것' (버전 문자열)
       vault: this.vaultStats(),
       // 동네 친구 · 보물 공방 (2.2.0 에 돌아왔다). 꺼도 가진 것은 그대로라 늘 보내고, 탭을 숨기는 건 하우스가 설정을 보고 한다
@@ -1880,6 +1884,13 @@ class KitHost {
       case 'app:feedback':
         this.plugin.openFeedback();
         return true;
+      case 'app:star':
+        this.plugin.openStar();
+        return true;
+      // 별 안내 창을 띄웠다 (다시는 띄우지 않는다)
+      case 'app:star-shown':
+        state.set({ starAsked: true, starPending: false });
+        return this.housePayload();
     }
     return null;
   }

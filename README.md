@@ -208,7 +208,11 @@ Vault Pet has no telemetry, so the only way to know what you like, what's broken
 | **Plugin data file** | Your cat, wallet, badges, hourly writing totals and your Home to-do list | `.obsidian/plugins/vault-pet/data.json`. The only other thing kept is a device name (next row) |
 | **Backup of the data file** | To bring your cat back if `data.json` is ever damaged (a crash mid-save, a sync conflict) | Once a day, a copy is written next to it as `data.backup.json`. A damaged file is kept as `data.broken-<time>.json` rather than deleted. Before merging changes from another device, this device's copy is kept as `data.premerge.json` (at most every 10 minutes) |
 | **A device name** | So two devices that sync the same vault merge their progress instead of overwriting each other | Made once and kept in Obsidian's local storage on this device, where it never syncs. It's a random string with nothing about you or the device in it |
-| **Your browser (link only)** | The **Send feedback** button | Only when you press it. It opens this repository's issue page. Vault Pet itself still makes no network requests |
+| **Your browser (link only)** | The **Send feedback** and **Star on GitHub** buttons | Only when you press one of them. They open this repository's issue page or main page. Vault Pet itself still makes no network requests |
+
+### One-time message
+
+After you update Vault Pet and close the **What's new** window in the Vault Pet house, a small window asks you to star this repository on GitHub if you enjoy the plugin. It appears **once**, inside Vault Pet's own house (never as a pop-up elsewhere in Obsidian), only for people who updated rather than new installs, and it never comes back after that. Nothing in the game depends on it. There are no other messages or ads.
 
 ## FAQ
 

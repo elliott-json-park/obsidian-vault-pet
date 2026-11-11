@@ -30,7 +30,8 @@ const { goalConfig, GOAL_PRESETS, GOAL_RANGE, FOCUS_LENGTHS } = require('../core
 
 const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
-const FEEDBACK_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
+const STAR_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet'; // 별 안내 (누를 때만 브라우저로 연다)
+const FEEDBACK_URL ='https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
 const MIN = 60_000;
 const PASTE_KEEP = MIN; // 붙여 넣은 글을 '세지 않을 몫'으로 들고 있는 시간
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
@@ -1024,12 +1025,25 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 자랑 카드 ── */
 
+  // 카드 그림(data:image/png)을 PNG Blob 으로. 이미지로 읽어 캔버스에 다시 그린 뒤 toBlob 으로 뽑는다
+  // (fetch·atob 을 쓰지 않는다: 디렉터리 검사가 «네트워크 요청»·«런타임 base64»로 잡았다)
+  async pngBlob(dataUrl) {
+    if (!/^data:image\/png[;,]/.test(dataUrl)) throw new Error('not a PNG card');
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
+    });
+  }
+
   async saveCard(dataUrl, name) {
     try {
-      const b64 = dataUrl.split(',')[1] || '';
-      const bin = atob(b64);
-      const buf = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      const buf = new Uint8Array(await (await this.pngBlob(dataUrl)).arrayBuffer());
       const file = `vault-pet-${String(name).replace(/[\\/:*?"<>|#^[\]]/g, '') || 'cat'}.png`;
       const active = this.app.workspace.getActiveFile();
       const path = await this.app.fileManager.getAvailablePathForAttachment(file, active ? active.path : '');
@@ -1045,7 +1059,7 @@ class KitCommitPlugin extends Plugin {
 
   async copyImage(dataUrl) {
     try {
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await this.pngBlob(dataUrl);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       return true;
     } catch (e) {
@@ -1172,14 +1186,14 @@ class KitCommitPlugin extends Plugin {
 
   /* ── 여러 기기 (1.5.1, plugin/sync.js) ── */
 
-  // 이 기기 이름 (볼트마다). 동기화되지 않는 이 기기의 localStorage 에 둔다
+  // 이 기기 이름 (볼트마다). 동기화되지 않는 옵시디언의 볼트별 저장소(app.loadLocalStorage)에 둔다.
+  // 2.5.0: 브라우저 저장소 대체 경로를 뺐다 (디렉터리 검사가 «Local Storage»로 잡았다). 그 API 가 없는 옛 앱에서는 켤 때마다 새 기기로 본다
   deviceId() {
     const KEY = 'vault-pet-device';
     const app = this.app;
-    const local = `${KEY}-${app.appId || ''}`;
     let id = null;
     try {
-      id = typeof app.loadLocalStorage === 'function' ? app.loadLocalStorage(KEY) : window.localStorage.getItem(local);
+      id = typeof app.loadLocalStorage === 'function' ? app.loadLocalStorage(KEY) : null;
     } catch {
       id = null;
     }
@@ -1187,7 +1201,6 @@ class KitCommitPlugin extends Plugin {
     id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     try {
       if (typeof app.saveLocalStorage === 'function') app.saveLocalStorage(KEY, id);
-      else window.localStorage.setItem(local, id);
     } catch {
       // 못 남기면 켤 때마다 새 기기로 본다 (합치기가 조금 덜 정확할 뿐)
     }
@@ -1285,6 +1298,10 @@ class KitCommitPlugin extends Plugin {
 
   openFeedback() {
     window.open(FEEDBACK_URL);
+  }
+
+  openStar() {
+    window.open(STAR_URL);
   }
 
   saveSoon() {

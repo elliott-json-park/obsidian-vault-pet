@@ -211,7 +211,7 @@ const STATE = objOf({
   lastLevel: MAX, lastStage: MAX, stageScheme: MAX, starsPaid: MAX, maxStreakMin: MAX, attendDay: MAX, mealDay: MAX, restDay: MAX, earlyDay: MAX,
   goalLog: mapOf(MAX), toyRecords: DEEP_MAX,
   startedAt: MIN_NZ,
-  greeted: OR, onboarded: OR, initialized: OR, bubbleSplit: OR, keyFix1004: OR, keyFix1009: OR, v2: OR,
+  greeted: OR, onboarded: OR, starAsked: OR, starPending: OR, initialized: OR, bubbleSplit: OR, keyFix1004: OR, keyFix1009: OR, v2: OR,
   // 모으는 것: 합집합
   items: unionOf(String),
   retiredPaid: unionOf(String),

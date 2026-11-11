@@ -2743,6 +2743,10 @@ input {
 .wn-row b { font-size: 13px; }
 .wn-row .muted { font-size: 11px; line-height: 1.4; word-break: keep-all; }
 .wn-row .btn { white-space: nowrap; }
+.star-modal .modal-box { max-width: 360px; }
+.star-ask { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 6px 0 14px; text-align: center; }
+.star-ask p { margin: 0; font-size: 13px; line-height: 1.5; word-break: keep-all; }
+.star-ask-btns { display: flex; gap: 8px; justify-content: center; }
 .fur-grid.w-ears { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 4px; max-height: 236px; }
 .w-ears .fur-cell { padding: 4px; }
 .w-ears .fur-cell .nm { font-size: 10px; line-height: 1.2; word-break: keep-all; }

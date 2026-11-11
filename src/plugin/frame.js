@@ -79,6 +79,8 @@ const API = [
   ['setQuiet', 'invoke', 'quiet:set'],
   ['resetPosition', 'invoke', 'pet:reset-position'],
   ['feedback', 'invoke', 'app:feedback'],
+  ['star', 'invoke', 'app:star'], // GitHub 별 안내 (누를 때만 브라우저로 연다)
+  ['starShown', 'invoke', 'app:star-shown'], // 별 안내 창을 띄웠다 (한 번만)
   ['onData', 'on', 'house:data'],
   ['onMood', 'on', 'house:mood'],
   ['onTab', 'on', 'house:tab'],

@@ -3806,10 +3806,16 @@ function showWhatsNew() {
     <ul class="wn-list">${rows}</ul>
     <div class="center"><button class="btn primary" data-close>${t('wn.ok')}</button></div>`,
     'wn-modal',
+    // 창을 닫으면 (닫기 · 좋아요 · Esc · 바깥) 별 안내 창을 따로 띄운다. '가 보기'로 다른 화면에 간 때는 덮지 않고 다음에 하우스를 열 때로 미룬다
+    () => {
+      if (!going && starDue()) setTimeout(showStarAsk, 0);
+    },
   );
+  let going = false;
   $$('[data-wn-go]', el).forEach((b) =>
     b.addEventListener('click', () => {
       const go = b.dataset.wnGo;
+      going = true;
       closeModal();
       if (go === 'ears') {
         setTab('wardrobe');
@@ -3828,6 +3834,28 @@ function showWhatsNew() {
     }),
   );
   if (D.whatsNew) pet.whatsNewSeen().then((d) => d && (D = d));
+}
+
+// ---------- GitHub 별 안내 (2.5.0, 업데이트한 기존 사용자에게 딱 한 번) ----------
+// '새로 생긴 것' 창을 닫으면 따로 뜬다. 보상과 묶지 않는다 (누르든 안 누르든 게임에는 아무 차이가 없다)
+let starShown = false;
+function starDue() {
+  return !!(window.KC_OBSIDIAN && D && D.starAsk && !starShown);
+}
+function showStarAsk() {
+  if (!starDue() || !$('#modal').hidden) return;
+  starShown = true;
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('obs.star.t')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <div class="star-ask">${icon('star', 36)}<p>${t('obs.star.d')}</p></div>
+    <div class="center star-ask-btns"><button class="btn ghost" data-close>${t('obs.star.later')}</button><button class="btn primary" data-star-go>${t('obs.star.btn')}</button></div>`,
+    'star-modal',
+  );
+  $('[data-star-go]', el).addEventListener('click', () => {
+    pet.star();
+    closeModal();
+  });
+  pet.starShown().then((d) => d && (D = d));
 }
 
 // ---------- 시작 ----------
@@ -3872,5 +3900,6 @@ if (pet.onToast) pet.onToast((x) => x && toast(x.text, x.icon));
   setTab(tab);
   if (D.firstRun) showWelcome();
   else if (D.whatsNew) showWhatsNew();
+  else if (starDue()) showStarAsk(); // '새로 생긴 것'에서 '가 보기'로 넘어가 미뤄 둔 별 안내
   animate();
 })();
