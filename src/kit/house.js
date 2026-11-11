@@ -2738,6 +2738,7 @@ const TABS = {
             <option value="ko" ${s.language === 'ko' ? 'selected' : ''}>한국어</option>
             <option value="en" ${s.language === 'en' ? 'selected' : ''}>English</option>
             <option value="zh" ${s.language === 'zh' ? 'selected' : ''}>中文</option>
+            <option value="ru" ${s.language === 'ru' ? 'selected' : ''}>Русский</option>
           </select></div>
         <div class="field"><div class="lbl">${t('set.bubbles')}<small>${t('set.bubblesSub')}</small></div>${sw('bubblesEnabled', s.bubblesEnabled)}</div>
         <div class="field"><div class="lbl">${t('set.chatter')}<small>${t('set.chatterSub')}</small></div>${sw('chatter', s.chatter)}</div>

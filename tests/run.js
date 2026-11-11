@@ -1221,9 +1221,9 @@ test('shop: 장난감 36종 — 4차 6종까지 아이콘 · 이름 · 노는 �
   for (const k of ['sunbeam', 'quilt', 'fishbowl', 'shellgame', 'volley', 'simon']) assert.ok(shop.TOYS.some((x) => x.key === k), k);
   for (const it of shop.TOYS) {
     assert.ok(PixelArt.has(it.key), 'icon ' + it.key);
-    for (const lang of ['ko', 'en', 'zh']) for (const p of ['item.', 'toyHow.', 'toyDo.']) assert.ok(I18N.UI[lang][p + it.key], `${lang} ${p}${it.key}`);
+    for (const lang of ['ko', 'en', 'zh', "ru"]) for (const p of ['item.', 'toyHow.', 'toyDo.']) assert.ok(I18N.UI[lang][p + it.key], `${lang} ${p}${it.key}`);
   }
-  for (const lang of ['ko', 'en', 'zh']) for (const k of ['whackcat', 'rps', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']) assert.ok(I18N.UI[lang]['game.rec.' + k], `${lang} game.rec.${k}`);
+  for (const lang of ['ko', 'en', 'zh', "ru"]) for (const k of ['whackcat', 'rps', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']) assert.ok(I18N.UI[lang]['game.rec.' + k], `${lang} game.rec.${k}`);
 });
 
 test('host: 줄넘기 · 4차 장난감 최고 기록이 저장된다 (RECORD_KEYS)', () => {
@@ -1517,7 +1517,7 @@ test('achievements: 목표 · 집중 · 할 일 업적 15개가 있고 묶음 �
   const ids = ACHIEVEMENTS.filter((a) => a.cat === 'focus').map((a) => a.id);
   assert.strictEqual(ids.length, 15);
   assert.ok(CATS.includes('focus'));
-  for (const lang of ['ko', 'en', 'zh']) {
+  for (const lang of ['ko', 'en', 'zh', "ru"]) {
     assert.ok(I18N.UI[lang]['ach.cat.focus'], lang);
     for (const id of ids) assert.ok(I18N.UI[lang][`ach.${id}.name`] && I18N.UI[lang][`ach.${id}.desc`], `${lang} ${id}`);
   }
