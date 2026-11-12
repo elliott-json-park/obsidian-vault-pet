@@ -201,6 +201,7 @@ class KitSettingTab extends PluginSettingTab {
           .addOption('ko', '한국어')
           .addOption('en', 'English')
           .addOption('zh', '中文')
+          .addOption('ru', 'Русский')
           .setValue(p.settings.get('language'))
           .onChange((v) => {
             p.host.setSettings({ language: v });
@@ -348,7 +349,7 @@ class KitCommitPlugin extends Plugin {
     if (firstInstall) {
       if (!(raw.settings || {}).language) {
         const lang = obsidianLanguage();
-        this.settings.data.language = lang.startsWith('ko') ? 'ko' : lang.startsWith('zh') ? 'zh' : 'en';
+        this.settings.data.language = lang.startsWith('ko') ? 'ko' : lang.startsWith('zh') ? 'zh' : lang.startsWith('ru') ? 'ru' : 'en';
       }
       if (legacy && legacy.petName) this.settings.data.petName = legacy.petName;
       else if (DEFAULT_PET_NAME[this.settings.data.language]) this.settings.data.petName = DEFAULT_PET_NAME[this.settings.data.language];

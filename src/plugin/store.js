@@ -3,7 +3,7 @@
 
 const DEFAULT_SETTINGS = {
   petName: '킷',
-  language: 'ko', // 'ko' | 'en' | 'zh'
+  language: 'ko', // 'ko' | 'en' | 'zh' | 'ru'
   personality: 'angel',
   scale: 3, // 1~5 다섯 단계 → 배율 1·1.5·2·2.5·3배
   fur: 'cheese',
@@ -74,6 +74,6 @@ class Store {
 }
 
 // 처음 설치할 때 언어에 맞춰 주는 고양이 이름 (한국어는 DEFAULT_SETTINGS 의 '킷')
-const DEFAULT_PET_NAME = { en: 'Kit', zh: '奇奇' };
+const DEFAULT_PET_NAME = { en: 'Kit', zh: '奇奇', ru: 'Kit' };
 
 module.exports = { Store, DEFAULT_SETTINGS, DEFAULT_PET_NAME };

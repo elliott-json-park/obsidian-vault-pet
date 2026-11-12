@@ -145,7 +145,7 @@ Open the house (cat face in the ribbon, or double-click the cat; your cat's name
 - Name, size (5 steps), fur color, ear shape (13 shapes, free from the start)
 - **Theme** for the house: Cream, Cocoa, Mint milk, Sakura, Milk choco, or Auto (follows your Obsidian light or dark theme)
 - **Mute**: turns off every sound effect. Also in Obsidian's plugin settings and the command palette
-- Language (English, 한국어, 中文). It starts in the language your Obsidian is set to
+- Language (English, 한국어, 中文, Русский). It starts in the language your Obsidian is set to. The Russian translation is by [@rimpk901](https://github.com/rimpk901)
 - Speech bubbles, small talk, occasional Obsidian tips
 - Lunch and dinner times, break reminder, when to get sleepy, bedtime, late-night nagging
 - Motions for every situation, with a drag-and-drop editor. All motions are unlocked; switch a situation off to skip its motion, and choose whether full-set costumes mix in their own motions

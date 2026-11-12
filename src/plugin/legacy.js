@@ -88,7 +88,7 @@ function legacySettings(raw) {
   const old = (raw && raw.settings) || {};
   const out = {};
   for (const k of CARRY_SETTINGS) if (old[k] !== undefined) out[k] = old[k];
-  if (['ko', 'en', 'zh'].includes(old.language)) out.language = old.language;
+  if (['ko', 'en', 'zh', 'ru'].includes(old.language)) out.language = old.language;
   // 경험치에서 뺀 폴더: 0.x 는 폴더 경로를, 새 판은 경로의 해시를 쓴다. 하위 폴더('Projects/Archive')도 그대로 옮긴다 (1.6.0)
   const folders = cleanFolders(old);
   if (folders.length) out.excludedProjects = [...new Set(folders.map(pathKey))];

@@ -1221,9 +1221,9 @@ test('shop: 장난감 36종 — 4차 6종까지 아이콘 · 이름 · 노는 �
   for (const k of ['sunbeam', 'quilt', 'fishbowl', 'shellgame', 'volley', 'simon']) assert.ok(shop.TOYS.some((x) => x.key === k), k);
   for (const it of shop.TOYS) {
     assert.ok(PixelArt.has(it.key), 'icon ' + it.key);
-    for (const lang of ['ko', 'en', 'zh']) for (const p of ['item.', 'toyHow.', 'toyDo.']) assert.ok(I18N.UI[lang][p + it.key], `${lang} ${p}${it.key}`);
+    for (const lang of ['ko', 'en', 'zh', 'ru']) for (const p of ['item.', 'toyHow.', 'toyDo.']) assert.ok(I18N.UI[lang][p + it.key], `${lang} ${p}${it.key}`);
   }
-  for (const lang of ['ko', 'en', 'zh']) for (const k of ['whackcat', 'rps', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']) assert.ok(I18N.UI[lang]['game.rec.' + k], `${lang} game.rec.${k}`);
+  for (const lang of ['ko', 'en', 'zh', 'ru']) for (const k of ['whackcat', 'rps', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']) assert.ok(I18N.UI[lang]['game.rec.' + k], `${lang} game.rec.${k}`);
 });
 
 test('host: 줄넘기 · 4차 장난감 최고 기록이 저장된다 (RECORD_KEYS)', () => {
@@ -1294,15 +1294,15 @@ test('house.css: 빌드하면 중첩 · :has · !important 가 없다 (옵시디
   }
 });
 
-/* ── 중국어 (zh) ── */
+/* ── 중국어 (zh) · 러시아어 (ru) ── */
 // 빠진 글은 한국어로 나온다 (Strings.t · lines 가 ko 로 떨어진다). 그래서 영어에 있는 건 중국어에도 다 있어야 한다
 const placeholders = (s) => [...String(s).matchAll(/\{(\w+)/g)].map((m) => m[1]);
-test('i18n zh: 영어에 있는 화면 글 · 대사 종류가 중국어에도 다 있고, {자리}가 같다', () => {
-  assert.ok(I18N.LANGS.includes('zh'), 'LANGS');
+for (const L of ['zh', 'ru']) test(`i18n ${L}: 영어에 있는 화면 글 · 대사 종류가 ${L} 에도 다 있고, {자리}가 같다`, () => {
+  assert.ok(I18N.LANGS.includes(L), 'LANGS');
   const en = I18N.UI.en;
-  const zh = I18N.UI.zh;
+  const zh = I18N.UI[L];
   const missing = Object.keys(en).filter((k) => !(k in zh));
-  assert.deepStrictEqual(missing, [], 'zh UI 빠짐');
+  assert.deepStrictEqual(missing, [], `${L} UI 빠짐`);
   for (const k of Object.keys(en)) {
     assert.strictEqual(typeof zh[k], 'string', k);
     assert.deepStrictEqual([...new Set(placeholders(zh[k]))].sort(), [...new Set(placeholders(en[k]))].sort(), `UI ${k}: ${zh[k]}`);
@@ -1310,16 +1310,17 @@ test('i18n zh: 영어에 있는 화면 글 · 대사 종류가 중국어에도 �
     assert.ok(!/[\uac00-\ud7a3]/.test(zh[k]), `UI 한글 ${k}: ${zh[k]}`);
   }
   const kinds = Object.keys(I18N.LINE.en);
-  assert.deepStrictEqual(kinds.filter((k) => !I18N.LINE.zh[k] || !Array.isArray(I18N.LINE.zh[k].angel)), [], 'zh LINE 빠짐');
+  assert.deepStrictEqual(kinds.filter((k) => !I18N.LINE[L][k] || !Array.isArray(I18N.LINE[L][k].angel)), [], `${L} LINE 빠짐`);
   for (const kind of kinds) {
     const enLines = I18N.LINE.en[kind].angel;
-    const zhLines = I18N.LINE.zh[kind].angel;
+    const zhLines = I18N.LINE[L][kind].angel;
     if (enLines.length) assert.ok(zhLines.length, `LINE ${kind} 비었다`);
     const enPh = new Set(enLines.flatMap(placeholders));
     const zhPh = new Set(zhLines.flatMap(placeholders));
     for (const p of enPh) assert.ok(zhPh.has(p), `LINE ${kind}: {${p}} 없음`);
     for (const p of zhPh) assert.ok(enPh.has(p), `LINE ${kind}: 영어에 없는 {${p}}`);
     for (const s of zhLines) {
+      assert.strictEqual(typeof s, 'string', `LINE ${kind} 글이 아님`);
       assert.ok(!/[\uac00-\ud7a3]/.test(s), `LINE 한글 ${kind}: ${s}`);
       assert.ok(!/\{\w+#/.test(s), `LINE 조사 문법 ${kind}: ${s}`);
     }
@@ -1346,6 +1347,21 @@ test('legacy · 설정: 언어 zh 를 받아들인다', async () => {
   assert.strictEqual(host.T.lang, 'zh');
   await host.onInvoke('house:set', null, { language: 'fr' });
   assert.strictEqual(host.settings.get('language'), 'zh', '모르는 언어는 무시');
+});
+
+test('i18n ru: 로케일 ru-RU, 예전 설정 · 하우스 설정이 ru 를 받아들이고, 시간은 24시간으로 (#18)', async () => {
+  const T = new I18N.Strings('ru');
+  assert.strictEqual(T.lang, 'ru');
+  assert.strictEqual(T.locale, 'ru-RU');
+  assert.ok(T.t('obs.star.t') && !/[가-힣]/.test(T.t('obs.star.t')), '별 요청 창이 한국어로 떨어지지 않는다');
+  assert.strictEqual(legacyMod.legacySettings({ settings: { language: 'ru' } }).language, 'ru');
+  const { DEFAULT_PET_NAME } = require(path.join(src, 'plugin/store'));
+  assert.strictEqual(DEFAULT_PET_NAME.ru, 'Kit', '첫 이름이 한국어 킷이 아니다');
+  const { host } = makeHost();
+  await host.onInvoke('house:set', null, { language: 'ru' });
+  assert.strictEqual(host.settings.get('language'), 'ru');
+  const late = I18N.LINE.ru.late.angel.find((s) => s.includes('{hl}'));
+  if (late) assert.ok(!/[가-힣]|AM|PM/.test(I18N.fill(late, { hl: '23:00' })));
 });
 
 /* ── 1.5.0: 단어 · 끝낸 할 일 · 하루 목표 · 집중 시간 ── */
@@ -1517,7 +1533,7 @@ test('achievements: 목표 · 집중 · 할 일 업적 15개가 있고 묶음 �
   const ids = ACHIEVEMENTS.filter((a) => a.cat === 'focus').map((a) => a.id);
   assert.strictEqual(ids.length, 15);
   assert.ok(CATS.includes('focus'));
-  for (const lang of ['ko', 'en', 'zh']) {
+  for (const lang of ['ko', 'en', 'zh', 'ru']) {
     assert.ok(I18N.UI[lang]['ach.cat.focus'], lang);
     for (const id of ids) assert.ok(I18N.UI[lang][`ach.${id}.name`] && I18N.UI[lang][`ach.${id}.desc`], `${lang} ${id}`);
   }

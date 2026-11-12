@@ -13,6 +13,7 @@ const DAY = 86_400_000;
 const UNITS = ['words', 'chars'];
 // 처음 정해 주는 목표 (언어마다). 부담 없이 첫날부터 채울 수 있는 양으로
 const GOAL_DEFAULT = {
+  ru: { unit: 'words', target: 300 },
   en: { unit: 'words', target: 300 },
   ko: { unit: 'chars', target: 1000 },
   zh: { unit: 'chars', target: 500 },

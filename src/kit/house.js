@@ -60,6 +60,7 @@ const bigTok = (n) => new Intl.NumberFormat('en-US', { notation: 'compact', maxi
 const hourName = (h) =>
   h == null ? '-'
   : T.lang === 'en' ? `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`
+  : T.lang === 'ru' ? `${h}:00`
   : T.lang === 'zh' ? (h === 0 ? '凌晨0点' : h === 12 ? '中午12点' : `${h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上'}${h % 12}点`)
   : `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}시`;
 const coins = (n, px = 14) => `${icon('coin', px)}<span>${t('shop.coin', { n: fmt(n) })}</span>`;
@@ -2738,6 +2739,7 @@ const TABS = {
             <option value="ko" ${s.language === 'ko' ? 'selected' : ''}>한국어</option>
             <option value="en" ${s.language === 'en' ? 'selected' : ''}>English</option>
             <option value="zh" ${s.language === 'zh' ? 'selected' : ''}>中文</option>
+            <option value="ru" ${s.language === 'ru' ? 'selected' : ''}>Русский</option>
           </select></div>
         <div class="field"><div class="lbl">${t('set.bubbles')}<small>${t('set.bubblesSub')}</small></div>${sw('bubblesEnabled', s.bubblesEnabled)}</div>
         <div class="field"><div class="lbl">${t('set.chatter')}<small>${t('set.chatterSub')}</small></div>${sw('chatter', s.chatter)}</div>
