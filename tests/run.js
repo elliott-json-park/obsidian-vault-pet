@@ -681,9 +681,36 @@ test('safedata: 백업은 하루에 한 번, 고양이가 있는 자료만', asy
   assert.deepStrictEqual(JSON.parse(a.files['p/data.backup.json']), good);
 });
 
+test('코스튬 제안하기: 하우스 버튼 → 호스트 → 양식이 채워진 GitHub 새 이슈 (2.7.0, 이슈 #20)', () => {
+  const fs = require('fs');
+  const rd = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert.ok(rd('src/plugin/frame.js').includes("['costumeIdea', 'invoke', 'app:costume-idea']"));
+  assert.ok(/case 'app:costume-idea':\s*this\.plugin\.openCostumeIdea\(\)/.test(rd('src/plugin/host.js')));
+  const url = (rd('src/plugin/main.js').match(/const COSTUME_URL = '([^']+)'/) || [])[1];
+  assert.ok(url && url.endsWith('/issues/new?template=costume.yml'), url);
+  const form = rd('.github/ISSUE_TEMPLATE/costume.yml');
+  assert.ok(/^name: Costume idea/m.test(form) && /^title: "Costume idea: "/m.test(form));
+  const house = rd('src/kit/house.js');
+  assert.ok(house.includes("case 'costumeIdea'") && house.includes('pet.costumeIdea()'));
+  // 별 안내 창(모달)의 단추는 view 의 [data-act] 묶음에 안 들어가니 showStarAsk 안에서 따로 잇는다 (실제 옵시디언에서 잡음)
+  const star = house.slice(house.indexOf('function showStarAsk'), house.indexOf('// ---------- 시작 ----------'));
+  assert.ok(/\[data-act="costumeIdea"\][\s\S]*?addEventListener\('click', \(\) => pet\.costumeIdea\(\)\)/.test(star), '별 안내 창의 코스튬 제안하기 단추가 이어져 있다');
+});
+
+test('꿈틀 문어 모자: 상점 세트(머리·목·등), 네 언어 이름, 그림이 있다 (2.7.0, 이슈 #20)', () => {
+  const fs = require('fs');
+  const shop = require('../src/core/shop.js');
+  const it = shop.ACCESSORIES.find((x) => x.key === 'octopushat');
+  assert.ok(it && it.slot === 'set' && !it.stars, '코인으로 사는 세트');
+  assert.deepStrictEqual(it.covers, ['head', 'neck', 'back']);
+  for (const lang of I18N.LANGS) assert.ok(I18N.UI[lang]['item.octopushat'], lang + ' item.octopushat');
+  const kit = fs.readFileSync(path.join(__dirname, '..', 'src/kit/accessories-7.js'), 'utf8');
+  assert.ok(/octopushat: \{[\s\S]*?back\(g, a, c, t\)[\s\S]*?front\(g, a, c, t\)/.test(kit));
+});
+
 test('i18n: 의견 보내기·저장 파일 안내·자랑 카드에 플러그인 이름', () => {
   for (const lang of I18N.LANGS) {
-    for (const k of ['obs.feedback', 'obs.feedbackDesc', 'obs.feedbackBtn', 'obs.dataRestored', 'obs.dataLost']) assert.ok(I18N.UI[lang][k], lang + ' ' + k);
+    for (const k of ['obs.feedback', 'obs.feedbackDesc', 'obs.feedbackBtn', 'obs.dataRestored', 'obs.dataLost', 'obs.costumeIdea', 'obs.costumeIdeaBtn']) assert.ok(I18N.UI[lang][k], lang + ' ' + k);
     for (const k of ['card.footer', 'card.shareText']) assert.ok(I18N.UI[lang][k].includes('Vault Pet'), lang + ' ' + k);
   }
 });

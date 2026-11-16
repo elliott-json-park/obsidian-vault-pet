@@ -1,0 +1,18 @@
+name: Costume idea
+description: A costume you'd like your cat to wear
+title: "Costume idea: "
+labels: [idea]
+body:
+  - type: input
+    id: costume
+    attributes:
+      label: What costume would you like?
+      description: An animal, a job, a character from your own life, a season... anything the cat could dress up as.
+      placeholder: e.g. an octopus hat with wiggly tentacles
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Any details you'd love to see? (optional)
+      description: Colors, a little motion, something it holds, how it looks while the cat sleeps.

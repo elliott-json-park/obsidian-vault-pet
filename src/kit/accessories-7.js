@@ -2458,3 +2458,110 @@
 
   Object.assign(root.PetSprite.ACCESSORIES, LAB);
 })(window);
+
+// ================= 2.7.0 (2026-11-16): 꿈틀 문어 모자 세트 (이슈 #20) =================
+// 다른 동물을 고르는 대신 동물 코스튬으로. 요청자가 꼽은 문어를, 꿈틀대는 다리가 보이게 그렸다
+(function (root) {
+  const { GROUND } = root.PetSprite.costumeKit;
+  const OP = { m: '#f07a98', d: '#c9506f', l: '#ffadc2', s: '#ffe0e8', spot: '#d95e80', mouth: '#ff9fb6', hole: '#7a2440' };
+
+  // 문어 머리(외투막): 위는 둥글고 크게, 아래로 갈수록 좁아지는 전구 모양. 점박이 · 왼쪽 빛 · 오른쪽 그늘
+  function octoBulb(r, c, cx, cy, w, h) {
+    const hwAt = (y) => {
+      const u = (y + 0.5 - cy) / h; // -1(꼭대기) ~ 1(밑)
+      if (u < -1 || u > 1) return -1;
+      const base = w * Math.sqrt(Math.max(0, 1 - u * u * (u < 0 ? 1 : 0.55)));
+      return u > 0 ? base * (1 - 0.32 * u) : base;
+    };
+    const inside = (x, y) => { const hw = hwAt(y); return hw >= 0 && Math.abs(x + 0.5 - cx) <= hw; };
+    r.shape(inside, [cx - w - 1, cy - h - 1, cx + w + 1, cy + h + 1], (x, y) => {
+      const dx = x + 0.5 - cx, u = (y + 0.5 - cy) / h, hw = hwAt(y);
+      const sx = Math.round(dx), sy = Math.round(y - cy);
+      if ((sx === -3 && sy === -h + 3) || (sx === 2 && sy === -h + 2) || (sx === 4 && sy === -2) || (sx === -1 && sy === -h + 5)) return OP.spot;
+      if (dx < -hw + 2.2 && u < 0.2) return OP.l;
+      if (dx > hw - 1.8) return OP.d;
+      if (u < -0.65 && dx < 1) return OP.l;
+      return OP.m;
+    }, c.K);
+    r.px(Math.round(cx - 2), Math.round(cy - h + 2), '#ffffff', false); // 꼭대기 반짝
+  }
+
+  // 문어 얼굴: 동그란 눈 둘(가끔 깜빡) + 쭉 내민 동그란 입(숨 쉬듯 들썩) + 볼터치 + 뽀글 물방울
+  function octoFace(r, c, x, y, t, gap) {
+    const blink = t % 3.9 < 0.16;
+    for (const s of [-gap, gap - 1]) {
+      if (blink) { r.px(x + s, y + 1, '#2a1018'); r.px(x + s + 1, y + 1, '#2a1018'); }
+      else r.pattern(['KW', 'KK'], x + s, y, { K: '#2a1018', W: '#ffffff' });
+    }
+    r.pattern(['.KKK.', 'KmmmK', 'KmhmK', 'KmmmK', '.KKK.'], x - 2, y + 2, { K: c.K, m: OP.mouth, h: OP.hole });
+    if (Math.floor(t * 1.6) % 4 === 0) r.pattern(['.K.', 'KmK', '.K.'], x - 1, y + 2, { K: c.K, m: OP.mouth });
+    r.px(x - gap - 1, y + 2, '#ff8fb0', false);
+    r.px(x + gap, y + 2, '#ff8fb0', false);
+    const p = (t * 0.5) % 1;
+    if (p < 0.6) r.pattern(['.b.', 'bWb', '.b.'], x + 3 + Math.round(p * 2), y + 1 - Math.round(p * 9), { b: '#8fd0ff', W: '#ffffff' }, false);
+  }
+
+  // 밑동은 굵고 끝으로 갈수록 가는 매끈한 문어발. 원 여러 개를 이은 몸통에 외곽선,
+  // 바깥쪽은 밝게 · 안쪽은 그늘, 안쪽 면에만 흡반 점. 끝부터 물결치듯 꿈틀
+  // o: { x, y, ang(시작 방향), len, r0(밑동 굵기), bend(휘는 정도), curl(끝 말림), wig(꿈틀 세기), ph(위상), inner(흡반 쪽 ±1) }
+  function arm(r, c, t, o) {
+    const step = 0.5;
+    const n = Math.round(o.len / step);
+    const pts = [];
+    let x = o.x, y = o.y, ang = o.ang;
+    for (let i = 0; i <= n; i++) {
+      const s = i / n;
+      pts.push({ x, y, rad: Math.max(0.55, o.r0 * (1 - s * 0.85)), ang, s });
+      ang += ((o.bend || 0) * step) / o.len + (s > 0.65 ? (o.curl || 0) * step : 0) + Math.sin(t * 3 + o.ph - s * 4) * (o.wig || 0.05) * (0.3 + s);
+      x += Math.cos(ang) * step;
+      y += Math.sin(ang) * step;
+    }
+    const near = (px, py) => {
+      let best = pts[0], bd = Infinity;
+      for (const p of pts) {
+        const d = Math.hypot(px - p.x, py - p.y) - p.rad;
+        if (d < bd) { bd = d; best = p; }
+      }
+      return [best, bd];
+    };
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const inside = (px, py) => near(px + 0.5, py + 0.5)[1] <= 0;
+    r.shape(inside, [Math.min(...xs) - o.r0 - 1, Math.min(...ys) - o.r0 - 1, Math.max(...xs) + o.r0 + 1, Math.max(...ys) + o.r0 + 1], (px, py) => {
+      const [p] = near(px + 0.5, py + 0.5);
+      const side = ((-Math.sin(p.ang) * (px + 0.5 - p.x) + Math.cos(p.ang) * (py + 0.5 - p.y)) / Math.max(0.6, p.rad)) * (o.inner || 1);
+      if (side > 0.25) return p.rad > 0.85 && side > 0.5 && Math.round((p.s * o.len) / 1.5) % 3 === 1 ? OP.s : OP.d;
+      if (side < -0.45) return OP.l;
+      return OP.m;
+    }, c.K);
+  }
+
+  const OCTO = {
+    octopushat: {
+      // 꿈틀 문어 모자: 반듯한 전구 모양 분홍 문어 모자(눈 · 내민 입 · 뽀글 물방울), 모자 양옆 다리 끝이 볼 옆으로 내려와 말리고,
+      // 목에 감긴 다리 하나는 가슴 앞을 살짝 처진 곡선으로 지나 왼쪽 끝이 위로 돌돌, 등 뒤 한 가닥은 오른쪽 위로 손 흔들듯
+      back(g, a, c, t) {
+        if (a.curled) {
+          arm(this, c, t, { x: a.left + 1, y: GROUND - 2, ang: Math.PI, len: 6, r0: 1.4, bend: -0.6, curl: -0.5, ph: 0, inner: -1 });
+          arm(this, c, t, { x: a.right - 1, y: GROUND - 2, ang: 0, len: 6, r0: 1.4, bend: 0.6, curl: 0.5, ph: 1.5, inner: 1 });
+          return;
+        }
+        arm(this, c, t, { x: a.right - 1, y: a.my + 2, ang: -0.35, len: 8, r0: 1.6, bend: -0.6, curl: -0.85, ph: 0.8, inner: 1, wig: 0.07 });
+      },
+      front(g, a, c, t) {
+        const cy = a.curled ? a.top - 4 : a.top - 6;
+        const h = a.curled ? 6 : 7;
+        octoBulb(this, c, a.hx + 0.5, cy, 7, h);
+        [[-6.5, 1], [6.5, -1]].forEach(([dx, s], i) => {
+          arm(this, c, t, { x: a.hx + 0.5 + dx, y: cy + h - 3, ang: Math.PI / 2 + s * 0.15, len: a.curled ? 3 : 4.5, r0: 1.3, bend: s * 0.3, curl: s * 0.9, ph: i * 1.7, inner: -s, wig: 0.06 });
+        });
+        octoFace(this, c, a.hx, cy - 1, t, 3);
+        if (a.curled) return;
+        const ny = a.my + 1.5;
+        arm(this, c, t, { x: a.right + 1, y: ny, ang: Math.PI - 0.22, len: a.right - a.left + 2, r0: 1.45, bend: 0.44, ph: 0.4, inner: -1, wig: 0.01 });
+        arm(this, c, t, { x: a.left - 0.5, y: ny - 0.5, ang: Math.PI + 0.5, len: 7, r0: 1.35, bend: 0.3, curl: 0.95, ph: 2.2, inner: 1, wig: 0.08 });
+      },
+    },
+  };
+
+  Object.assign(root.PetSprite.ACCESSORIES, OCTO);
+})(window);

@@ -80,6 +80,7 @@ const API = [
   ['resetPosition', 'invoke', 'pet:reset-position'],
   ['feedback', 'invoke', 'app:feedback'],
   ['star', 'invoke', 'app:star'], // GitHub 별 안내 (누를 때만 브라우저로 연다)
+  ['costumeIdea', 'invoke', 'app:costume-idea'], // 코스튬 제안하기 (2.7.0): 양식이 채워진 GitHub 새 이슈
   ['starShown', 'invoke', 'app:star-shown'], // 별 안내 창을 띄웠다 (한 번만)
   ['onData', 'on', 'house:data'],
   ['onMood', 'on', 'house:mood'],

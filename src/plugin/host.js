@@ -1887,6 +1887,9 @@ class KitHost {
       case 'app:star':
         this.plugin.openStar();
         return true;
+      case 'app:costume-idea':
+        this.plugin.openCostumeIdea();
+        return true;
       // 별 안내 창을 띄웠다 (다시는 띄우지 않는다)
       case 'app:star-shown':
         state.set({ starAsked: true, starPending: false });

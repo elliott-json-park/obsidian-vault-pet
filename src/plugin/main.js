@@ -32,6 +32,7 @@ const VIEW_TYPE = 'kitcommit-house';
 const DATA_VERSION = 1;
 const STAR_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet'; // 별 안내 (누를 때만 브라우저로 연다)
 const FEEDBACK_URL ='https://github.com/elliott-json-park/obsidian-vault-pet/issues/new/choose'; // 버그·아이디어 (누를 때만 브라우저로 연다)
+const COSTUME_URL = 'https://github.com/elliott-json-park/obsidian-vault-pet/issues/new?template=costume.yml'; // 코스튬 제안 (2.7.0, 이슈 #20). 양식이 미리 채워진 새 이슈. 누를 때만 브라우저로 연다
 const MIN = 60_000;
 const PASTE_KEEP = MIN; // 붙여 넣은 글을 '세지 않을 몫'으로 들고 있는 시간
 const TYPE_STOP = 20_000; // 이만큼 손을 떼면 한 차례 쓰기가 끝난 것 (데스크톱판의 'Claude 가 답을 끝냈다')
@@ -1303,6 +1304,10 @@ class KitCommitPlugin extends Plugin {
 
   openStar() {
     window.open(STAR_URL);
+  }
+
+  openCostumeIdea() {
+    window.open(COSTUME_URL);
   }
 
   saveSoon() {

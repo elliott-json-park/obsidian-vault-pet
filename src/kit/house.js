@@ -2366,7 +2366,8 @@ const TABS = {
     const right =
       page === 'costume'
         ? `<nav class="shop-jump ward-tabs">${chips}</nav>
-          ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}`
+          ${list.length ? `<div class="wardrobe inv-grid inv-uni inv-cos">${cards}</div>` : `<p class="muted center">${t(mine.length ? 'ward.emptyTab' : 'ward.empty')}</p>`}
+          ${costumeIdeaRow()}`
         : !have[page].length
           ? `<p class="muted center">${t('inv.empty.' + page)}</p>`
           : page === 'treasure'
@@ -2504,7 +2505,8 @@ const TABS = {
     const pageBody = `
       <p class="muted shop-page-sub">${t('shop.' + page + 'Sub')}</p>
       ${starHead}
-      ${grid(pageItems)}`;
+      ${grid(pageItems)}
+      ${page === 'acc' || page === 'star' ? costumeIdeaRow() : ''}`;
 
     // 처음 만난 날. 코인은 이 순간부터 앞으로 일한 만큼만 쌓인다
     const opened = w.since ? new Date(w.since) : null;
@@ -3654,6 +3656,9 @@ async function act(name, el) {
     case 'feedback': // [옵시디언]
       pet.feedback();
       break;
+    case 'costumeIdea': // [옵시디언] 2.7.0
+      pet.costumeIdea();
+      break;
     case 'whatsNew':
       showWhatsNew();
       break;
@@ -3838,6 +3843,13 @@ function showWhatsNew() {
   if (D.whatsNew) pet.whatsNewSeen().then((d) => d && (D = d));
 }
 
+// ---------- 코스튬 제안하기 (2.7.0, 이슈 #20) ----------
+// 상점 코스튬 칸 · 옷장 코스튬 칸 맨 아래와 별 안내 창에 둔다. 누르면 양식이 채워진 GitHub 새 이슈가 브라우저로 열린다 (그 전에는 아무 통신 없음)
+function costumeIdeaRow() {
+  if (!window.KC_OBSIDIAN) return '';
+  return `<div class="cos-idea"><span>${icon('sparkle', 13)}${t('obs.costumeIdea')}</span><button class="btn ghost small" data-act="costumeIdea">${t('obs.costumeIdeaBtn')}</button></div>`;
+}
+
 // ---------- GitHub 별 안내 (2.5.0, 업데이트한 기존 사용자에게 딱 한 번) ----------
 // '새로 생긴 것' 창을 닫으면 따로 뜬다. 보상과 묶지 않는다 (누르든 안 누르든 게임에는 아무 차이가 없다)
 let starShown = false;
@@ -3850,13 +3862,17 @@ function showStarAsk() {
   const el = openModal(
     `<div class="modal-top"><h2>${t('obs.star.t')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
     <div class="star-ask">${icon('star', 36)}<p>${t('obs.star.d')}</p></div>
-    <div class="center star-ask-btns"><button class="btn ghost" data-close>${t('obs.star.later')}</button><button class="btn primary" data-star-go>${t('obs.star.btn')}</button></div>`,
+    <div class="center star-ask-btns"><button class="btn ghost" data-close>${t('obs.star.later')}</button><button class="btn primary" data-star-go>${t('obs.star.btn')}</button></div>
+    ${costumeIdeaRow()}`,
     'star-modal',
   );
   $('[data-star-go]', el).addEventListener('click', () => {
     pet.star();
     closeModal();
   });
+  // 창 안의 data-act 단추는 화면(view) 단추처럼 자동으로 묶이지 않는다. 코스튬 제안하기는 여기서 따로 잇는다
+  const idea = $('[data-act="costumeIdea"]', el);
+  if (idea) idea.addEventListener('click', () => pet.costumeIdea());
   pet.starShown().then((d) => d && (D = d));
 }
 

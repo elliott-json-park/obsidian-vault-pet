@@ -252,6 +252,7 @@ const ACCESSORIES = [
   { key: 'xmasstar', price: 600, level: 45, slot: 'head' },
   { key: 'xmastree', price: 900, level: 45, slot: 'neck' },
   { key: 'mondaydev', price: 1300, level: 23, slot: 'set', covers: ['head', 'face', 'neck', 'back'] },
+  { key: 'octopushat', price: 1200, level: 15, slot: 'set', covers: ['head', 'neck', 'back'] }, // 2.7.0 꿈틀 문어 모자 (이슈 #20)
   { key: 'schoolwear', price: 800, level: 42, slot: 'neck' },
   { key: 'aloha', price: 700, level: 33, slot: 'neck' },
   { key: 'baseballuni', price: 800, level: 39, slot: 'neck' },
