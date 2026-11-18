@@ -263,6 +263,10 @@ class KitSettingTab extends PluginSettingTab {
         for (const m of FOCUS_LENGTHS) d.addOption(String(m), t('focus.menuLen', { m }));
         d.setValue(String(p.host.goals.focusLength())).onChange((v) => p.host.setSettings({ focusMin: Number(v) }));
       });
+    new Setting(el)
+      .setName(t('focus.cycle'))
+      .setDesc(t('focus.cycleDesc'))
+      .addToggle((tg) => tg.setValue(p.settings.get('focusCycle') === true).onChange((v) => p.host.setSettings({ focusCycle: v })));
 
     el.createEl('p', { text: t('set.disclaimer'), cls: 'setting-item-description kitcommit-disclaimer' });
   }

@@ -4,7 +4,7 @@
 
 ![A big pixel cat typing on a tiny laptop next to the headline "Write a little. Watch your cat grow.", with a daily word goal, focus sessions, finished tasks and 320 costumes listed beside it, and Mochi's status bar showing 231 of 300 words.](docs/listing/1-hero.png)
 
-Vault Pet turns writing into a cozy little game with a goal you can see. A hand-drawn pixel cat strolls along the bottom of your workspace, pulls out a tiny laptop and types along with you, and levels up from what you put into your notes. Its house has a **Home** made for working in Obsidian: today's goal, a focus timer with breaks, a to-do list, quests that teach good note habits (links, tags, daily notes, properties, tidying up), a small map of the notes around the one you're in, and your recent notes. Spend the coins on costumes, toys and snacks, collect badges, and watch your cat grow alongside your notes.
+Vault Pet turns writing into a cozy little game with a goal you can see. A hand-drawn pixel cat strolls along the bottom of your notes (never over the sidebars or the status bar, so it stays clear of their buttons), pulls out a tiny laptop and types along with you, and levels up from what you put into your notes. Its house has a **Home** made for working in Obsidian: today's goal, a focus timer with breaks, a to-do list, quests that teach good note habits (links, tags, daily notes, properties, tidying up), a small map of the notes around the one you're in, and your recent notes. Spend the coins on costumes, toys and snacks, collect badges, and watch your cat grow alongside your notes.
 
 ![Mochi the cat pulls out a tiny laptop and types along, a thought bubble over its head, while a paragraph of a novel is being written in the note above.](docs/typing.gif)
 
@@ -14,7 +14,7 @@ Vault Pet turns writing into a cozy little game with a goal you can see. A hand-
 - **It never touches your notes.** The to-do list lives inside Vault Pet. Nothing on the Home creates, edits or deletes a note; it only opens notes that already exist.
 - **Quests that teach Obsidian.** Three a day: add a tag, write in your daily note, add a property, link an orphan note, move a note into a folder, open the graph view… Each one has a one-line "how" for first-timers.
 - **A daily goal you can see.** Pick a goal like 300 words (or 1,000 characters) a day. A small bar in the status bar fills as you write, and on days you reach it your cat celebrates and pays you 100 coins. Keep it going for a goal streak.
-- **Focus sessions with breaks.** Start a 15, 25 or 50 minute focus session from the Home, the status bar or the command palette. Your cat stops chatting, shows the time left above its head and cheers when you're done. Then take a 5 or 10 minute break and it calls you back.
+- **Focus sessions with breaks.** Start a 15, 25 or 50 minute focus session from the Home, the status bar or the command palette. Your cat stops chatting, shows the time left above its head and cheers when you're done. Then take a 5 or 10 minute break and it calls you back. Turn on **Pomodoro rounds** and the breaks and the next rounds start on their own: four rounds with 5 minute breaks, a 15 minute break after the fourth, then it stops.
 - **Writing and tasks both count.** Characters, links, new notes, writing sessions and every task you check off turn into XP and coins, so a day of to-dos feeds your cat too.
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
@@ -46,6 +46,7 @@ Vault Pet turns writing into a cozy little game with a goal you can see. A hand-
 
 - **Daily goal.** Count in words (English and other languages written with spaces) or characters (Korean, Chinese, Japanese). Choose 100, 300, 500 or 1,000 words, 1,667 for a 50K-words-in-a-month challenge, or any number you like. The house home shows a ring, how much is left, the last seven days and your goal streak. Change it from the house, the house settings or Obsidian's plugin settings.
 - **Focus sessions.** Press **Focus** on the Home, click your cat's name in the status bar → **Start a focus session**, or run **Start focus session** from the command palette. Until it ends, your cat stays quiet (Do Not Disturb), a timer floats above its head and the status bar counts down. Finish for 2 coins and 1 XP per minute, then take a 5 or 10 minute break if you like. Stop early and nothing bad happens.
+- **Pomodoro rounds.** Switch on **Pomodoro rounds** in the house settings (or Obsidian's plugin settings). After each focus session a 5 minute break starts by itself, and when it ends your cat starts the next round with the same length. The Home shows which round you're on (round 2/4). After the fourth round you get a 15 minute break and the set ends. Stopping a session ends the set.
 - **Fair, as always.** The goal counts the same new writing as XP: pasted text and retyped text don't count.
 
 ## Meet your cat

@@ -612,12 +612,41 @@ test('stage: 떠 있는 작은 상태 표시줄 위가 아니라 작업 영역 �
   const box = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
   const prev = globalThis.document;
   const run = (sb) => {
-    globalThis.document = { querySelector: (q) => (q === '.workspace' ? { getBoundingClientRect: () => box(0, 0, 1024, 800) } : { offsetParent: {}, getBoundingClientRect: () => sb }) };
+    globalThis.document = { querySelector: (q) => (q === '.workspace' ? { getBoundingClientRect: () => box(0, 0, 1024, 800) } : q === '.status-bar' ? { offsetParent: {}, getBoundingClientRect: () => sb } : null) };
     return new PetStage({}, {}).rect().bottom;
   };
   try {
     assert.strictEqual(run(box(685, 771, 1024, 800)), 800); // 1.14 기본: 오른쪽 아래 알약
     assert.strictEqual(run(box(0, 771, 1024, 800)), 771);   // 가로로 꽉 찬 상태 표시줄 (테마)
+  } finally {
+    globalThis.document = prev;
+  }
+});
+test('stage: 고양이는 가운데 편집 영역만 걷고, 사이드바와 오른쪽 아래 알약은 비켜 선다 (2.8.0, 이슈 #22)', () => {
+  const { PetStage } = require(path.join(src, 'plugin/stage'));
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
+  const prev = globalThis.document;
+  const run = (root, sb) => {
+    const els = {
+      '.workspace': { getBoundingClientRect: () => box(0, 0, 1400, 800) },
+      '.workspace-split.mod-root': root && { getBoundingClientRect: () => root },
+      '.status-bar': sb && { offsetParent: {}, getBoundingClientRect: () => sb },
+    };
+    globalThis.document = { querySelector: (q) => els[q] || null };
+    const r = new PetStage({}, {}).rect();
+    return [r.left, r.right, r.bottom];
+  };
+  try {
+    // 리본 + 왼쪽 사이드바(0~300), 오른쪽 사이드바(1100~1400): 그 사이만, 알약(900~1100) 앞에서 멈춘다
+    assert.deepStrictEqual(run(box(300, 0, 1100, 800), box(900, 771, 1100, 800)), [300, 896, 800]);
+    // 알약이 없으면 편집 영역 오른쪽 끝까지
+    assert.deepStrictEqual(run(box(300, 0, 1100, 800), null), [300, 1100, 800]);
+    // 편집 영역이 너무 좁으면 예전처럼 작업 영역 전체
+    assert.deepStrictEqual(run(box(600, 0, 800, 800), null), [0, 1400, 800]);
+    // 가로로 꽉 찬 상태 표시줄(테마)은 바닥만 올리고 오른쪽은 줄이지 않는다
+    assert.deepStrictEqual(run(box(300, 0, 1100, 800), box(0, 771, 1400, 800)), [300, 1100, 771]);
+    // 루트 분할을 못 찾으면(옛 구조) 예전 그대로
+    assert.deepStrictEqual(run(null, null), [0, 1400, 800]);
   } finally {
     globalThis.document = prev;
   }
@@ -1138,6 +1167,41 @@ test('focus: 마친 뒤 쉬는 시간을 켜고, 끝나면 다시 하자고 한�
   host.breakStart(5);
   host.focusStart(15);
   assert.strictEqual(host.goals.focusInfo().brk, null);
+});
+
+test('focus: 포모도로 반복은 집중 → 5분 쉬기를 4판 잇고, 네 번째는 15분 쉰 뒤 멈춘다 (2.8.0, 이슈 #22)', () => {
+  const { host, sent } = makeHost();
+  host.setSettings({ focusCycle: true });
+  assert.strictEqual(host.settings.get('focusCycle'), true);
+  let now = Date.now();
+  host.focusStart(25, 0, now);
+  for (let n = 1; n <= 4; n++) {
+    const f = host.goals.focusInfo(now);
+    assert.ok(f.on && f.round === n && f.min === 25, `${n}번째 판 집중 중`);
+    now = f.end + 1000;
+    sent.length = 0;
+    host.focusTick(now);
+    const b = host.goals.focusInfo(now).brk;
+    assert.ok(b && b.round === n && b.min === (n === 4 ? 15 : 5), `${n}번째 판 뒤 쉬기 ${b && b.min}`);
+    assert.ok(sent.some(([ch, x]) => ch === 'pet:bubble' && x.kind === 'focus'));
+    now = b.end + 1000;
+    host.breakTick(now);
+  }
+  const end = host.goals.focusInfo(now);
+  assert.ok(!end.on && !end.brk, '한 세트가 끝나면 멈춘다');
+  assert.strictEqual(end.total.today, 4);
+  // 쉬는 중에 '다시 집중'을 누르면 다음 판으로 이어진다
+  now += 60_000;
+  host.focusStart(15, 0, now);
+  host.focusTick(now + 15 * 60_000 + 1000);
+  host.focusStart(15, 0, now + 15 * 60_000 + 2000);
+  assert.strictEqual(host.goals.focusInfo(now + 15 * 60_000 + 3000).round, 2);
+  // 끄면 예전처럼 쉬기를 저절로 켜지 않는다
+  host.focusStop(true);
+  host.setSettings({ focusCycle: false });
+  host.focusStart(25, 0, now);
+  host.focusTick(now + 25 * 60_000 + 1000);
+  assert.strictEqual(host.goals.focusInfo(now + 25 * 60_000 + 2000).brk, null);
 });
 
 test('vaultmap: 노트 지도 · 외톨이 노트 · 최근 노트는 읽기만 하고, 없는 노트는 열지(만들지) 않는다', async () => {

@@ -1346,9 +1346,11 @@ function focusRow() {
       <div class="fz-main"><div class="fz-top"><b class="fz-time" data-left="${end}">${focusLeft(end)}</b><span class="muted small">${label}</span></div>
       <div class="fz-bar"><i data-span="${start}|${end}" style="width:${spanPct(start, end)}%"></i></div></div>
       <div class="fz-btns">${btns}</div></div>`;
-  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min })), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
+  // 포모도로 반복 중이면 몇 번째 판인지 덧붙인다 (2.8.0, 이슈 #22)
+  const rnd = (n) => (n ? ' ' + t('home.cycleRound', { n, of: f.rounds || 4 }) : '');
+  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min }) + rnd(f.round)), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
   if (f.brk)
-    return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min })),
+    return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min }) + rnd(f.brk.round)),
       `<button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button><button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button>`);
   const seg = (f.lengths || [15, 25, 50]).map((m) => `<button class="${m === f.min ? 'on' : ''}" data-focus-min="${m}" aria-pressed="${m === f.min}">${t('home.focusMin', { m })}</button>`).join('');
   const sub = tot.today ? t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) }) : t('home.focusSub', { coins: fmt(f.min * 2) });
@@ -2732,6 +2734,7 @@ const TABS = {
         }
         <div class="field"><div class="lbl">${t('focus.setLen')}<small>${t('focus.setLenDesc')}</small></div>
           <select data-key="focusMin">${[15, 25, 50].map((m) => `<option value="${m}" ${m === focusMin ? 'selected' : ''}>${t('focus.menuLen', { m })}</option>`).join('')}</select></div>
+        <div class="field"><div class="lbl">${t('focus.cycle')}<small>${t('focus.cycleDesc')}</small></div>${sw('focusCycle', s.focusCycle === true)}</div>
       </div>
 
       <h2 id="set-voice">${t('set.voice')}</h2>

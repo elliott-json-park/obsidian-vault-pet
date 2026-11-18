@@ -27,6 +27,9 @@ const GOAL_LOG_KEEP = 400; // 날짜 기록은 400일치까지
 
 const FOCUS_LENGTHS = [15, 25, 50];
 const BREAK_LENGTHS = [5, 10];
+// 포모도로 반복 (2.8.0, 이슈 #22): 집중 → 5분 쉬기를 4번, 네 번째 쉬기는 15분. 한 세트가 끝나면 멈춘다
+const CYCLE_ROUNDS = 4;
+const LONG_BREAK = 15;
 const FOCUS_COINS_PER_MIN = 2; // 25분 = 50코인
 const FOCUS_XP_PER_MIN = 1; // 25분 = 25 XP
 // 옵시디언을 껐다 켰는데 끝날 시각이 이만큼 넘게 지났으면 (끝까지 했는지 모르니) 상 없이 조용히 접는다
@@ -134,10 +137,15 @@ class Goals {
   focusInfo(now = Date.now()) {
     const f = this.state.get('focus');
     const b = this.state.get('focusBreak');
-    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now } : null;
-    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk };
+    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now, round: b.round || 0 } : null;
+    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk, cycle: this.cycleOn(), rounds: CYCLE_ROUNDS };
     if (!f || !f.end) return { on: false, min: this.focusLength(), ...base };
-    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), ...base };
+    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), round: f.round || 0, ...base };
+  }
+
+  // 포모도로 반복을 켰나 (설정 focusCycle)
+  cycleOn() {
+    return this.settings.get('focusCycle') === true;
   }
 
   // 지금까지 마친 집중 시간 + 오늘 마친 횟수 · 분 (2.0.0)
@@ -148,10 +156,13 @@ class Goals {
   }
 
   // 쉬는 시간 시작 · 그만두기 · 끝났나 (2.0.0). 집중 중이면 쉬기를 켜지 않는다
-  breakStart(min, now = Date.now()) {
+  // round 를 주면 포모도로 반복의 쉬기다: 길이는 정해져 있고(네 번째만 길게), 마친 집중 길이(fmin)로 다음 판을 잇는다
+  breakStart(min, now = Date.now(), round = 0, fmin = 0) {
     if (this.focusInfo(now).on) return null;
-    const m = BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
+    const r = Math.max(0, Math.min(CYCLE_ROUNDS, Math.round(Number(round) || 0)));
+    const m = r ? (r >= CYCLE_ROUNDS ? LONG_BREAK : BREAK_LENGTHS[0]) : BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
     const b = { min: m, start: now, end: now + m * MIN };
+    if (r) Object.assign(b, { round: r, fmin: FOCUS_LENGTHS.includes(Number(fmin)) ? Number(fmin) : this.focusLength() });
     this.state.set({ focusBreak: b });
     return b;
   }
@@ -167,12 +178,18 @@ class Goals {
     const b = this.state.get('focusBreak');
     if (!b || !b.end || now < b.end) return null;
     this.state.set({ focusBreak: null });
-    return now - b.end > FOCUS_STALE ? null : { min: b.min };
+    return now - b.end > FOCUS_STALE ? null : { min: b.min, round: b.round || 0, fmin: b.fmin || 0 };
   }
 
-  focusStart(min, now = Date.now()) {
+  // round: 포모도로 반복의 몇 번째 판인지. 안 주면 반복이 켜져 있을 때 쉬는 중인 판의 다음 판(없으면 1)
+  focusStart(min, now = Date.now(), round = 0) {
     const m = FOCUS_LENGTHS.includes(Number(min)) ? Number(min) : this.focusLength();
     const f = { min: m, start: now, end: now + m * MIN };
+    if (this.cycleOn()) {
+      const b = this.state.get('focusBreak');
+      const prev = b && b.round && b.round < CYCLE_ROUNDS ? b.round : 0;
+      f.round = Math.max(1, Math.min(CYCLE_ROUNDS, Math.round(Number(round) || prev + 1)));
+    }
     this.state.set({ focus: f, focusBreak: null });
     return f;
   }
@@ -194,8 +211,8 @@ class Goals {
     const day = dayOf(new Date(now));
     const same = st.day === day;
     this.state.set({ focusStats: { ...st, n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now, day, todayN: (same ? st.todayN || 0 : 0) + 1, todayMin: (same ? st.todayMin || 0 : 0) + f.min } });
-    return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN };
+    return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN, round: f.round || 0 };
   }
 }
 
-module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };
+module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS, CYCLE_ROUNDS, LONG_BREAK };

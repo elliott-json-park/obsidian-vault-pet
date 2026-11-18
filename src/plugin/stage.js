@@ -6,6 +6,9 @@
 // 고양이·말풍선·장난감 위에 올라가면 펫 창이 hover(true) 를 보내고, 그때만 iframe 이 마우스를 받는다.
 const { KitFrame } = require('./frame');
 
+// 고양이가 걸을 가로 폭이 이보다 좁아지면 (사이드바를 아주 넓힌 때) 예전처럼 작업 영역 전체를 쓴다
+const MIN_LANE = 240;
+
 class PetStage {
   constructor(plugin, host) {
     this.plugin = plugin;
@@ -66,6 +69,12 @@ class PetStage {
     if (ws && window.ResizeObserver) {
       const ro = new ResizeObserver(() => this.fit());
       ro.observe(ws);
+      // 사이드바 폭을 끌어 바꾸면 작업 영역은 그대로이고 가운데 편집 영역만 바뀐다 (이슈 #22)
+      const root = doc.querySelector('.workspace-split.mod-root');
+      if (root) ro.observe(root);
+      // 오른쪽 아래 알약은 플러그인들이 상태 표시줄 항목을 붙이면서 나중에 넓어진다. 넓어지면 고양이 길도 다시 줄인다
+      const sb = doc.querySelector('.status-bar');
+      if (sb) ro.observe(sb);
       this.cleanup.push(() => ro.disconnect());
     }
     on(window, 'resize', () => this.fit());
@@ -102,7 +111,18 @@ class PetStage {
         const spans = sr && sr.width >= r.width * 0.6;
         const bottom = spans && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
         const top = Math.min(r.top + this.dragInset, bottom - 50);
-        return { left: r.left, top, width: r.width, height: bottom - top, right: r.right, bottom };
+        // 가로는 가운데 편집 영역(루트 분할)만. 양옆 사이드바와 리본 아래쪽 버튼(볼트 바꾸기·도움말·설정) 위를 걷지 않게 한다.
+        // 오른쪽 아래에 떠 있는 상태 표시줄 알약도 비켜 선다. 고양이를 누르려다 그 버튼을 잘못 누르지 않게 (이슈 #22)
+        let left = r.left;
+        let right = r.right;
+        const root = document.querySelector('.workspace-split.mod-root');
+        const rr = root && root.getBoundingClientRect ? root.getBoundingClientRect() : null;
+        if (rr && rr.width >= MIN_LANE) {
+          left = Math.max(left, rr.left);
+          right = Math.min(right, rr.right);
+        }
+        if (!spans && sr && sr.width && sr.height && sr.bottom > bottom - 80 && sr.left > left + MIN_LANE && sr.left < right) right = sr.left - 4;
+        return { left, top, width: right - left, height: bottom - top, right, bottom };
       }
     }
     const sb = document.querySelector('.status-bar');

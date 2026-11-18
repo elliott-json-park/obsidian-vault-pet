@@ -1,5 +1,5 @@
 /*
- * Vault Pet 2.7.0 — Obsidian plugin (built 2026-11-16)
+ * Vault Pet 2.8.0 — Obsidian plugin (built 2026-11-18)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -1692,6 +1692,9 @@ const GOAL_LOG_KEEP = 400; // 날짜 기록은 400일치까지
 
 const FOCUS_LENGTHS = [15, 25, 50];
 const BREAK_LENGTHS = [5, 10];
+// 포모도로 반복 (2.8.0, 이슈 #22): 집중 → 5분 쉬기를 4번, 네 번째 쉬기는 15분. 한 세트가 끝나면 멈춘다
+const CYCLE_ROUNDS = 4;
+const LONG_BREAK = 15;
 const FOCUS_COINS_PER_MIN = 2; // 25분 = 50코인
 const FOCUS_XP_PER_MIN = 1; // 25분 = 25 XP
 // 옵시디언을 껐다 켰는데 끝날 시각이 이만큼 넘게 지났으면 (끝까지 했는지 모르니) 상 없이 조용히 접는다
@@ -1799,10 +1802,15 @@ class Goals {
   focusInfo(now = Date.now()) {
     const f = this.state.get('focus');
     const b = this.state.get('focusBreak');
-    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now } : null;
-    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk };
+    const brk = b && b.end > now ? { min: b.min, end: b.end, left: b.end - now, round: b.round || 0 } : null;
+    const base = { lengths: FOCUS_LENGTHS, breaks: BREAK_LENGTHS, total: this.focusTotal(now), brk, cycle: this.cycleOn(), rounds: CYCLE_ROUNDS };
     if (!f || !f.end) return { on: false, min: this.focusLength(), ...base };
-    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), ...base };
+    return { on: true, min: f.min, start: f.start, end: f.end, left: Math.max(0, f.end - now), round: f.round || 0, ...base };
+  }
+
+  // 포모도로 반복을 켰나 (설정 focusCycle)
+  cycleOn() {
+    return this.settings.get('focusCycle') === true;
   }
 
   // 지금까지 마친 집중 시간 + 오늘 마친 횟수 · 분 (2.0.0)
@@ -1813,10 +1821,13 @@ class Goals {
   }
 
   // 쉬는 시간 시작 · 그만두기 · 끝났나 (2.0.0). 집중 중이면 쉬기를 켜지 않는다
-  breakStart(min, now = Date.now()) {
+  // round 를 주면 포모도로 반복의 쉬기다: 길이는 정해져 있고(네 번째만 길게), 마친 집중 길이(fmin)로 다음 판을 잇는다
+  breakStart(min, now = Date.now(), round = 0, fmin = 0) {
     if (this.focusInfo(now).on) return null;
-    const m = BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
+    const r = Math.max(0, Math.min(CYCLE_ROUNDS, Math.round(Number(round) || 0)));
+    const m = r ? (r >= CYCLE_ROUNDS ? LONG_BREAK : BREAK_LENGTHS[0]) : BREAK_LENGTHS.includes(Number(min)) ? Number(min) : BREAK_LENGTHS[0];
     const b = { min: m, start: now, end: now + m * MIN };
+    if (r) Object.assign(b, { round: r, fmin: FOCUS_LENGTHS.includes(Number(fmin)) ? Number(fmin) : this.focusLength() });
     this.state.set({ focusBreak: b });
     return b;
   }
@@ -1832,12 +1843,18 @@ class Goals {
     const b = this.state.get('focusBreak');
     if (!b || !b.end || now < b.end) return null;
     this.state.set({ focusBreak: null });
-    return now - b.end > FOCUS_STALE ? null : { min: b.min };
+    return now - b.end > FOCUS_STALE ? null : { min: b.min, round: b.round || 0, fmin: b.fmin || 0 };
   }
 
-  focusStart(min, now = Date.now()) {
+  // round: 포모도로 반복의 몇 번째 판인지. 안 주면 반복이 켜져 있을 때 쉬는 중인 판의 다음 판(없으면 1)
+  focusStart(min, now = Date.now(), round = 0) {
     const m = FOCUS_LENGTHS.includes(Number(min)) ? Number(min) : this.focusLength();
     const f = { min: m, start: now, end: now + m * MIN };
+    if (this.cycleOn()) {
+      const b = this.state.get('focusBreak');
+      const prev = b && b.round && b.round < CYCLE_ROUNDS ? b.round : 0;
+      f.round = Math.max(1, Math.min(CYCLE_ROUNDS, Math.round(Number(round) || prev + 1)));
+    }
     this.state.set({ focus: f, focusBreak: null });
     return f;
   }
@@ -1859,11 +1876,11 @@ class Goals {
     const day = dayOf(new Date(now));
     const same = st.day === day;
     this.state.set({ focusStats: { ...st, n: (st.n || 0) + 1, min: (st.min || 0) + f.min, last: now, day, todayN: (same ? st.todayN || 0 : 0) + 1, todayMin: (same ? st.todayMin || 0 : 0) + f.min } });
-    return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN };
+    return { min: f.min, coins: f.min * FOCUS_COINS_PER_MIN, xp: f.min * FOCUS_XP_PER_MIN, round: f.round || 0 };
   }
 }
 
-module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS };
+module.exports = { Goals, goalConfig, cleanGoal, GOAL_DEFAULT, GOAL_PRESETS, GOAL_RANGE, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, FOCUS_COINS_PER_MIN, FOCUS_XP_PER_MIN, FOCUS_STALE, UNITS, CYCLE_ROUNDS, LONG_BREAK };
 
 };
 
@@ -5097,7 +5114,7 @@ __defs["plugin/host"] = function (module, exports, require) {
 // 2.2.0: 동네 친구 · 보물 공방(깜짝 이벤트 · 보물 · 교환소)이 돌아왔다 (이슈 #9). 설정 friendsOn · workshopOn 으로 끈다 (syncFeatures)
 const { Menu, Notice, setIcon } = require('obsidian');
 const { computeGrowth, xpOf, levelOf, FURS, EAR_SHAPES, STAGES, foldStage, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK } = require('../core/growth');
-const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS } = require('../core/goals');
+const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, CYCLE_ROUNDS } = require('../core/goals');
 const { Brain } = require('../core/brain');
 const { Gamify } = require('../core/gamify');
 const { SET_MOTIONS, COSTUME_SLOTS, outfitList, fillOf, Shop, ACCESSORIES, FOODS, TOYS, MOTIONS, MOTION_SLOTS, slotOf, find: findItem } = require('../core/shop');
@@ -6161,16 +6178,17 @@ class KitHost {
   }
 
   // 집중 시간 시작. 그동안은 방해 금지 (끝나면 풀린다). 고양이 머리 위에 남은 시간
-  focusStart(min) {
-    if (this.goals.focusInfo().on) return this.goals.focusInfo();
-    const f = this.goals.focusStart(min);
+  // round: 포모도로 반복이 다음 판을 스스로 이을 때 (breakTick)
+  focusStart(min, round = 0, now = Date.now()) {
+    if (this.goals.focusInfo(now).on) return this.goals.focusInfo(now);
+    const f = this.goals.focusStart(min, now, round);
     // 집중 때문에 켠 방해 금지면 그 끝 시각을 적어 둔다 (원래 더 길게 켜 둔 방해 금지는 건드리지 않게)
     const quietBefore = this.state.get('quietUntil') || 0;
     this.state.set({ quietUntil: Math.max(quietBefore, f.end), focusQuiet: quietBefore < f.end ? f.end : 0 });
     this.send('pet:quiet', true);
     this.sendFocus();
     this.send('pet:action', 'wave');
-    this.bubble(this.T.line('focusStart', { m: f.min }), 'focus');
+    this.bubble(f.round > 1 ? this.T.line('cycleNext', { n: f.round, of: CYCLE_ROUNDS, m: f.min }) : this.T.line('focusStart', { m: f.min }), 'focus');
     this.afterFocusChange();
     return this.goals.focusInfo();
   }
@@ -6213,7 +6231,10 @@ class KitHost {
       this.gamify.count('focusMin', r.min);
       this.act('levelup');
       this.sound('achieve');
-      this.bubble(this.T.line('focusDone', { m: r.min, coins: r.coins }), 'focus', 'home');
+      // 포모도로 반복: 쉬기가 저절로 시작된다 (네 번째 판 뒤는 긴 쉬기)
+      const b = r.round && this.goals.cycleOn() ? this.goals.breakStart(0, now, r.round, r.min) : null;
+      if (b) this.bubble(this.T.line(b.round >= CYCLE_ROUNDS ? 'cycleLong' : 'cycleBreak', { m: r.min, coins: r.coins, b: b.min, n: b.round, of: CYCLE_ROUNDS }), 'focus', 'home');
+      else this.bubble(this.T.line('focusDone', { m: r.min, coins: r.coins }), 'focus', 'home');
       this.growthSoon();
     }
     this.afterFocusChange();
@@ -6240,6 +6261,17 @@ class KitHost {
   breakTick(now = Date.now()) {
     const r = this.goals.breakTick(now);
     if (!r) return null;
+    // 포모도로 반복: 다음 판을 저절로 잇는다. 네 번째 판의 긴 쉬기가 끝나면 한 세트 끝
+    if (r.round && this.goals.cycleOn()) {
+      if (r.round < CYCLE_ROUNDS) {
+        this.focusStart(r.fmin, r.round + 1, now);
+        return r;
+      }
+      this.send('pet:action', 'wave');
+      this.bubble(this.T.line('cycleDone', { of: CYCLE_ROUNDS }), 'focus', 'home');
+      this.afterFocusChange();
+      return r;
+    }
     this.send('pet:action', 'wave');
     this.bubble(this.T.line('breakDone', { m: r.min }), 'focus', 'home');
     this.afterFocusChange();
@@ -7547,6 +7579,10 @@ class KitSettingTab extends PluginSettingTab {
         for (const m of FOCUS_LENGTHS) d.addOption(String(m), t('focus.menuLen', { m }));
         d.setValue(String(p.host.goals.focusLength())).onChange((v) => p.host.setSettings({ focusMin: Number(v) }));
       });
+    new Setting(el)
+      .setName(t('focus.cycle'))
+      .setDesc(t('focus.cycleDesc'))
+      .addToggle((tg) => tg.setValue(p.settings.get('focusCycle') === true).onChange((v) => p.host.setSettings({ focusCycle: v })));
 
     el.createEl('p', { text: t('set.disclaimer'), cls: 'setting-item-description kitcommit-disclaimer' });
   }
@@ -8701,6 +8737,9 @@ __defs["plugin/stage"] = function (module, exports, require) {
 // 고양이·말풍선·장난감 위에 올라가면 펫 창이 hover(true) 를 보내고, 그때만 iframe 이 마우스를 받는다.
 const { KitFrame } = require('./frame');
 
+// 고양이가 걸을 가로 폭이 이보다 좁아지면 (사이드바를 아주 넓힌 때) 예전처럼 작업 영역 전체를 쓴다
+const MIN_LANE = 240;
+
 class PetStage {
   constructor(plugin, host) {
     this.plugin = plugin;
@@ -8761,6 +8800,12 @@ class PetStage {
     if (ws && window.ResizeObserver) {
       const ro = new ResizeObserver(() => this.fit());
       ro.observe(ws);
+      // 사이드바 폭을 끌어 바꾸면 작업 영역은 그대로이고 가운데 편집 영역만 바뀐다 (이슈 #22)
+      const root = doc.querySelector('.workspace-split.mod-root');
+      if (root) ro.observe(root);
+      // 오른쪽 아래 알약은 플러그인들이 상태 표시줄 항목을 붙이면서 나중에 넓어진다. 넓어지면 고양이 길도 다시 줄인다
+      const sb = doc.querySelector('.status-bar');
+      if (sb) ro.observe(sb);
       this.cleanup.push(() => ro.disconnect());
     }
     on(window, 'resize', () => this.fit());
@@ -8797,7 +8842,18 @@ class PetStage {
         const spans = sr && sr.width >= r.width * 0.6;
         const bottom = spans && sr.height && sr.top < r.bottom && sr.top > r.top + r.height / 2 ? sr.top : r.bottom;
         const top = Math.min(r.top + this.dragInset, bottom - 50);
-        return { left: r.left, top, width: r.width, height: bottom - top, right: r.right, bottom };
+        // 가로는 가운데 편집 영역(루트 분할)만. 양옆 사이드바와 리본 아래쪽 버튼(볼트 바꾸기·도움말·설정) 위를 걷지 않게 한다.
+        // 오른쪽 아래에 떠 있는 상태 표시줄 알약도 비켜 선다. 고양이를 누르려다 그 버튼을 잘못 누르지 않게 (이슈 #22)
+        let left = r.left;
+        let right = r.right;
+        const root = document.querySelector('.workspace-split.mod-root');
+        const rr = root && root.getBoundingClientRect ? root.getBoundingClientRect() : null;
+        if (rr && rr.width >= MIN_LANE) {
+          left = Math.max(left, rr.left);
+          right = Math.min(right, rr.right);
+        }
+        if (!spans && sr && sr.width && sr.height && sr.bottom > bottom - 80 && sr.left > left + MIN_LANE && sr.left < right) right = sr.left - 4;
+        return { left, top, width: right - left, height: bottom - top, right, bottom };
       }
     }
     const sb = document.querySelector('.status-bar');
@@ -8920,6 +8976,7 @@ const DEFAULT_SETTINGS = {
   lowPower: false, // 저전력 모드: 펫 판이 그림을 덜 그리고 덜 돌아다닌다 (kit/pet.js)
   goal: null, // 하루 목표 { on, unit: 'words' | 'chars', target } (1.5.0). null 이면 언어에 맞는 기본값 (core/goals.js)
   focusMin: 25, // 집중 시간 길이 (15 · 25 · 50분)
+  focusCycle: false, // 포모도로 반복: 집중 → 5분 쉬기를 4판, 네 번째 쉬기는 15분 (2.8.0, 이슈 #22)
   cardPrefs: null, // 자랑 · 리캡 카드에서 고른 것 (기간 · 칸 · 테마 · 자세 · 한 줄). null 이면 기본 (kit/house.js 의 CARD_DEFAULT)
 
   lunchEnabled: true,
@@ -20982,6 +21039,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(['{m}분 집중 시작! 나도 조용히 있을게', '좋아, {m}분만 같이 집중하자', '{m}분 동안은 말 안 걸게!']),
       focusDone: lines(['{m}분 집중 끝! +{coins}코인||5분만 쉬었다 하자', '집중 {m}분 해냈다! +{coins}코인||기지개 한 번 켜자', '{m}분 동안 진짜 잘했어! +{coins}코인']),
       focusStop: lines(['괜찮아, 다음에 또 하자', '잠깐 쉬어 가자! 다음에 이어서']),
+      cycleBreak: lines(["{n}번째 판 끝! +{coins}코인||{b}분 쉬고 다음 판 가자", "{m}분 집중 해냈다! +{coins}코인||{b}분 쉬는 시간 시작"]),
+      cycleLong: lines(["{of}판 다 했다! +{coins}코인||{b}분 길게 쉬자", "마지막 판까지 해냈어! +{coins}코인||이번엔 {b}분 푹 쉬어"]),
+      cycleNext: lines(["쉬는 시간 끝! {n}번째 판 시작", "{n}/{of}판, 다시 {m}분 집중하자"]),
+      cycleDone: lines(["포모도로 {of}판 완주! 정말 잘했어", "한 세트 끝! 오늘 집중력 최고였어"]),
     },
     en: {
       goalDoneW: lines(['{n} words today! Goal reached +{coins} coins', "That's your {n} words!||Today's goal is done"]),
@@ -20990,6 +21051,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(["{m} minutes of focus. I'll keep quiet!", "Okay, let's focus for {m} minutes", "Focus mode! I won't bother you for {m} minutes"]),
       focusDone: lines(['{m} minutes of focus, done! +{coins} coins||Take a 5-minute break?', 'You focused for {m} minutes! +{coins} coins||Time to stretch', '{m} solid minutes! +{coins} coins']),
       focusStop: lines(["That's okay, let's focus again later", 'Taking a break? We can pick it up later']),
+      cycleBreak: lines(["Round {n} done! +{coins} coins||{b}-minute break, then the next round", "{m} minutes of focus! +{coins} coins||Your {b}-minute break starts now"]),
+      cycleLong: lines(["All {of} rounds done! +{coins} coins||Take a long {b}-minute break", "You made it through the last round! +{coins} coins||Rest for {b} minutes"]),
+      cycleNext: lines(["Break's over! Round {n} starts now", "Round {n} of {of}. {m} more minutes of focus"]),
+      cycleDone: lines(["{of} Pomodoro rounds, all done! Great work", "That's a full set! You were so focused today"]),
     },
     zh: {
       goalDoneW: lines(['今天写了 {n} 个单词！目标达成 +{coins} 金币', '{n} 个单词完成！||今天的目标搞定了']),
@@ -20998,6 +21063,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(['专注 {m} 分钟开始！我会安静陪着你', '好，一起专注 {m} 分钟吧', '{m} 分钟内我不打扰你！']),
       focusDone: lines(['{m} 分钟专注完成！+{coins} 金币||休息 5 分钟吧', '专注了 {m} 分钟！+{coins} 金币||伸个懒腰吧', '{m} 分钟，太棒了！+{coins} 金币']),
       focusStop: lines(['没关系，下次再一起专注', '先休息一下，下次继续']),
+      cycleBreak: lines(["第 {n} 轮完成！+{coins} 金币||休息 {b} 分钟，然后下一轮", "专注了 {m} 分钟！+{coins} 金币||{b} 分钟休息开始"]),
+      cycleLong: lines(["{of} 轮全部完成！+{coins} 金币||好好休息 {b} 分钟", "最后一轮也完成了！+{coins} 金币||这次休息 {b} 分钟吧"]),
+      cycleNext: lines(["休息结束！第 {n} 轮开始", "第 {n}/{of} 轮，再专注 {m} 分钟"]),
+      cycleDone: lines(["{of} 轮番茄钟全部完成！太棒了", "一整组完成！今天真专注"]),
     },
     ru: {
       goalDoneW: lines(['Сегодня ты написал {n} слов! Цель достигнута, +{coins} монет', "Вот и твои {n} слов!||Цель на сегодня выполнена"]),
@@ -21006,6 +21075,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(["{m} минут концентрации. Я буду тихонько сидеть!", "Хорошо, давай сосредоточимся на {m} минут", "Режим концентрации! Не буду тебя отвлекать целых {m} минут"]),
       focusDone: lines(['{m} минут концентрации позади! +{coins} монет||Может, сделаем перерыв на 5 минут?', 'Ты сосредоточенно работал {m} минут! +{coins} монет||Пора размяться', '{m} продуктивных минут! +{coins} монет']),
       focusStop: lines(["Ничего страшного, продолжим концентрироваться позже", 'Решил передохнуть? Ничего, продолжим позже']),
+      cycleBreak: lines(["Раунд {n} позади! +{coins} монет||{b} минут отдыха, потом следующий раунд", "{m} минут концентрации! +{coins} монет||Начинается перерыв на {b} минут"]),
+      cycleLong: lines(["Все {of} раунда позади! +{coins} монет||Теперь длинный перерыв на {b} минут", "Последний раунд завершён! +{coins} монет||Отдохни {b} минут"]),
+      cycleNext: lines(["Перерыв окончен! Начинаем раунд {n}", "Раунд {n} из {of}. Ещё {m} минут концентрации"]),
+      cycleDone: lines(["Все {of} раунда помодоро завершены! Отличная работа", "Целый подход позади! Сегодня концентрация на высоте"]),
     },
   };
   for (const lang of Object.keys(LINE)) Object.assign(I.LINE[lang], LINE[lang]);
@@ -21054,6 +21127,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': '하루에 새로 쓸 글자 수 (공백 · 기호 빼고). 붙여 넣은 글은 세지 않아요',
       'focus.setLen': '집중 시간 길이',
       'focus.setLenDesc': '상태 표시줄 · 고양이 우클릭 메뉴 · 명령 팔레트에서 시작해요. 끝날 때까지 고양이는 말을 아껴요',
+      'focus.cycle': "포모도로 반복",
+      'focus.cycleDesc': "집중이 끝나면 5분 쉬기가 저절로 시작되고, 쉬기가 끝나면 다음 판이 이어져요. 4판을 하면 15분 길게 쉬고 멈춰요",
+      'home.cycleRound': "({n}/{of}판)",
       // 경험치 내역
       'bonus.goalW': '하루 목표 달성 · {n}단어',
       'bonus.goalC': '하루 목표 달성 · {n}자',
@@ -21132,6 +21208,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': 'New characters to write each day, not counting spaces or symbols. Pasted text doesn’t count.',
       'focus.setLen': 'Focus session length',
       'focus.setLenDesc': "Start one from the status bar, the cat's right-click menu or the command palette. Your cat keeps quiet until it ends.",
+      'focus.cycle': "Pomodoro rounds",
+      'focus.cycleDesc': "When a focus session ends, a 5-minute break starts on its own, and the next round follows it. After 4 rounds you get a 15-minute break, then it stops",
+      'home.cycleRound': "(round {n}/{of})",
       'bonus.goalW': 'Daily goal reached · {n} words',
       'bonus.goalC': 'Daily goal reached · {n} characters',
       'bonus.focus': 'Focus session · {m} min',
@@ -21205,6 +21284,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': '每天新写的字数（不含空格和符号）。粘贴的文字不计入。',
       'focus.setLen': '专注时长',
       'focus.setLenDesc': '可从状态栏、猫咪右键菜单或命令面板开始。结束前猫咪会保持安静。',
+      'focus.cycle': "番茄钟循环",
+      'focus.cycleDesc': "专注结束后自动开始 5 分钟休息，休息结束后接着下一轮。完成 4 轮后休息 15 分钟并停止",
+      'home.cycleRound': "（第 {n}/{of} 轮）",
       'bonus.goalW': '每日目标达成 · {n} 个单词',
       'bonus.goalC': '每日目标达成 · {n} 字',
       'bonus.focus': '专注时段 · {m} 分钟',
@@ -21278,6 +21360,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': 'Количество новых символов за день, без пробелов и знаков. Вставленный текст не учитывается.',
       'focus.setLen': 'Длительность сессии концентрации',
       'focus.setLenDesc': 'Запусти её через индикатор состояния, контекстное меню кошечки (правый щелчок) или палитру команд. Кошечка будет тихонько сидеть рядом до окончания сессии.',
+      'focus.cycle': "Повтор помодоро",
+      'focus.cycleDesc': "Когда сессия концентрации заканчивается, сам начинается перерыв на 5 минут, а после него следующий раунд. После 4 раундов будет перерыв на 15 минут, и повтор остановится",
+      'home.cycleRound': "(раунд {n}/{of})",
       'bonus.goalW': 'Дневная цель достигнута · {n} слов',
       'bonus.goalC': 'Дневная цель достигнута · {n} символов',
       'bonus.focus': 'Сессия концентрации · {m} мин',
@@ -37229,6 +37314,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(['{m}분 집중 시작! 나도 조용히 있을게', '좋아, {m}분만 같이 집중하자', '{m}분 동안은 말 안 걸게!']),
       focusDone: lines(['{m}분 집중 끝! +{coins}코인||5분만 쉬었다 하자', '집중 {m}분 해냈다! +{coins}코인||기지개 한 번 켜자', '{m}분 동안 진짜 잘했어! +{coins}코인']),
       focusStop: lines(['괜찮아, 다음에 또 하자', '잠깐 쉬어 가자! 다음에 이어서']),
+      cycleBreak: lines(["{n}번째 판 끝! +{coins}코인||{b}분 쉬고 다음 판 가자", "{m}분 집중 해냈다! +{coins}코인||{b}분 쉬는 시간 시작"]),
+      cycleLong: lines(["{of}판 다 했다! +{coins}코인||{b}분 길게 쉬자", "마지막 판까지 해냈어! +{coins}코인||이번엔 {b}분 푹 쉬어"]),
+      cycleNext: lines(["쉬는 시간 끝! {n}번째 판 시작", "{n}/{of}판, 다시 {m}분 집중하자"]),
+      cycleDone: lines(["포모도로 {of}판 완주! 정말 잘했어", "한 세트 끝! 오늘 집중력 최고였어"]),
     },
     en: {
       goalDoneW: lines(['{n} words today! Goal reached +{coins} coins', "That's your {n} words!||Today's goal is done"]),
@@ -37237,6 +37326,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(["{m} minutes of focus. I'll keep quiet!", "Okay, let's focus for {m} minutes", "Focus mode! I won't bother you for {m} minutes"]),
       focusDone: lines(['{m} minutes of focus, done! +{coins} coins||Take a 5-minute break?', 'You focused for {m} minutes! +{coins} coins||Time to stretch', '{m} solid minutes! +{coins} coins']),
       focusStop: lines(["That's okay, let's focus again later", 'Taking a break? We can pick it up later']),
+      cycleBreak: lines(["Round {n} done! +{coins} coins||{b}-minute break, then the next round", "{m} minutes of focus! +{coins} coins||Your {b}-minute break starts now"]),
+      cycleLong: lines(["All {of} rounds done! +{coins} coins||Take a long {b}-minute break", "You made it through the last round! +{coins} coins||Rest for {b} minutes"]),
+      cycleNext: lines(["Break's over! Round {n} starts now", "Round {n} of {of}. {m} more minutes of focus"]),
+      cycleDone: lines(["{of} Pomodoro rounds, all done! Great work", "That's a full set! You were so focused today"]),
     },
     zh: {
       goalDoneW: lines(['今天写了 {n} 个单词！目标达成 +{coins} 金币', '{n} 个单词完成！||今天的目标搞定了']),
@@ -37245,6 +37338,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(['专注 {m} 分钟开始！我会安静陪着你', '好，一起专注 {m} 分钟吧', '{m} 分钟内我不打扰你！']),
       focusDone: lines(['{m} 分钟专注完成！+{coins} 金币||休息 5 分钟吧', '专注了 {m} 分钟！+{coins} 金币||伸个懒腰吧', '{m} 分钟，太棒了！+{coins} 金币']),
       focusStop: lines(['没关系，下次再一起专注', '先休息一下，下次继续']),
+      cycleBreak: lines(["第 {n} 轮完成！+{coins} 金币||休息 {b} 分钟，然后下一轮", "专注了 {m} 分钟！+{coins} 金币||{b} 分钟休息开始"]),
+      cycleLong: lines(["{of} 轮全部完成！+{coins} 金币||好好休息 {b} 分钟", "最后一轮也完成了！+{coins} 金币||这次休息 {b} 分钟吧"]),
+      cycleNext: lines(["休息结束！第 {n} 轮开始", "第 {n}/{of} 轮，再专注 {m} 分钟"]),
+      cycleDone: lines(["{of} 轮番茄钟全部完成！太棒了", "一整组完成！今天真专注"]),
     },
     ru: {
       goalDoneW: lines(['Сегодня ты написал {n} слов! Цель достигнута, +{coins} монет', "Вот и твои {n} слов!||Цель на сегодня выполнена"]),
@@ -37253,6 +37350,10 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       focusStart: lines(["{m} минут концентрации. Я буду тихонько сидеть!", "Хорошо, давай сосредоточимся на {m} минут", "Режим концентрации! Не буду тебя отвлекать целых {m} минут"]),
       focusDone: lines(['{m} минут концентрации позади! +{coins} монет||Может, сделаем перерыв на 5 минут?', 'Ты сосредоточенно работал {m} минут! +{coins} монет||Пора размяться', '{m} продуктивных минут! +{coins} монет']),
       focusStop: lines(["Ничего страшного, продолжим концентрироваться позже", 'Решил передохнуть? Ничего, продолжим позже']),
+      cycleBreak: lines(["Раунд {n} позади! +{coins} монет||{b} минут отдыха, потом следующий раунд", "{m} минут концентрации! +{coins} монет||Начинается перерыв на {b} минут"]),
+      cycleLong: lines(["Все {of} раунда позади! +{coins} монет||Теперь длинный перерыв на {b} минут", "Последний раунд завершён! +{coins} монет||Отдохни {b} минут"]),
+      cycleNext: lines(["Перерыв окончен! Начинаем раунд {n}", "Раунд {n} из {of}. Ещё {m} минут концентрации"]),
+      cycleDone: lines(["Все {of} раунда помодоро завершены! Отличная работа", "Целый подход позади! Сегодня концентрация на высоте"]),
     },
   };
   for (const lang of Object.keys(LINE)) Object.assign(I.LINE[lang], LINE[lang]);
@@ -37301,6 +37402,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': '하루에 새로 쓸 글자 수 (공백 · 기호 빼고). 붙여 넣은 글은 세지 않아요',
       'focus.setLen': '집중 시간 길이',
       'focus.setLenDesc': '상태 표시줄 · 고양이 우클릭 메뉴 · 명령 팔레트에서 시작해요. 끝날 때까지 고양이는 말을 아껴요',
+      'focus.cycle': "포모도로 반복",
+      'focus.cycleDesc': "집중이 끝나면 5분 쉬기가 저절로 시작되고, 쉬기가 끝나면 다음 판이 이어져요. 4판을 하면 15분 길게 쉬고 멈춰요",
+      'home.cycleRound': "({n}/{of}판)",
       // 경험치 내역
       'bonus.goalW': '하루 목표 달성 · {n}단어',
       'bonus.goalC': '하루 목표 달성 · {n}자',
@@ -37379,6 +37483,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': 'New characters to write each day, not counting spaces or symbols. Pasted text doesn’t count.',
       'focus.setLen': 'Focus session length',
       'focus.setLenDesc': "Start one from the status bar, the cat's right-click menu or the command palette. Your cat keeps quiet until it ends.",
+      'focus.cycle': "Pomodoro rounds",
+      'focus.cycleDesc': "When a focus session ends, a 5-minute break starts on its own, and the next round follows it. After 4 rounds you get a 15-minute break, then it stops",
+      'home.cycleRound': "(round {n}/{of})",
       'bonus.goalW': 'Daily goal reached · {n} words',
       'bonus.goalC': 'Daily goal reached · {n} characters',
       'bonus.focus': 'Focus session · {m} min',
@@ -37452,6 +37559,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': '每天新写的字数（不含空格和符号）。粘贴的文字不计入。',
       'focus.setLen': '专注时长',
       'focus.setLenDesc': '可从状态栏、猫咪右键菜单或命令面板开始。结束前猫咪会保持安静。',
+      'focus.cycle': "番茄钟循环",
+      'focus.cycleDesc': "专注结束后自动开始 5 分钟休息，休息结束后接着下一轮。完成 4 轮后休息 15 分钟并停止",
+      'home.cycleRound': "（第 {n}/{of} 轮）",
       'bonus.goalW': '每日目标达成 · {n} 个单词',
       'bonus.goalC': '每日目标达成 · {n} 字',
       'bonus.focus': '专注时段 · {m} 分钟',
@@ -37525,6 +37635,9 @@ for (const lang of Object.keys(UI)) Object.assign(I.UI[lang], UI[lang]);
       'goal.setTargetDescC': 'Количество новых символов за день, без пробелов и знаков. Вставленный текст не учитывается.',
       'focus.setLen': 'Длительность сессии концентрации',
       'focus.setLenDesc': 'Запусти её через индикатор состояния, контекстное меню кошечки (правый щелчок) или палитру команд. Кошечка будет тихонько сидеть рядом до окончания сессии.',
+      'focus.cycle': "Повтор помодоро",
+      'focus.cycleDesc': "Когда сессия концентрации заканчивается, сам начинается перерыв на 5 минут, а после него следующий раунд. После 4 раундов будет перерыв на 15 минут, и повтор остановится",
+      'home.cycleRound': "(раунд {n}/{of})",
       'bonus.goalW': 'Дневная цель достигнута · {n} слов',
       'bonus.goalC': 'Дневная цель достигнута · {n} символов',
       'bonus.focus': 'Сессия концентрации · {m} мин',
@@ -71503,9 +71616,11 @@ function focusRow() {
       <div class="fz-main"><div class="fz-top"><b class="fz-time" data-left="${end}">${focusLeft(end)}</b><span class="muted small">${label}</span></div>
       <div class="fz-bar"><i data-span="${start}|${end}" style="width:${spanPct(start, end)}%"></i></div></div>
       <div class="fz-btns">${btns}</div></div>`;
-  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min })), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
+  // 포모도로 반복 중이면 몇 번째 판인지 덧붙인다 (2.8.0, 이슈 #22)
+  const rnd = (n) => (n ? ' ' + t('home.cycleRound', { n, of: f.rounds || 4 }) : '');
+  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min }) + rnd(f.round)), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
   if (f.brk)
-    return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min })),
+    return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min }) + rnd(f.brk.round)),
       `<button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button><button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button>`);
   const seg = (f.lengths || [15, 25, 50]).map((m) => `<button class="${m === f.min ? 'on' : ''}" data-focus-min="${m}" aria-pressed="${m === f.min}">${t('home.focusMin', { m })}</button>`).join('');
   const sub = tot.today ? t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) }) : t('home.focusSub', { coins: fmt(f.min * 2) });
@@ -72889,6 +73004,7 @@ const TABS = {
         }
         <div class="field"><div class="lbl">${t('focus.setLen')}<small>${t('focus.setLenDesc')}</small></div>
           <select data-key="focusMin">${[15, 25, 50].map((m) => `<option value="${m}" ${m === focusMin ? 'selected' : ''}>${t('focus.menuLen', { m })}</option>`).join('')}</select></div>
+        <div class="field"><div class="lbl">${t('focus.cycle')}<small>${t('focus.cycleDesc')}</small></div>${sw('focusCycle', s.focusCycle === true)}</div>
       </div>
 
       <h2 id="set-voice">${t('set.voice')}</h2>
