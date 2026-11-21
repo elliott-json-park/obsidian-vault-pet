@@ -231,8 +231,14 @@ class Friends {
     if (levelOf(this.one(id).pts) < 3) return 'notBest';
     return null;
   }
-  // 선물하기: 내가 실제로 가진 공방 코스튬을 인벤토리에서 빼고 친구가 그 칸에 입는다.
-  // 세트면 세트가 덮는 칸도 비우고, 입던 세트가 덮는 칸에 주면 세트를 벗긴다. { ok, id, key, lost: [밀려나 사라진 옷] }
+  // 지금 가진 한 벌이 상점에서 산 것인가: 마지막으로 산 때(코인 · 별)가 마지막으로 만든 때보다 늦거나, 만든 기록이 아예 없으면 산 것 (2.8.2)
+  bought(key) {
+    const last = (list) => (list || []).reduce((m, p) => (p && p.key === key ? Math.max(m, p.at || 0) : m), 0);
+    const made = last(this.state.get('workshopMade'));
+    return made === 0 || Math.max(last(this.state.get('purchases')), last(this.state.get('starLog'))) > made;
+  }
+  // 선물하기: 친구가 그 칸에 입는다. 공방에서 만든 옷은 인벤토리에서 빠지고, 상점에서 산 옷은 남는다 (2.8.2).
+  // 세트면 세트가 덮는 칸도 비우고, 입던 세트가 덮는 칸에 주면 세트를 벗긴다. { ok, id, key, kept, lost: [밀려나 사라진 옷] }
   gift(id, key) {
     const why = this.canGift(id);
     if (why) return { error: why };
@@ -250,9 +256,10 @@ class Friends {
     if (it.slot === 'set') for (const s of it.covers || []) drop(s);
     else if (wear.set && ((ACCESSORIES.find((a) => a.key === wear.set) || {}).covers || []).includes(it.slot)) drop('set');
     wear[it.slot] = key;
-    this.state.set({ items: items.filter((k) => k !== key) });
+    const kept = this.bought(key);
+    if (!kept) this.state.set({ items: items.filter((k) => k !== key) });
     this.setOne(id, { wear });
-    return { ok: true, id, key, lost };
+    return { ok: true, id, key, kept, lost };
   }
 
   // 하우스·펫 창에 넘기는 요약

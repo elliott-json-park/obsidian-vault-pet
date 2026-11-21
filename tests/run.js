@@ -2065,6 +2065,28 @@ test('friends: 놀러 와서 물물교환 · 밥 주기 · 인사, 두고 간 �
   assert.strictEqual(call.result.error, 'notBest');
 });
 
+test('선물: 공방에서 만든 옷은 빠지고, 상점에서 산 옷은 남는다 (2.8.2)', async () => {
+  const { host, state } = makeHost();
+  const fr = host.friends;
+  fr.setOne('dust', { pts: 9999 });
+  // 만든 옷: 빠진다
+  state.set({ items: ['none', 'capcrown'], workshopMade: [{ key: 'capcrown', at: 100 }], purchases: [] });
+  let r = fr.gift('dust', 'capcrown');
+  assert.ok(r.ok && !r.kept);
+  assert.ok(!state.get('items').includes('capcrown'), '만든 옷은 빠진다');
+  // 선물한 뒤 상점에서 다시 산 옷: 남는다
+  state.set({ items: ['none', 'capcrown'], purchases: [{ at: 200, key: 'capcrown', price: 1 }] });
+  r = fr.gift('dust', 'capcrown');
+  assert.ok(r.ok && r.kept);
+  assert.ok(state.get('items').includes('capcrown'), '산 옷은 남는다');
+  // 만든 기록이 없으면 산 것 (구매 기록이 잘렸어도)
+  state.set({ items: ['none', 'gatekeeper'], workshopMade: [], purchases: [] });
+  assert.ok(fr.gift('dust', 'gatekeeper').kept);
+  // 별로 산 옷도 남는다
+  state.set({ items: ['none', 'gatekeeper'], workshopMade: [{ key: 'gatekeeper', at: 100 }], starLog: [{ at: 300, key: 'gatekeeper', stars: 1 }] });
+  assert.ok(fr.gift('dust', 'gatekeeper').kept);
+});
+
 test('friends off: 친구가 안 오고, 와 있던 친구는 인사하고 돌아간다 (친밀도 · 보물은 그대로). 다시 켜면 이어서', async () => {
   const { host, sent, state } = makeHost();
   host.friends.save({ nextAt: 0 });

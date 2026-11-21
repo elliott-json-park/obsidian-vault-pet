@@ -1,5 +1,5 @@
 /*
- * Vault Pet 2.8.1 — Obsidian plugin (built 2026-11-19)
+ * Vault Pet 2.8.2 — Obsidian plugin (built 2026-11-21)
  * 옵시디언에 글을 쓸수록 자라는 도트 고양이. 소스: src/ (node scripts/build.js 로 이 파일을 만든다)
  * 비공식 팬메이드. Anthropic 과 관련이 없습니다.
  */
@@ -1001,8 +1001,14 @@ class Friends {
     if (levelOf(this.one(id).pts) < 3) return 'notBest';
     return null;
   }
-  // 선물하기: 내가 실제로 가진 공방 코스튬을 인벤토리에서 빼고 친구가 그 칸에 입는다.
-  // 세트면 세트가 덮는 칸도 비우고, 입던 세트가 덮는 칸에 주면 세트를 벗긴다. { ok, id, key, lost: [밀려나 사라진 옷] }
+  // 지금 가진 한 벌이 상점에서 산 것인가: 마지막으로 산 때(코인 · 별)가 마지막으로 만든 때보다 늦거나, 만든 기록이 아예 없으면 산 것 (2.8.2)
+  bought(key) {
+    const last = (list) => (list || []).reduce((m, p) => (p && p.key === key ? Math.max(m, p.at || 0) : m), 0);
+    const made = last(this.state.get('workshopMade'));
+    return made === 0 || Math.max(last(this.state.get('purchases')), last(this.state.get('starLog'))) > made;
+  }
+  // 선물하기: 친구가 그 칸에 입는다. 공방에서 만든 옷은 인벤토리에서 빠지고, 상점에서 산 옷은 남는다 (2.8.2).
+  // 세트면 세트가 덮는 칸도 비우고, 입던 세트가 덮는 칸에 주면 세트를 벗긴다. { ok, id, key, kept, lost: [밀려나 사라진 옷] }
   gift(id, key) {
     const why = this.canGift(id);
     if (why) return { error: why };
@@ -1020,9 +1026,10 @@ class Friends {
     if (it.slot === 'set') for (const s of it.covers || []) drop(s);
     else if (wear.set && ((ACCESSORIES.find((a) => a.key === wear.set) || {}).covers || []).includes(it.slot)) drop('set');
     wear[it.slot] = key;
-    this.state.set({ items: items.filter((k) => k !== key) });
+    const kept = this.bought(key);
+    if (!kept) this.state.set({ items: items.filter((k) => k !== key) });
     this.setOne(id, { wear });
-    return { ok: true, id, key, lost };
+    return { ok: true, id, key, kept, lost };
   }
 
   // 하우스·펫 창에 넘기는 요약
@@ -11369,7 +11376,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'fr.title': '동네 친구들',
       'fr.giftBtn': '선물하기',
       'fr.giftTitle': '{name}에게 선물하기',
-      'fr.giftSub': '보물 공방에서 만든 코스튬을 줄 수 있어요. 선물하면 내 인벤토리에서 사라지고, 다른 친구에게 주려면 공방에서 다시 만들어야 해요. 같은 칸에 입던 옷은 사라져요',
+      'fr.giftSub': '보물 공방 코스튬을 줄 수 있어요. 공방에서 만든 옷은 선물하면 내 인벤토리에서 사라지고, 다른 친구에게 주려면 다시 만들어야 해요. 상점에서 산 옷은 선물해도 남아요. 친구가 같은 칸에 입던 옷은 사라져요',
       'fr.giftNone': '지금 가진 공방 코스튬이 없어요. 보물 공방에서 만들어 보세요',
       'fr.giftConfirm': '{item}을(를) {name}에게 줄까요?',
       'fr.giftLost': '입고 있던 {item}은(는) 사라져요',
@@ -13558,7 +13565,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'fr.title': 'Neighbors',
       'fr.giftBtn': 'Gift',
       'fr.giftTitle': 'Gift to {name}',
-      'fr.giftSub': 'Give a costume you made in the workshop. It leaves your inventory, so make it again to gift another friend. Whatever they wore in that slot is gone',
+      'fr.giftSub': 'Give a workshop costume. One you made in the workshop leaves your inventory, so make it again to gift another friend. One you bought in the shop stays yours. Whatever they wore in that slot is gone',
       'fr.giftNone': 'You have no workshop costumes right now. Make one in the Treasure Workshop',
       'fr.giftConfirm': 'Give {item} to {name}?',
       'fr.giftLost': 'The {item} they were wearing will be gone',
@@ -15739,7 +15746,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'fr.title': '街坊好友',
       'fr.giftBtn': '送礼',
       'fr.giftTitle': '送礼给{name}',
-      'fr.giftSub': '可以送出你在工坊做的装扮。送出后会从你的衣柜消失，想送给别的好友得在工坊再做一件。对方同一栏位原本穿的衣服会消失',
+      'fr.giftSub': '可以送出工坊装扮。在工坊做的装扮送出后会从你的衣柜消失，想送给别的好友得再做一件。在商店买的装扮送出后仍会留着。对方同一栏位原本穿的衣服会消失',
       'fr.giftNone': '你现在没有工坊装扮。去宝物工坊做一件吧',
       'fr.giftConfirm': '要把{item}送给{name}吗？',
       'fr.giftLost': '对方原本穿着的{item}会消失',
@@ -17938,7 +17945,7 @@ __defs["kit/i18n"] = function (module, exports, require) {
       'fr.title': 'Соседи',
       'fr.giftBtn': 'Подарить',
       'fr.giftTitle': 'Подарок для {name}',
-      'fr.giftSub': 'Подари костюм, созданный в мастерской. Он исчезнет из твоего инвентаря, поэтому для подарка другому соседу придётся создать его заново. Костюм, который был надет в этом слоте, тоже пропадёт',
+      'fr.giftSub': 'Подари костюм из мастерской. Созданный в мастерской костюм исчезнет из твоего инвентаря, поэтому для подарка другому соседу придётся создать его заново. Купленный в магазине костюм останется у тебя. Костюм, который был надет в этом слоте, тоже пропадёт',
       'fr.giftNone': 'У тебя пока нет костюмов из мастерской. Создай один в Мастерской сокровищ',
       'fr.giftConfirm': 'Подарить {item} персонажу {name}?',
       'fr.giftLost': 'Костюм {item}, который на нём надет, исчезнет',
@@ -27642,7 +27649,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'fr.title': '동네 친구들',
       'fr.giftBtn': '선물하기',
       'fr.giftTitle': '{name}에게 선물하기',
-      'fr.giftSub': '보물 공방에서 만든 코스튬을 줄 수 있어요. 선물하면 내 인벤토리에서 사라지고, 다른 친구에게 주려면 공방에서 다시 만들어야 해요. 같은 칸에 입던 옷은 사라져요',
+      'fr.giftSub': '보물 공방 코스튬을 줄 수 있어요. 공방에서 만든 옷은 선물하면 내 인벤토리에서 사라지고, 다른 친구에게 주려면 다시 만들어야 해요. 상점에서 산 옷은 선물해도 남아요. 친구가 같은 칸에 입던 옷은 사라져요',
       'fr.giftNone': '지금 가진 공방 코스튬이 없어요. 보물 공방에서 만들어 보세요',
       'fr.giftConfirm': '{item}을(를) {name}에게 줄까요?',
       'fr.giftLost': '입고 있던 {item}은(는) 사라져요',
@@ -29831,7 +29838,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'fr.title': 'Neighbors',
       'fr.giftBtn': 'Gift',
       'fr.giftTitle': 'Gift to {name}',
-      'fr.giftSub': 'Give a costume you made in the workshop. It leaves your inventory, so make it again to gift another friend. Whatever they wore in that slot is gone',
+      'fr.giftSub': 'Give a workshop costume. One you made in the workshop leaves your inventory, so make it again to gift another friend. One you bought in the shop stays yours. Whatever they wore in that slot is gone',
       'fr.giftNone': 'You have no workshop costumes right now. Make one in the Treasure Workshop',
       'fr.giftConfirm': 'Give {item} to {name}?',
       'fr.giftLost': 'The {item} they were wearing will be gone',
@@ -32012,7 +32019,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'fr.title': '街坊好友',
       'fr.giftBtn': '送礼',
       'fr.giftTitle': '送礼给{name}',
-      'fr.giftSub': '可以送出你在工坊做的装扮。送出后会从你的衣柜消失，想送给别的好友得在工坊再做一件。对方同一栏位原本穿的衣服会消失',
+      'fr.giftSub': '可以送出工坊装扮。在工坊做的装扮送出后会从你的衣柜消失，想送给别的好友得再做一件。在商店买的装扮送出后仍会留着。对方同一栏位原本穿的衣服会消失',
       'fr.giftNone': '你现在没有工坊装扮。去宝物工坊做一件吧',
       'fr.giftConfirm': '要把{item}送给{name}吗？',
       'fr.giftLost': '对方原本穿着的{item}会消失',
@@ -34211,7 +34218,7 @@ module.exports.run = function run(window, document, pet, kind) {
       'fr.title': 'Соседи',
       'fr.giftBtn': 'Подарить',
       'fr.giftTitle': 'Подарок для {name}',
-      'fr.giftSub': 'Подари костюм, созданный в мастерской. Он исчезнет из твоего инвентаря, поэтому для подарка другому соседу придётся создать его заново. Костюм, который был надет в этом слоте, тоже пропадёт',
+      'fr.giftSub': 'Подари костюм из мастерской. Созданный в мастерской костюм исчезнет из твоего инвентаря, поэтому для подарка другому соседу придётся создать его заново. Купленный в магазине костюм останется у тебя. Костюм, который был надет в этом слоте, тоже пропадёт',
       'fr.giftNone': 'У тебя пока нет костюмов из мастерской. Создай один в Мастерской сокровищ',
       'fr.giftConfirm': 'Подарить {item} персонажу {name}?',
       'fr.giftLost': 'Костюм {item}, который на нём надет, исчезнет',
