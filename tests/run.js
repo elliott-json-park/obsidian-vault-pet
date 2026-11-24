@@ -1045,6 +1045,46 @@ test('quests: 예전 퀘스트 묶음(쓰다듬기 등)은 새로 뽑고, 태그
   assert.ok(seen);
 });
 
+test('quests: 외톨이가 1개면 목표가 1개보다 큰 외톨이 퀘스트는 안 나온다 (2.9.0)', () => {
+  const { host } = makeHost();
+  host.plugin.orphanList = () => ['a.md'];
+  for (let i = 0; i < 200; i++) {
+    const o = host.gamify.newQuestSet().list.find((x) => x.type === 'orphans');
+    assert.ok(!o || o.target <= 1, '외톨이 1개인데 목표 ' + (o && o.target));
+  }
+});
+
+test('quests: 3시간 전이라도 하루 한 번은 못 끝낸 퀘스트만 바꾼다 (2.9.0)', () => {
+  const { host, state } = makeHost();
+  const set = { id: 'q1', at: Date.now(), list: [
+    { type: 'chars', tier: 'hard', target: 3000, xp: 120, base: 0 },
+    { type: 'links', tier: 'normal', target: 5, xp: 60, base: 0 },
+    { type: 'graph', tier: 'easy', target: 1, xp: 30, base: -1 }, // 이미 끝냄
+  ], claimed: ['q1:graph'] };
+  state.set({ questSet: set, questSwapDay: null });
+  let qi = host.gamify.questInfo();
+  assert.ok(qi.canRefresh && qi.free);
+  assert.strictEqual(host.gamify.refreshQuests(), true);
+  const after = host.gamify.st.questSet;
+  assert.strictEqual(after.id, 'q1', '묶음과 3시간 시계는 그대로');
+  assert.strictEqual(after.at, set.at);
+  assert.ok(after.list.some((q) => q.type === 'graph'), '끝낸 퀘스트는 남는다');
+  assert.ok(!after.list.some((q) => q.type === 'chars' || q.type === 'links'), '못 끝낸 것은 다른 종류로');
+  assert.deepStrictEqual(after.list.map((q) => q.tier), ['hard', 'normal', 'easy']);
+  qi = host.gamify.questInfo();
+  assert.ok(!qi.canRefresh && !qi.free, '오늘은 한 번만');
+  assert.strictEqual(host.gamify.refreshQuests(), false);
+});
+
+test('출석: 보너스를 받은 날은 연속 출석에 들어가고, 장부에도 1일째부터 적힌다 (2.9.0)', () => {
+  const { host, state } = makeHost();
+  state.set({ attendDay: null, bonus: [] });
+  host.gamify.tick(Date.now(), 0);
+  assert.strictEqual(host.gamify.streaks().current, 1);
+  const b = host.gamify.st.bonus.find((x) => x.why && x.why.k === 'bonus.attend');
+  assert.ok(b && b.why.v.d === 1 && b.xp === 20, JSON.stringify(b));
+});
+
 test('achievements: 모션 수집 · 먹고 싶은 것 · 초대장 업적이 없고, 정리 습관 묶음이 있다. 모션 보상은 코인으로. 보물 업적 셋은 돌아왔다 (2.2.0)', () => {
   const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
   for (const gone of ['motion_10', 'motion_30', 'craving_1', 'invite_ok', 'smoke_break']) assert.ok(!ids.has(gone), gone);

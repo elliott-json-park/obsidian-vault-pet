@@ -1728,7 +1728,7 @@ class KitHost {
       }
       // 이미 있는 노트 열기 · 옵시디언 그래프 열기 (홈의 노트 지도 · 최근 노트)
       case 'note:open':
-        return this.plugin.openNote ? this.plugin.openNote(String(a[0] || '')) : false;
+        return this.plugin.openNote ? this.plugin.openNote(String(a[0] || ''), !!a[1]) : false;
       case 'graph:open':
         return this.plugin.openGraph ? !!(await this.plugin.openGraph(!!a[0])) : false;
       // '새로 생긴 것' 창을 봤다 (하우스가 창을 여는 순간 부른다. 설정에서 다시 볼 수는 있다)

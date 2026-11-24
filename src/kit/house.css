@@ -4090,18 +4090,19 @@ input[type='time'],
 .map-panel {
   padding: 10px 12px;
 }
+/* 2.9.0: 칸 크기 그대로 그린다(늘려 그리지 않음). 배경 없이 옵시디언 그래프 뷰처럼 */
 .mini-graph {
   display: block;
-  width: 100%;
-  height: auto;
-  max-width: 560px;
+  max-width: 100%;
   margin: 0 auto;
-  background: var(--soft);
+  background: transparent;
   border-radius: 4px;
+  overflow: hidden;
 }
 .mini-graph .ge line {
-  stroke: color-mix(in srgb, var(--ink) 30%, transparent);
+  stroke: color-mix(in srgb, var(--ink) 22%, transparent);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 .mini-graph .gn {
   cursor: pointer;
@@ -4110,9 +4111,10 @@ input[type='time'],
   fill: var(--muted);
   stroke: var(--panel);
   stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
 }
-.mini-graph .gn.h1 circle {
-  fill: var(--accent-2);
+.mini-graph .gn.h2 circle {
+  opacity: 0.75;
 }
 .mini-graph .gn.h0 circle {
   fill: var(--accent);
@@ -4126,13 +4128,16 @@ input[type='time'],
 .mini-graph .gn:focus {
   outline: none;
 }
+/* 이름: 노드 아래, 확대해도 화면에서 같은 크기 (--k = 지금 확대 배율) */
 .mini-graph text {
   fill: var(--ink);
-  font-size: 9px;
+  font-size: calc(11px / var(--k, 1));
   text-anchor: middle;
+  dominant-baseline: hanging;
   paint-order: stroke;
-  stroke: var(--soft);
-  stroke-width: 3px;
+  stroke: var(--panel);
+  stroke-width: calc(3px / var(--k, 1));
+  stroke-linejoin: round;
   pointer-events: none;
 }
 .map-foot {
@@ -4583,12 +4588,16 @@ input[type='time'],
 .mini-graph .gn circle {
   transition: fill 0.15s, opacity 0.15s;
 }
+/* 작게 보일 때는 이름이 흐려진다 (--ta, 옵시디언의 글자 흐려짐). 가운데 · 마우스를 올린 노드와 이웃은 늘 */
 .mini-graph .gn text {
-  opacity: 0;
+  opacity: var(--ta, 1);
   transition: opacity 0.15s;
 }
 .mini-graph .gn.lbl text {
   opacity: 1;
+}
+.mini-graph .gn.dim text {
+  opacity: calc(var(--ta, 1) * 0.25);
 }
 .mini-graph .gn.dim circle {
   opacity: 0.3;
@@ -4606,4 +4615,128 @@ input[type='time'],
 .map-hint {
   margin: 4px 0 0;
   font-size: 11px;
+}
+
+/* ---------- [옵시디언 2.9.0] 홈 다듬기: 좁은 사이드바 · 방해 금지 자리 · 끝났을 때 반짝임 ---------- */
+/* 오늘 숫자 4칸: 넓으면 한 줄, 좁으면 2×2 (예전엔 5칸이 4+1 로 꺾였다) */
+.panel.today-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 360px) {
+  .panel.today-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 8px;
+  }
+}
+.tcell2 .k {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 방해 금지: 집중 타이머 줄 끝의 종 하나 */
+.btn.fz-quiet {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.btn.fz-quiet.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+/* 칸 제목은 한 줄로. 버튼이 안 들어가면 제목을 꺾지 말고 버튼을 아랫줄로 */
+.hsec > .h2-row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.hsec > .h2-row h2 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.hsec > .h2-row .hsec-acts {
+  margin-left: auto;
+}
+/* 좁은 사이드바: 탭 8개가 다 들어가게 (예전엔 칸마다 50px 을 잡아 '설정'이 밖으로 밀렸다) */
+@media (max-width: 480px) {
+  .tabs button {
+    min-width: 0;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .tabs button.on .tx {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 340px) {
+  .tabs button.on .tx {
+    display: none;
+  }
+}
+/* 좁은 사이드바: 퀘스트 카드를 짧게 (아이콘을 빼고, '어떻게' 는 한 줄로 줄인다. 전체 글은 마우스를 올리면) */
+/* 카드 안 글이 길어도 카드 폭을 넘지 않게 (flex 자식은 min-width 0 이어야 줄어든다) */
+.quest .body {
+  min-width: 0;
+}
+.quest-notes {
+  flex-wrap: wrap;
+}
+@media (max-width: 420px) {
+  .quest {
+    gap: 8px;
+    margin-bottom: 6px;
+    padding: 9px 10px;
+  }
+  .quest .icon {
+    display: none;
+  }
+  .quest .row {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .quest-how span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .panel.allclear {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+/* 끝났을 때 한 번 반짝 (목표 채움 · 집중 마침 · 퀘스트 깸) */
+@keyframes kc-celebrate {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 55%, transparent);
+    transform: scale(1);
+  }
+  30% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--good) 25%, transparent);
+    transform: scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+    transform: scale(1);
+  }
+}
+.celebrate {
+  animation: kc-celebrate 0.9s ease-out 2;
+  border-radius: 8px;
+}
+/* 움직임 줄이기: 커지지 않고 테두리만 잠깐 */
+@keyframes kc-celebrate-still {
+  0%,
+  70% {
+    outline: 2px solid var(--good);
+  }
+  100% {
+    outline: 2px solid transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebrate {
+    animation: kc-celebrate-still 1.6s linear 1;
+  }
 }

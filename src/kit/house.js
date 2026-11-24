@@ -1348,10 +1348,13 @@ function focusRow() {
       <div class="fz-btns">${btns}</div></div>`;
   // 포모도로 반복 중이면 몇 번째 판인지 덧붙인다 (2.8.0, 이슈 #22)
   const rnd = (n) => (n ? ' ' + t('home.cycleRound', { n, of: f.rounds || 4 }) : '');
-  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min }) + rnd(f.round)), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>`);
+  // 방해 금지 1시간 (2.9.0: 오늘 숫자 칸 제목 줄에서 이리로). 종 아이콘 하나, 이름은 마우스를 올리면
+  const qk = D.quiet ? 'home.quietOff' : 'home.quietOn';
+  const quiet = `<button class="btn ghost small fz-quiet ${D.quiet ? 'on' : ''}" data-act="quiet" aria-pressed="${!!D.quiet}" title="${esc(t(qk))}" aria-label="${esc(t(qk))}">${icon(D.quiet ? 'bellOff' : 'bell', 12)}</button>`;
+  if (f.on) return running('hourglass', '', f.start, f.end, esc(t('home.focusRunning', { m: f.min }) + rnd(f.round)), `<button class="btn ghost small" data-act="focusStop">${t('home.focusStop')}</button>${quiet}`);
   if (f.brk)
     return running('pillow', 'brk', f.brk.end - f.brk.min * 60_000, f.brk.end, esc(t('home.breakRunning', { m: f.brk.min }) + rnd(f.brk.round)),
-      `<button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button><button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button>`);
+      `<button class="btn primary small" data-act="focusStart">${t('home.focusAgain')}</button><button class="btn ghost small" data-act="breakStop">${t('home.breakStop')}</button>${quiet}`);
   const seg = (f.lengths || [15, 25, 50]).map((m) => `<button class="${m === f.min ? 'on' : ''}" data-focus-min="${m}" aria-pressed="${m === f.min}">${t('home.focusMin', { m })}</button>`).join('');
   const sub = tot.today ? t('home.focusToday', { n: fmt(tot.today), m: fmt(tot.todayMin || 0) }) : t('home.focusSub', { coins: fmt(f.min * 2) });
   const offer = tot.lastAt && Date.now() - tot.lastAt < BREAK_OFFER_MS
@@ -1360,7 +1363,7 @@ function focusRow() {
   return `<div class="fz">
       <span class="fz-ic">${icon('hourglass', 15)}</span>
       <div class="fz-main"><div class="fz-top"><b>${t('home.focusLabel')}</b></div><span class="muted small">${esc(sub)}</span></div>
-      <div class="fz-btns"><div class="seg-mini" role="group" aria-label="${esc(t('focus.setLen'))}">${seg}</div><button class="btn primary small" data-act="focusStart">${icon('hourglass', 11)}${t('home.focusGo')}</button></div>
+      <div class="fz-btns"><div class="seg-mini" role="group" aria-label="${esc(t('focus.setLen'))}">${seg}</div><button class="btn primary small" data-act="focusStart">${icon('hourglass', 11)}${t('home.focusGo')}</button>${quiet}</div>
     </div>${offer}`;
 }
 function goalPanel() {
@@ -1372,7 +1375,8 @@ function goalPanel() {
     const W = g.unit === 'words' ? 'W' : 'C';
     const pct = Math.round(g.pct * 100);
     const week = g.week.map((d, i) => `<i class="${d.done ? 'on' : ''} ${i === g.week.length - 1 ? 'today' : ''}"></i>`).join('');
-    const streak = g.current ? `<span class="gc-streak">${icon('fire', 11)}${t('home.goalStreak', { d: g.current })}</span>` : g.best ? `<span class="muted">${t('home.goalBest', { d: g.best })}</span>` : '';
+    // 2.9.0: 불꽃은 머리의 출석 연속 하나만 쓴다. 목표 연속은 트로피
+    const streak = g.current ? `<span class="gc-streak">${icon('trophy', 11)}${t('home.goalStreak', { d: g.current })}</span>` : g.best ? `<span class="muted">${t('home.goalBest', { d: g.best })}</span>` : '';
     top = `<div class="gc ${g.done ? 'done' : ''}">
         <div class="gc-row"><div class="gc-v"><b>${fmt(g.value)}</b><span>${t('home.goalSlash' + W, { target: fmt(g.target) })}</span></div>
           <span class="gc-pct">${g.done ? icon('check', 13) + t('home.goalDoneShort') : pct + '%'}</span></div>
@@ -1562,15 +1566,21 @@ function todoPanel() {
   return homeSec('todo', `${t('todo.title')}${n ? ` <span class="muted">${fmt(n)}</span>` : ''}`, '', body);
 }
 
-// ---------- 노트 지도 (2.0.1): 옵시디언 그래프 뷰처럼 움직이는 그래프 ----------
+// ---------- 노트 지도 (2.0.1, 2.9.0 옵시디언 그래프 뷰처럼): 움직이는 그래프 ----------
 // 노드끼리 서로 밀어내고(전하), 링크는 용수철처럼 당기고, 모두 가운데로 살짝 끌린다(중력). 처음엔 흩어졌다가 자리를 잡으며
 // 천천히 멈춘다(알파가 식는다). 노드를 끌면 다시 살아나고, 놓으면 제자리를 찾아간다. 마우스를 올리면 그 노드와 이웃만 밝게.
-// 빈 곳을 끌면 화면 이동, Ctrl(⌘)+휠이면 확대, 빈 곳 두 번 누르면 원래대로. 노드를 누르면(끌지 않고) 그 노트를 연다.
+// 2.9.0: 옵시디언 그래프 뷰처럼 바꿨다.
+//  - 상자 벽이 없다. 노드는 어디로든 가고, 화면이 그래프 전체에 저절로 맞춘다(맞춤). 직접 옮기거나 확대하면 맞춤을 멈추고, 빈 곳을 두 번 누르면 다시 맞춘다
+//  - 그림을 늘려 그리지 않는다. 칸 너비 그대로(픽셀 1:1) 그려서 넓은 탭에서도 좁은 사이드바에서도 글자 · 노드 크기가 같다
+//  - 이름은 노드 아래에, 확대해도 같은 크기. 작게 보일 때는 흐려지고(옵시디언의 글자 흐려짐) 가운데 노드 · 마우스를 올린 노드와 이웃은 늘 보인다
+//  - 휠: 지도를 한 번 누른 뒤에는 그냥 휠로 확대(지도 밖으로 나가면 다시 홈 스크롤). 누르기 전에는 Ctrl(⌘)+휠
+//  - Ctrl(⌘)+클릭은 새 탭에서 연다
 // 홈을 다시 그려도(데이터가 와도) 같은 노드는 그 자리 · 속도 그대로 이어서 움직인다 (graphSim 에 남겨 둔다)
-const GRAPH_W = 320;
-const GRAPH_H = 210;
+const GRAPH_H_MIN = 220;
+const GRAPH_H_MAX = 340;
+const GRAPH_PAD = 22; // 맞춤 때 가장자리 여백 (이름 자리 포함)
 const SVGNS = 'http://www.w3.org/2000/svg';
-const graphSim = { key: '', nodes: [], links: [], nbr: [], byPath: new Map(), alpha: 0, alphaTarget: 0, svg: null, zoom: null, raf: 0, timer: 0, view: { x: 0, y: 0, k: 1 }, hover: -1, drag: null, pan: null };
+const graphSim = { key: '', center: '', nodes: [], links: [], nbr: [], byPath: new Map(), alpha: 0, alphaTarget: 0, svg: null, zoom: null, raf: 0, timer: 0, w: 300, h: GRAPH_H_MIN, view: { x: 150, y: 110, k: 1 }, auto: true, engaged: false, hover: -1, drag: null, pan: null, ro: null };
 window.VP_GRAPH = graphSim; // 확인용 (테스트 · 실제 앱 점검에서 시뮬레이션 상태를 본다)
 const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 // 문자열마다 정해진 0~1 값 (새 노드가 처음 나타나는 자리. 같은 노트면 늘 같은 자리에서 나온다)
@@ -1580,7 +1590,9 @@ function hashUnit(s, salt) {
   return ((h >>> 0) % 10007) / 10007;
 }
 const graphKey = (G) => (G && G.nodes.length ? `${G.nodes.length}.${G.edges.length}.${Math.floor(hashUnit(G.nodes.map((n) => n.path).join('\n'), 7) * 1e9)}` : '');
-const shortName = (s) => (s.length > 16 ? s.slice(0, 15) + '…' : s);
+const shortName = (s) => (s.length > 18 ? s.slice(0, 17) + '…' : s);
+// 칸 너비에 맞춘 지도 높이 (넓으면 조금 더 높게)
+const graphHeight = (w) => Math.round(Math.max(GRAPH_H_MIN, Math.min(GRAPH_H_MAX, w * 0.6)));
 
 function graphPanel() {
   const H = D.home;
@@ -1593,7 +1605,7 @@ function graphPanel() {
   const more = G.more ? `<span class="muted small">${t('home.mapMore', { n: fmt(G.more) })}</span>` : '';
   // 그림은 mountGraph 가 그린다 (여기 글은 그래프가 바뀔 때만 달라져서, 데이터가 와도 다시 그리지 않는다)
   const body = `<div class="panel map-panel">
-      <div class="mini-graph-wrap" data-graph="${graphKey(G)}"><svg class="mini-graph" viewBox="0 0 ${GRAPH_W} ${GRAPH_H}" role="group" aria-label="${esc(t('home.mapTitle'))}"></svg></div>
+      <div class="mini-graph-wrap" data-graph="${graphKey(G)}"><svg class="mini-graph" role="group" aria-label="${esc(t('home.mapTitle'))}"></svg></div>
       <div class="map-foot"><span class="small">${icon('pin', 11)}<b>${esc(G.nodes[0].name)}</b> · ${t('home.mapNear', { n: fmt(G.nodes.length - 1) })}</span>${more}</div>
       <p class="muted map-hint">${t('map.hint')}</p>
       ${sum}
@@ -1606,6 +1618,7 @@ function mountGraph(root) {
   const S = graphSim;
   const wrap = $('.mini-graph-wrap', root);
   const G = D.home && D.home.graph;
+  if (S.ro) S.ro.disconnect();
   if (!wrap || !G || !G.nodes.length) {
     stopGraph();
     S.svg = null;
@@ -1613,12 +1626,14 @@ function mountGraph(root) {
   }
   const key = wrap.dataset.graph;
   const fresh = key !== S.key;
+  // 가운데 노트가 바뀌면 다시 맞춤부터 (옮겨 둔 화면은 그 노트에만 맞던 것)
+  if (G.center !== S.center) S.auto = true;
   const prev = S.byPath;
-  const cx = GRAPH_W / 2;
-  const cy = GRAPH_H / 2;
   const nodes = G.nodes.map((nd, i) => {
     const old = prev.get(nd.path);
-    return { i, path: nd.path, name: nd.name, hop: nd.hop, deg: nd.deg, r: nd.hop === 0 ? 6.5 : 3 + Math.min(4, nd.deg * 0.45), x: old ? old.x : NaN, y: old ? old.y : NaN, vx: old ? old.vx : 0, vy: old ? old.vy : 0, fx: null, fy: null };
+    // 옵시디언처럼 이어진 노트가 많을수록 크게 (제곱근으로 늘어 허브만 너무 커지지 않게)
+    const r = nd.hop === 0 ? 7 : Math.min(9, 3.5 + Math.sqrt(nd.deg) * 1.3);
+    return { i, path: nd.path, name: nd.name, hop: nd.hop, deg: nd.deg, r, x: old ? old.x : NaN, y: old ? old.y : NaN, vx: old ? old.vx : 0, vy: old ? old.vy : 0, fx: null, fy: null };
   });
   const seen = new Set();
   const links = [];
@@ -1633,7 +1648,7 @@ function mountGraph(root) {
     nbr[l.s.i].add(l.t.i);
     nbr[l.t.i].add(l.s.i);
   }
-  // 새 노드는 자리를 이미 가진 이웃 곁에서 (없으면 가운데 둘레에서) 나온다
+  // 새 노드는 자리를 이미 가진 이웃 곁에서 (없으면 가운데 둘레에서) 나온다. 그래프 좌표의 가운데는 (0, 0)
   const placed = (n) => !isNaN(n.x);
   for (let pass = 0; pass < 3; pass++)
     for (const n of nodes) {
@@ -1641,20 +1656,86 @@ function mountGraph(root) {
       const base = [...nbr[n.i]].map((j) => nodes[j]).find(placed);
       if (!base && pass < 2 && n.hop > 0) continue;
       const a = hashUnit(n.path, 1) * Math.PI * 2;
-      const d = n.hop === 0 && !base ? 0 : 18 + hashUnit(n.path, 2) * 26;
-      n.x = (base ? base.x : cx) + Math.cos(a) * d;
-      n.y = (base ? base.y : cy) + Math.sin(a) * d;
+      const d = n.hop === 0 && !base ? 0 : 20 + hashUnit(n.path, 2) * 30;
+      n.x = (base ? base.x : 0) + Math.cos(a) * d;
+      n.y = (base ? base.y : 0) + Math.sin(a) * d;
     }
-  Object.assign(S, { key, nodes, links, nbr, byPath: new Map(nodes.map((n) => [n.path, n])), hover: -1, drag: null, pan: null });
+  Object.assign(S, { key, center: G.center, nodes, links, nbr, byPath: new Map(nodes.map((n) => [n.path, n])), hover: -1, drag: null, pan: null, engaged: false });
   if (fresh) S.alpha = prev.size ? 0.6 : 1;
-  buildGraph(wrap.querySelector('svg'));
+  const svg = wrap.querySelector('svg');
+  sizeGraph(svg, wrap.clientWidth);
+  buildGraph(svg);
+  // 칸 너비가 바뀌면(사이드바를 넓히거나 좁히면) 지도도 따라간다
+  if (typeof ResizeObserver === 'function') {
+    S.ro = new ResizeObserver(() => {
+      if (!svg.isConnected || !wrap.clientWidth || Math.abs(wrap.clientWidth - S.w) < 1) return;
+      sizeGraph(svg, wrap.clientWidth);
+      if (S.auto) fitView(true);
+      applyView();
+    });
+    S.ro.observe(wrap);
+  }
   if (reduceMotion()) {
     for (let i = 0; i < 300 && S.alpha > 0.004; i++) graphTick();
+    if (S.auto) fitView(true);
     renderGraph();
     return;
   }
+  if (S.auto && fresh && !prev.size) {
+    // 처음 열 때는 자리를 어느 정도 잡은 뒤의 모습에 맞춰 놓고 시작한다 (한쪽에서 확 커지며 튀지 않게)
+    const save = nodes.map((n) => [n.x, n.y, n.vx, n.vy]);
+    const a0 = S.alpha;
+    for (let i = 0; i < 120; i++) graphTick();
+    fitView(true);
+    nodes.forEach((n, i) => ([n.x, n.y, n.vx, n.vy] = save[i]));
+    S.alpha = a0;
+  }
   renderGraph();
   startGraph();
+}
+
+// 그림 크기 = 칸 크기 (픽셀 1:1)
+function sizeGraph(svg, width) {
+  const S = graphSim;
+  const w = Math.max(160, Math.round(width || 300));
+  const h = graphHeight(w);
+  // 크기가 바뀌어도 보고 있던 가운데는 그대로
+  S.view.x += (w - S.w) / 2;
+  S.view.y += (h - S.h) / 2;
+  S.w = w;
+  S.h = h;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', h);
+}
+
+// 노드 전체가 보이게 맞출 화면 (이름 자리까지). now 면 바로, 아니면 조금씩 다가간다. 다 왔으면 true
+function fitView(now) {
+  const S = graphSim;
+  if (!S.nodes.length) return true;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const n of S.nodes) {
+    x0 = Math.min(x0, n.x - n.r);
+    x1 = Math.max(x1, n.x + n.r);
+    y0 = Math.min(y0, n.y - n.r);
+    y1 = Math.max(y1, n.y + n.r + 12);
+  }
+  const k = Math.max(0.3, Math.min(1.6, (S.w - GRAPH_PAD * 2) / Math.max(1, x1 - x0), (S.h - GRAPH_PAD * 2) / Math.max(1, y1 - y0)));
+  const tx = S.w / 2 - ((x0 + x1) / 2) * k;
+  const ty = S.h / 2 - ((y0 + y1) / 2) * k;
+  const v = S.view;
+  if (now) {
+    S.view = { x: tx, y: ty, k };
+    return true;
+  }
+  const e = 0.12;
+  v.x += (tx - v.x) * e;
+  v.y += (ty - v.y) * e;
+  v.k += (k - v.k) * e;
+  return Math.abs(tx - v.x) < 0.5 && Math.abs(ty - v.y) < 0.5 && Math.abs(k - v.k) < 0.003;
 }
 
 function buildGraph(svg) {
@@ -1672,15 +1753,14 @@ function buildGraph(svg) {
   zoom.append(ge, gn);
   svg.append(zoom);
   S.zoom = zoom;
-  applyView();
   for (const l of S.links) {
     l.el = mk('line');
     ge.append(l.el);
   }
-  const few = S.nodes.length <= 12;
   for (const n of S.nodes) {
     const g = mk('g', `gn h${Math.min(2, n.hop)}`);
-    g.setAttribute('tabindex', '0');
+    // 키보드로는 가운데와 바로 이웃만 차례로 (두 걸음 노드까지 다 넣으면 탭을 수십 번 눌러야 지나간다)
+    g.setAttribute('tabindex', n.hop <= 1 ? '0' : '-1');
     g.setAttribute('role', 'button');
     g.setAttribute('aria-label', n.name);
     const title = mk('title');
@@ -1690,7 +1770,7 @@ function buildGraph(svg) {
     const tx = mk('text');
     tx.textContent = shortName(n.name);
     g.append(title, c, tx);
-    n.base = n.hop === 0 || (few && n.hop === 1); // 늘 이름을 보이는 노드
+    n.base = n.hop === 0; // 늘 이름을 보이는 노드
     n.el = g;
     n.c = c;
     n.tx = tx;
@@ -1699,24 +1779,26 @@ function buildGraph(svg) {
       if (e.button !== 0) return;
       e.stopPropagation();
       svg.setPointerCapture(e.pointerId);
-      S.drag = { n, x: e.clientX, y: e.clientY, moved: false };
+      S.engaged = true;
+      S.drag = { n, x: e.clientX, y: e.clientY, moved: false, tab: e.ctrlKey || e.metaKey };
       n.fx = n.x;
       n.fy = n.y;
-      S.alphaTarget = 0.25;
-      wakeGraph(0.25);
+      S.alphaTarget = 0.3;
+      wakeGraph(0.3);
     });
-    g.addEventListener('pointerenter', () => setHover(n.i));
+    g.addEventListener('pointerenter', () => !S.drag && !S.pan && setHover(n.i));
     g.addEventListener('pointerleave', () => !S.drag && setHover(-1));
     g.addEventListener('focus', () => setHover(n.i));
     g.addEventListener('blur', () => setHover(-1));
     g.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        openGraphNote(n);
+        openGraphNote(n, e.ctrlKey || e.metaKey);
       }
     });
   }
   setHover(-1);
+  applyView();
   // 화면 좌표 → 그래프 좌표 (확대 · 이동을 거슬러)
   const toGraph = (e) => {
     const p = svg.createSVGPoint();
@@ -1733,8 +1815,9 @@ function buildGraph(svg) {
   svg.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || S.drag) return;
     svg.setPointerCapture(e.pointerId);
+    S.engaged = true;
     const q = toView(e);
-    S.pan = { qx: q.x, qy: q.y, x: S.view.x, y: S.view.y };
+    S.pan = { qx: q.x, qy: q.y, x: S.view.x, y: S.view.y, moved: false };
     svg.classList.add('panning');
   });
   svg.addEventListener('pointermove', (e) => {
@@ -1745,9 +1828,14 @@ function buildGraph(svg) {
       const p = toGraph(e);
       d.n.fx = p.x;
       d.n.fy = p.y;
-      wakeGraph(0.25);
+      wakeGraph(0.3);
     } else if (S.pan) {
       const q = toView(e);
+      if (!S.pan.moved && Math.hypot(q.x - S.pan.qx, q.y - S.pan.qy) > 3) {
+        S.pan.moved = true;
+        S.auto = false; // 직접 옮겼으면 맞춤은 그만
+      }
+      if (!S.pan.moved) return;
       S.view.x = S.pan.x + (q.x - S.pan.qx);
       S.view.y = S.pan.y + (q.y - S.pan.qy);
       applyView();
@@ -1758,27 +1846,37 @@ function buildGraph(svg) {
     S.drag = null;
     S.pan = null;
     svg.classList.remove('panning');
+    // 끄는 동안 미뤄 둔 다시 그리기가 있으면 지금 (refreshView)
+    if (viewStale) setTimeout(() => viewStale && !typingIn() && D && refreshView(), 0);
     if (!d) return;
     d.n.fx = null;
     d.n.fy = null;
     S.alphaTarget = 0;
     wakeGraph(0.15);
-    if (!d.moved) openGraphNote(d.n);
+    if (!d.moved) openGraphNote(d.n, d.tab);
     else setHover(-1);
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
+  // 지도 밖으로 나가면 휠은 다시 홈을 스크롤한다
+  svg.addEventListener('pointerleave', () => {
+    if (!S.drag && !S.pan) S.engaged = false;
+  });
   svg.addEventListener('dblclick', (e) => {
     if (e.target.closest && e.target.closest('.gn')) return;
-    S.view = { x: 0, y: 0, k: 1 };
-    applyView();
+    S.auto = true;
+    if (reduceMotion()) {
+      fitView(true);
+      applyView();
+    } else startGraph();
   });
-  // Ctrl(⌘)+휠 · 트랙패드 오므리기로 확대. 그냥 휠은 홈을 스크롤한다
+  // 휠로 확대. 지도를 누르기 전에는 Ctrl(⌘)+휠 · 트랙패드 오므리기만 (그냥 휠은 홈을 스크롤한다)
   svg.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;
+    if (!e.ctrlKey && !e.metaKey && !S.engaged) return;
     e.preventDefault();
+    S.auto = false;
     const q = toView(e);
-    const k = Math.max(0.5, Math.min(3, S.view.k * Math.exp(-e.deltaY * 0.002)));
+    const k = Math.max(0.3, Math.min(4, S.view.k * Math.exp(-e.deltaY * 0.002)));
     const gx = (q.x - S.view.x) / S.view.k;
     const gy = (q.y - S.view.y) / S.view.k;
     S.view = { k, x: q.x - gx * k, y: q.y - gy * k };
@@ -1786,13 +1884,21 @@ function buildGraph(svg) {
   }, { passive: false });
 }
 
+// 화면 이동 · 확대를 그림에 넣는다. 이름 글자는 확대해도 같은 크기(--k), 작게 보이면 흐려진다(--ta)
 function applyView() {
-  const v = graphSim.view;
-  if (graphSim.zoom) graphSim.zoom.setAttribute('transform', `translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})`);
+  const S = graphSim;
+  const v = S.view;
+  if (!S.zoom || !S.svg) return;
+  S.zoom.setAttribute('transform', `translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})`);
+  const ta = S.nodes.length <= 12 ? 1 : Math.max(0, Math.min(1, (v.k - 0.6) / 0.3));
+  S.svg.style.setProperty('--k', v.k.toFixed(3));
+  S.svg.style.setProperty('--ta', ta.toFixed(2));
+  // 글자 자리도 확대에 맞춰 (노드 바로 아래, 화면에서 늘 같은 간격)
+  for (const n of S.nodes) if (n.tx) n.tx.setAttribute('y', (n.y + n.r + 11 / v.k).toFixed(1));
 }
 
-async function openGraphNote(n) {
-  const ok = await pet.openNote(n.path);
+async function openGraphNote(n, newTab = false) {
+  const ok = await pet.openNote(n.path, newTab);
   if (!ok) toast(t('home.noteGone'), 'bang');
 }
 
@@ -1816,14 +1922,14 @@ function setHover(i) {
   }
 }
 
-// 한 걸음 (d3-force 와 같은 방식: 전하 · 링크 · 중력, 속도 감쇠 0.4)
+// 한 걸음 (d3-force 와 같은 방식: 전하 · 링크 · 중력, 속도 감쇠 0.4). 벽은 없다
 function graphTick() {
   const S = graphSim;
   const N = S.nodes;
   const n = N.length;
   S.alpha += (S.alphaTarget - S.alpha) * 0.0228;
   const a = S.alpha;
-  const charge = n > 16 ? -70 : n > 8 ? -120 : -170;
+  const charge = n > 16 ? -110 : n > 8 ? -150 : -190;
   for (let i = 0; i < n; i++)
     for (let j = i + 1; j < n; j++) {
       const A = N[i];
@@ -1836,6 +1942,17 @@ function graphTick() {
         dy = (hashUnit(B.path, 3) - 0.5) * 0.1;
         d2 = dx * dx + dy * dy + 0.01;
       }
+      // 겹치면 바로 떼어 놓는다 (d3 forceCollide 처럼. 이름이 포개져 못 읽는 일이 없게)
+      const minD = A.r + B.r + 6;
+      if (d2 < minD * minD) {
+        const d = Math.sqrt(d2);
+        const push = ((minD - d) / d) * 0.25;
+        A.vx -= dx * push;
+        A.vy -= dy * push;
+        B.vx += dx * push;
+        B.vy += dy * push;
+      }
+      if (d2 > 90000) continue; // 아주 먼 노드끼리는 안 민다 (d3 distanceMax 처럼, 떨어진 무리가 끝없이 멀어지지 않게)
       d2 = Math.max(d2, 25);
       const w = (charge * a) / d2;
       A.vx += dx * w;
@@ -1843,7 +1960,7 @@ function graphTick() {
       B.vx -= dx * w;
       B.vy -= dy * w;
     }
-  const dist = n > 16 ? 34 : n > 8 ? 46 : 58;
+  const dist = n > 16 ? 42 : n > 8 ? 52 : 62;
   for (const l of S.links) {
     const cs = S.nbr[l.s.i].size || 1;
     const ct = S.nbr[l.t.i].size || 1;
@@ -1859,23 +1976,22 @@ function graphTick() {
     l.s.vx += x * (1 - bias);
     l.s.vy += y * (1 - bias);
   }
-  const cx = GRAPH_W / 2;
-  const cy = GRAPH_H / 2;
+  // 가운데(0, 0)로 끌림. 넓은 칸이면 옆으로, 좁은 칸이면 위아래로 조금 더 퍼지게
+  const wide = Math.sqrt(S.w / Math.max(1, S.h));
   for (const p of N) {
-    p.vx += (cx - p.x) * 0.035 * a;
-    p.vy += (cy - p.y) * 0.06 * a;
+    p.vx += -p.x * (0.05 / wide) * a;
+    p.vy += -p.y * (0.05 * wide) * a;
     if (p.fx != null) {
-      p.x = Math.max(12, Math.min(GRAPH_W - 12, p.fx));
-      p.y = Math.max(16, Math.min(GRAPH_H - 8, p.fy));
+      p.x = p.fx;
+      p.y = p.fy;
       p.vx = 0;
       p.vy = 0;
       continue;
     }
     p.vx *= 0.6;
     p.vy *= 0.6;
-    // 상자 밖으로는 못 나간다 (위는 이름 자리를 남긴다). 확대 · 이동은 보는 자리만 바꾼다
-    p.x = Math.max(12, Math.min(GRAPH_W - 12, p.x + p.vx));
-    p.y = Math.max(16, Math.min(GRAPH_H - 8, p.y + p.vy));
+    p.x += p.vx;
+    p.y += p.vy;
   }
 }
 
@@ -1893,8 +2009,8 @@ function renderGraph() {
     n.c.setAttribute('cx', n.x.toFixed(1));
     n.c.setAttribute('cy', n.y.toFixed(1));
     n.tx.setAttribute('x', n.x.toFixed(1));
-    n.tx.setAttribute('y', (n.y - n.r - 3).toFixed(1));
   }
+  applyView();
 }
 
 function stopGraph() {
@@ -1916,9 +2032,12 @@ function startGraph() {
       S.timer = setTimeout(step, 500);
       return;
     }
-    graphTick();
+    const live = S.alpha > 0.004 || S.alphaTarget > 0;
+    if (live) graphTick();
+    // 맞춤 중이면 화면이 그래프를 따라간다 (노드를 끄는 동안에는 화면이 움직이지 않게 멈춘다)
+    const settled = !S.auto || S.drag ? true : fitView(false);
     renderGraph();
-    if (S.alpha > 0.004 || S.alphaTarget > 0) S.raf = requestAnimationFrame(step);
+    if (live || !settled) S.raf = requestAnimationFrame(step);
   };
   S.raf = requestAnimationFrame(step);
 }
@@ -1940,7 +2059,7 @@ function recentPanel() {
   const H = D.home;
   const list = (H && H.recent) || [];
   const rows = list.length
-    ? `<ul class="recent">${list.map((x) => `<li><button class="recent-btn" data-open-note="${esc(x.path)}">${icon(x.canvas ? 'map' : 'scroll', 13)}<span class="nm">${esc(x.name)}</span><span class="muted small">${esc(ago(x.mtime))}</span></button></li>`).join('')}</ul>`
+    ? `<ul class="recent">${list.map((x) => `<li><button class="recent-btn" data-open-note="${esc(x.path)}">${icon(x.canvas ? 'map' : 'scroll', 13)}<span class="nm">${esc(x.name)}</span><span class="muted small">${esc(t('home.editedAgo', { t: ago(x.mtime) }))}</span></button></li>`).join('')}</ul>`
     : `<p class="muted small">${t('home.recentNone')}</p>`;
   const edited = H && H.editedToday ? `<p class="muted small recent-sum">${t('home.editedToday', { n: fmt(H.editedToday) })}</p>` : '';
   return homeSec('recent', t('home.recentTitle'), '', `<div class="panel recent-panel">${rows}${edited}</div>`);
@@ -2049,15 +2168,11 @@ const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6
 const TABS = {
   // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것들. 2.0.1: 칸 순서 · 보이기는 '홈 꾸미기'에서 (homeLayout)
   home() {
-    const g = D.growth;
     const u = D.today;
-    const st = D.game.streak;
     // [옵시디언] Claude Code 연결 안내 대신: 펫을 꺼 뒀으면 다시 켜는 줄
     const hook = D.petShown === false
       ? `<div class="banner">${icon('paw', 22)}<p><b>${t('obs.petOffTitle')}</b><br><span class="muted">${t('obs.petOffDesc')}</span></p><button class="btn primary" data-act="petOn">${t('obs.petOn')}</button></div>`
       : '';
-    const into = g ? g.xp - g.levelFloor : 0;
-    const need = g ? g.levelCeil - g.levelFloor : 1;
     const parts = {
       goal: goalPanel,
       // 오늘 숫자: 한 줄짜리 작은 칸들. 목표를 단어로 세면 첫 칸도 단어로
@@ -2069,19 +2184,16 @@ const TABS = {
           ${cell(t('home.todayLinks'), fmt(u.l), 'links')}
           ${cell(t('home.todayNotes'), fmt(u.n), 'notes')}
           ${cell(t('home.todayTasks'), fmt(u.k || 0), 'tasks')}
-          ${cell(t('home.attendance'), `${icon('fire', 13)}${st.current}`)}
         </div>`;
-        const quietBtn = `<button class="btn head-act ${D.quiet ? 'alert' : ''}" data-act="quiet">${icon(D.quiet ? 'bellOff' : 'bell', 12)}${t(D.quiet ? 'home.quietOff' : 'home.quietOn')}</button>`;
-        return homeSec('today', t('home.today'), quietBtn, body);
+        // 2.9.0: 출석은 머리의 'N일 연속' 한 곳에만 (여기 칸은 뺐다). 방해 금지 버튼은 집중 타이머 줄로 옮겼다
+        return homeSec('today', t('home.today'), '', body);
       },
       map: graphPanel,
       todo: todoPanel,
-      // 고양이: 레벨 한 줄 + 배부름 한 줄 (밥 주기)
+      // 고양이: 배부름 한 줄 (밥 주기). 2.9.0: 레벨 막대는 머리의 경험치 막대와 겹쳐서 뺐다
       cat: () => {
         const gg = D.gauge || { food: 100, full: true };
         const body = `<div class="panel cat-panel">
-          <div class="lvline"><b class="lvtag">Lv.${g ? g.level : 1}</b><div class="bar"><i style="width:${g ? (into / need) * 100 : 0}%"></i></div>
-          <span class="muted">${!g ? t('home.reading') : g.maxed ? `${t('home.stars', { n: g.stars || 0 })} · ${t('home.toStar', { xp: fmt(g.starNext) })}` : t('home.toLevel', { lv: g.level + 1, xp: fmt(g.levelCeil - g.xp) })}</span></div>
           ${gaugeRow('food', gg.food, 'ricebowl')}
           <p class="muted gauge-note">${gaugeNote(gg)}</p>
         </div>`;
@@ -2108,19 +2220,22 @@ const TABS = {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     // 2.0.1: 다른 홈 칸처럼 접을 수 있게 homeSec 으로
-    const refresh = `<button class="btn head-act ${qi.canRefresh ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t('quests.refresh')}</button>`;
+    // 2.9.0: 3시간 전이라도 하루 한 번은 못 끝낸 퀘스트만 바꿀 수 있다 (qi.free). 그때는 색 없이 차분한 버튼
+    const timeOk = qi.canRefresh && !qi.free;
+    const refresh = `<button class="btn head-act ${timeOk ? 'alert' : ''}" data-act="questRefresh" ${qi.canRefresh ? '' : 'disabled'}>${icon('hourglass', 12)}${t(qi.free ? 'quests.swap' : 'quests.refresh')}</button>`;
+    const wait = h ? t('quests.subWait', { h, m }) : t('quests.subWaitMin', { m });
     return homeSec('quests', t('quests.title'), refresh, `
-      <p class="muted quest-sub">${qi.canRefresh ? t('quests.subReady') : h ? t('quests.subWait', { h, m }) : t('quests.subWaitMin', { m })}</p>
+      <p class="muted quest-sub">${timeOk ? t('quests.subReady') : qi.free ? t('quests.subFree') : wait}</p>
       ${q
         .map((x) => {
           // 2.0.0: 처음 해 보는 사람을 위한 '어떻게' 한 줄 (core/skills.js 의 기술 이름표). 외톨이 노트 퀘스트는 그 노트들을 바로 열 수 있게
           const howKey = x.skill ? 'skill.' + x.skill + '.how' : '';
-          const how = howKey && t(howKey) !== howKey ? `<div class="quest-how">${icon('bulb', 11)}<span>${esc(t(howKey))}</span></div>` : '';
+          const how = howKey && t(howKey) !== howKey ? `<div class="quest-how" title="${esc(t(howKey))}">${icon('bulb', 11)}<span>${esc(t(howKey))}</span></div>` : '';
           const orphans = x.type === 'orphans' && !x.done && D.home && D.home.orphans && D.home.orphans.list.length
             ? `<div class="quest-notes">${D.home.orphans.list.map((o) => `<button class="chip" data-open-note="${esc(o.path)}">${esc(o.name)}</button>`).join('')}</div>`
             : '';
           return `
-        <div class="panel quest ${x.done ? 'done' : ''}">
+        <div class="panel quest ${x.done ? 'done' : ''}" data-qid="${esc(x.id)}">
           <div class="icon">${icon(QUEST_ICON[x.type] || 'star', 26)}</div>
           <div class="body">
             <div class="row"><span><span class="qtier qtier-${x.tier}">${t('quests.tier.' + x.tier)}</span>${esc(x.text)}</span><span class="reward">${x.done ? icon('check', 11) : ''}+${x.xp} XP</span></div>
@@ -2831,6 +2946,32 @@ function paintView(html) {
   bindView(view);
   labelFields(view);
   mountGraph(view);
+  celebrate(view);
+}
+
+// 2.9.0: 홈에서 무언가 막 끝났으면 그 칸이 한 번 반짝인다 (오늘 목표를 채움 · 집중을 마침 · 퀘스트를 깸).
+// 고양이를 보고 있지 않아도 알 수 있게. 홈을 그릴 때마다 지난번과 비교하고, 다른 탭에 있다가 돌아와도 한 번은 보인다
+let celeLast = null;
+function celebrate(view) {
+  if (tab !== 'home' || !D) return;
+  const now = {
+    goal: !!(D.goal && D.goal.on && D.goal.done),
+    focusAt: (D.focus && D.focus.total && D.focus.total.lastAt) || 0,
+    quests: new Set((D.game.quests || []).filter((q) => q.done).map((q) => q.id)),
+  };
+  const prev = celeLast;
+  celeLast = now;
+  if (!prev) return; // 처음 그릴 때는 비교할 게 없다
+  const flash = (el) => {
+    if (!el) return;
+    el.classList.remove('celebrate');
+    void el.offsetWidth; // 애니메이션을 처음부터
+    el.classList.add('celebrate');
+    el.addEventListener('animationend', () => el.classList.remove('celebrate'), { once: true });
+  };
+  if (now.goal && !prev.goal) flash($('#hs-goal .gc', view));
+  if (now.focusAt > prev.focusAt) flash($('#hs-goal .fz', view));
+  for (const id of now.quests) if (!prev.quests.has(id)) flash($(`#hs-quests [data-qid="${CSS.escape(id)}"]`, view));
 }
 
 const typingIn = (root) => {
@@ -2846,8 +2987,8 @@ function refreshView() {
     viewStale = false;
     return;
   }
-  // 무언가 입력하는 중이면 끝날 때(포커스가 빠질 때)까지 미룬다
-  if (typingIn()) {
+  // 무언가 입력하는 중이면 끝날 때(포커스가 빠질 때)까지 미룬다. 노트 지도에서 노드 · 화면을 끄는 중에도 놓을 때까지 (2.9.0)
+  if (typingIn() || graphSim.drag || graphSim.pan) {
     viewStale = true;
     return;
   }
@@ -3617,10 +3758,11 @@ async function act(name, el) {
       openModal(`<div class="modal-top"><h2>${t('ledger.title')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>${ledgerFull}`, 'modal-ledger');
       break;
     case 'questRefresh': {
+      const wasFree = !!(D.game.questInfo && D.game.questInfo.free);
       const r = await pet.refreshQuests();
       await apply(r.payload);
       renderView();
-      if (r.ok) toast(t('toast.questsNew'), 'scroll');
+      if (r.ok) toast(t(wasFree ? 'toast.questsSwapped' : 'toast.questsNew'), 'scroll');
       break;
     }
     case 'comfort':

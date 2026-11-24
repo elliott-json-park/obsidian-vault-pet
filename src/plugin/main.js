@@ -495,6 +495,12 @@ class KitCommitPlugin extends Plugin {
       this.saveSoon();
     }, MIN));
 
+    // 켤 때 이미 열려 있던 노트도 연 것으로 센다 (2.9.0: 그 노트만 보고 끄면 오늘 출석이 안 올랐다)
+    const first = this.app.workspace.getActiveFile && this.app.workspace.getActiveFile();
+    if (first && first.extension === 'md' && !this.isExcludedPath(first.path)) {
+      this.lastNote = first.path;
+      this.usage.open(first.path);
+    }
     this.host.brain.activity(Date.now());
     this.host.brain.tick();
     this.updateStatus();
@@ -952,10 +958,17 @@ class KitCommitPlugin extends Plugin {
 
   // 이미 있는 노트만 연다 (없는 경로를 openLinkText 로 열면 새 노트가 생기니 쓰지 않는다).
   // 하우스 탭을 덮지 않게 편집기 탭에서 연다: 그 노트가 열린 탭 → 아무 편집기 탭 → 새 탭
-  async openNote(path) {
+  // newTab (2.9.0): 노트 지도에서 Ctrl(⌘)+클릭하면 옵시디언 그래프 뷰처럼 새 탭에서 연다
+  async openNote(path, newTab = false) {
     const f = typeof path === 'string' && this.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof TFile)) return false;
     const { workspace } = this.app;
+    if (newTab) {
+      const tab = workspace.getLeaf('tab');
+      await tab.openFile(f);
+      if (typeof workspace.setActiveLeaf === 'function') workspace.setActiveLeaf(tab, { focus: true });
+      return true;
+    }
     const editors = typeof workspace.getLeavesOfType === 'function' ? workspace.getLeavesOfType('markdown') : [];
     const leaf = editors.find((l) => l.view && l.view.file && l.view.file.path === f.path) || editors[0] || workspace.getLeaf('tab');
     if (!(leaf.view && leaf.view.file && leaf.view.file.path === f.path)) await leaf.openFile(f);

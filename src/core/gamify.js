@@ -17,6 +17,7 @@ const { STAR_COINS, starsOf } = require('./growth');
 //              (그래서 새로 받자마자 아까 한 일로 깨지는 일이 없다)
 //  tiers     : 난이도별 [목표, 경험치]. 없는 난이도 칸에는 뽑히지 않는다
 //  needs(c)  : false 면 아직 못 하는 퀘스트라 뽑지 않는다 (외톨이 노트가 없는데 외톨이 노트 퀘스트 등)
+//  max(c)    : 지금 할 수 있는 최대치. 목표가 이보다 크면 그 난이도로는 뽑지 않는다 (2.9.0: 외톨이가 1개인데 '4개 이어 주기'가 나왔다)
 //  vars      : 문구에 넣을 값. 없으면 { n: 목표, name: 고양이 이름 }
 //  skill     : core/skills.js 의 기술 이름표. 퀘스트 카드의 '어떻게 하나요' 문구(i18n 'skill.<skill>.how')가 쓴다
 // 문구는 i18n 의 'quest.<type>'
@@ -33,7 +34,7 @@ const QUEST_POOL = [
   { type: 'props', skill: 'property', metric: (c) => featOf(c, 'prop'), tiers: { easy: [1, 30], normal: [3, 60] } },
   { type: 'embeds', skill: 'embed', metric: (c) => featOf(c, 'embed', 'callout'), tiers: { easy: [1, 35], normal: [2, 60] } },
   { type: 'organize', skill: 'organize', metric: (c) => cntOf(c, 'move') + cntOf(c, 'retitle'), tiers: { easy: [1, 30], normal: [3, 60], hard: [6, 110] } },
-  { type: 'orphans', skill: 'orphan', metric: (c) => cntOf(c, 'orphanFix'), tiers: { easy: [1, 40], normal: [2, 70], hard: [4, 130] }, needs: (c) => c.orphans > 0 },
+  { type: 'orphans', skill: 'orphan', metric: (c) => cntOf(c, 'orphanFix'), tiers: { easy: [1, 40], normal: [2, 70], hard: [4, 130] }, needs: (c) => c.orphans > 0, max: (c) => c.orphans },
   { type: 'notes', skill: 'write', metric: (c) => c.all.n, tiers: { easy: [1, 30], normal: [2, 60], hard: [4, 120] } },
   { type: 'focus', skill: 'focus', metric: (c) => cntOf(c, 'focus'), tiers: { easy: [1, 35], normal: [2, 70], hard: [3, 120] } },
   { type: 'todos', skill: 'todo', metric: (c) => cntOf(c, 'todoDone'), tiers: { easy: [1, 25], normal: [3, 55], hard: [6, 100] } },
@@ -78,6 +79,7 @@ const DEFAULT_STATE = {
   questSet: null, // 지금 퀘스트 3개 { id, at, list: [{ type, tier, target, xp, base }], claimed: [id] }
   questsDone: 0,
   attendDay: null,
+  questSwapDay: null, // 오늘 무료 퀘스트 바꾸기를 쓴 날 (2.9.0)
   initialized: false,
   cnt: {}, // 업적용 횟수: fed snack play catch lift spam bored giant box allclear hook rename quiet quickok
   rewarded: {}, // 업적 보상을 이미 준 것: id → true
@@ -171,6 +173,8 @@ class Gamify extends EventEmitter {
     const days = this.usage.activeDays(this.since);
     const today = new Date();
     const back = (n) => dayOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
+    // 출석 보너스를 받은 날은 출석한 날이다 (2.9.0: 켜자마자 보너스는 주고 숫자는 노트를 열어야 올라서 '출석 0일째'가 나왔다)
+    if (this.st.attendDay === back(0)) days.add(back(0));
     let current = 0;
     let i = days.has(back(0)) ? 0 : 1; // 오늘 아직 안 했으면 어제까지로 센다
     while (days.has(back(i))) {
@@ -230,9 +234,9 @@ class Gamify extends EventEmitter {
 
     const recent = lastActivity && now - lastActivity < 5 * MIN && dayOf(new Date(lastActivity)) === today;
     if (recent && this.st.attendDay !== today) {
+      this.state.set({ attendDay: today }); // 먼저 적어야 오늘이 연속 출석에 들어간다
       const { current } = this.streaks();
-      const xp = 20 + Math.min(current, 14) * 5;
-      this.state.set({ attendDay: today });
+      const xp = 20 + Math.min(Math.max(0, current - 1), 14) * 5; // 오늘이 들어가서 하나 빼면 예전 보상과 같다
       if (new Date().getHours() < 10) this.state.set({ earlyDay: today });
       this.grant(xp, { k: 'bonus.attend', v: { d: current } });
       if (this.st.initialized) this.emit('attend', { streak: current, xp });
@@ -296,30 +300,66 @@ class Gamify extends EventEmitter {
   // 새 퀘스트 3개: 상·중·하 하나씩, 종류는 겹치지 않게
   newQuestSet() {
     const c = this.questCtx();
-    const pool = QUEST_POOL.filter((q) => !q.needs || q.needs(c));
     const used = new Set();
     const list = [];
     for (const tier of QUEST_TIERS) {
-      const cand = pool.filter((q) => q.tiers[tier] && !used.has(q.type));
-      if (!cand.length) continue;
-      const q = cand[Math.floor(Math.random() * cand.length)];
-      used.add(q.type);
-      const [target, xp] = q.tiers[tier];
-      list.push({ type: q.type, tier, target, xp, base: q.metric(c) });
+      const q = this.drawQuest(c, tier, used);
+      if (q) list.push(q);
     }
     const set = { id: Date.now().toString(36), at: Date.now(), list, claimed: [] };
     this.state.set({ questSet: set });
     return set;
   }
 
-  // 새로고침 버튼. 받은 지 3시간이 안 됐으면 안 바꾼다
+  // 그 난이도에서 퀘스트 하나 뽑기. used 에 있는 종류는 빼고, 뽑은 종류는 used 에 넣는다
+  drawQuest(c, tier, used) {
+    const cand = QUEST_POOL.filter((q) => q.tiers[tier] && !used.has(q.type) && (!q.needs || q.needs(c)) && (!q.max || q.tiers[tier][0] <= q.max(c)));
+    if (!cand.length) return null;
+    const q = cand[Math.floor(Math.random() * cand.length)];
+    used.add(q.type);
+    const [target, xp] = q.tiers[tier];
+    return { type: q.type, tier, target, xp, base: q.metric(c) };
+  }
+
+  // 새로고침 버튼. 받은 지 3시간이 지났으면 세 개 모두 새로.
+  // 그 전이라도 하루 한 번은 아직 못 끝낸 퀘스트만 바꿀 수 있다 (2.9.0: 깰 수 없는 퀘스트를 3시간 붙들고 있지 않게). 끝낸 퀘스트와 3시간 시계는 그대로
   refreshQuests() {
     if (!this.lastGrowth) return false; // 아직 기록을 읽는 중
     const set = this.st.questSet;
-    if (set && Date.now() - set.at < QUEST_REFRESH_MS) return false;
+    if (set && Date.now() - set.at < QUEST_REFRESH_MS) {
+      if (!this.questSwapFree() || !this.swapUnfinished()) return false;
+      this.state.set({ questSwapDay: dayOf(new Date()) });
+      this.evaluate();
+      return true;
+    }
     this.newQuestSet();
     this.evaluate();
     return true;
+  }
+
+  // 오늘 무료 바꾸기를 아직 안 썼나
+  questSwapFree() {
+    return this.st.questSwapDay !== dayOf(new Date());
+  }
+
+  // 끝내지 않은 퀘스트만 같은 난이도의 다른 종류로. 바꾼 게 있으면 true
+  swapUnfinished() {
+    const set = this.st.questSet;
+    if (!set || !Array.isArray(set.list)) return false;
+    const c = this.questCtx();
+    const open = new Set(this.quests().filter((q) => !q.done && !q.claimed).map((q) => q.type));
+    if (!open.size) return false;
+    const used = new Set(set.list.map((q) => q.type)); // 지금 것과 같은 종류는 다시 안 나오게
+    let changed = false;
+    const list = set.list.map((q) => {
+      if (!open.has(q.type)) return q;
+      const n = this.drawQuest(c, q.tier, used);
+      if (!n) return q;
+      changed = true;
+      return n;
+    });
+    if (changed) this.state.set({ questSet: { ...set, list } });
+    return changed;
   }
 
   // 진행도는 그대로 두고 기준값만 옮긴다. 제외 프로젝트를 바꾸면 누적값이 한꺼번에 달라져서
@@ -350,7 +390,10 @@ class Gamify extends EventEmitter {
   questInfo() {
     const set = this.st.questSet;
     const nextAt = set ? set.at + QUEST_REFRESH_MS : 0;
-    return { at: set ? set.at : 0, nextAt, canRefresh: !!set && Date.now() >= nextAt };
+    const timeOk = !!set && Date.now() >= nextAt;
+    // free: 3시간 전이지만 오늘 한 번 바꿀 수 있다 (끝내지 않은 퀘스트가 있을 때만)
+    const free = !!set && !timeOk && this.questSwapFree() && this.quests().some((q) => !q.done);
+    return { at: set ? set.at : 0, nextAt, canRefresh: timeOk || free, free };
   }
 
   quests() {
