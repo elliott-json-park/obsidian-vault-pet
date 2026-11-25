@@ -47,6 +47,16 @@ const DEFAULT_SETTINGS = {
   position: null, // { x, v: 3 } 고양이 발밑의 가로 자리 (펫 무대 안 좌표)
 
   tugLevel: 'mid',
+  // 2.10.0 LP 플레이어: LP 폴더(볼트 안 경로) · 고른 색 · 무늬 · 음량 · 집중 시간과 같이 틀기
+  lpFolder: 'LP',
+  lpColor: 'lpc_black',
+  lpPattern: 'lpp_plain',
+  lpVolume: 0.7,
+  lpFocusAuto: false,
+  lpRepeat: 'off', // 반복: off | all(선반 전체) | one(한 곡)
+  lpOrder: [], // 선반(LP) 순서 (앨범 폴더 이름 배열). 화면이 끌어서 바꾸면 lp:reorder-albums 가 쓴다
+  lpTrackOrder: {}, // LP 안 곡 순서 { 앨범: [파일 이름…] } (lp:reorder-tracks)
+  lpStyles: {}, // LP별 꾸미기 { 앨범: { color, pattern } }. 없으면 lpColor · lpPattern(기본)을 따른다 (lp:style)
   devMode: false,
 };
 

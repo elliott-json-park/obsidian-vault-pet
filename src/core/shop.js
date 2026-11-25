@@ -6,6 +6,7 @@
 // 코인 셈: 하루(로컬 날짜)마다 계단식으로 센다.
 //  그날 쓴 글자 앞 5,000자까지는 5자 = 1코인 (하루 최대 1,000코인), 그 뒤로는 25자 = 1코인
 const { FURS } = require('./growth');
+const LP = require('./lp');
 const DAILY_FIRST_TOKENS = 5_000; // 하루에 높은 비율로 쳐 주는 글자 수
 const FIRST_TOKENS_PER_COIN = 5; // 그 안에서는 5자 = 1코인
 const AFTER_TOKENS_PER_COIN = 25; // 그 뒤로는 25자 = 1코인
@@ -837,6 +838,7 @@ const ALL = [
   ...FOODS.map((x) => ({ ...x, kind: 'food' })),
   ...TOYS.map((x) => ({ ...x, kind: 'toy' })),
   ...MOTIONS.map((x) => ({ ...x, kind: 'motion' })),
+  ...LP.LP_ITEMS.map((x) => ({ ...x, kind: 'lp' })), // 2.10.0: LP 플레이어 · LP 색 · LP 무늬
 ];
 const find = (key, kind) => ALL.find((x) => x.key === key && (!kind || x.kind === kind));
 const slotOf = (key) => MOTION_SLOTS.find((s) => s.key === key) || null;
@@ -986,6 +988,8 @@ class Shop {
     if (it.kind === 'motion') return 'motion'; // 모션은 사는 물건이 아니다 (2.0.0: 처음부터 다 열려 있다)
     if (it.kind !== 'food' && this.owned(key)) return 'owned';
     if (it.exclusive) return 'exclusive'; // 기념 코스튬은 받기만 한다
+    // LP 색 · 무늬는 플레이어가 있어야 산다 (개발자 모드는 다 풀려 있다)
+    if (it.kind === 'lp' && it.key !== LP.PLAYER_KEY && !this.dev() && !this.owned(LP.PLAYER_KEY)) return 'player';
     if (this.dev()) return null;
     if (isStar(it)) return this.starWallet().balance < it.stars ? 'stars' : null;
     if (it.level) {
@@ -1266,6 +1270,9 @@ class Shop {
       blocker: this.blocker(it.key),
       stars: it.stars || undefined,
       fur: it.fur || undefined,
+      lpKind: it.lpKind || undefined,
+      hex: it.hex || undefined,
+      pat: it.pat || undefined,
     });
     return {
       wallet: this.wallet(),
@@ -1275,6 +1282,7 @@ class Shop {
       star: [...STAR_FURS.map((x) => row({ ...x, kind: 'fur' })), ...ACCESSORIES.filter(isStar).map((x) => row({ ...x, kind: 'acc' }))].sort((a, b) => a.stars - b.stars),
       food: FOODS.map((x) => row({ ...x, kind: 'food' })),
       toy: TOYS.map((x) => row({ ...x, kind: 'toy' })),
+      lp: LP.LP_ITEMS.map((x) => row({ ...x, kind: 'lp' })), // 2.10.0 (플레이어 · 색 · 무늬 순)
       motion: MOTIONS.map((x) => row({ ...x, kind: 'motion' })), // 상점에는 안 나온다. 설정의 모션 고르기가 이름 · 권장 자리를 쓴다
       slots: MOTION_SLOTS,
       setMotions: SET_MOTIONS, // 세트 카드의 '전용 모션' 버튼이 쓴다

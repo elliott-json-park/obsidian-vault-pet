@@ -143,7 +143,7 @@ function dashboard(usage, wallet) {
 // kindOf(key) → 'food' | 'acc' | 'motion' | 'toy' | null
 // stats(평생 기록 purchaseStats)가 있으면 그걸로 (최근 300개로 잘린 목록 대신). 기록이 잘려 어디 썼는지 모르는 코인은 기타로
 function ledger(purchases, kindOf, stats = null) {
-  const CAT = { food: 'food', acc: 'dignity', motion: 'fun', toy: 'fun' };
+  const CAT = { food: 'food', acc: 'dignity', motion: 'fun', toy: 'fun', lp: 'fun' };
   const cats = {};
   if (stats && stats.keys) {
     for (const [key, x] of Object.entries(stats.keys)) {

@@ -2866,6 +2866,17 @@
       '...KKKKKKKKKK...',
       '................',
     ],
+    // LP 테이블 (2.10.0): 나무 상자 위 검은 판, 은색 톤암, 노란 손잡이 (kit/lpmotion.js 의 놀이 그림과 같다)
+    lpplayer: [
+      '.KKKKKKKKKKKKKK.',
+      'KSDKKKKKKKDSSYSK',
+      'KDKKKRWKKKKDsGsK',
+      'KDKKKKKKKKKDsGsK',
+      'KsDKKKKKKKDssGsK',
+      'KttttttttttttMtK',
+      'KttttttttttttKYK',
+      '.KKKKKKKKKKKKKK.',
+    ],
     // 고양이 찾기 (들린 상자 밑에서 빼꼼)
     shellgame: [
       '.....KKKKKK.....',

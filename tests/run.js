@@ -47,6 +47,7 @@ globalThis.I18N = I18N;
 require(path.join(src, 'kit/i18n-obsidian'));
 require(path.join(src, 'kit/i18n-goals'));
 require(path.join(src, 'kit/i18n-v2'));
+require(path.join(src, 'kit/i18n-lp'));
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -1331,7 +1332,7 @@ test('home: 칸 순서 · 보이기 설정은 아는 칸만 겹치지 않게, �
   const fs = require('fs');
   const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
   const order = (code) => JSON.parse(code.match(/const HOME_SECTIONS = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
-  const want = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
+  const want = ['goal', 'today', 'map', 'todo', 'cat', 'lp', 'quests', 'recent'];
   assert.deepStrictEqual(order(house), want);
   assert.deepStrictEqual(order(fs.readFileSync(path.join(src, 'plugin/host.js'), 'utf8')), want, '호스트와 같은 목록');
   const { host, settings } = makeHost();
@@ -2263,6 +2264,427 @@ test('host: 다른 기기에서 공방을 껐다 (sync 뒤 reloadShared) — 바
   assert.deepStrictEqual(state.get('eventLoot'), []);
   assert.strictEqual(state.get('treasures')[ev.treasure], 1);
   assert.strictEqual(host.maybeEvent(true), null);
+});
+
+// ---------- LP 플레이어 (2.10.0) ----------
+const LPC = require(path.join(src, 'core/lp'));
+
+test('lp: 폴더 경로 · 파일 이름 다듬기, 오디오 확장자, 곡 이름', () => {
+  assert.strictEqual(LPC.cleanFolder('LP'), 'LP');
+  assert.strictEqual(LPC.cleanFolder(' 음악 / 앨범 '), '음악/앨범');
+  assert.strictEqual(LPC.cleanFolder('../밖'), '밖', '.. 은 뺀다');
+  assert.strictEqual(LPC.cleanFolder('/'), 'LP');
+  assert.strictEqual(LPC.cleanFolder(''), 'LP');
+  assert.strictEqual(LPC.cleanFolder(null), 'LP');
+  assert.strictEqual(LPC.cleanFolder('.obsidian/plugins'), 'LP', '설정 폴더는 못 쓴다');
+  assert.strictEqual(LPC.safeName('a/b:c*d?'), 'a b c d');
+  assert.strictEqual(LPC.safeName('...'), '');
+  assert.ok(LPC.isAudio('x.MP3') && LPC.isAudio('a.flac') && !LPC.isAudio('a.txt') && !LPC.isAudio('mp3'));
+  assert.strictEqual(LPC.trackTitle('01 - 첫 곡.mp3'), '첫 곡');
+  assert.strictEqual(LPC.trackTitle('12. Song.m4a'), 'Song');
+  assert.strictEqual(LPC.trackTitle('2024.mp3'), '2024', '번호만 있으면 그대로');
+  assert.strictEqual(LPC.freeName('d', 'a.mp3', (p) => p === 'd/a.mp3'), 'a (2).mp3');
+  assert.strictEqual(LPC.freeName('d', 'a.mp3', () => false), 'a.mp3');
+  assert.strictEqual(LPC.labelColor('x'), LPC.labelColor('x'));
+});
+
+test('lp: 폴더 아래 하위 폴더 하나가 앨범 하나, 곡은 번호 순, 낱장은 맨 끝', () => {
+  const al = LPC.buildAlbums(
+    ['LP/b/10.mp3', 'LP/b/2.mp3', 'LP/a/x.wav', 'LP/loose.mp3', 'LP/a/readme.md', 'LP/a/sub/deep.ogg', 'other/z.mp3', 'LP/c/cover.png'],
+    'LP',
+  );
+  assert.deepStrictEqual(al.map((a) => a.name), ['a', 'b', ''], '이름순, 낱장은 끝');
+  assert.deepStrictEqual(al[1].tracks.map((x) => x.file), ['2.mp3', '10.mp3'], '숫자는 숫자 순');
+  assert.strictEqual(al[0].tracks.length, 2, '깊은 폴더의 곡도 같은 앨범');
+  assert.ok(!al.some((a) => a.name === 'c'), '오디오가 없는 폴더는 LP 가 아니다');
+  assert.deepStrictEqual(LPC.buildAlbums([], 'LP'), []);
+});
+
+test('lp: 상점 물건은 플레이어 1 + 색 10 + 무늬 22, 키가 안 겹치고 색 · 무늬는 플레이어가 있어야 산다', () => {
+  const shop = require(path.join(src, 'core/shop'));
+  assert.deepStrictEqual(shop.duplicateKeys(), []);
+  assert.strictEqual(LPC.LP_ITEMS.length, 1 + 10 + 22);
+  for (const lang of I18N.LANGS) {
+    const T = new I18N.Strings(lang);
+    for (const x of [...LPC.LP_ITEMS, ...LPC.LP_COLORS, ...LPC.LP_PATTERNS]) assert.notStrictEqual(T.t('item.' + x.key), 'item.' + x.key, `${lang} ${x.key}`);
+  }
+  const { host } = makeHost();
+  host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+  assert.strictEqual(host.shop.blocker('lpc_red'), 'player');
+  assert.strictEqual(host.shop.blocker('lpp_stars'), 'player');
+  const r = host.shop.buy('lpplayer');
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.strictEqual(host.shop.blocker('lpc_red'), null);
+  assert.ok(host.shop.buy('lpc_red').ok);
+  assert.strictEqual(host.shop.blocker('lpc_red'), 'owned');
+  const sum = host.shop.summary();
+  assert.strictEqual(sum.lp.length, 33);
+  assert.deepStrictEqual(sum.lp[1], { ...sum.lp[1], lpKind: 'color', hex: '#c0392b', owned: true });
+});
+
+test('lp: 설정은 산 색 · 무늬만, 폴더는 볼트 안 경로로, 음량은 0~1', async () => {
+  const { host, settings } = makeHost();
+  host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+  await host.onInvoke('house:set', null, { lpColor: 'lpc_red', lpPattern: 'lpp_stars' });
+  assert.strictEqual(settings.get('lpColor'), 'lpc_black', '안 산 색은 안 받는다');
+  assert.strictEqual(settings.get('lpPattern'), 'lpp_plain');
+  host.shop.buy('lpplayer');
+  const b = await host.onInvoke('shop:buy', null, 'lpc_red');
+  assert.ok(b.ok);
+  assert.strictEqual(settings.get('lpColor'), 'lpc_red', '산 색은 바로 적용된다');
+  await host.onInvoke('house:set', null, { lpColor: 'lpc_nope', lpPattern: 'lpp_plain', lpFolder: '../a//b', lpVolume: 5 });
+  assert.strictEqual(settings.get('lpColor'), 'lpc_red', '모르는 색은 그대로');
+  assert.strictEqual(settings.get('lpFolder'), 'a/b');
+  assert.strictEqual(settings.get('lpVolume'), 1);
+  await host.onInvoke('house:set', null, { lpVolume: 'x', lpFocusAuto: 'yes' });
+  assert.strictEqual(settings.get('lpVolume'), 1, '숫자가 아니면 그대로');
+  assert.strictEqual(settings.get('lpFocusAuto'), false, '켜고 끄기는 true/false 만');
+});
+
+// 가짜 볼트 + 가짜 <audio>
+function lpFake(paths) {
+  const files = new Map(paths.map((p) => [p, { path: p, name: p.split('/').pop() }]));
+  const folders = new Set();
+  const dirOf = (p) => p.split('/').slice(0, -1).join('/');
+  for (const p of paths) {
+    let d = dirOf(p);
+    while (d) {
+      folders.add(d);
+      d = dirOf(d);
+    }
+  }
+  const node = (p) => {
+    if (files.has(p)) return files.get(p);
+    if (!folders.has(p)) return null;
+    const kids = [];
+    for (const f of files.keys()) if (dirOf(f) === p) kids.push(files.get(f));
+    for (const d of folders) if (dirOf(d) === p) kids.push(node(d));
+    return { path: p, children: kids };
+  };
+  const written = [];
+  const vault = {
+    getAbstractFileByPath: node,
+    getResourcePath: (f) => `app://res/${f.path}`,
+    createFolder: async (p) => {
+      folders.add(p);
+    },
+    createBinary: async (p, buf) => {
+      assert.ok(buf instanceof ArrayBuffer);
+      files.set(p, { path: p, name: p.split('/').pop() });
+      written.push([p, buf.byteLength]);
+    },
+  };
+  return { vault, written };
+}
+class FakeAudio {
+  static durs = {};
+  constructor() {
+    this.paused = true;
+    this.currentTime = 0;
+    this.duration = NaN;
+    this.volume = 1;
+    this.loop = false;
+    this._src = '';
+    this.ls = {};
+  }
+  get src() {
+    return this._src;
+  }
+  set src(v) {
+    this._src = v;
+    if (v) setTimeout(() => { this.duration = FakeAudio.durs[v] || 100; this.fire('loadedmetadata'); }, 0);
+  }
+  addEventListener(ev, fn) {
+    (this.ls[ev] ||= []).push(fn);
+  }
+  fire(ev) {
+    for (const f of this.ls[ev] || []) f();
+  }
+  play() {
+    this.paused = false;
+    this.fire('play');
+    return Promise.resolve();
+  }
+  pause() {
+    this.paused = true;
+    this.fire('pause');
+  }
+  removeAttribute() {
+    this._src = '';
+  }
+  load() {}
+}
+
+test('lp: 호스트가 폴더를 읽어 앨범 목록을 주고, 재생 · 일시정지 · 다음 곡 · 끝나면 멈춘다', async () => {
+  const { host, plugin, settings } = makeHost();
+  const fake = lpFake(['LP/Jazz/01 A.mp3', 'LP/Jazz/02 B.mp3', 'LP/Jazz/notes.txt', 'LP/Rock/x.flac']);
+  plugin.app = { vault: fake.vault };
+  globalThis.Audio = FakeAudio;
+  try {
+    host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+    assert.deepStrictEqual((await host.onInvoke('house:get')).lp.albums, [], '안 샀으면 비어 있다');
+    assert.strictEqual((await host.onInvoke('lp:play', null, 'Jazz', 0)).ok, false, '안 산 사람의 재생은 거절');
+    host.shop.buy('lpplayer');
+    const p = (await host.onInvoke('house:get')).lp;
+    assert.strictEqual(p.owned, true);
+    assert.deepStrictEqual(p.albums.map((a) => [a.name, a.tracks.map((t) => t.title)]), [['Jazz', ['A', 'B']], ['Rock', ['x']]]);
+    assert.strictEqual(p.now, null);
+    let r = await host.onInvoke('lp:play', null, 'Jazz', 0);
+    assert.ok(r.ok);
+    assert.strictEqual(host.lp.audio.src, 'app://res/LP/Jazz/01 A.mp3');
+    assert.strictEqual(r.payload.lp.now.playing, true);
+    assert.deepStrictEqual([r.payload.lp.now.album, r.payload.lp.now.idx], ['Jazz', 0]);
+    assert.strictEqual(host.state.get('lpLast'), 'Jazz');
+    await host.onInvoke('lp:toggle', null);
+    assert.strictEqual(host.lp.audio.paused, true);
+    await host.onInvoke('lp:toggle', null);
+    assert.strictEqual(host.lp.audio.paused, false);
+    await host.onInvoke('lp:next', null);
+    assert.strictEqual(host.lp.now.idx, 1);
+    host.lp.audio.currentTime = 1;
+    await host.onInvoke('lp:prev', null);
+    assert.strictEqual(host.lp.now.idx, 0, '3초 안이면 앞 곡');
+    host.lp.audio.fire('ended');
+    assert.strictEqual(host.lp.now.idx, 1, '곡이 끝나면 다음 곡');
+    host.lp.audio.fire('ended');
+    assert.deepStrictEqual([host.lp.now.album, host.lp.now.idx], ['Rock', 0], '한 LP 가 끝나면 선반의 다음 LP 로 이어진다');
+    host.lp.audio.fire('ended');
+    assert.strictEqual(host.lp.now, null, '반복이 꺼져 있으면 마지막 LP 의 마지막 곡이 끝날 때 멈춘다');
+    assert.strictEqual((await host.onInvoke('lp:play', null, 'Nope', 0)).ok, false);
+    await host.onInvoke('lp:volume', null, 0.3);
+    assert.strictEqual(settings.get('lpVolume'), 0.3);
+    host.destroy();
+    assert.strictEqual(host.lp.audio, null);
+  } finally {
+    delete globalThis.Audio;
+  }
+});
+
+test('lp: 파일 추가는 오디오만 앨범 폴더로 복사하고, 같은 이름은 (2) 를 붙인다', async () => {
+  const { host, plugin } = makeHost();
+  const fake = lpFake(['LP/Jazz/a.mp3']);
+  plugin.app = { vault: fake.vault };
+  host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+  const mk = (name, n, size = n) => ({ name, size, arrayBuffer: async () => new Uint8Array(n).fill(7).buffer });
+  const frame = (list) => ({ win: { __lpPick: list } });
+  assert.strictEqual((await host.onInvoke('lp:add', frame([mk('a.mp3', 4)]), 'Jazz')).ok, false, '안 산 사람은 거절');
+  host.shop.buy('lpplayer');
+  assert.strictEqual((await host.onInvoke('lp:add', frame([]), 'Jazz')).reason, 'none');
+  assert.strictEqual((await host.onInvoke('lp:add', frame([mk('a.mp3', 4)]), '///')).reason, 'name');
+  const f = frame([mk('a.mp3', 4), mk('b.m4a', 5), mk('c.txt', 2), mk('huge.mp3', 1, 10 ** 10)]);
+  const r = await host.onInvoke('lp:add', f, 'Jazz');
+  assert.ok(r.ok);
+  assert.deepStrictEqual([r.added, r.skipped], [2, 2]);
+  assert.deepStrictEqual(fake.written, [['LP/Jazz/a (2).mp3', 4], ['LP/Jazz/b.m4a', 5]]);
+  assert.strictEqual(f.win.__lpPick, null, '고른 파일은 한 번 쓰고 비운다');
+  const r2 = await host.onInvoke('lp:add', frame([mk('s.wav', 3)]), '새 앨범');
+  assert.ok(r2.ok && r2.album === '새 앨범');
+  assert.ok(r2.payload.lp.albums.some((a) => a.name === '새 앨범'));
+});
+
+test('lp: 집중 시간과 같이 틀기는 켰을 때만, 직접 멈춘 음악은 이어 주지 않는다', async () => {
+  const { host, plugin, settings } = makeHost();
+  plugin.app = { vault: lpFake(['LP/Jazz/a.mp3', 'LP/Jazz/b.mp3']).vault };
+  globalThis.Audio = FakeAudio;
+  try {
+    host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+    host.shop.buy('lpplayer');
+    host.focusStart(25);
+    assert.strictEqual(host.lp.now, null, '꺼져 있으면 안 튼다');
+    host.focusStop(true);
+    settings.set({ lpFocusAuto: true });
+    host.focusStart(25);
+    assert.strictEqual(host.lp.audio.paused, false, '집중이 시작되면 튼다');
+    host.focusStop(true);
+    assert.strictEqual(host.lp.audio.paused, true, '집중이 끝나면 멈춘다');
+    host.focusStart(25);
+    assert.strictEqual(host.lp.audio.paused, false, '이어서 튼다');
+    await host.onInvoke('lp:toggle', null); // 직접 멈춤
+    host.focusStop(true);
+    host.focusStart(25);
+    assert.strictEqual(host.lp.audio.paused, true, '직접 멈춘 음악은 이어 주지 않는다');
+  } finally {
+    delete globalThis.Audio;
+  }
+});
+
+test('lp: 홈 칸 · 상점 쪽 · 판 그림 · 글이 연결돼 있다', () => {
+  const fs = require('fs');
+  const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  assert.ok(house.includes("lp: lpPanel"), '홈 칸');
+  assert.ok(house.includes("'toy', 'lp'"), '상점 페이지');
+  const LpArt = require(path.join(src, 'kit/lp'));
+  let drawn = 0;
+  const canvas = { width: 0, height: 0, getContext: () => ({ createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData: (img) => (drawn = img.data.some((v) => v) ? 1 : 0) }) };
+  for (const x of LPC.LP_PATTERNS) {
+    drawn = 0;
+    LpArt.draw(canvas, { hex: '#c0392b', pat: x.pat, label: '#f2c14e' });
+    assert.strictEqual(drawn, 1, x.pat);
+  }
+  assert.strictEqual(canvas.width, 48);
+  for (const lang of I18N.LANGS) {
+    const T = new I18N.Strings(lang);
+    for (const k of ['lp.title', 'lp.add', 'lp.emptyHint', 'lp.addTitle', 'lp.added', 'lp.styleTitle', 'shop.lp', 'shop.lpSub', 'shop.needPlayer']) assert.notStrictEqual(T.t(k), k, `${lang} ${k}`);
+  }
+  const { COMMON, HOUSE } = (() => ({ COMMON: fs.readFileSync(path.join(src, '../scripts/build.js'), 'utf8'), HOUSE: '' }))();
+  assert.ok(COMMON.includes("'kit/i18n-lp.js'") && COMMON.includes("'kit/lp.js'"), '빌드 목록');
+});
+
+
+test('lp: 선반 순서 · 곡 순서를 저장하고, 새로 들어온 것은 맨 뒤, 틀고 있는 곡은 이름으로 따라간다', async () => {
+  const { host, plugin, settings } = makeHost();
+  const fake = lpFake(['LP/Jazz/01 A.mp3', 'LP/Jazz/02 B.mp3', 'LP/Jazz/03 C.mp3', 'LP/Rock/x.flac', 'LP/Pop/p.wav']);
+  plugin.app = { vault: fake.vault };
+  globalThis.Audio = FakeAudio;
+  try {
+    host.shop.give({ coins: 20000 });
+    host.growth = { ...host.growth, level: 40 };
+    host.shop.buy('lpplayer');
+    const names = () => host.lp.payload().albums.map((a) => a.name);
+    assert.deepStrictEqual(names(), ['Jazz', 'Pop', 'Rock'], '처음에는 이름순');
+    const r = await host.onInvoke('lp:reorder-albums', null, ['Rock', 'Jazz', 'Nope', 'Rock']);
+    assert.ok(r.ok);
+    assert.deepStrictEqual(names(), ['Rock', 'Jazz', 'Pop'], '모르는 이름은 버리고 빠진 건 뒤에');
+    assert.strictEqual((await host.onInvoke('lp:reorder-albums', null, 'x')).ok, false);
+    assert.strictEqual((await host.onInvoke('lp:reorder-albums', null, ['Nope'])).ok, false, '하나도 못 맞추면 거절');
+    await host.onInvoke('lp:play', null, 'Jazz', 0);
+    await host.onInvoke('lp:reorder-tracks', null, 'Jazz', ['03 C.mp3', '01 A.mp3', '02 B.mp3']);
+    const jazz = () => host.lp.payload().albums.find((a) => a.name === 'Jazz');
+    assert.deepStrictEqual(jazz().tracks.map((t) => t.title), ['C', 'A', 'B']);
+    assert.strictEqual(host.lp.now.idx, 1, '틀고 있던 곡 A 는 새 자리(1)로 따라간다');
+    await fake.vault.createBinary('LP/Jazz/04 D.mp3', new ArrayBuffer(1)); // 새 파일 (맨 뒤)
+    host.lp.dirty();
+    assert.deepStrictEqual(jazz().tracks.map((t) => t.title), ['C', 'A', 'B', 'D']);
+    assert.deepStrictEqual(settings.get('lpOrder'), ['Rock', 'Jazz', 'Pop']);
+    // 순서대로 이어 재생: Rock → Jazz → Pop
+    await host.onInvoke('lp:play', null, 'Rock', 0);
+    host.lp.audio.fire('ended');
+    assert.deepStrictEqual([host.lp.now.album, host.lp.now.idx], ['Jazz', 0], 'Rock 다음은 선반의 Jazz');
+    // 설정 통로로는 순서를 못 쓴다
+    await host.onInvoke('house:set', null, { lpOrder: ['Pop'], lpTrackOrder: { Jazz: [] }, lpStyles: { Jazz: {} } });
+    assert.deepStrictEqual(settings.get('lpOrder'), ['Rock', 'Jazz', 'Pop']);
+  } finally {
+    delete globalThis.Audio;
+  }
+});
+
+test('lp: 반복 (끔은 마지막에 멈추고, 전체는 선반 전체를 다시 돌고, 한 곡은 되감는다). 다음 곡 버튼은 늘 돈다', async () => {
+  const { host, plugin, settings } = makeHost();
+  plugin.app = { vault: lpFake(['LP/A/1.mp3', 'LP/A/2.mp3', 'LP/B/1.mp3']).vault };
+  globalThis.Audio = FakeAudio;
+  try {
+    host.shop.give({ coins: 20000 });
+    host.growth = { ...host.growth, level: 40 };
+    host.shop.buy('lpplayer');
+    assert.strictEqual((await host.onInvoke('lp:repeat', null, 'bad')).ok, false);
+    await host.onInvoke('lp:play', null, 'B', 0);
+    assert.strictEqual(host.lp.audio.loop, false);
+    await host.onInvoke('lp:repeat', null, 'one');
+    assert.strictEqual(settings.get('lpRepeat'), 'one');
+    assert.strictEqual(host.lp.audio.loop, true, '한 곡 반복은 오디오가 스스로 되감는다');
+    await host.onInvoke('lp:repeat', null, 'all');
+    assert.strictEqual(host.lp.audio.loop, false);
+    host.lp.audio.fire('ended');
+    assert.deepStrictEqual([host.lp.now.album, host.lp.now.idx], ['A', 0], '전체 반복: 마지막 LP 가 끝나면 첫 LP 로');
+    await host.onInvoke('lp:repeat', null, 'off');
+    await host.onInvoke('lp:play', null, 'B', 0);
+    await host.onInvoke('lp:next', null);
+    assert.deepStrictEqual([host.lp.now.album, host.lp.now.idx], ['A', 0], '다음 곡 버튼은 반복이 꺼져 있어도 처음 LP 로 돈다');
+    await host.onInvoke('lp:prev', null);
+    assert.deepStrictEqual([host.lp.now.album, host.lp.now.idx], ['B', 0], '앞 곡 버튼: LP 의 첫 곡이면 앞 LP 의 마지막 곡');
+    assert.strictEqual(host.lp.payload().next, null, '마지막 LP 라 다음 LP 가 없다 (반복 끔)');
+    await host.onInvoke('lp:play', null, 'A', 1);
+    assert.strictEqual(host.lp.payload().next, 'B', 'A 의 마지막 곡이면 다음 LP 이름을 알려 준다');
+  } finally {
+    delete globalThis.Audio;
+  }
+});
+
+test('lp: LP마다 따로 꾸미고, 안 정한 LP 는 기본을 따르고, 안 산 것은 못 쓴다', async () => {
+  const { host, plugin } = makeHost();
+  plugin.app = { vault: lpFake(['LP/A/1.mp3', 'LP/B/1.mp3']).vault };
+  host.shop.give({ coins: 30000 });
+  host.growth = { ...host.growth, level: 40 };
+  host.shop.buy('lpplayer');
+  for (const k of ['lpc_red', 'lpc_blue', 'lpp_stars']) host.shop.buy(k);
+  const st = (n) => host.lp.payload().albums.find((a) => a.name === n).style;
+  assert.deepStrictEqual([st('A').color, st('A').own, st('B').own], ['lpc_black', false, false]);
+  await host.onInvoke('house:set', null, { lpColor: 'lpc_red' }); // 기본
+  assert.deepStrictEqual([st('A').color, st('B').color], ['lpc_red', 'lpc_red'], '기본을 따른다');
+  assert.ok((await host.onInvoke('lp:style', null, 'B', { color: 'lpc_blue', pattern: 'lpp_stars' })).ok);
+  assert.deepStrictEqual([st('B').color, st('B').pattern, st('B').own, st('A').color], ['lpc_blue', 'lpp_stars', true, 'lpc_red']);
+  assert.strictEqual(st('B').pat, 'stars');
+  await host.onInvoke('lp:style', null, 'B', { color: 'lpc_gold' });
+  assert.strictEqual(st('B').color, 'lpc_blue', '안 산 색은 안 바뀐다');
+  assert.strictEqual((await host.onInvoke('lp:style', null, 'Nope', { color: 'lpc_red' })).ok, false, '없는 LP');
+  assert.ok((await host.onInvoke('lp:style', null, 'B', null)).ok);
+  assert.deepStrictEqual([st('B').own, st('B').color], [false, 'lpc_red'], '기본 따르기로 되돌린다');
+});
+
+test('lp: 곡 길이는 파일 머리글을 늦게 읽어 캐시하고, 다시 읽지 않는다 (경로는 해시로만 저장)', async () => {
+  const { host, plugin, state } = makeHost();
+  plugin.app = { vault: lpFake(['LP/A/1.mp3', 'LP/A/2.mp3']).vault };
+  globalThis.Audio = FakeAudio;
+  FakeAudio.durs = { 'app://res/LP/A/1.mp3': 185.4, 'app://res/LP/A/2.mp3': 60 };
+  try {
+    host.shop.give({ coins: 20000 });
+    host.growth = { ...host.growth, level: 40 };
+    host.shop.buy('lpplayer');
+    const first = host.lp.payload();
+    assert.deepStrictEqual(first.albums[0].tracks.map((t) => t.dur), [0, 0], '처음에는 모른다');
+    for (let i = 0; i < 40 && host.lp.durBusy; i++) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 60));
+    const second = host.lp.payload();
+    assert.deepStrictEqual(second.albums[0].tracks.map((t) => t.dur), [185, 60]);
+    assert.ok(!JSON.stringify(state.get('lpDur')).includes('LP/A'), '경로 글자는 저장하지 않는다');
+    let reads = 0;
+    const orig = host.lp.probe.bind(host.lp);
+    host.lp.probe = (p) => (reads++, orig(p));
+    host.lp.payload();
+    assert.strictEqual(reads, 0, '다시 읽지 않는다');
+  } finally {
+    delete globalThis.Audio;
+    FakeAudio.durs = {};
+  }
+});
+
+
+test('lp: LP 테이블은 장난감 코너 · 우클릭 장난감에서 감상 모션(음악은 안 튼다) · 아이콘과 모션이 있다', async () => {
+  const fs = require('fs');
+  const PixelArt = require(path.join(src, 'kit/pixelart'));
+  assert.ok(PixelArt.has('lpplayer'), 'LP 테이블 아이콘');
+  const house = fs.readFileSync(path.join(src, 'kit/house.js'), 'utf8');
+  assert.ok(house.includes("toy: [...D.shop.toy, ...(D.shop.lp || []).filter((x) => x.lpKind === 'player')]"), '장난감 코너에 LP 테이블');
+  assert.ok(fs.readFileSync(path.join(src, '../scripts/build.js'), 'utf8').includes("'kit/lpmotion.js'"), '펫 창이 모션을 읽는다');
+  const had = globalThis.PetSprite;
+  globalThis.PetSprite = { util: { rand: (a) => a, seg: () => 0, ease: (x) => x } };
+  try {
+    require(path.join(src, 'kit/lpmotion.js'));
+    const M = globalThis.PetSprite.TOY_POSES.lplisten;
+    assert.ok(M && M.len === 40, '감상 모션 40초');
+    assert.ok(globalThis.PetSprite.LP_TABLE(0, true).length > 100, '테이블 그림');
+  } finally {
+    globalThis.PetSprite = had;
+  }
+  const { host, sent, plugin } = makeHost();
+  plugin.app = { vault: lpFake([]).vault };
+  assert.strictEqual(host.lpListen(true), false, '안 산 사람은 못 한다');
+  host.shop.give({ coins: 20000 });
+  host.growth = { ...host.growth, level: 40 };
+  host.shop.buy('lpplayer');
+  sent.length = 0;
+  assert.ok(host.lpListen(true));
+  assert.ok(sent.some(([ch, v]) => ch === 'pet:action' && v === 'lplisten'), '고양이에게 감상 모션');
+  assert.ok(host.lpListenUntil > Date.now());
+  assert.strictEqual(host.lp.audio, null, '음악은 틀지 않는다');
+  host.lpListen(false);
+  assert.strictEqual(host.lpListenUntil, 0);
+  assert.ok(sent.some(([ch, v]) => ch === 'pet:action' && v === 'happy'));
 });
 
 (async () => {

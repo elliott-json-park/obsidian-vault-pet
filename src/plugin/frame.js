@@ -98,6 +98,19 @@ const API = [
   ['todoMove', 'invoke', 'todo:move'],
   ['todoClear', 'invoke', 'todo:clear'],
   ['openNote', 'invoke', 'note:open'],
+  // 2.10.0 LP 플레이어
+  ['lpPlay', 'invoke', 'lp:play'],
+  ['lpToggle', 'invoke', 'lp:toggle'],
+  ['lpNext', 'invoke', 'lp:next'],
+  ['lpPrev', 'invoke', 'lp:prev'],
+  ['lpSeek', 'invoke', 'lp:seek'],
+  ['lpVolume', 'invoke', 'lp:volume'],
+  ['lpStop', 'invoke', 'lp:stop'],
+  ['lpRepeat', 'invoke', 'lp:repeat'],
+  ['lpReorderAlbums', 'invoke', 'lp:reorder-albums'],
+  ['lpReorderTracks', 'invoke', 'lp:reorder-tracks'],
+  ['lpStyle', 'invoke', 'lp:style'],
+  ['lpAdd', 'invoke', 'lp:add'], // 고른 파일은 win.__lpPick 에 두고 부른다 (파일 내용은 브리지로 못 넘긴다)
   ['openGraph', 'invoke', 'graph:open'],
 ];
 

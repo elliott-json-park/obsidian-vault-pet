@@ -24,6 +24,8 @@ const { Strings, LANGS, PERSONAS } = require('../kit/i18n');
 const PixelArt = require('../kit/pixelart');
 const { DEFAULT_SETTINGS } = require('./store');
 const { KitFrame } = require('./frame');
+const { LpPlayer } = require('./lp');
+const LPCORE = require('../core/lp');
 
 const MIN = 60_000;
 const WORK_TIERS = [
@@ -91,7 +93,8 @@ const LOOT_KEEP = 20;
 // 잠깐 하는 상황(다 썼을 때 · 레벨 업 · 쓰다듬기 …)은 끄면 아무 모션도 안 한다
 const MOOD_SLOTS = new Set(['work', 'workLong', 'workHour', 'waiting', 'sleep']);
 // 홈 칸 (kit/house.js 의 HOME_SECTIONS 와 같다. 설정 homeLayout 을 거를 때 쓴다)
-const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
+const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'lp', 'quests', 'recent'];
+const LP_LISTEN_MS = 40_000; // LP 테이블 놀이 길이 (kit/lpmotion.js 의 LISTEN_LEN 과 같게)
 const RECORD_KEYS = new Set(['whackcat', 'rps', 'rpsStreak', 'trampoline', 'jumprope', 'quilt', 'shellgame', 'volley', 'simon']); // 줄넘기 · 4차 장난감 넷
 // 처음 설치한 날 이만큼은 밥 · 배고픔 알림을 쉰다 (만나자마자 '밥 줘' 부터 하지 않게)
 const FIRST_GRACE = 2 * HOUR_MS;
@@ -144,6 +147,7 @@ class KitHost {
     this.syncStrings();
     this.gamify = new Gamify(state, usage, () => settings.data, () => this.T);
     this.shop = new Shop(state, usage, () => settings.data, () => this.growth);
+    this.lp = new LpPlayer(this); // 2.10.0 LP 플레이어 (plugin/lp.js)
     this.treasures = new Treasures(state);
     this.workshop = new Workshop(state, this.treasures, this.shop);
     this.friends = new Friends(state);
@@ -493,6 +497,14 @@ class KitHost {
       return list.length ? { title: T.t(label), icon: ic, submenu: list } : { title: T.t(empty), icon: ic, click: () => this.openHouse('shop') };
     };
     const myToys = TOYS.filter((x) => this.shop.owned(x.key)).map((x) => ({ title: `${T.t('item.' + x.key)}   —   ${T.t('toyHow.' + x.key)}`, icon: x.key, click: () => this.startPlay(x.key) }));
+    // LP 테이블 (2.10.0): 고양이가 헤드폰을 끼고 식빵 자세로 감상한다. 음악은 틀지 않는다 (홈에서 따로)
+    if (this.shop.owned(LPCORE.PLAYER_KEY)) {
+      myToys.push(
+        this.lpListenUntil > Date.now()
+          ? { title: T.t('lp.menuStop'), icon: 'lpplayer', click: () => this.lpListen(false) }
+          : { title: `${T.t('item.lpplayer')}   —   ${T.t('lp.menuHow')}`, icon: 'lpplayer', click: () => this.lpListen(true) },
+      );
+    }
     const toyMenu = this.playing
       ? [{ title: T.t('tray.stopPlay'), icon: 'yarn', click: () => this.stopPlay() }]
       : myToys.length
@@ -544,6 +556,21 @@ class KitHost {
     this.showPet();
     this.send('pet:play', { toy, on: true, records: this.state.get('toyRecords') || {}, tugLevel: this.settings.get('tugLevel') || 'mid' });
     this.sound('quest');
+  }
+
+  // LP 테이블 놀이: 켜면 감상 모션(lplisten, 40초), 끄면 짧게 기뻐하고 끝낸다
+  lpListen(on) {
+    if (!this.shop.owned(LPCORE.PLAYER_KEY)) return false;
+    if (on) {
+      if (this.playing) this.stopPlay();
+      this.showPet();
+      this.send('pet:action', 'lplisten');
+      this.lpListenUntil = Date.now() + LP_LISTEN_MS;
+    } else {
+      this.lpListenUntil = 0;
+      this.send('pet:action', 'happy');
+    }
+    return true;
   }
 
   stopPlay() {
@@ -1104,6 +1131,7 @@ class KitHost {
   }
 
   afterFocusChange() {
+    this.lp.focusSync(this.goals.focusInfo()); // 집중 시간과 같이 음악 (설정 lpFocusAuto)
     this.plugin.updateStatus();
     if (this.plugin.focusChanged) this.plugin.focusChanged();
     this.pushHouse();
@@ -1329,6 +1357,7 @@ class KitHost {
       workshop: this.workshop.summary(),
       friends: this.friends.summary(),
       toyRecords: state.get('toyRecords') || {},
+      lp: this.lp.payload(), // 2.10.0
     };
   }
 
@@ -1474,6 +1503,7 @@ class KitHost {
       clearTimeout(this.brain.breakTimer);
     }
     if (this.gamify) clearTimeout(this.gamify.evalTimer);
+    if (this.lp) this.lp.destroy();
     // 바닥에 남은 먹이는 다음에 켜면 사라지니 창고로 돌려 둔다 (plugin.onunload 가 이 뒤에 저장한다)
     this.refundTreats();
   }
@@ -1805,6 +1835,9 @@ class KitHost {
         if (r.ok) {
           this.sound('achieve');
           this.send('pet:action', 'happy');
+          // 산 LP 색 · 무늬는 바로 적용한다 (2.10.0)
+          if (r.item.kind === 'lp' && r.item.lpKind === 'color') settings.set({ lpColor: key });
+          if (r.item.kind === 'lp' && r.item.lpKind === 'pattern') settings.set({ lpPattern: key });
           // 밥·간식은 하우스 토스트로 충분해서 말풍선은 한 번 사는 것(코스튬·모션·장난감·털색)에만 띄운다
           if (r.item.kind !== 'food') this.bubble(T.line('bought', { title: r.item.kind === 'fur' ? T.t(`fur.${r.item.fur}`) : T.t(`item.${key}`) }), 'item', 'wardrobe', 'bought');
         }
@@ -1838,6 +1871,35 @@ class KitHost {
       }
       case 'shop:use':
         return { ok: this.giveFood(a[0]), payload: this.housePayload() };
+      // LP 플레이어 (2.10.0): 재생은 호스트가 들고, 홈은 명령만 보낸다. 안 산 사람의 명령은 거절한다
+      case 'lp:play': {
+        const ok = this.lp.play(String(a[0] == null ? '' : a[0]), Math.max(0, Math.floor(Number(a[1]) || 0)));
+        return { ok, payload: this.housePayload() };
+      }
+      case 'lp:toggle':
+        return { ok: this.lp.toggle(), payload: this.housePayload() };
+      case 'lp:next':
+        return { ok: this.lp.next(), payload: this.housePayload() };
+      case 'lp:prev':
+        return { ok: this.lp.prev(), payload: this.housePayload() };
+      case 'lp:seek':
+        return { ok: this.lp.seek(a[0]), payload: this.housePayload() };
+      case 'lp:volume':
+        return { ok: this.lp.setVolume(a[0]), payload: this.housePayload() };
+      case 'lp:stop':
+        return { ok: this.lp.stop(), payload: this.housePayload() };
+      case 'lp:repeat':
+        return { ok: this.lp.setRepeat(String(a[0])), payload: this.housePayload() };
+      case 'lp:reorder-albums':
+        return { ok: this.lp.reorderAlbums(a[0]), payload: this.housePayload() };
+      case 'lp:reorder-tracks':
+        return { ok: this.lp.reorderTracks(String(a[0] == null ? '' : a[0]), a[1]), payload: this.housePayload() };
+      case 'lp:style':
+        return { ok: this.lp.setStyle(String(a[0] == null ? '' : a[0]), a[1] === null ? null : a[1]), payload: this.housePayload() };
+      case 'lp:add': {
+        const r = await this.lp.add(frame, a[0]);
+        return { ...r, payload: this.housePayload() };
+      }
       case 'house:play': {
         const key = a[0];
         const was = !!this.playing;
@@ -2044,6 +2106,23 @@ class KitHost {
           .filter((x) => x && HOME_SECTIONS.includes(x.id) && !seen.has(x.id) && seen.add(x.id))
           .map((x) => ({ id: x.id, on: x.on !== false }));
       }
+    }
+    // LP 플레이어 (2.10.0): 폴더는 볼트 안 상대 경로로, 색 · 무늬는 산 것(또는 기본)만, 음량은 0~1
+    if ('lpFolder' in allowed) allowed.lpFolder = LPCORE.cleanFolder(allowed.lpFolder);
+    if ('lpColor' in allowed) {
+      const c = LPCORE.LP_COLORS.find((x) => x.key === allowed.lpColor);
+      if (!c || !(c.base || shop.owned(c.key))) delete allowed.lpColor;
+    }
+    if ('lpPattern' in allowed) {
+      const c = LPCORE.LP_PATTERNS.find((x) => x.key === allowed.lpPattern);
+      if (!c || !(c.base || shop.owned(c.key))) delete allowed.lpPattern;
+    }
+    for (const k of ['lpOrder', 'lpTrackOrder', 'lpStyles']) delete allowed[k]; // 순서 · LP별 꾸미기는 전용 통로(lp:*)로만 쓴다
+    if ('lpRepeat' in allowed && !LPCORE.REPEATS.includes(allowed.lpRepeat)) delete allowed.lpRepeat;
+    if ('lpVolume' in allowed) {
+      const v = Number(allowed.lpVolume);
+      if (Number.isFinite(v)) allowed.lpVolume = Math.max(0, Math.min(1, Math.round(v * 100) / 100));
+      else delete allowed.lpVolume;
     }
     // 모션을 끈 상황 (2.0.0): 상황 키 목록만
     if ('motionsOff' in allowed) {

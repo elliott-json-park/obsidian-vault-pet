@@ -1413,7 +1413,7 @@ function toggleFold(id) {
   }
 }
 // 홈 칸 순서 · 보이기 (2.0.1, 설정 homeLayout = [{ id, on }]. 없으면 기본 순서로 모두 보인다)
-const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'quests', 'recent'];
+const HOME_SECTIONS = ['goal', 'today', 'map', 'todo', 'cat', 'lp', 'quests', 'recent'];
 function homeLayout() {
   const raw = Array.isArray(D.settings.homeLayout) ? D.settings.homeLayout : [];
   const out = raw.filter((x) => x && HOME_SECTIONS.includes(x.id)).map((x) => ({ id: x.id, on: x.on !== false }));
@@ -1421,7 +1421,7 @@ function homeLayout() {
   return out;
 }
 const homeSecName = (id) =>
-  ({ goal: t('home.goalTitle'), today: t('home.today'), map: t('home.mapTitle'), todo: t('todo.title'), cat: t('home.secCat', { name: D.settings.petName }), quests: t('quests.title'), recent: t('home.recentTitle') })[id];
+  ({ goal: t('home.goalTitle'), today: t('home.today'), map: t('home.mapTitle'), todo: t('todo.title'), cat: t('home.secCat', { name: D.settings.petName }), quests: t('quests.title'), recent: t('home.recentTitle'), lp: t('lp.title') })[id];
 
 // 홈 꾸미기 창: 끌어서 순서, 스위치로 보이기. 바꾸면 바로 저장
 function openHomeLayout() {
@@ -2165,6 +2165,412 @@ const PROJECTS_SHOWN = 6;
 let projectsOpen = false;
 const subOpen = new Set(); // 하위 폴더를 펼쳐 둔 맨 윗단 폴더 (1.6.0)
 
+// ---------- LP 플레이어 (2.10.0) ----------
+// 재생은 호스트가 들고 있다. 여기는 명령을 보내고 D.lp 를 그린다 (홈의 한 칸 'lp' + 파일 추가 창 + LP 꾸미기·설정 창)
+// 구성: 한 줄 바(판 · 곡 · 버튼 · 반복 · 진행선) / 끌어서 순서를 바꾸는 LP 선반 / 박스 없는 수록곡 목록(점선 리더 · 끌어서 순서 변경)
+const LP_ICONS = {
+  play: '<path d="M7 4v16l13-8z"/>',
+  pause: '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>',
+  prev: '<path d="M6 5h2v14H6zM20 5v14L9 12z"/>',
+  next: '<path d="M16 5h2v14h-2zM4 5v14l11-7z"/>',
+};
+const lpIcon = (k) => `<svg class="lp-i" viewBox="0 0 24 24" aria-hidden="true">${LP_ICONS[k]}</svg>`;
+const LP_REP_SVG = '<svg class="lp-s" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></svg>';
+const LP_PLUS = '<svg class="lp-plus" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M5 1.5h2v3.5h3.5v2H7v3.5H5V7H1.5V5H5z"/></svg>';
+const LP_BASE_COLOR = { key: 'lpc_black', hex: '#1c1c22' };
+const LP_BASE_PATTERN = { key: 'lpp_plain', pat: 'plain' };
+const LP_REPEATS = ['off', 'all', 'one'];
+const lpAlbumName = (a) => (a.name === '' ? t('lp.singles') : a.name);
+const lpTime = (s) => {
+  const x = Math.max(0, Math.floor(s || 0));
+  return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
+};
+const lpDur = (s) => (s > 0 ? lpTime(s) : '--:--');
+// 앨범 총 길이: 곡 길이를 다 알 때만 (모르는 곡이 있으면 0)
+const lpTotal = (a) => (a.tracks.length && a.tracks.every((x) => x.dur > 0) ? a.tracks.reduce((n, x) => n + x.dur, 0) : 0);
+const lpInfo = (a) => t('lp.tracks', { n: a.tracks.length }) + (lpTotal(a) ? ` · ${lpTime(lpTotal(a))}` : '');
+const lpCanvas = (hex, pat, label, cls = 'lp-art') => `<canvas class="${cls}" data-lp-hex="${esc(hex)}" data-lp-pat="${esc(pat)}" data-lp-label="${esc(label || '')}"></canvas>`;
+
+// 판 그림을 찍는다 (canvas[data-lp-hex])
+function drawLpArt(root) {
+  if (!window.LpArt) return;
+  for (const c of $$('canvas[data-lp-hex]', root)) window.LpArt.draw(c, { hex: c.dataset.lpHex, pat: c.dataset.lpPat, label: c.dataset.lpLabel || undefined });
+}
+
+let lpDragLock = false; // 끄는 동안은 홈을 다시 그리지 않는다
+let lpSuppressClick = false;
+document.addEventListener(
+  'click',
+  (e) => {
+    if (lpSuppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  },
+  true,
+);
+
+function lpPanel() {
+  const L = D.lp;
+  if (!L || !L.owned) return '';
+  const now = L.now;
+  const playAlb = now ? L.albums.find((a) => a.key === now.album) : null;
+  const view = L.albums.find((a) => a.key === L.view) || L.albums[0] || null;
+  const cur = playAlb || view;
+  const tr = playAlb ? playAlb.tracks[now.idx] : null;
+  const st = cur ? cur.style : L.style;
+  const playing = !!(now && now.playing);
+  const nextRep = LP_REPEATS[(LP_REPEATS.indexOf(L.repeat) + 1) % 3];
+  const repTip = `${t('lp.rep.' + L.repeat)} (${t('lp.repTip', { next: t('lp.rep.' + nextRep) })})`;
+  const dis = now ? '' : 'disabled';
+  const sub = playAlb ? `${esc(lpAlbumName(playAlb))} · ${now.idx + 1}/${playAlb.tracks.length}${L.next ? ` · ${t('lp.nextLp')} <b>${esc(L.next)}</b>` : ''}` : '';
+  const bar = `<div class="lp-bar ${playing ? 'playing' : ''}">
+      <div class="lp-disc ${playing ? 'spin' : ''}">${lpCanvas(st.hex, st.pat, cur ? cur.label : '#f2c14e')}</div>
+      <div class="lp-mid"><div class="lp-song" title="${esc(tr ? tr.title : '')}">${esc(tr ? tr.title : t('lp.idle'))}</div><div class="lp-album">${sub}</div></div>
+      <div class="lp-ctl">
+        <button class="lp-ic" data-lp-ctl="prev" title="${esc(t('lp.prev'))}" aria-label="${esc(t('lp.prev'))}" ${dis}>${lpIcon('prev')}</button>
+        <button class="lp-ic main" data-lp-ctl="toggle" title="${esc(t(playing ? 'lp.pause' : 'lp.play'))}" aria-label="${esc(t(playing ? 'lp.pause' : 'lp.play'))}" ${dis}>${lpIcon(playing ? 'pause' : 'play')}</button>
+        <button class="lp-ic" data-lp-ctl="next" title="${esc(t('lp.next'))}" aria-label="${esc(t('lp.next'))}" ${dis}>${lpIcon('next')}</button>
+        <button class="lp-ic rep ${L.repeat !== 'off' ? 'on' : ''}" data-lp-rep="${nextRep}" title="${esc(repTip)}" aria-label="${esc(repTip)}">${LP_REP_SVG}${L.repeat === 'one' ? '<sub>1</sub>' : ''}</button>
+      </div>
+      <div class="lp-prog"><div class="lp-line ${now ? '' : 'off'}" id="lp-bar" role="slider" aria-label="${esc(tr ? tr.title : t('lp.title'))}"><i></i></div><div class="lp-tm"><span id="lp-pos">0:00</span><span id="lp-dur"></span></div></div>
+    </div>`;
+  const shelf = L.albums.length
+    ? `<div class="lp-shelf" data-lp-sort="shelf">${L.albums
+        .map((a) => `<button class="lp-d ${now && now.album === a.key ? 'cur' : ''}" data-lp-album="${esc(a.key)}" title="${esc(`${lpAlbumName(a)} · ${lpInfo(a)}`)}" aria-label="${esc(lpAlbumName(a))}">${lpCanvas(a.style.hex, a.style.pat, a.label)}</button>`)
+        .join('')}</div>`
+    : `<div class="lp-empty"><b>${t('lp.emptyTitle')}</b><p class="muted">${t('lp.emptyHint', { folder: esc(L.folder) })}</p></div>`;
+  const list = view
+    ? `<div class="lp-lw"><div class="lp-lhead"><b>${esc(lpAlbumName(view))}</b><span>${lpInfo(view)}</span></div>
+        <ul class="lp-tl ${playing ? 'playing' : ''}" data-lp-sort="tracks" data-lp-key="${esc(view.key)}">${view.tracks
+          .map((x, i) => {
+            const on = !!(now && now.album === view.key && now.idx === i);
+            return `<li data-lp-track="${i}" data-lp-file="${esc(x.file)}" class="${on ? 'on' : ''}"><span class="g" title="${esc(t('lp.handle'))}">⋮⋮</span><span class="n">${on && playing ? '<span class="lp-bars"><i></i><i></i><i></i></span>' : i + 1}</span><span class="t">${esc(x.title)}</span><span class="ld"></span><span class="m">${lpDur(x.dur)}</span></li>`;
+          })
+          .join('')}</ul></div>`
+    : '';
+  const acts = `<button class="btn head-act" data-act="lpAdd">${LP_PLUS}${t('lp.add')}</button><button class="btn head-act" data-act="lpStyle">${icon('gear', 12)}${t('lp.style')}</button>`;
+  return homeSec('lp', t('lp.title'), acts, `${bar}${L.error ? `<p class="lp-err">${t('lp.err')}</p>` : ''}${shelf}${L.albums.length ? `<p class="muted small lp-hint">${t('lp.dragHint')}</p>` : ''}${list}<p class="muted small lp-foot">${t('lp.saveTo', { path: esc(L.folder) })}</p>`);
+}
+
+async function lpDone(r) {
+  if (r && r.payload) await apply(r.payload);
+  refreshView();
+}
+
+// 끄는 동안 다른 항목이 한 칸씩 밀려나며 자리를 내주고, 놓으면 제자리로 미끄러져 들어간다 (가로 선반 · 세로 목록 · 여러 줄 모두)
+function lpSortable(box, itemSel, onDone) {
+  box.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const el = e.target.closest(itemSel);
+    if (!el || !box.contains(el)) return;
+    const items = [...box.querySelectorAll(itemSel)];
+    const centers = items.map((i) => {
+      const r = i.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const from = items.indexOf(el);
+    let to = from;
+    let started = false;
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const move = (ev) => {
+      const dx = ev.clientX - sx;
+      const dy = ev.clientY - sy;
+      if (!started) {
+        if (Math.hypot(dx, dy) < 6) return;
+        started = true;
+        lpDragLock = true;
+        el.classList.add('lp-lift');
+        for (const i of items) if (i !== el) i.classList.add('lp-slide');
+        document.body.classList.add('lp-grabbing');
+      }
+      el.style.transform = `translate(${dx}px,${dy}px) scale(1.05)`;
+      const cx = centers[from].x + dx;
+      const cy = centers[from].y + dy;
+      let best = 0;
+      let bd = 1e9;
+      centers.forEach((c, i) => {
+        const d = Math.hypot(c.x - cx, c.y - cy);
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      });
+      if (best !== to) {
+        to = best;
+        items.forEach((it, j) => {
+          if (it === el) return;
+          let tg = j;
+          if (from < to && j > from && j <= to) tg = j - 1;
+          else if (from > to && j >= to && j < from) tg = j + 1;
+          it.style.transform = tg === j ? '' : `translate(${centers[tg].x - centers[j].x}px,${centers[tg].y - centers[j].y}px)`;
+        });
+      }
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if (!started) return;
+      lpSuppressClick = true;
+      setTimeout(() => (lpSuppressClick = false), 0);
+      el.classList.remove('lp-lift');
+      el.classList.add('lp-settle');
+      el.style.transform = `translate(${centers[to].x - centers[from].x}px,${centers[to].y - centers[from].y}px)`;
+      setTimeout(async () => {
+        document.body.classList.remove('lp-grabbing');
+        lpDragLock = false;
+        if (to !== from) await onDone(from, to, items);
+        else refreshView();
+      }, 180);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+}
+
+function bindLp(view) {
+  for (const b of $$('[data-lp-album]', view)) b.addEventListener('click', async () => lpDone(await pet.lpPlay(b.dataset.lpAlbum, 0)));
+  for (const b of $$('[data-lp-track]', view)) {
+    b.addEventListener('click', async () => {
+      const key = b.parentElement.dataset.lpKey;
+      lpDone(await pet.lpPlay(key, Number(b.dataset.lpTrack)));
+    });
+  }
+  const FN = { toggle: () => pet.lpToggle(), prev: () => pet.lpPrev(), next: () => pet.lpNext() };
+  for (const b of $$('[data-lp-ctl]', view)) b.addEventListener('click', async () => lpDone(await FN[b.dataset.lpCtl]()));
+  for (const b of $$('[data-lp-rep]', view)) b.addEventListener('click', async () => lpDone(await pet.lpRepeat(b.dataset.lpRep)));
+  const bar = $('#lp-bar', view);
+  if (bar) {
+    bar.addEventListener('click', async (e) => {
+      const n = D.lp && D.lp.now;
+      if (!n || !n.dur) return;
+      const r = bar.getBoundingClientRect();
+      lpDone(await pet.lpSeek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * n.dur));
+    });
+  }
+  // 선반(LP 순서) · 수록곡(곡 순서)을 끌어서 바꾼다
+  const shelf = $('[data-lp-sort="shelf"]', view);
+  if (shelf) {
+    lpSortable(shelf, '.lp-d', async (from, to, items) => {
+      const keys = items.map((i) => i.dataset.lpAlbum);
+      const [m] = keys.splice(from, 1);
+      keys.splice(to, 0, m);
+      lpDone(await pet.lpReorderAlbums(keys));
+    });
+  }
+  const tl = $('[data-lp-sort="tracks"]', view);
+  if (tl) {
+    lpSortable(tl, 'li', async (from, to, items) => {
+      const files = items.map((i) => i.dataset.lpFile);
+      const [m] = files.splice(from, 1);
+      files.splice(to, 0, m);
+      lpDone(await pet.lpReorderTracks(tl.dataset.lpKey, files));
+    });
+  }
+  // 상점에서 산 색 · 무늬 적용 (기본 꾸미기에)
+  for (const b of $$('[data-lp-apply]', view)) {
+    b.addEventListener('click', async () => {
+      const it = (D.shop.lp || []).find((x) => x.key === b.dataset.lpApply);
+      if (!it) return;
+      await apply(await pet.set(it.lpKind === 'color' ? { lpColor: it.key } : { lpPattern: it.key }));
+      renderView();
+    });
+  }
+  lpTick();
+}
+
+// 진행선 · 시간. 호스트가 알려 준 위치 + 지난 시간으로 어림한다 (다시 그리지 않고 글자와 선만 고친다)
+function lpTick() {
+  const bar = $('#lp-bar');
+  if (!bar) return;
+  const n = D && D.lp && D.lp.now;
+  const fill = bar.firstElementChild;
+  if (!n) {
+    fill.style.width = '0%';
+    $('#lp-pos').textContent = '0:00';
+    $('#lp-dur').textContent = '';
+    return;
+  }
+  const pos = Math.min(n.dur || 1e9, n.pos + (n.playing ? (Date.now() - n.at) / 1000 : 0));
+  fill.style.width = (n.dur ? Math.min(100, (pos / n.dur) * 100) : 0).toFixed(1) + '%';
+  $('#lp-pos').textContent = lpTime(pos);
+  $('#lp-dur').textContent = n.dur ? lpTime(n.dur) : '';
+}
+setInterval(lpTick, 500);
+
+// 음악 파일 추가 창: 고른 파일은 window.__lpPick 에 두고 호스트가 읽어 간다 (브리지가 파일 내용을 못 넘긴다)
+function openLpAdd() {
+  const L = D.lp;
+  const albums = L.albums.filter((a) => a.name !== '');
+  const curAlb = (L.albums.find((a) => a.key === L.view) || {}).key || '';
+  let picked = [];
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('lp.addTitle')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('lp.addSub')}</p>
+    <div class="lp-add">
+      <div class="field"><div class="lbl">${t('lp.albumExisting')}</div>
+        <select id="lp-album"><option value="">${t('lp.albumNew')}</option>${albums.map((a) => `<option value="${esc(a.name)}" ${a.key === curAlb ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
+      <div class="field" id="lp-new"><div class="lbl">${t('lp.albumName')}</div><input type="text" id="lp-name" maxlength="60" placeholder="${esc(t('lp.albumPh'))}"></div>
+      <div class="lp-drop" id="lp-drop">
+        <button class="btn" id="lp-pick" type="button">${t('lp.pick')}</button>
+        <p class="muted small">${t('lp.drop')}</p>
+        <p class="muted small">${t('lp.formats')}</p>
+        <p class="lp-picked" id="lp-picked"></p>
+        <input type="file" id="lp-file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.webm,.3gp" multiple hidden>
+      </div>
+      <p class="muted small" id="lp-where"></p>
+      <p class="lp-msg" id="lp-msg" hidden></p>
+    </div>
+    <div class="nav"><button class="btn ghost" data-close>${t('modal.close')}</button><button class="btn primary" id="lp-go">${t('lp.go')}</button></div>`,
+    'lp-modal',
+  );
+  const sel = $('#lp-album', el);
+  const name = $('#lp-name', el);
+  const msg = $('#lp-msg', el);
+  const say = (text) => {
+    msg.textContent = text || '';
+    msg.hidden = !text;
+  };
+  const albumNow = () => (sel.value || name.value || '').trim();
+  const paint = () => {
+    $('#lp-new', el).hidden = !!sel.value;
+    $('#lp-picked', el).textContent = picked.length ? t('lp.picked', { n: picked.length }) : '';
+    $('#lp-where', el).textContent = t('lp.saveTo', { path: `${L.folder}/${albumNow() || '…'}` });
+  };
+  const take = (files) => {
+    picked = Array.from(files || []);
+    say('');
+    paint();
+  };
+  $('#lp-pick', el).addEventListener('click', () => $('#lp-file', el).click());
+  $('#lp-file', el).addEventListener('change', (e) => take(e.target.files));
+  const drop = $('#lp-drop', el);
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.classList.add('over');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    take(e.dataTransfer && e.dataTransfer.files);
+  });
+  sel.addEventListener('change', paint);
+  name.addEventListener('input', paint);
+  $('#lp-go', el).addEventListener('click', async (e) => {
+    const go = e.currentTarget;
+    if (!albumNow()) return say(t('lp.failName'));
+    if (!picked.length) return say(t('lp.failNone'));
+    go.disabled = true;
+    say(t('lp.working'));
+    window.__lpPick = picked;
+    let r = null;
+    try {
+      r = await pet.lpAdd(albumNow());
+    } catch {
+      r = null;
+    }
+    go.disabled = false;
+    if (r && r.payload) await apply(r.payload);
+    if (r && r.ok) {
+      closeModal();
+      refreshView();
+      toast(t('lp.added', { n: r.added, album: r.album }) + (r.skipped ? ` · ${t('lp.skipped', { n: r.skipped })}` : ''), 'gift');
+    } else say(r && r.reason === 'name' ? t('lp.failName') : r && r.reason === 'none' ? t('lp.failNone') : t('lp.fail'));
+  });
+  paint();
+  setTimeout(() => (sel.value ? sel : name).focus(), 0);
+}
+
+// LP 꾸미기·설정 창: 지금 LP 에만 입히거나(«이 LP»), 따로 정하지 않은 LP 가 따르는 «기본»을 바꾼다. 음량 · 폴더 · 집중과 같이 틀기도 여기
+let lpStyleTarget = 'this';
+function openLpStyle() {
+  const el = openModal('', 'lp-modal');
+  const paint = () => {
+    const L = D.lp;
+    const cur = L.albums.find((a) => a.key === L.view) || L.albums[0] || null;
+    const target = cur && lpStyleTarget === 'this' ? 'this' : 'default';
+    const own = !!(cur && cur.style.own);
+    const st = target === 'this' ? cur.style : L.style;
+    const editable = target === 'default' || own;
+    const colors = [{ ...LP_BASE_COLOR, owned: true }, ...(D.shop.lp || []).filter((x) => x.lpKind === 'color')];
+    const pats = [{ ...LP_BASE_PATTERN, owned: true }, ...(D.shop.lp || []).filter((x) => x.lpKind === 'pattern')];
+    const sw = (it) =>
+      `<button class="lp-sw ${it.key === st.color ? 'on' : ''} ${it.owned ? '' : 'locked'}" data-lp-pick-color="${it.key}" style="--sw:${it.hex}" title="${esc(t('item.' + it.key) + (it.owned ? '' : ' · ' + t('lp.locked')))}" aria-label="${esc(t('item.' + it.key))}"></button>`;
+    const pt = (it) =>
+      `<button class="lp-pt ${it.key === st.pattern ? 'on' : ''} ${it.owned ? '' : 'locked'}" data-lp-pick-pat="${it.key}" title="${esc(t('item.' + it.key) + (it.owned ? '' : ' · ' + t('lp.locked')))}" aria-label="${esc(t('item.' + it.key))}">${lpCanvas(st.hex, it.pat, cur ? cur.label : '#f2c14e', 'lp-art')}</button>`;
+    el.querySelector('.modal-box').innerHTML = `<div class="modal-top"><h2>${t('lp.styleTitle')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+      <div class="lp-style">
+        ${cur ? `<div class="lp-seg"><button class="${target === 'this' ? 'on' : ''}" data-lp-target="this">${esc(t('lp.tabThis', { name: lpAlbumName(cur) }))}</button><button class="${target === 'default' ? 'on' : ''}" data-lp-target="default">${t('lp.tabDefault')}</button></div>` : ''}
+        ${target === 'this' ? `<label class="lp-check"><input type="checkbox" id="lp-follow" ${own ? '' : 'checked'}> <span>${t('lp.followDefault')}</span></label>` : `<p class="muted small" style="margin:0 0 6px">${t('lp.defaultHint')}</p>`}
+        <div class="lp-style-prev">${lpCanvas(st.hex, st.pat, cur ? cur.label : '#f2c14e', 'lp-art big')}</div>
+        <div class="${editable ? '' : 'lp-dim'}">
+          <div class="field"><div class="lbl">${t('lp.color')}</div><div class="lp-sws">${colors.map(sw).join('')}</div></div>
+          <div class="field"><div class="lbl">${t('lp.pattern')}</div><div class="lp-pts">${pats.map(pt).join('')}</div></div>
+        </div>
+        <div class="field"><button class="btn small" data-lp-shop>${t('lp.moreShop')}</button></div>
+        <div class="field"><div class="lbl">${t('lp.volume')}</div><input type="range" min="0" max="100" value="${Math.round((L.vol || 0) * 100)}" id="lp-vol" aria-label="${esc(t('lp.volume'))}"></div>
+        <div class="field"><div class="lbl">${t('lp.folder')}</div><input type="text" id="lp-folder" value="${esc(L.folder)}" maxlength="120"><p class="muted small">${t('lp.folderDesc')}</p></div>
+        <div class="field"><label class="lp-check"><input type="checkbox" id="lp-fa" ${L.focusAuto ? 'checked' : ''}> <span>${t('lp.focusAuto')}</span></label><p class="muted small">${t('lp.focusAutoDesc')}</p></div>
+      </div>
+      <div class="nav"><span></span><button class="btn primary" data-close>${t('wn.ok')}</button></div>`;
+    $$('[data-close]', el).forEach((b) => b.addEventListener('click', closeModal));
+    drawLpArt(el);
+    const save = async (patch) => {
+      if (target === 'this') await apply((await pet.lpStyle(cur.key, patch)).payload);
+      else await apply(await pet.set(patch.color ? { lpColor: patch.color } : { lpPattern: patch.pattern }));
+      paint();
+      refreshView();
+    };
+    for (const b of $$('[data-lp-target]', el)) {
+      b.addEventListener('click', () => {
+        lpStyleTarget = b.dataset.lpTarget;
+        paint();
+      });
+    }
+    const follow = $('#lp-follow', el);
+    if (follow) {
+      follow.addEventListener('change', async () => {
+        // 따로 정하기 시작할 때는 지금 보이는 모양을 그대로 출발점으로
+        const r = follow.checked ? await pet.lpStyle(cur.key, null) : await pet.lpStyle(cur.key, { color: cur.style.color, pattern: cur.style.pattern });
+        await apply(r.payload);
+        paint();
+        refreshView();
+      });
+    }
+    for (const b of $$('[data-lp-pick-color]', el)) {
+      b.addEventListener('click', () => (b.classList.contains('locked') ? toast(t('lp.locked'), 'bang') : editable && save({ color: b.dataset.lpPickColor })));
+    }
+    for (const b of $$('[data-lp-pick-pat]', el)) {
+      b.addEventListener('click', () => (b.classList.contains('locked') ? toast(t('lp.locked'), 'bang') : editable && save({ pattern: b.dataset.lpPickPat })));
+    }
+    $('[data-lp-shop]', el).addEventListener('click', () => {
+      closeModal();
+      shopPage = 'lp';
+      setTab('shop');
+    });
+    const vol = $('#lp-vol', el);
+    let last = 0;
+    vol.addEventListener('input', () => {
+      const at = Date.now();
+      if (at - last < 100) return;
+      last = at;
+      pet.lpVolume(Number(vol.value) / 100);
+    });
+    vol.addEventListener('change', () => pet.lpVolume(Number(vol.value) / 100));
+    $('#lp-folder', el).addEventListener('change', async (e) => {
+      await apply(await pet.set({ lpFolder: e.target.value }));
+      paint();
+      refreshView();
+    });
+    $('#lp-fa', el).addEventListener('change', async (e) => {
+      await apply(await pet.set({ lpFocusAuto: e.target.checked }));
+    });
+  };
+  paint();
+}
+
 const TABS = {
   // 2.0.0 홈: 옵시디언을 쓰는 데 도움이 되는 것들. 2.0.1: 칸 순서 · 보이기는 '홈 꾸미기'에서 (homeLayout)
   home() {
@@ -2202,6 +2608,7 @@ const TABS = {
       },
       quests: () => TABS.__questsBody(),
       recent: recentPanel,
+      lp: lpPanel, // 2.10.0 (LP 플레이어를 산 사람만)
     };
     const shown = homeLayout().filter((x) => x.on);
     return `
@@ -2526,10 +2933,24 @@ const TABS = {
               ? `<span class="acc-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-furkey="${it.fur}"></canvas></span>`
               : it.kind === 'food'
               ? foodArt(it.key, 62)
-              : `<div class="art">${icon(it.key, 62)}</div>`;
+              : it.kind === 'lp' && it.lpKind === 'player'
+                ? `<div class="art">${icon('lpplayer', 62)}</div>`
+              : it.kind === 'lp'
+                ? `<div class="art lp-card-art">${lpCanvas(it.lpKind === 'color' ? it.hex : D.lp.style.hex, it.lpKind === 'pattern' ? it.pat : D.lp.style.pat, '#f2c14e')}</div>`
+                : `<div class="art">${icon(it.key, 62)}</div>`;
       let foot;
       // 산 코스튬은 옷장까지 안 가도 여기서 바로 입고 벗는다
-      if (it.kind === 'acc' && it.owned && it.slot) {
+      if (it.kind === 'lp') {
+        // LP: 산 색 · 무늬는 여기서 바로 적용. 색 · 무늬는 플레이어가 먼저 있어야 한다
+        if (it.owned && it.lpKind !== 'player') {
+          const on = it.lpKind === 'color' ? D.lp.style.color === it.key : D.lp.style.pattern === it.key;
+          foot = `<button class="btn ${on ? '' : 'primary'} buy" data-lp-apply="${it.key}" ${on ? 'disabled' : ''}>${t(on ? 'shop.lpOn' : 'shop.lpApply')}</button>`;
+        } else if (it.owned) foot = '';
+        else if (it.blocker === 'player') foot = `<span class="need">${t('shop.needPlayer')}</span>`;
+        else if (it.locked) foot = `<span class="need">${t('shop.needLevel', { n: it.level })}</span>`;
+        else if (it.blocker === 'coins') foot = `<span class="need">${t('shop.needCoins')}</span>`;
+        else foot = `<button class="btn buy" data-buy="${it.key}">${t('shop.buy')}</button>`;
+      } else if (it.kind === 'acc' && it.owned && it.slot) {
         const on = (D.settings.outfit || {})[it.slot] === it.key;
         foot = `<button class="btn ${on ? '' : 'primary'} buy" data-shop-wear="${it.key}">${t(on ? 'shop.takeOff' : 'shop.wear')}</button>`;
       }
@@ -2550,7 +2971,7 @@ const TABS = {
       if (it.kind === 'food' && it.stock) foot += ` <button class="btn ghost buy" data-give="${it.key}">${t('shop.give')}</button>`;
       const have = it.kind === 'food' && it.stock ? `<span class="own">${t('shop.stock', { n: it.stock })}</span>` : '';
       // 장난감은 꺼내면 고양이가 뭘 하는지 한 줄로
-      const slot = it.kind === 'toy' ? toyTags(it, true) : '';
+      const slot = it.kind === 'toy' ? toyTags(it, true) : it.kind === 'lp' ? `<span class="muted small">${t('lp.desc.' + it.lpKind)}</span>` : '';
       // 먹이는 하나 먹으면 배부름이 얼마나 차는지
       const gauge = it.kind === 'food'
         ? `${foodGain(it)}${foodFx(it.key)}`
@@ -2585,7 +3006,7 @@ const TABS = {
     const ordered = (list) => list.map((x, i) => [x, i]).sort((a, b) => lockRank(a[0]) - lockRank(b[0]) || a[1] - b[1]).map(([x]) => x);
     const grid = (list) => `<div class="wardrobe shop-grid">${ordered(list.filter((x) => x.key !== 'none')).map(card).join('')}</div>`;
     // 상점은 밥·간식·악세사리·장난감을 한 페이지씩 따로 보여 준다 (다 이어 붙이면 너무 길다)
-    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, toy: D.shop.toy, star: D.shop.star || [] };
+    const pageList = { meal: D.shop.food.filter((x) => x.group === 'meal'), snack: D.shop.food.filter((x) => x.group === 'snack'), acc: D.shop.acc, toy: [...D.shop.toy, ...(D.shop.lp || []).filter((x) => x.lpKind === 'player')], lp: (D.shop.lp || []).filter((x) => x.lpKind !== 'player'), star: D.shop.star || [] }; // LP 테이블은 장난감 코너, 판 색 · 무늬는 LP 코너 (2.10.0)
     if (freshSnap) pageList.new = [...D.shop.acc, ...D.shop.toy].filter((x) => freshSnap.includes(x.key));
     const page = pageList[shopPage] ? shopPage : 'meal';
     // 코스튬 페이지는 옷장과 같은 분류(세트·머리·얼굴·목·등·손·효과)로 거를 수 있다
@@ -2637,7 +3058,7 @@ const TABS = {
     // 맨 위 페이지 버튼 (스크롤해도 따라 붙는다). 개수도 같이
     const count = (k) => (k === 'new' ? (freshSnap ? freshSnap.length : freshNow.length) : pageList[k].filter((x) => x.key !== 'none').length);
     // '새로 열림' 은 새로 열린 게 있을 때만 맨 앞에
-    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'toy', ...(pageList.star.length ? ['star'] : [])]
+    const jumps = [...(freshNow.length || page === 'new' ? ['new'] : []), 'meal', 'snack', 'acc', 'toy', 'lp', ...(pageList.star.length ? ['star'] : [])]
       .map((k) => `<button class="chip ${k === page ? 'on' : ''} ${k === 'new' ? 'chip-new' : ''}" data-shop-page="${k}">${t('shop.' + k)}<small>${count(k)}</small></button>`)
       .join('');
     // 이 페이지에 보인 새로 열린 것은 잠깐 뒤 본 걸로 (다음에 그릴 때 NEW 가 꺼진다)
@@ -2944,6 +3365,8 @@ function paintView(html) {
   // 팝업·미리보기·첫 화면처럼 #view 밖에서 아직 붙어 있는 그림은 계속 움직이게 둔다 (방금 지운 탭 그림만 뺀다)
   minis = [...$$('canvas[data-stage]', view).map(mini), ...minis.filter((m) => m.canvas.isConnected && !view.contains(m.canvas))];
   bindView(view);
+  bindLp(view);
+  drawLpArt(view);
   labelFields(view);
   mountGraph(view);
   celebrate(view);
@@ -2988,7 +3411,7 @@ function refreshView() {
     return;
   }
   // 무언가 입력하는 중이면 끝날 때(포커스가 빠질 때)까지 미룬다. 노트 지도에서 노드 · 화면을 끄는 중에도 놓을 때까지 (2.9.0)
-  if (typingIn() || graphSim.drag || graphSim.pan) {
+  if (typingIn() || graphSim.drag || graphSim.pan || lpDragLock) {
     viewStale = true;
     return;
   }
@@ -3698,6 +4121,12 @@ async function act(name, el) {
       break;
     case 'homeLayout':
       openHomeLayout();
+      break;
+    case 'lpAdd':
+      openLpAdd();
+      break;
+    case 'lpStyle':
+      openLpStyle();
       break;
     case 'todoDoneOpen':
       todoDoneOpen = !todoDoneOpen;

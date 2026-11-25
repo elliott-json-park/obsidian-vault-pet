@@ -4740,3 +4740,520 @@ input[type='time'],
     animation: kc-celebrate-still 1.6s linear 1;
   }
 }
+
+/* ---------- LP 플레이어 (2.10.0) ---------- */
+.lp-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.lp-i {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.lp-plus {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+.lp-s {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 한 줄 바 */
+.lp-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  padding: 10px 12px 4px;
+}
+.lp-disc {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+.lp-disc.spin .lp-art {
+  animation: lpSpin 3.6s linear infinite;
+}
+@keyframes lpSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-disc.spin .lp-art {
+    animation-duration: 14s;
+  }
+}
+.lp-mid {
+  flex: 1;
+  min-width: 110px;
+}
+.lp-song {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-album {
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-album b {
+  color: var(--accent);
+}
+.lp-ctl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.lp-ic {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+}
+.lp-ic:hover:not(:disabled) {
+  background: var(--soft);
+}
+.lp-ic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.lp-ic:focus-visible,
+.lp-d:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.lp-ic.main {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  color: #fff;
+}
+.lp-ic.main:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.lp-ic.rep {
+  color: var(--muted);
+}
+.lp-ic.rep.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.lp-ic.rep sub {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.lp-prog {
+  flex: 1 0 100%;
+}
+.lp-line {
+  position: relative;
+  height: 14px;
+  cursor: pointer;
+}
+.lp-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 3px;
+  background: var(--soft);
+  border-radius: 2px;
+}
+.lp-line i {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.lp-line.off {
+  opacity: 0.5;
+  cursor: default;
+}
+.lp-tm {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* LP 선반: 끌면 옆 판이 밀려난다 */
+.lp-shelf {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 4px 10px;
+  overflow-x: auto;
+}
+.lp-d {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  position: relative;
+  touch-action: none;
+}
+.lp-d .lp-art {
+  transition: transform 0.15s;
+}
+.lp-d:hover .lp-art {
+  transform: scale(1.06);
+}
+.lp-d.cur::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.lp-slide {
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.lp-lift {
+  z-index: 5;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.3));
+  transition: none;
+}
+.lp-settle {
+  transition: transform 0.17s ease-out;
+  z-index: 5;
+}
+body.lp-grabbing {
+  user-select: none;
+}
+body.lp-grabbing .lp-d,
+body.lp-grabbing .lp-tl li,
+body.lp-grabbing .lp-tl li .g {
+  cursor: grabbing;
+}
+.lp-hint {
+  margin: 0 2px;
+}
+/* 수록곡: 박스 없이 배경 위에, 곡 이름과 길이를 점선으로 잇는다 */
+.lp-lw {
+  margin-top: 10px;
+}
+.lp-lhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 8px;
+}
+.lp-lhead b {
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+.lp-lhead span {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.lp-tl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lp-tl li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  border-radius: 6px;
+  touch-action: none;
+}
+.lp-tl li .g {
+  position: absolute;
+  left: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: -2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  cursor: grab;
+}
+.lp-tl li:hover .g {
+  opacity: 0.8;
+}
+.lp-tl li:hover {
+  background: color-mix(in srgb, var(--soft) 55%, transparent);
+}
+.lp-tl .n {
+  width: 16px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+}
+.lp-tl .t {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-tl .ld {
+  flex: 1;
+  border-bottom: 2px dotted color-mix(in srgb, var(--muted) 45%, transparent);
+  height: 1px;
+  margin: 0 2px;
+  transform: translateY(3px);
+  min-width: 16px;
+}
+.lp-tl .m {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.lp-tl li.on {
+  color: var(--accent);
+  font-weight: 700;
+}
+.lp-tl li.on .n,
+.lp-tl li.on .m {
+  color: var(--accent);
+}
+.lp-tl li.on .ld {
+  border-color: var(--accent);
+}
+.lp-tl li.lp-lift {
+  background: var(--panel);
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.4);
+}
+.lp-bars {
+  display: inline-flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+  width: 14px;
+}
+.lp-bars i {
+  width: 3px;
+  background: var(--accent);
+  height: 4px;
+}
+.lp-tl.playing .lp-bars i {
+  animation: lpEq 0.8s ease-in-out infinite alternate;
+}
+.lp-bars i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.lp-bars i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes lpEq {
+  from {
+    height: 3px;
+  }
+  to {
+    height: 12px;
+  }
+}
+.lp-empty {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 2px dashed var(--line);
+}
+.lp-empty p {
+  margin: 4px 0 0;
+}
+.lp-err {
+  color: #c0392b;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.lp-foot {
+  margin: 8px 2px 0;
+}
+/* 창 안 */
+.lp-add .field,
+.lp-style .field {
+  display: block;
+  margin-bottom: 0;
+}
+.lp-add .field .lbl,
+.lp-style .field .lbl {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.lp-style .field p {
+  margin: 6px 0 0;
+}
+.lp-add select,
+.lp-add input[type='text'],
+.lp-style input[type='text'],
+.lp-style input[type='range'] {
+  width: 100%;
+}
+.lp-drop {
+  border: 2px dashed var(--line);
+  padding: 12px;
+  text-align: center;
+}
+.lp-drop.over {
+  background: var(--soft);
+  border-color: var(--accent);
+}
+.lp-drop p {
+  margin: 4px 0 0;
+}
+.lp-picked {
+  font-weight: 700;
+  min-height: 18px;
+}
+.lp-msg {
+  color: #c0392b;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.lp-seg {
+  display: flex;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.lp-seg button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-seg button.on {
+  background: var(--ink);
+  color: var(--panel);
+}
+.lp-style-prev {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 10px;
+}
+.lp-style-prev .lp-art.big {
+  width: 120px;
+  height: 120px;
+}
+.lp-dim {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.lp-sws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lp-sw {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--sw);
+  cursor: pointer;
+  padding: 0;
+}
+.lp-sw.on {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.lp-pts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 150px;
+  overflow: auto;
+  padding: 3px;
+}
+.lp-pt {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.lp-pt.on {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+.lp-sw.locked,
+.lp-pt.locked {
+  opacity: 0.35;
+}
+.lp-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+.item.k-lp .art.lp-card-art {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto;
+}
+.item.k-lp .art.lp-card-art canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.lp-modal .modal-box {
+  max-width: 420px;
+  max-height: 90vh;
+  overflow: auto;
+}
+@media (max-width: 380px) {
+  .lp-bar {
+    justify-content: center;
+  }
+}
