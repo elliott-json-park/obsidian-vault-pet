@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   personality: 'angel',
   scale: 3, // 1~5 다섯 단계 → 배율 1·1.5·2·2.5·3배
   fur: 'cheese',
+  tail: 'long', // 꼬리 모양 (core/growth.js 의 TAIL_SHAPES). 옷장에서 고른다
   ears: 'perk', // 귀 모양 (core/growth.js 의 EAR_SHAPES). 첫 실행 안내 · 옷장에서 고른다
   theme: 'auto', // 하우스 테마: auto(옵시디언이 어두우면 cocoa) | cream | cocoa | mint | sakura | choco
   accessory: 'none',

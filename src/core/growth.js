@@ -38,6 +38,7 @@ const FURS = [
 
 // 귀 모양 (2026-10-10): 처음 시작할 때 · 옷장에서 고른다. 레벨과 상관없이 다 열려 있다.
 // 그림은 kit/sprite.js 의 EARS, 이름은 i18n 'ear.<key>' (키가 셋 다 같아야 한다)
+const TAIL_SHAPES = ['long', 'bob']; // 꼬리 모양 (kit/sprite.js 의 TAIL_KEYS)
 const EAR_SHAPES = ['perk', 'round', 'pointy', 'small', 'fold', 'outtilt', 'intilt', 'darktip', 'whitetip', 'tnr', 'mismatch', 'lynx', 'fox'];
 
 // 경험치 = 쓴 글자 ÷ 10 + 링크 × 10 + 새 노트 × 20 + 글쓰기 세션 × 30 + 끝낸 할 일 × 5 (+ 업적·퀘스트·출석·목표·집중 보너스)
@@ -115,4 +116,4 @@ function computeGrowth(since, usage, bonusXp = () => 0) {
   };
 }
 
-module.exports = { FURS, EAR_SHAPES, STAGES, STAGE_FOLD, foldStage, computeGrowth, xpOf, levelOf, starsOf, MAX_LEVEL, XP_AT_MAX, STAR_XP, STAR_COINS, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK };
+module.exports = { FURS, EAR_SHAPES, TAIL_SHAPES, STAGES, STAGE_FOLD, foldStage, computeGrowth, xpOf, levelOf, starsOf, MAX_LEVEL, XP_AT_MAX, STAR_XP, STAR_COINS, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK };

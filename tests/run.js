@@ -48,6 +48,7 @@ require(path.join(src, 'kit/i18n-obsidian'));
 require(path.join(src, 'kit/i18n-goals'));
 require(path.join(src, 'kit/i18n-v2'));
 require(path.join(src, 'kit/i18n-lp'));
+require(path.join(src, 'kit/i18n-news'));
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -904,6 +905,16 @@ test('ears: 귀 모양은 정해진 13가지만, 고르면 펫 판에 바로 간
   assert.ok(sent.some(([ch, x]) => ch === 'pet:config' && x.ears === 'fox'));
 });
 
+test('tail: 꼬리 모양은 긴 꼬리 · 짧은 꼬리만, 고르면 펫 판에 바로 간다 (#23)', async () => {
+  const { host, sent } = makeHost();
+  assert.deepStrictEqual(growth.TAIL_SHAPES, ['long', 'bob']);
+  for (const lang of I18N.LANGS) for (const k of growth.TAIL_SHAPES) assert.ok(I18N.UI[lang]['tail.' + k], `${lang} tail.${k}`);
+  assert.strictEqual((await host.onInvoke('house:get')).settings.tail, 'long');
+  assert.strictEqual((await host.onInvoke('house:set', null, { tail: 'bob' })).settings.tail, 'bob');
+  assert.strictEqual((await host.onInvoke('house:set', null, { tail: 'none' })).settings.tail, 'bob');
+  assert.ok(sent.some(([ch, x]) => ch === 'pet:config' && x.tail === 'bob'));
+});
+
 test('house:set: 켜고 끄기는 true/false 만, 시각은 HH:MM 만, 테마 · 카드 설정은 아는 값만', async () => {
   const { host } = makeHost();
   let p = await host.onInvoke('house:set', null, { chatter: 'yes', lunchTime: '25:99', theme: 'neon', sleepyAfterMin: 999 });
@@ -1393,6 +1404,23 @@ test('펫 · 하우스 화면: 함께 올라가는 스크립트에 같은 맨 �
     }
     assert.deepStrictEqual(dups, [], page);
   }
+});
+
+test('whats new: 버전별 목록 맨 위가 지금 버전이고, 최근 세 버전의 글이 네 말 모두 있다', () => {
+  const manifest = JSON.parse(require('fs').readFileSync(path.join(src, '..', 'manifest.json'), 'utf8'));
+  const news = I18N.NEWS;
+  assert.ok(Array.isArray(news) && news.length >= 3, '세 버전 이상');
+  assert.strictEqual(news[0].v, manifest.version, '릴리스할 때 i18n-news.js 맨 위에 그 버전을 넣는다');
+  const num = (v) => v.split('.').reduce((a, x) => a * 1000 + Number(x), 0);
+  for (let i = 1; i < news.length; i++) assert.ok(num(news[i - 1].v) > num(news[i].v), '새 버전이 위');
+  for (const g of news.slice(0, 3)) {
+    assert.ok(g.rows.length > 0, g.v);
+    for (const [id] of g.rows) for (const lang of I18N.LANGS) {
+      assert.ok(I18N.UI[lang]['wn.' + id + '.t'], `${lang} wn.${id}.t`);
+      assert.ok(I18N.UI[lang]['wn.' + id + '.d'], `${lang} wn.${id}.d`);
+    }
+  }
+  for (const lang of I18N.LANGS) for (const k of ['wn.titleRecent', 'wn.now']) assert.ok(I18N.UI[lang][k], `${lang} ${k}`);
 });
 
 test('whats new: 업데이트한 사람에게만 한 번 (처음 설치한 사람은 첫 실행 안내)', async () => {

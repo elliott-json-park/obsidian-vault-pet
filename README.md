@@ -19,7 +19,7 @@ Vault Pet turns writing into a cozy little game with a goal you can see. A hand-
 - **It keeps you company.** While you type, your cat types too. Start a new note and leave it blank, and it raises a little `!` and waits for your first line. Write for a while and stop, and it hops with joy.
 - **It looks after you.** Lunch and dinner reminders, a stretch break after two hours of writing, and a gentle "go to bed" when it gets too late.
 - **It knows when to talk.** Small talk waits for your breaks instead of interrupting a sentence, and it remembers what happened: the late night you wrote until 1 AM, the snack it always gets.
-- **There's a lot to collect.** 345 costumes (56 of them endgame star costumes), 36 toys and mini-games, 17 premium dishes, 20 fur colors, 13 ear shapes and 174 badges. All 60 motions are free from the start: pick them per situation or switch them off.
+- **There's a lot to collect.** 345 costumes (56 of them endgame star costumes), 36 toys and mini-games, 17 premium dishes, 20 fur colors, 13 ear shapes, 2 tail shapes and 174 badges. All 60 motions are free from the start: pick them per situation or switch them off.
 - **Neighbors and a treasure workshop.** Neighbor friends drop by now and then, your cat finds tiny treasures, and you craft costumes out of them. Not your thing? Turn either one off in Settings, and nothing you've collected is lost.
 - **It never runs out.** Levels stop at Lv.80, and from then on your writing earns stars for a shop of its own.
 - **It's fair.** Only real new writing counts. Deleting and retyping, undo, pasting or dragging text in, and restoring a deleted note earn nothing.
@@ -145,7 +145,7 @@ Using [Hearth](https://github.com/ondreu/Hearth)? Its **Vault Pet** card puts yo
 Open the house (cat face in the ribbon, or double-click the cat; your cat's name in the status bar opens a quick menu) and go to **Settings**:
 
 - **Daily goal**: on or off, words or characters, how many a day. **Focus session length**: 15, 25 or 50 minutes
-- Name, size (5 steps), fur color, ear shape (13 shapes, free from the start)
+- Name, size (5 steps), fur color, ear shape (13 shapes, free from the start), tail (long or a short nub)
 - **Theme** for the house: Cream, Cocoa, Mint milk, Sakura, Milk choco, or Auto (follows your Obsidian light or dark theme)
 - **Mute**: turns off every sound effect. Also in Obsidian's plugin settings and the command palette
 - Language (English, 한국어, 中文, Русский). It starts in the language your Obsidian is set to. The Russian translation is by [@rimpk901](https://github.com/rimpk901)

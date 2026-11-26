@@ -57,6 +57,7 @@ pet.onConfig((c) => {
   document.documentElement.lang = T.locale; // 중국어면 :lang(zh) 글꼴로 (pet.css)
   sprite.setFur(c.fur);
   sprite.setEars(c.ears);
+  sprite.setTail(c.tail);
   bubblesOn = c.bubbles !== false;
   lowPower = !!c.lowPower;
   clearTimeout(pendingWearTimer);

@@ -494,6 +494,7 @@
       this.offCtx = off.getContext('2d');
       this.stage = 'cat';
       this.ears = 'perk'; // 귀 모양 (setEars)
+      this.tailShape = 'long'; // 꼬리 모양 (setTail)
       this.mood = 'idle';
       this.accessory = 'none';
       this.look = 0;
@@ -534,6 +535,8 @@
     setStage(s) { if (STAGE[s]) this.stage = s; }
     // 귀 모양 (EARS 의 키). 없는 키면 기본 귀
     setEars(k) { this.ears = EARS[k] ? k : 'perk'; }
+    // 꼬리 모양 (TAIL_KEYS). 짧은 꼬리(bob)는 둥근 끝 두 줄과 뿌리 한 줄만 남겨 엉덩이에 붙은 동그란 뭉치로 그린다 (2.11.0, 이슈 #23)
+    setTail(k) { this.tailShape = k === 'bob' ? 'bob' : 'long'; }
     // 지금 단계에 귀 모양까지 입힌 정의
     stageDef() { return earStage(this.stage, this.ears); }
     setMood(m) { this.mood = m; }
@@ -1418,11 +1421,15 @@
       const ph = t * speed;
       const swing = p.tail === 'flick' ? (Math.sin(ph) > 0.82 ? -amp : 0) : Math.sin(ph) * amp;
       const rise = p.tail === 'up' ? -1 : p.tail === 'slow' ? 1 : 0; // 꼬리 전체 높이
-      const last = Math.max(1, T.rows.length - 1);
-      T.rows.forEach((row, j) => {
-        const k = 1 - j / last; // 윗줄(꼬리 끝)일수록 1 에 가깝다
+      // 짧은 꼬리: 둥근 끝 두 줄 + 뿌리 한 줄을 뿌리 자리로 내려 그린다. 짧으니 흔들림은 반만. 손님 고양이는 늘 긴 꼬리
+      const bob = this.tailShape === 'bob' && !this.fur && T.rows.length > 3;
+      const rows = bob ? [T.rows[0], T.rows[1], T.rows[T.rows.length - 1]] : T.rows;
+      const y0 = T.y + (bob ? T.rows.length - rows.length : 0);
+      const last = Math.max(1, rows.length - 1);
+      rows.forEach((row, j) => {
+        const k = (1 - j / last) * (bob ? 0.5 : 1); // 윗줄(꼬리 끝)일수록 1 에 가깝다
         const dx = Math.round(swing * k);
-        this.drawMap(g, [row], T.x + dx, T.y + j + rise + g.lift(T.y), false);
+        this.drawMap(g, [row], T.x + dx, y0 + j + rise + g.lift(y0), false);
       });
     }
 
@@ -1983,6 +1990,7 @@
     STAGE, // 도트 지도 자체. 디자인 시안 뷰어가 여기에 후보를 꽂아 본다
     STAGES: Object.keys(STAGE),
     EAR_KEYS: Object.keys(EARS), // 귀 모양 13가지 (옷장 · 첫 실행의 귀 고르기)
+    TAIL_KEYS: ['long', 'bob'], // 꼬리 모양 (core/growth.js 의 TAIL_SHAPES 와 같아야 한다)
     CAT,
     PAL,
     FX, // 효과 종류. 시안 페이지가 새 효과를 여기에 더해 본다

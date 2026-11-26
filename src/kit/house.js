@@ -184,6 +184,9 @@ function mini(canvas) {
   // 내 고양이 귀 모양. data-ears 로 따로 정하거나(귀 고르기). 손님 고양이 · 장난감 시연(data-plain)은 기본 귀
   if (canvas.dataset.ears) r.setEars(canvas.dataset.ears);
   else if (canvas.dataset.fur == null && !canvas.dataset.plain && D && D.settings) r.setEars(D.settings.ears);
+  // 꼬리 모양도 귀와 같다 (data-tail 로 따로 정하거나 내 고양이 것)
+  if (canvas.dataset.tail) r.setTail(canvas.dataset.tail);
+  else if (canvas.dataset.fur == null && !canvas.dataset.plain && D && D.settings) r.setTail(D.settings.tail);
   r.setMood(canvas.dataset.mood || 'idle');
   r.demo = canvas.dataset.motion || null;
   r.demoGap = 0;
@@ -387,6 +390,7 @@ function drawCard(P = cardPrefsNow(), raw = cardData[P.period]) {
   r.setAccessory(D.settings.accessory || 'none');
   r.setFur(D.settings.fur);
   r.setEars(D.settings.ears);
+  r.setTail(D.settings.tail);
   r.setMood(CARD_POSES.includes(P.pose) ? P.pose : 'idle');
   r.frame();
   const CAT = story ? 480 : 320;
@@ -1048,6 +1052,34 @@ function openEarPicker() {
   );
 }
 
+// ---------- 꼬리 고르기 (2.11.0, 이슈 #23) ----------
+// 귀 고르기와 같은 칸
+function openTailPicker() {
+  const now = D.settings.tail || 'long';
+  const stage = D.growth ? D.growth.stageKey : 'cat';
+  const cells = PetSprite.TAIL_KEYS.map(
+    (k) => `<button class="fur-cell ${k === now ? 'on' : ''}" data-tail-pick="${k}">
+        <span class="fur-view"><canvas class="pixel" data-stage="${stage}" data-acc="none" data-tail="${k}"></canvas></span>
+        <span class="nm">${esc(t('tail.' + k))}</span>
+      </button>`,
+  ).join('');
+  const el = openModal(
+    `<div class="modal-top"><h2>${t('ward.tail')}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    <p class="muted" style="margin-top:-4px">${t('ward.tailSub')}</p>
+    <div class="fur-grid">${cells}</div>`,
+    'fur-modal',
+  );
+  minis.push(...$$('canvas[data-stage]', el).map(mini));
+  $$('[data-tail-pick]', el).forEach((b) =>
+    b.addEventListener('click', async () => {
+      await apply(await pet.set({ tail: b.dataset.tailPick }));
+      closeModal();
+      renderView();
+      toast(t('toast.saved'));
+    }),
+  );
+}
+
 // ---------- 세트 전용 모션 ----------
 // 세트 카드에 붙는 버튼. 전용 모션이 있는 세트만
 function setMoBtn(key) {
@@ -1257,6 +1289,7 @@ function renderTop() {
   hero.setAccessory(s.accessory);
   hero.setFur(s.fur);
   hero.setEars(s.ears);
+  hero.setTail(s.tail);
   hero.setMood(D.mood);
   hero.setMoodMotions(D.motion ? D.motion.mood : {});
   if (g) {
@@ -2879,6 +2912,7 @@ const TABS = {
           <div class="wslots">${slotRows}</div>
           <button class="btn small wide" data-act="furPick">${icon('paw', 12)}${t('ward.fur')} · ${esc(t('fur.' + (D.settings.fur || 'cheese')))}</button>
           <button class="btn small wide" data-act="earPick">${icon('heart', 12)}${t('ward.ears')} · ${esc(t('ear.' + (D.settings.ears || 'perk')))}</button>
+          <button class="btn small wide" data-act="tailPick">${icon('paw', 12)}${t('ward.tail')} · ${esc(t('tail.' + (D.settings.tail || 'long')))}</button>
           <button class="btn ghost small wide" data-act="undress" ${worn.size ? '' : 'disabled'}>${t('ward.undress')}</button>
           <div class="wsaves-title">${t('ward.saves')}</div>
           <div class="wsaves">${saves}</div>`
@@ -4175,6 +4209,9 @@ async function act(name, el) {
     case 'earPick':
       openEarPicker();
       break;
+    case 'tailPick':
+      openTailPicker();
+      break;
     case 'undress': {
       await apply(await pet.set({ outfit: {}, replace: true }));
       toast(t('ward.removed'), 'check');
@@ -4375,14 +4412,23 @@ const WHATS_NEW_OBS = [
   ['toys2', 'yarn', 'shop'],
   ['back22', 'paw', 'friends'], // 2.2.0: 동네 친구 · 보물 공방이 돌아왔다 (2.0.0 의 '정리한 것' 줄 자리)
 ];
+// [옵시디언 2.11.0] 버전별 목록(i18n-news.js 의 I18N.NEWS)에서 최근 세 버전을 버전 제목 아래 묶어 보여 준다.
+// 업데이트를 안 한 사이 릴리스가 여러 번 있었을 수 있어서 지금 버전 하나만 보여 주지 않는다
+const WN_SHOW = 3;
+function whatsNewGroups() {
+  const log = (window.I18N && window.I18N.NEWS) || [];
+  return log.slice(0, WN_SHOW);
+}
 function showWhatsNew() {
   const v = D.version || '';
-  const rows = (window.KC_OBSIDIAN ? WHATS_NEW_OBS : WHATS_NEW).map(
-    ([id, ic, go]) => `<li class="wn-row">${icon(ic, 18)}<div><b>${t('wn.' + id + '.t')}</b><div class="muted">${t('wn.' + id + '.d')}</div></div>
-      <button class="btn ghost small" data-wn-go="${go}">${t('wn.go')}</button></li>`,
-  ).join('');
+  const row = ([id, ic, go]) => `<li class="wn-row">${icon(ic, 18)}<div><b>${t('wn.' + id + '.t')}</b><div class="muted">${t('wn.' + id + '.d')}</div></div>
+      ${go ? `<button class="btn ghost small" data-wn-go="${go}">${t('wn.go')}</button>` : '<span></span>'}</li>`;
+  const groups = window.KC_OBSIDIAN ? whatsNewGroups() : [];
+  const rows = groups.length
+    ? groups.map((g, i) => `<li class="wn-ver">${esc(g.v)}${i === 0 && g.v === v ? ` <small>${t('wn.now')}</small>` : ''}</li>${g.rows.map(row).join('')}`).join('')
+    : (window.KC_OBSIDIAN ? WHATS_NEW_OBS : WHATS_NEW).map(row).join('');
   const el = openModal(
-    `<div class="modal-top"><h2>${t('wn.title', { v: esc(v) })}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
+    `<div class="modal-top"><h2>${groups.length ? t('wn.titleRecent') : t('wn.title', { v: esc(v) })}</h2><button class="btn ghost small" data-close>${t('modal.close')}</button></div>
     <p class="muted" style="margin-top:-4px">${t('wn.sub')}</p>
     <ul class="wn-list">${rows}</ul>
     <div class="center"><button class="btn primary" data-close>${t('wn.ok')}</button></div>`,
@@ -4404,6 +4450,9 @@ function showWhatsNew() {
       } else if (go === 'goal') {
         setTab('home');
         openGoalPicker();
+      } else if (go === 'tail') {
+        setTab('wardrobe');
+        openTailPicker();
       } else if (go === 'card') openCard();
       else if (go === 'motions') {
         setTab('settings');

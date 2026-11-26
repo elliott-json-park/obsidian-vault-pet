@@ -20,6 +20,7 @@ const COMMON = [
   'kit/i18n-goals.js',
   'kit/i18n-v2.js',
   'kit/i18n-lp.js', // 2.10.0 LP 플레이어 글
+  'kit/i18n-news.js', // 2.11.0 새로 생긴 것 목록 · 꼬리 모양 글
   'kit/pixelart.js',
   'kit/sprite.js',
   'kit/friends.js', // 동네 친구 동물 그림 (2.2.0 에 돌아왔다)
@@ -181,7 +182,7 @@ const walk = (dir) => {
 walk('core');
 walk('plugin');
 // 호스트(플러그인) 쪽에서도 쓰는 화면 코드: 글(i18n + 옵시디언판 글)과 도트 아이콘
-add('kit/i18n', read('kit/i18n.js') + '\n;\n' + read('kit/i18n-obsidian.js') + '\n;\n' + read('kit/i18n-goals.js') + '\n;\n' + read('kit/i18n-v2.js') + '\n;\n' + read('kit/i18n-lp.js'));
+add('kit/i18n', read('kit/i18n.js') + '\n;\n' + read('kit/i18n-obsidian.js') + '\n;\n' + read('kit/i18n-goals.js') + '\n;\n' + read('kit/i18n-v2.js') + '\n;\n' + read('kit/i18n-lp.js') + '\n;\n' + read('kit/i18n-news.js'));
 add('kit/pixelart', read('kit/pixelart.js'));
 // 화면 코드는 글자로 넣었다가 iframe 에 스크립트로 꽂지 않고, 보통 함수로 묶어 둔다 (옵시디언 자동 리뷰가 런타임 스크립트 주입을 막는다).
 // run(window, document, pet, kind) 를 부르면 iframe 의 window·document 를 쥐고 데스크톱판 화면 코드가 그대로 돈다.

@@ -4,7 +4,7 @@
 // 2.0.0: 동네 친구 · 보물 공방 · 그날의 기분 · 먹고 싶은 것 · 오늘의 소식을 없앴다. 홈의 할 일 · 노트 지도 · 쉬는 시간을 더했다
 // 2.2.0: 동네 친구 · 보물 공방(깜짝 이벤트 · 보물 · 교환소)이 돌아왔다 (이슈 #9). 설정 friendsOn · workshopOn 으로 끈다 (syncFeatures)
 const { Menu, Notice, setIcon } = require('obsidian');
-const { computeGrowth, xpOf, levelOf, FURS, EAR_SHAPES, STAGES, foldStage, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK } = require('../core/growth');
+const { computeGrowth, xpOf, levelOf, FURS, EAR_SHAPES, TAIL_SHAPES, STAGES, foldStage, CHARS_PER_XP, XP_PER_LINK, XP_PER_NOTE, XP_PER_SESSION, XP_PER_TASK } = require('../core/growth');
 const { Goals, cleanGoal, GOAL_COINS, GOAL_XP, FOCUS_LENGTHS, BREAK_LENGTHS, CYCLE_ROUNDS } = require('../core/goals');
 const { Brain } = require('../core/brain');
 const { Gamify } = require('../core/gamify');
@@ -1019,6 +1019,7 @@ class KitHost {
       accessory: s.get('accessory'),
       fur: s.get('fur'),
       ears: s.get('ears'),
+      tail: s.get('tail'),
       bubbles: s.get('bubblesEnabled'),
       sound: s.get('soundEnabled'),
       lowPower: !!s.get('lowPower'),
@@ -2025,6 +2026,7 @@ class KitHost {
     if ('theme' in allowed && !THEMES.includes(allowed.theme)) delete allowed.theme;
     // 귀 모양은 정해진 것 중 하나만 (레벨과 상관없이 다 열려 있다)
     if ('ears' in allowed && !EAR_SHAPES.includes(allowed.ears)) delete allowed.ears;
+    if ('tail' in allowed && !TAIL_SHAPES.includes(allowed.tail)) delete allowed.tail;
     for (const k of ['outfit', 'motions']) {
       if (k in allowed && (typeof allowed[k] !== 'object' || Array.isArray(allowed[k]))) delete allowed[k];
     }
@@ -2152,7 +2154,7 @@ class KitHost {
       this.plugin.relabel();
     }
     const wearMotion = wore ? this.motionFor('wear') : null;
-    if (['petName', 'outfit', 'fur', 'ears', 'soundEnabled', 'language', 'personality', 'motions', 'idleMotions', 'motionsOff', 'setMotionsOn', 'devMode', 'bubblesEnabled', 'lowPower'].some((k) => k in allowed)) this.send('pet:config', { ...this.petConfig(), wearMotion });
+    if (['petName', 'outfit', 'fur', 'ears', 'tail', 'soundEnabled', 'language', 'personality', 'motions', 'idleMotions', 'motionsOff', 'setMotionsOn', 'devMode', 'bubblesEnabled', 'lowPower'].some((k) => k in allowed)) this.send('pet:config', { ...this.petConfig(), wearMotion });
     if (wearMotion) this.send('pet:action', wearMotion);
     if ('excludedProjects' in allowed) {
       // 다시 넣은 폴더는 그동안 안 읽었으니 지금 크기로 기준만 잡는다
